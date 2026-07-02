@@ -1,15 +1,23 @@
+using System.Diagnostics;
 using System.IO;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Wec.Core.Abstractions;
 using Wec.Core.Messaging;
+using Wec.Core.Privileges;
 using Wec.Host.Bridge;
 using Wec.Host.Options;
 using Wec.Infrastructure.Logging;
+using Wec.Infrastructure.Persistence;
+using Wec.Infrastructure.Privileges;
 using Wec.Infrastructure.Time;
+using Wec.Infrastructure.Wmi;
+using Wec.Modules.Inventory.Persistence;
 
 using HostFactory = Microsoft.Extensions.Hosting.Host;
 
@@ -26,6 +34,7 @@ internal static class Program
         {
             using IHost host = BuildHost(args);
             host.Start();
+            ApplyDatabaseMigrations(host.Services);
             try
             {
                 Application.Run(host.Services.GetRequiredService<MainWindow>());
@@ -82,6 +91,22 @@ internal static class Program
                 loggerConfiguration,
                 serviceProvider.GetRequiredService<IOptions<LoggingOptions>>().Value));
 
+        builder.Services
+            .AddOptions<DatabaseOptions>()
+            .Bind(builder.Configuration.GetSection(DatabaseOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        builder.Services.AddSingleton(new ModelAssemblyRegistry([typeof(HardwareSnapshotRecord).Assembly]));
+        builder.Services.AddDbContext<WecDbContext>((serviceProvider, options) =>
+        {
+            var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+            string databasePath = Environment.ExpandEnvironmentVariables(databaseOptions.DatabasePath);
+            options.UseSqlite($"Data Source={databasePath}");
+        });
+
+        builder.Services.AddSingleton<IWmiQueryService, CimWmiQueryService>();
+        builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();
         builder.Services.AddSingleton<ActionDispatcher>();
@@ -89,5 +114,30 @@ internal static class Program
         builder.Services.AddSingleton<MainWindow>();
 
         return builder.Build();
+    }
+
+    private static void ApplyDatabaseMigrations(IServiceProvider services)
+    {
+        using IServiceScope scope = services.CreateScope();
+
+        var databaseOptions = scope.ServiceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+        string databasePath = Environment.ExpandEnvironmentVariables(databaseOptions.DatabasePath);
+        string? databaseDirectory = Path.GetDirectoryName(databasePath);
+        if (!string.IsNullOrEmpty(databaseDirectory))
+        {
+            Directory.CreateDirectory(databaseDirectory);
+        }
+
+        var dbContext = scope.ServiceProvider.GetRequiredService<WecDbContext>();
+        var stopwatch = Stopwatch.StartNew();
+        dbContext.Database.Migrate();
+        stopwatch.Stop();
+
+        scope.ServiceProvider
+            .GetRequiredService<ILogger<WecDbContext>>()
+            .LogInformation(
+                "Database migrations applied in {ElapsedMilliseconds} ms ({DatabasePath})",
+                stopwatch.ElapsedMilliseconds,
+                databasePath);
     }
 }

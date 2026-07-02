@@ -53,6 +53,12 @@ dotnet_naming_symbols.private_field_symbols.applicable_accessibilities = private
 dotnet_naming_style.underscore_camel_style.required_prefix = _
 dotnet_naming_style.underscore_camel_style.capitalization = camel_case
 
+# EF Core migrations are tool-generated; exempt them from style enforcement
+[**/Migrations/**.cs]
+generated_code = true
+dotnet_diagnostic.IDE0161.severity = none
+
+[*.cs]
 # Analyzer tuning
 # CA1848 (LoggerMessage delegates): premature optimization for a desktop app
 dotnet_diagnostic.CA1848.severity = none

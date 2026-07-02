@@ -10,6 +10,9 @@ node_modules/
 frontend/dist/
 src/Wec.Host/wwwroot/
 
+# EF design-time artifacts
+wec-design-time.db
+
 # OS
 Thumbs.db
 Desktop.ini
