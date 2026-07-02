@@ -1,0 +1,5 @@
+# Test-specific analyzer tuning; inherits everything else from the root .editorconfig
+
+[*.cs]
+# CA1707: underscore naming (Method_Scenario_Expectation) is the established xUnit convention
+dotnet_diagnostic.CA1707.severity = none

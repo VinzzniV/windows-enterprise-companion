@@ -56,3 +56,6 @@ dotnet_naming_style.underscore_camel_style.capitalization = camel_case
 # Analyzer tuning
 # CA1848 (LoggerMessage delegates): premature optimization for a desktop app
 dotnet_diagnostic.CA1848.severity = none
+# CA1716 (identifiers matching VB keywords): Error/Module/Action are fixed by
+# the architecture docs and the IPC wire contract; VB interop will never exist
+dotnet_diagnostic.CA1716.severity = none
