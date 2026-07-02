@@ -66,7 +66,8 @@ internal static partial class Program
         }
     }
 
-    private static IHost BuildHost(string[] args)
+    // Internal so the composition-root test can build the real host
+    internal static IHost BuildHost(string[] args)
     {
         HostApplicationBuilder builder = HostFactory.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -172,7 +173,7 @@ internal static partial class Program
         return builder.Build();
     }
 
-    private static void ValidateActionHandlerRegistrations(IServiceProvider services)
+    internal static void ValidateActionHandlerRegistrations(IServiceProvider services)
     {
         using IServiceScope scope = services.CreateScope();
         var duplicateRegistrations = scope.ServiceProvider

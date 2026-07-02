@@ -6,13 +6,14 @@ rejected. Ordering within a section is by value/effort. Milestone work
 
 ## P1 — Hardening (secures everything that already exists)
 
-- [ ] **Wec.Host.Tests project** — the layer every request passes through is
-      untested:
-  - [ ] Composition-root test: build the full ServiceProvider, resolve all
-        `IActionHandler`s (would have caught the internal-ctor DI crash)
-  - [ ] `ActionDispatcher` tests (unknown action, JsonException → INVALID_REQUEST,
-        unhandled exception → INTERNAL_ERROR, correlation scope)
-  - [ ] `BridgeJson` envelope tests (camelCase, SCREAMING_SNAKE enums)
+- [x] **Wec.Host.Tests project** — 10 tests (2026-07-02):
+  - [x] Composition-root test: builds the REAL host, resolves all
+        `IActionHandler`s, asserts every module contributes one
+  - [x] `ActionDispatcher` tests (success, unknown action, Result failure,
+        malformed payload → INVALID_REQUEST, throwing handler →
+        INTERNAL_ERROR without leaking the exception message)
+  - [x] `BridgeJson` envelope tests (camelCase, SCREAMING_SNAKE enums,
+        request deserialization)
 - [ ] **App-start smoke test in CI** — launch the published exe on the Windows
       runner, wait ~10 s, assert "WebView2 initialized" appears in the log;
       catches the startup-crash class unit tests structurally cannot see
