@@ -15,6 +15,7 @@ wec-design-time.db
 
 # Local packaging output (CI builds the real artifacts)
 publish/
+dist/
 wec-*-win-x64.zip
 
 # Local agent tooling

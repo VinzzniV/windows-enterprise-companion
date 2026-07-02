@@ -290,6 +290,25 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Gates: dotnet build 0 warnings ✅ · dotnet test 91/91 ✅ · vitest 9/9 ✅ ·
   npm build ✅
 
+### 2026-07-02 — Iteration 14 (M8 slice 2) — M8 COMPLETE
+- Task: Inno Setup per-user installer
+- packaging/wec-installer.iss: PrivilegesRequired=lowest, DefaultDirName
+  {userpf}\Wec (= %LOCALAPPDATA%\Programs\Wec), Start menu entry,
+  uninstaller; AppVersion injected via /DAppVersion (CI reads
+  Directory.Build.props); uninstall deliberately preserves
+  %LOCALAPPDATA%\Wec runtime data
+- ci.yml: installer built with the preinstalled Inno Setup 6 on
+  windows-latest; second artifact wec-setup-<sha> next to the ZIP
+- Locally replayed full cycle: ISCC build (53.8 MB setup.exe), silent
+  per-user install verified (exe, wwwroot, shortcut, uninstaller), app ran
+  from the install dir, silent uninstall removed program + shortcut and
+  preserved wec.db
+- README: new Installation section (both artifacts, SmartScreen note)
+- Gates: dotnet build 0 warnings ✅ · dotnet test 91/91 ✅ · vitest 9/9 ✅ ·
+  npm build ✅
+- **M8 complete ⇒ M9 release half (tags + release attaching both
+  artifacts) is now unblocked**
+
 ## Standing constraints (from loop definition)
 
 - One small task per iteration; finish M1.1 before M2.

@@ -67,11 +67,29 @@ jobs:
           Compress-Archive -Path publish\* -DestinationPath $zipName
           "zip-name=$zipName" >> $env:GITHUB_OUTPUT
 
-      - name: Upload artifact
+      # Inno Setup 6 is preinstalled on the windows-latest runner image
+      - name: Build per-user installer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version.Trim()
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\wec-installer.iss /DAppVersion=$version /Odist /Q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload ZIP artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: wec-win-x64-${{ github.sha }}
           path: ${{ steps.package.outputs.zip-name }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload installer artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wec-setup-${{ github.sha }}
+          path: dist/*.exe
           if-no-files-found: error
           retention-days: 14

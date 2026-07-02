@@ -15,6 +15,21 @@ and the ADRs in [docs/adr/](docs/adr/).
 - .NET SDK 10.0.3xx (pinned in `global.json`)
 - Node.js ≥ 20 + npm (frontend build)
 
+## Installation
+
+Every green CI run on `master` produces two artifacts (ADR 0005), both
+self-contained for win-x64 — no .NET runtime needed on the target machine:
+
+- `wec-<version>-win-x64.zip` — portable; unzip anywhere and run
+  `Wec.Host.exe`.
+- `wec-<version>-setup.exe` — per-user installer to
+  `%LOCALAPPDATA%\Programs\Wec` (**no administrator rights required**),
+  with Start menu entry and uninstaller. Uninstalling keeps the runtime
+  data in `%LOCALAPPDATA%\Wec` (database, logs).
+
+Artifacts are not code-signed yet, so SmartScreen warns on first run of
+downloaded builds.
+
 ## Build & run
 
 ```bash
@@ -98,7 +113,8 @@ Migrations are applied automatically at app startup.
 `TreatWarningsAsErrors`, all backend tests. When every gate passed on a push
 to `master`, CI publishes the host **self-contained for win-x64** (no .NET
 runtime needed on target machines, ADR 0005) and uploads a portable
-`wec-<version>-win-x64.zip` artifact.
+`wec-<version>-win-x64.zip` plus a per-user Inno Setup installer
+(`packaging/wec-installer.iss`).
 
 ## Runtime locations
 
