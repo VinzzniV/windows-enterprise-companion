@@ -321,7 +321,11 @@ Maintained by the autonomous development loop. One entry per iteration.
   --generate-notes --verify-tag` (pwsh does not glob for native commands —
   setup path resolved via Get-ChildItem)
 - Release procedure documented in README (bump version → commit → tag → push)
-- Validated end to end with the real v0.1.0 tag (see next entry once run)
+- Validated end to end: tag v0.1.0 pushed → tag run green → release
+  **v0.1.0 published** with wec-0.1.0-win-x64.zip (80.7 MB) and
+  wec-0.1.0-setup.exe (56.4 MB); parallel master run also green
+- **M9 complete.** Remaining roadmap: M4 (AD, needs access-strategy ADR),
+  M6 (remediation, needs ADR), M7 (AI, optional)
 
 ## Standing constraints (from loop definition)
 
