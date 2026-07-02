@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [master]
+    # Release process (M9): pushing a version tag runs the identical gates,
+    # then attaches both packaging artifacts (ADR 0005) to a GitHub release
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -10,14 +13,29 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  # contents: write is required by `gh release create`; everything else stays read-only
+  contents: write
+
 jobs:
   build-and-test:
-    # net9.0-windows + WinForms host: Windows runner is mandatory
+    # net10.0-windows + WinForms host: Windows runner is mandatory
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Fail fast before building anything from a mislabeled tag
+      - name: Verify tag matches project version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version.Trim()
+          if ('${{ github.ref_name }}' -ne "v$version") {
+            Write-Error "Tag ${{ github.ref_name }} does not match project version $version (Directory.Build.props)"
+            exit 1
+          }
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -52,13 +70,13 @@ jobs:
 
       # Packaging (ADR 0005): self-contained win-x64 so target machines need no
       # .NET runtime. Compiles for the RID, so --no-build does not apply here.
-      # Only when every gate above passed, and only for pushes to master.
+      # Only when every gate above passed, and only for master pushes and version tags.
       - name: Publish host (self-contained win-x64)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
         run: dotnet publish src/Wec.Host --configuration Release --runtime win-x64 --self-contained true --output publish
 
       - name: Create portable ZIP
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
         id: package
         shell: pwsh
         run: |
@@ -69,7 +87,7 @@ jobs:
 
       # Inno Setup 6 is preinstalled on the windows-latest runner image
       - name: Build per-user installer
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
         shell: pwsh
         run: |
           $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version.Trim()
@@ -77,7 +95,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload ZIP artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
         uses: actions/upload-artifact@v4
         with:
           name: wec-win-x64-${{ github.sha }}
@@ -86,10 +104,20 @@ jobs:
           retention-days: 14
 
       - name: Upload installer artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
         uses: actions/upload-artifact@v4
         with:
           name: wec-setup-${{ github.sha }}
           path: dist/*.exe
           if-no-files-found: error
           retention-days: 14
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $setup = (Get-ChildItem dist\*.exe | Select-Object -First 1).FullName
+          gh release create '${{ github.ref_name }}' '${{ steps.package.outputs.zip-name }}' $setup --generate-notes --verify-tag
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

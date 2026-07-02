@@ -4,7 +4,7 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M8 — Packaging (slice 0 done; slices 1–2 pending)
+- **Milestone:** M9 — release half (M8 complete 2026-07-02)
 - **User decisions for M8 (2026-07-02):** upgrade to .NET 10 LTS first
   (slice 0); package **self-contained win-x64** (~180 MB measured vs 39 MB
   framework-dependent — zero prerequisites on target machines won);
@@ -308,6 +308,20 @@ Maintained by the autonomous development loop. One entry per iteration.
   npm build ✅
 - **M8 complete ⇒ M9 release half (tags + release attaching both
   artifacts) is now unblocked**
+
+### 2026-07-02 — Iteration 15 (M9 slice 2) — M9 COMPLETE
+- Task: release process (tags → GitHub release with both artifacts)
+- Deliberately NO second workflow: ci.yml gets a `v*` tag trigger so a
+  release runs through the identical gates — no build-step duplication that
+  could drift. `permissions: contents: write` added for `gh release create`.
+- Fail-fast guard right after checkout: tag name must equal
+  `v<Version from Directory.Build.props>`, otherwise the run fails before
+  building anything
+- Release step (tags only): `gh release create <tag> <zip> <setup.exe>
+  --generate-notes --verify-tag` (pwsh does not glob for native commands —
+  setup path resolved via Get-ChildItem)
+- Release procedure documented in README (bump version → commit → tag → push)
+- Validated end to end with the real v0.1.0 tag (see next entry once run)
 
 ## Standing constraints (from loop definition)
 

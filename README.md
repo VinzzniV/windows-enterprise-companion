@@ -116,6 +116,17 @@ runtime needed on target machines, ADR 0005) and uploads a portable
 `wec-<version>-win-x64.zip` plus a per-user Inno Setup installer
 (`packaging/wec-installer.iss`).
 
+## Releasing
+
+Releases are cut by pushing a version tag; CI runs the identical gates and
+attaches both artifacts to a GitHub release with generated notes:
+
+1. Bump `<Version>` in `Directory.Build.props`, commit to `master`.
+2. `git tag v<version> && git push origin v<version>`
+
+The workflow refuses tags that do not match the project version, so a
+mislabeled release cannot be published.
+
 ## Runtime locations
 
 | What | Where |
