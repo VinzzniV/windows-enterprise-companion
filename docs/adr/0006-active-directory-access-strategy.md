@@ -1,6 +1,6 @@
 # ADR 0006: Active Directory Access Strategy
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-07-02)
 - **Date:** 2026-07-02
 - **Deciders:** Vinz
 - **Supersedes:** —

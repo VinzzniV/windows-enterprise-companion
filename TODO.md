@@ -27,11 +27,10 @@ rejected. Ordering within a section is by value/effort. Milestone work
 
 ## P1 — Pending decisions (user)
 
-- [ ] Sign off **ADR 0004** (cross-module read contracts) — Proposed since M5
-- [ ] Review **ADR 0006** (AD access strategy) — implemented, needs sign-off
-- [ ] Decide: TypeScript type generator for `api-types.ts` (manual sync is
-      ~20 types across 6 modules now; drift only surfaces at runtime) — was
-      deliberately out of scope in M1, worth revisiting
+- [x] **ADR 0004** accepted (2026-07-02)
+- [x] **ADR 0006** accepted (2026-07-02)
+- [x] Decision (2026-07-02): **build the TypeScript type generator** —
+      C#→TS as a build step with a CI diff check → new P2 item below
 
 ## P2 — Quick wins on existing data
 
@@ -39,10 +38,13 @@ rejected. Ordering within a section is by value/effort. Milestone work
       (summaries with severity counts + diff latest↔previous keyed by
       FindingId+AffectedResource), history section with dependency-free SVG
       sparkline, `Wec:Security:HistoryLimit` option (default 20), 9 new tests
-- [ ] **AD section in the executive summary report** — missing since M4.
-      Options (pick one): explicit "include live AD analysis" checkbox
-      (visible run, consistent with the no-silent-queries rule) or AD scan
-      persistence analogous to security scans
+- [ ] **AD section in the executive summary report** — decided 2026-07-02:
+      explicit "include live AD analysis" checkbox in the export UI (visible
+      run, no silent queries, no new persistence); report renders overview +
+      hygiene sections when checked
+- [ ] **TypeScript type generator** for `api-types.ts` — decided 2026-07-02:
+      small C#→TS generator tool run as build step, CI fails on diff
+      (kills the manual-sync drift class)
 - [x] **"Restart as administrator" button** (2026-07-02) — sidebar footer,
       only visible unelevated; launches an elevated copy of this exe via UAC
       ("runas"), dismissed prompt = valid outcome, then closes the unelevated

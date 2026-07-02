@@ -1,6 +1,6 @@
 # ADR 0004: Cross-Module Read Contracts in Wec.Core
 
-- **Status:** Proposed (implemented with M5 slice 1; user review pending)
+- **Status:** Accepted (2026-07-02)
 - **Date:** 2026-07-02
 - **Deciders:** Vinz
 - **Supersedes:** —
