@@ -26,6 +26,44 @@ dotnet run --project src/Wec.Host
 The app starts **unelevated** by design (ADR 0002). Checks that need more
 rights render a "Requires elevation" status instead of failing silently.
 
+## Unelevated behavior
+
+- The manifest requests `asInvoker`; the app never auto-elevates.
+- The sidebar footer shows the current privilege level
+  (`Standard user` / `Administrator`) reported by `IPrivilegeContext`.
+- Checks declare their required privilege. Unelevated, the BitLocker card on
+  the Inventory page shows an amber **Requires elevation** badge — this is
+  expected, not an error. To run those checks, close the app and start it
+  again via *Run as administrator* (manual, per ADR 0002).
+- Access-denied results always carry the required privilege in the typed
+  error envelope (`ACCESS_DENIED` + `requiredPrivilege`, ADR 0003).
+
+## Verifying the inventory cache
+
+Hardware data is cached in SQLite with a TTL (`Wec:Inventory:CacheTtl`,
+default 15 minutes):
+
+1. Start the app — the Inventory header shows **Freshly captured** with a
+   timestamp; the log records `Captured fresh hardware snapshot`.
+2. Restart within the TTL — the header shows **From cache** with the *same*
+   timestamp; the log records `Serving hardware snapshot from cache`.
+3. **Refresh** forces a new WMI capture regardless of TTL.
+
+Logs (rolling daily, path shown in the sidebar footer) carry a
+`CorrelationId` per bridge request for tracing a UI action end to end.
+
+## Current limitations
+
+- Local machine only — no remote inventory, no domain/AD features yet.
+- Inventory covers CPU, memory banks, physical disks, OS and BitLocker
+  status; no monitors, GPUs, network adapters or installed software.
+- The snapshot cache keeps only the latest snapshot (no history).
+- Elevation requires a manual restart as administrator; there is no
+  per-action elevation prompt (deliberate, ADR 0002).
+- TypeScript API types are mirrored manually from the C# DTOs
+  (`frontend/src/shared/api-types.ts`) — review on every DTO change.
+- No installer/packaging and no CI pipeline yet (roadmap M8/M9).
+
 ## Development workflow
 
 Frontend hot reload: run `npm run dev` in `frontend/`, then point the host at

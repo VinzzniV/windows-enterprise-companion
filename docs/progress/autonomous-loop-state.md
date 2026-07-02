@@ -4,7 +4,8 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M1.1 — Stabilization and UX hardening (in progress)
+- **Milestone:** M1.1 — Stabilization and UX hardening — **COMPLETE**
+  (awaiting user review before M2 starts)
 - **M1 (Local hardware inventory):** complete — 10 steps, commits `34ddc8d`…`0ef3790`,
   DoD verified (unelevated start, CIM → SQLite cache → bridge → React,
   RequiresElevation path, 14 backend tests)
@@ -22,8 +23,8 @@ Maintained by the autonomous development loop. One entry per iteration.
 | Show database path | ✅ iteration 2 | resolved from DatabaseOptions, shown in footer with tooltip |
 | Show log file path | ✅ iteration 2 | resolved from LoggingOptions; footer also shows elevation badge |
 | Open logs folder button | ✅ iteration 3 | `system/openLogsFolder`; path only from validated options, never from payload |
-| README: run instructions + current limitations | 🔶 partial | run instructions exist; limitations section missing |
-| Document unelevated behavior + cache verification | 🔶 partial | ADR 0002/0003 cover design; user-facing doc missing |
+| README: run instructions + current limitations | ✅ iteration 4 | "Current limitations" section added |
+| Document unelevated behavior + cache verification | ✅ iteration 4 | README sections "Unelevated behavior" and "Verifying the inventory cache" |
 
 ## Iteration log
 
@@ -60,6 +61,17 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Next recommended: final docs slice — README "current limitations" section
   plus unelevated-behavior and cache-verification documentation; completing
   it finishes M1.1 ⇒ stop with NEEDS_USER_REVIEW
+
+### 2026-07-02 — Iteration 4
+- Task: README limitations + unelevated/cache documentation (final M1.1 item)
+- Changes: README sections "Unelevated behavior", "Verifying the inventory
+  cache", "Current limitations"
+- Gates: docs-only change; dotnet build/test and npm test/build re-run green
+- **M1.1 complete ⇒ loop stopped with NEEDS_USER_REVIEW.**
+  Open decisions for the user before M2 (see final report): findings
+  persistence model, severity mapping ownership, and whether M2 becomes a new
+  Wec.Modules.Security module (it should, per architecture) — plus review of
+  the M1.1 UX in the running app.
 
 ## Standing constraints (from loop definition)
 
