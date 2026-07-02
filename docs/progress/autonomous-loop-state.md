@@ -235,7 +235,11 @@ Maintained by the autonomous development loop. One entry per iteration.
   publish + artifact upload ONLY on green master pushes (14-day retention)
 - Locally replayed the exact pipeline: Release build 0 warnings, 91/91 tests
   green in Release, publish output verified (exe + appsettings + wwwroot)
-- NOTE: repo has no GitHub remote yet — workflow activates on first push
+- Remote created 2026-07-02: private repo
+  https://github.com/VinzzniV/windows-enterprise-companion (gh CLI installed
+  via winget, user authenticated as VinzzniV); first CI run green in 2m21s,
+  artifact `wec-host-<sha>` uploaded. Runner annotation: v4 actions are
+  Node-20-based (deprecated) — bump action majors when available
 - M9 release half (tags/installer) blocked on M8 packaging direction
 
 ## Standing constraints (from loop definition)
