@@ -1,0 +1,15 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+
+# Frontend
+node_modules/
+frontend/dist/
+src/Wec.Host/wwwroot/
+
+# OS
+Thumbs.db
+Desktop.ini
