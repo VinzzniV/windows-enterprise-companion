@@ -4,8 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Serilog;
+using Wec.Core.Abstractions;
+using Wec.Core.Messaging;
+using Wec.Host.Bridge;
 using Wec.Host.Options;
 using Wec.Infrastructure.Logging;
+using Wec.Infrastructure.Time;
 
 using HostFactory = Microsoft.Extensions.Hosting.Host;
 
@@ -72,6 +76,10 @@ internal static class Program
                 loggerConfiguration,
                 serviceProvider.GetRequiredService<IOptions<LoggingOptions>>().Value));
 
+        builder.Services.AddSingleton<IClock, SystemClock>();
+        builder.Services.AddSingleton<IActionHandler, PingHandler>();
+        builder.Services.AddSingleton<ActionDispatcher>();
+        builder.Services.AddSingleton<WebViewBridge>();
         builder.Services.AddSingleton<MainWindow>();
 
         return builder.Build();
