@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
-import type { ExportHtmlReportRequest, HtmlExportResult, ReportOverview } from '../../shared/api-types';
+import type { ExportReportRequest, ReportExportResult, ReportOverview } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 
 type OverviewState =
@@ -31,24 +31,27 @@ export function ReportingPage() {
       );
   }, []);
 
-  const exportHtml = useCallback(() => {
-    setExportState({ kind: 'exporting' });
-    const payload: ExportHtmlReportRequest = { openAfterExport };
-    invoke<HtmlExportResult>('reporting', 'exportHtml', payload, 120_000)
-      .then((result) =>
-        setExportState(
-          result.cancelled || result.filePath === null
-            ? { kind: 'cancelled' }
-            : { kind: 'exported', filePath: result.filePath },
-        ),
-      )
-      .catch((error: unknown) =>
-        setExportState({
-          kind: 'error',
-          message: error instanceof Error ? error.message : String(error),
-        }),
-      );
-  }, [openAfterExport]);
+  const exportReport = useCallback(
+    (action: 'exportHtml' | 'exportJson') => {
+      setExportState({ kind: 'exporting' });
+      const payload: ExportReportRequest = { openAfterExport };
+      invoke<ReportExportResult>('reporting', action, payload, 120_000)
+        .then((result) =>
+          setExportState(
+            result.cancelled || result.filePath === null
+              ? { kind: 'cancelled' }
+              : { kind: 'exported', filePath: result.filePath },
+          ),
+        )
+        .catch((error: unknown) =>
+          setExportState({
+            kind: 'error',
+            message: error instanceof Error ? error.message : String(error),
+          }),
+        );
+    },
+    [openAfterExport],
+  );
 
   const overview = overviewState.kind === 'loaded' ? overviewState.overview : null;
   const hasAnyData =
@@ -107,15 +110,26 @@ export function ReportingPage() {
               />
               Open the report after export
             </label>
-            <div>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={exportHtml}
+                onClick={() => exportReport('exportHtml')}
                 disabled={!hasAnyData || exportState.kind === 'exporting'}
                 className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
               >
-                {exportState.kind === 'exporting' ? 'Waiting for save dialog …' : 'Export HTML'}
+                Export HTML
               </button>
+              <button
+                type="button"
+                onClick={() => exportReport('exportJson')}
+                disabled={!hasAnyData || exportState.kind === 'exporting'}
+                className="rounded border border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:opacity-50"
+              >
+                Export JSON
+              </button>
+              {exportState.kind === 'exporting' && (
+                <span className="text-sm text-slate-400">Waiting for save dialog …</span>
+              )}
             </div>
 
             {!hasAnyData && (

@@ -181,13 +181,13 @@ export interface ReportOverview {
   securityFindingCount: number | null;
 }
 
-/** Wec.Modules.Reporting.Handlers.ExportHtmlReportRequest */
-export interface ExportHtmlReportRequest {
+/** Wec.Modules.Reporting.Handlers.ExportHtmlReportRequest / ExportJsonReportRequest */
+export interface ExportReportRequest {
   openAfterExport?: boolean;
 }
 
-/** Wec.Modules.Reporting.Application.HtmlExportResult */
-export interface HtmlExportResult {
+/** Wec.Modules.Reporting.Application.ReportExportResult */
+export interface ReportExportResult {
   cancelled: boolean;
   filePath: string | null;
 }

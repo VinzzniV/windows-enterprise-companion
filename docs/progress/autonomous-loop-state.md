@@ -4,9 +4,9 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M5 — Reporting/export (in progress; **M5 moved before M4 by
-  user decision on 2026-07-02** — M4 (AD) deferred, needs its access-strategy
-  ADR before it starts)
+- **Milestone:** M5 — Reporting/export — **COMPLETE** (M5 was moved before M4
+  by user decision on 2026-07-02; M4 (AD) is deferred and needs its
+  access-strategy ADR before it starts)
 - **M3:** complete and accepted 2026-07-02
 - **User decisions for M5 (2026-07-02):** slice 1 = HTML executive summary of
   latest inventory snapshot + latest persisted security scan only (no
@@ -20,7 +20,8 @@ Maintained by the autonomous development loop. One entry per iteration.
 | Slice | Status | Content |
 |---|---|---|
 | 1 | ✅ 2026-07-02 | ADR 0004 (cross-module read contracts), report data providers, HTML generator, save-dialog export, Reporting page, 12 tests |
-| 2 | ⬜ next | JSON export of the same data set |
+| 2 | ✅ 2026-07-02 | JSON export of the same data set (shared export flow) |
+| — | — | **M5 complete ⇒ awaiting user review** |
 - **M2:** complete and accepted by user on 2026-07-02 (footer overflow fixed in 84d41c0)
 - **User decisions for M3 slice 1 (2026-07-02):** no persistence (UI state only;
   revisit with M5 if reporting needs diagnostics history); DNS probe default
@@ -211,6 +212,19 @@ Maintained by the autonomous development loop. One entry per iteration.
   values (XSS test), no external references (test-enforced)
 - Gates: dotnet 88/88 ✅ · vitest 9/9 ✅ · builds clean ✅ · app start clean ✅
 - Next: M5 slice 2 — JSON export of the same data set
+
+### 2026-07-02 — Iteration 10 (M5 slice 2) — M5 COMPLETE
+- Task: JSON export of the same data set
+- Shared private export flow (gather → no-data check → dialog → write →
+  optional open) reused by HTML and JSON; HtmlExportResult renamed to
+  ReportExportResult (used by both handlers)
+- JSON = camelCase, indented serialization of ExecutiveSummaryContext
+  (machineName, appVersion, generatedAtUtc, inventory, securityScan;
+  missing sections rendered as null, not omitted)
+- reporting/exportJson handler + second export button in the UI
+- Gates: dotnet 91/91 ✅ · vitest 9/9 ✅ · builds clean ✅ · app start clean ✅
+- Roadmap state: M1, M1.1, M2, M3, M5 complete; M4 (AD) deferred by user,
+  requires access-strategy ADR; then M6/M7/M8/M9 per roadmap order
 
 ## Standing constraints (from loop definition)
 

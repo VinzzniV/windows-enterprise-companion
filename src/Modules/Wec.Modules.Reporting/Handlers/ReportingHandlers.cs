@@ -27,7 +27,7 @@ internal sealed class GetReportOverviewHandler : IActionHandler<GetReportOvervie
 
 public sealed record ExportHtmlReportRequest(bool OpenAfterExport = false);
 
-internal sealed class ExportHtmlReportHandler : IActionHandler<ExportHtmlReportRequest, HtmlExportResult>
+internal sealed class ExportHtmlReportHandler : IActionHandler<ExportHtmlReportRequest, ReportExportResult>
 {
     private readonly ReportExportService _reportExportService;
 
@@ -40,8 +40,29 @@ internal sealed class ExportHtmlReportHandler : IActionHandler<ExportHtmlReportR
 
     public string Action => "exportHtml";
 
-    public Task<Result<HtmlExportResult>> HandleAsync(
+    public Task<Result<ReportExportResult>> HandleAsync(
         ExportHtmlReportRequest payload,
         CancellationToken cancellationToken) =>
         _reportExportService.ExportHtmlAsync(payload.OpenAfterExport, cancellationToken);
+}
+
+public sealed record ExportJsonReportRequest(bool OpenAfterExport = false);
+
+internal sealed class ExportJsonReportHandler : IActionHandler<ExportJsonReportRequest, ReportExportResult>
+{
+    private readonly ReportExportService _reportExportService;
+
+    public ExportJsonReportHandler(ReportExportService reportExportService)
+    {
+        _reportExportService = reportExportService;
+    }
+
+    public string Module => "reporting";
+
+    public string Action => "exportJson";
+
+    public Task<Result<ReportExportResult>> HandleAsync(
+        ExportJsonReportRequest payload,
+        CancellationToken cancellationToken) =>
+        _reportExportService.ExportJsonAsync(payload.OpenAfterExport, cancellationToken);
 }

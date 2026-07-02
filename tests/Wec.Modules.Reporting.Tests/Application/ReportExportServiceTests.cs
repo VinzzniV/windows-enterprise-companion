@@ -56,7 +56,7 @@ public sealed class ReportExportServiceTests : IDisposable
         SetUpData();
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(_exportPath);
 
-        Result<HtmlExportResult> result = await CreateService().ExportHtmlAsync(
+        Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
             openAfterExport: false, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -84,7 +84,7 @@ public sealed class ReportExportServiceTests : IDisposable
         SetUpData();
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns((string?)null);
 
-        Result<HtmlExportResult> result = await CreateService().ExportHtmlAsync(
+        Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
             openAfterExport: true, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -98,7 +98,7 @@ public sealed class ReportExportServiceTests : IDisposable
     {
         SetUpData(inventory: false, scan: false);
 
-        Result<HtmlExportResult> result = await CreateService().ExportHtmlAsync(
+        Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
             openAfterExport: false, CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -113,7 +113,7 @@ public sealed class ReportExportServiceTests : IDisposable
         string invalidPath = Path.Combine(Path.GetTempPath(), $"missing-dir-{Guid.NewGuid():N}", "report.html");
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(invalidPath);
 
-        Result<HtmlExportResult> result = await CreateService().ExportHtmlAsync(
+        Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
             openAfterExport: false, CancellationToken.None);
 
         Assert.True(result.IsFailure);
@@ -140,4 +140,5 @@ public sealed class ReportExportServiceTests : IDisposable
         }
     }
 }
+
 

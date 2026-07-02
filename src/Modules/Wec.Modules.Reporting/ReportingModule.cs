@@ -15,5 +15,6 @@ public sealed class ReportingModule : IModule
         services.AddScoped<ReportExportService>();
         services.AddScoped<IActionHandler, GetReportOverviewHandler>();
         services.AddScoped<IActionHandler, ExportHtmlReportHandler>();
+        services.AddScoped<IActionHandler, ExportJsonReportHandler>();
     }
 }
