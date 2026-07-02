@@ -4,12 +4,25 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- WebView2 ships a WPF assembly referencing WindowsBase; without UseWPF the
+         framework reference is missing and MSB3277 version conflicts appear -->
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Wec.Core\Wec.Core.csproj" />
     <ProjectReference Include="..\Wec.Infrastructure\Wec.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.Inventory\Wec.Modules.Inventory.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Web.WebView2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
