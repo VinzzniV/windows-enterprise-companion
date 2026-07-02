@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
@@ -11,6 +12,8 @@ internal sealed class HandlerRegistration
     private static readonly MethodInfo OpenInvokeMethod = typeof(HandlerRegistration)
         .GetMethod(nameof(InvokeCoreAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
 
+    private static readonly ConcurrentDictionary<Type, MethodInfo> ClosedInvokeMethodCache = new();
+
     private readonly IActionHandler _handler;
     private readonly MethodInfo _closedInvokeMethod;
 
@@ -22,19 +25,24 @@ internal sealed class HandlerRegistration
 
     public static HandlerRegistration Create(IActionHandler handler)
     {
-        Type? closedHandlerInterface = handler.GetType().GetInterfaces().SingleOrDefault(
+        MethodInfo closedInvokeMethod =
+            ClosedInvokeMethodCache.GetOrAdd(handler.GetType(), CloseInvokeMethodFor);
+        return new HandlerRegistration(handler, closedInvokeMethod);
+    }
+
+    private static MethodInfo CloseInvokeMethodFor(Type handlerType)
+    {
+        Type? closedHandlerInterface = handlerType.GetInterfaces().SingleOrDefault(
             candidate => candidate.IsGenericType
                 && candidate.GetGenericTypeDefinition() == typeof(IActionHandler<,>));
 
         if (closedHandlerInterface is null)
         {
             throw new InvalidOperationException(
-                $"{handler.GetType().Name} must implement IActionHandler<TPayload, TResult> exactly once.");
+                $"{handlerType.Name} must implement IActionHandler<TPayload, TResult> exactly once.");
         }
 
-        MethodInfo closedInvokeMethod =
-            OpenInvokeMethod.MakeGenericMethod(closedHandlerInterface.GetGenericArguments());
-        return new HandlerRegistration(handler, closedInvokeMethod);
+        return OpenInvokeMethod.MakeGenericMethod(closedHandlerInterface.GetGenericArguments());
     }
 
     public async Task<BridgeResponse> InvokeAsync(BridgeRequest request, CancellationToken cancellationToken)

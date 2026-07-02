@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wec.Core.Messaging;
 using Wec.Core.Results;
@@ -7,21 +8,13 @@ namespace Wec.Host.Bridge;
 
 internal sealed class ActionDispatcher
 {
-    private readonly Dictionary<(string Module, string Action), HandlerRegistration> _registrations = [];
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ActionDispatcher> _logger;
 
-    public ActionDispatcher(IEnumerable<IActionHandler> handlers, ILogger<ActionDispatcher> logger)
+    public ActionDispatcher(IServiceScopeFactory scopeFactory, ILogger<ActionDispatcher> logger)
     {
+        _scopeFactory = scopeFactory;
         _logger = logger;
-
-        foreach (IActionHandler handler in handlers)
-        {
-            if (!_registrations.TryAdd((handler.Module, handler.Action), HandlerRegistration.Create(handler)))
-            {
-                throw new InvalidOperationException(
-                    $"Duplicate action handler registration for '{handler.Module}/{handler.Action}'.");
-            }
-        }
     }
 
     public async Task<BridgeResponse> DispatchAsync(BridgeRequest request, CancellationToken cancellationToken)
@@ -33,7 +26,14 @@ internal sealed class ActionDispatcher
             ["Action"] = request.Action,
         });
 
-        if (!_registrations.TryGetValue((request.Module, request.Action), out HandlerRegistration? registration))
+        // Handlers are resolved per request so they can depend on scoped services
+        // (DbContext etc.); uniqueness of (module, action) is validated at startup
+        using IServiceScope serviceScope = _scopeFactory.CreateScope();
+        IActionHandler? handler = serviceScope.ServiceProvider
+            .GetServices<IActionHandler>()
+            .FirstOrDefault(candidate => candidate.Module == request.Module && candidate.Action == request.Action);
+
+        if (handler is null)
         {
             _logger.LogWarning("No handler registered for {Module}/{Action}", request.Module, request.Action);
             return BridgeResponse.ForFailure(request.Id, new Error(
@@ -43,7 +43,8 @@ internal sealed class ActionDispatcher
 
         try
         {
-            BridgeResponse response = await registration.InvokeAsync(request, cancellationToken);
+            BridgeResponse response = await HandlerRegistration.Create(handler)
+                .InvokeAsync(request, cancellationToken);
             _logger.LogInformation("Bridge request handled, success: {Success}", response.Success);
             return response;
         }

@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -17,7 +16,7 @@ namespace Wec.Infrastructure.Persistence.Migrations
                 {
                     id = table.Column<long>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    captured_at_utc = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
+                    captured_at_utc = table.Column<long>(type: "INTEGER", nullable: false),
                     payload_json = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>

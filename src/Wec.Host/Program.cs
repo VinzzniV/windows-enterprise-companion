@@ -15,9 +15,10 @@ using Wec.Host.Options;
 using Wec.Infrastructure.Logging;
 using Wec.Infrastructure.Persistence;
 using Wec.Infrastructure.Privileges;
+using Wec.Core.Modules;
 using Wec.Infrastructure.Time;
 using Wec.Infrastructure.Wmi;
-using Wec.Modules.Inventory.Persistence;
+using Wec.Modules.Inventory;
 
 using HostFactory = Microsoft.Extensions.Hosting.Host;
 
@@ -34,6 +35,7 @@ internal static class Program
         {
             using IHost host = BuildHost(args);
             host.Start();
+            ValidateActionHandlerRegistrations(host.Services);
             ApplyDatabaseMigrations(host.Services);
             try
             {
@@ -97,13 +99,28 @@ internal static class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        builder.Services.AddSingleton(new ModelAssemblyRegistry([typeof(HardwareSnapshotRecord).Assembly]));
+        builder.Services
+            .AddOptions<InventoryOptions>()
+            .Bind(builder.Configuration.GetSection(InventoryOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        IModule[] modules = [new InventoryModule()];
+        foreach (IModule module in modules)
+        {
+            module.RegisterServices(builder.Services);
+        }
+
+        builder.Services.AddSingleton(new ModelAssemblyRegistry(
+            [.. modules.Select(module => module.GetType().Assembly)]));
         builder.Services.AddDbContext<WecDbContext>((serviceProvider, options) =>
         {
             var databaseOptions = serviceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
             string databasePath = Environment.ExpandEnvironmentVariables(databaseOptions.DatabasePath);
             options.UseSqlite($"Data Source={databasePath}");
         });
+        // Modules depend on the DbContext base type only (dependency rule 2)
+        builder.Services.AddScoped<DbContext>(serviceProvider => serviceProvider.GetRequiredService<WecDbContext>());
 
         builder.Services.AddSingleton<IWmiQueryService, CimWmiQueryService>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
@@ -114,6 +131,23 @@ internal static class Program
         builder.Services.AddSingleton<MainWindow>();
 
         return builder.Build();
+    }
+
+    private static void ValidateActionHandlerRegistrations(IServiceProvider services)
+    {
+        using IServiceScope scope = services.CreateScope();
+        var duplicateRegistrations = scope.ServiceProvider
+            .GetServices<IActionHandler>()
+            .GroupBy(handler => (handler.Module, handler.Action))
+            .Where(group => group.Count() > 1)
+            .Select(group => $"{group.Key.Module}/{group.Key.Action}")
+            .ToList();
+
+        if (duplicateRegistrations.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Duplicate action handler registrations: {string.Join(", ", duplicateRegistrations)}");
+        }
     }
 
     private static void ApplyDatabaseMigrations(IServiceProvider services)
