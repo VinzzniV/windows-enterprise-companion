@@ -1,0 +1,65 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using Wec.Core.Abstractions;
+using Wec.Core.Privileges;
+using Wec.Core.Results;
+using Wec.Modules.Inventory.Application;
+using Wec.Modules.Inventory.Domain;
+
+namespace Wec.Modules.Inventory.Tests.Application;
+
+public class DiskEncryptionServiceTests
+{
+    private readonly IWmiQueryService _wmiQueryService = Substitute.For<IWmiQueryService>();
+    private readonly IPrivilegeContext _privilegeContext = Substitute.For<IPrivilegeContext>();
+
+    private DiskEncryptionService CreateService() => new(
+        _wmiQueryService,
+        _privilegeContext,
+        NullLogger<DiskEncryptionService>.Instance);
+
+    [Fact]
+    public async Task Unelevated_ReturnsAccessDeniedWithRequiredPrivilege_WithoutQueryingWmi()
+    {
+        _privilegeContext.Satisfies(PrivilegeLevel.Administrator).Returns(false);
+        DiskEncryptionService service = CreateService();
+
+        Result<DiskEncryptionStatus> result = await service.GetStatusAsync(CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);
+        Assert.Equal(PrivilegeLevel.Administrator, result.Error.RequiredPrivilege);
+        await _wmiQueryService.DidNotReceive()
+            .QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Elevated_MapsProtectionStatusPerVolume()
+    {
+        _privilegeContext.Satisfies(PrivilegeLevel.Administrator).Returns(true);
+        _wmiQueryService
+            .QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<WmiInstance>>(
+            [
+                new WmiInstance(new Dictionary<string, object?>
+                {
+                    ["DriveLetter"] = "C:",
+                    ["ProtectionStatus"] = 1u,
+                }),
+                new WmiInstance(new Dictionary<string, object?>
+                {
+                    ["DriveLetter"] = "D:",
+                    ["ProtectionStatus"] = 0u,
+                }),
+            ]));
+        DiskEncryptionService service = CreateService();
+
+        Result<DiskEncryptionStatus> result = await service.GetStatusAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Collection(
+            result.Value.Volumes,
+            volume => Assert.Equal(("C:", VolumeProtectionStatus.Protected), (volume.DriveLetter, volume.ProtectionStatus)),
+            volume => Assert.Equal(("D:", VolumeProtectionStatus.Unprotected), (volume.DriveLetter, volume.ProtectionStatus)));
+    }
+}
