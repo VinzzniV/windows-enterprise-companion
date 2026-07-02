@@ -9,4 +9,5 @@ public enum ErrorCode
     InvalidRequest,
     UnknownAction,
     NetworkProbeFailed,
+    EventLogUnavailable,
 }

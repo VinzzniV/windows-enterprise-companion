@@ -13,6 +13,10 @@ public enum DiagnosticStatus
 public enum DiagnosticCategory
 {
     Network = 0,
+    Domain = 1,
+    TimeSynchronization = 2,
+    EventLog = 3,
+    Services = 4,
 }
 
 public sealed record DiagnosticResult(

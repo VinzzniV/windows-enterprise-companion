@@ -28,7 +28,8 @@ export type ErrorCode =
   | 'WMI_UNAVAILABLE'
   | 'INVALID_REQUEST'
   | 'UNKNOWN_ACTION'
-  | 'NETWORK_PROBE_FAILED';
+  | 'NETWORK_PROBE_FAILED'
+  | 'EVENT_LOG_UNAVAILABLE';
 
 /** Wec.Modules.Inventory.Handlers.GetHardwareInfoRequest */
 export interface GetHardwareInfoRequest {
@@ -144,7 +145,12 @@ export interface LatestScanResult {
 export type DiagnosticStatus = 'PASS' | 'WARNING' | 'FAIL' | 'NOT_RUN';
 
 /** Wec.Modules.Diagnostics.Domain.DiagnosticCategory (SCREAMING_SNAKE on the wire) */
-export type DiagnosticCategory = 'NETWORK';
+export type DiagnosticCategory =
+  | 'NETWORK'
+  | 'DOMAIN'
+  | 'TIME_SYNCHRONIZATION'
+  | 'EVENT_LOG'
+  | 'SERVICES';
 
 /** Wec.Modules.Diagnostics.Domain.DiagnosticResult */
 export interface DiagnosticResult {

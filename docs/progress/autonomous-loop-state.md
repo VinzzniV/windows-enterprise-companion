@@ -4,7 +4,8 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M3 — Local troubleshooting diagnostics (in progress, batch mode)
+- **Milestone:** M3 — Local troubleshooting diagnostics — **COMPLETE**
+  (awaiting user review before M4 starts)
 - **M2:** complete and accepted by user on 2026-07-02 (footer overflow fixed in 84d41c0)
 - **User decisions for M3 slice 1 (2026-07-02):** no persistence (UI state only;
   revisit with M5 if reporting needs diagnostics history); DNS probe default
@@ -18,7 +19,8 @@ Maintained by the autonomous development loop. One entry per iteration.
 | Slice | Status | Content |
 |---|---|---|
 | 1 | ✅ 2026-07-02 | Diagnostics module, network config + gateway + DNS diagnostics, Diagnostics page, 12 tests, no persistence |
-| 2+ | ⬜ pending user direction | Remaining M3 items: domain/workgroup status, time sync, event log summary, service status checks |
+| 2 | ✅ 2026-07-02 | Domain/workgroup, time sync, event log summary, service status + IEventLogReader seam, 16 tests |
+| — | — | **M3 complete ⇒ awaiting user review before M4** |
 - **M1.1:** complete and accepted by user on 2026-07-02
 - **User decisions for M2 (2026-07-02):** new module `Wec.Modules.Security` +
   `frontend/src/features/security`; scan history (`security_scans` +
@@ -157,6 +159,25 @@ Maintained by the autonomous development loop. One entry per iteration.
   (EF model unchanged with diagnostics assembly registered) ✅
 - Note: user's running app instance locked Host output during build; instance
   stopped after compile succeeded, user informed to restart
+
+### 2026-07-02 — Iteration 8 (M3 slice 2) — M3 COMPLETE
+- Task: remaining four diagnostics as one batch
+- New Core seam: IEventLogReader (System.Diagnostics.Eventing.Reader impl;
+  XPath filter Level 1/2 + lookback window; Security log unelevated ⇒
+  ACCESS_DENIED ⇒ NOT_RUN with RequiredPrivilege); new
+  ErrorCode.EventLogUnavailable (ADR 0003 + api-types updated)
+- Status decisions (all read-only, conservative):
+  - Domain/workgroup: informational PASS either way, membership in evidence;
+    workgroup gets a should-it-be-joined hint
+  - Time sync: NoSync or service Disabled = WARNING; Stopped+Manual = PASS
+    (trigger start is normal on workgroup machines, documented in test)
+  - Event log: criticals > 0 or errors > threshold (option, default 50/24h,
+    capped at EventLogMaxEntries) = WARNING with top-3 providers; one result
+    per configured log (Wec:Diagnostics:EventLogNames, default ["System"])
+  - Services: stopped Auto service or missing service = WARNING (summary
+    result with per-service evidence); monitored set is an option
+    (default Dhcp, Dnscache, LanmanWorkstation, EventLog)
+- Gates: dotnet 76/76 ✅ · vitest 9/9 ✅ · builds clean ✅ · app start clean ✅
 
 ## Standing constraints (from loop definition)
 

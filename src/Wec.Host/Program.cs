@@ -19,6 +19,7 @@ using Wec.Infrastructure.Registry;
 using Wec.Core.Modules;
 using Wec.Infrastructure.Time;
 using Wec.Infrastructure.Wmi;
+using Wec.Infrastructure.EventLog;
 using Wec.Infrastructure.Network;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.Inventory;
@@ -137,6 +138,7 @@ internal static class Program
         builder.Services.AddSingleton<INetworkInfoProvider, SystemNetworkInfoProvider>();
         builder.Services.AddSingleton<IPingProbe, SystemPingProbe>();
         builder.Services.AddSingleton<IDnsResolver, SystemDnsResolver>();
+        builder.Services.AddSingleton<IEventLogReader, SystemEventLogReader>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();
