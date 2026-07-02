@@ -27,7 +27,8 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'WMI_UNAVAILABLE'
   | 'INVALID_REQUEST'
-  | 'UNKNOWN_ACTION';
+  | 'UNKNOWN_ACTION'
+  | 'NETWORK_PROBE_FAILED';
 
 /** Wec.Modules.Inventory.Handlers.GetHardwareInfoRequest */
 export interface GetHardwareInfoRequest {
@@ -137,4 +138,30 @@ export interface SecurityScanResult {
 /** Wec.Modules.Security.Application.LatestScanResult */
 export interface LatestScanResult {
   scan: SecurityScanResult | null;
+}
+
+/** Wec.Modules.Diagnostics.Domain.DiagnosticStatus (SCREAMING_SNAKE on the wire) */
+export type DiagnosticStatus = 'PASS' | 'WARNING' | 'FAIL' | 'NOT_RUN';
+
+/** Wec.Modules.Diagnostics.Domain.DiagnosticCategory (SCREAMING_SNAKE on the wire) */
+export type DiagnosticCategory = 'NETWORK';
+
+/** Wec.Modules.Diagnostics.Domain.DiagnosticResult */
+export interface DiagnosticResult {
+  diagnosticId: string;
+  title: string;
+  status: DiagnosticStatus;
+  category: DiagnosticCategory;
+  affectedResource: string;
+  evidence: Record<string, string>;
+  suggestedNextSteps: string[];
+  requiredPrivilege: PrivilegeLevel | null;
+  capturedAtUtc: string;
+}
+
+/** Wec.Modules.Diagnostics.Domain.DiagnosticRunResult */
+export interface DiagnosticRunResult {
+  startedAtUtc: string;
+  completedAtUtc: string;
+  results: DiagnosticResult[];
 }

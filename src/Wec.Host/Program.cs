@@ -19,6 +19,8 @@ using Wec.Infrastructure.Registry;
 using Wec.Core.Modules;
 using Wec.Infrastructure.Time;
 using Wec.Infrastructure.Wmi;
+using Wec.Infrastructure.Network;
+using Wec.Modules.Diagnostics;
 using Wec.Modules.Inventory;
 using Wec.Modules.Security;
 
@@ -107,7 +109,13 @@ internal static class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        IModule[] modules = [new InventoryModule(), new SecurityModule()];
+        builder.Services
+            .AddOptions<DiagnosticsOptions>()
+            .Bind(builder.Configuration.GetSection(DiagnosticsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        IModule[] modules = [new InventoryModule(), new SecurityModule(), new DiagnosticsModule()];
         foreach (IModule module in modules)
         {
             module.RegisterServices(builder.Services);
@@ -126,6 +134,9 @@ internal static class Program
 
         builder.Services.AddSingleton<IWmiQueryService, CimWmiQueryService>();
         builder.Services.AddSingleton<IRegistryReader, WindowsRegistryReader>();
+        builder.Services.AddSingleton<INetworkInfoProvider, SystemNetworkInfoProvider>();
+        builder.Services.AddSingleton<IPingProbe, SystemPingProbe>();
+        builder.Services.AddSingleton<IDnsResolver, SystemDnsResolver>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();

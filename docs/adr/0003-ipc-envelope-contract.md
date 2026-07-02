@@ -45,7 +45,8 @@ this ADR normalizes to one rule — every enum is SCREAMING_SNAKE on the wire.
 ### Error codes
 
 `INTERNAL_ERROR`, `ACCESS_DENIED`, `NOT_FOUND`, `WMI_UNAVAILABLE`,
-`INVALID_REQUEST`, `UNKNOWN_ACTION` (C# source of truth: `Wec.Core.Results.ErrorCode`).
+`INVALID_REQUEST`, `UNKNOWN_ACTION`, `NETWORK_PROBE_FAILED`
+(C# source of truth: `Wec.Core.Results.ErrorCode`).
 `ACCESS_DENIED` errors carry `requiredPrivilege` (ADR 0002).
 
 ### Dispatch rules (host)

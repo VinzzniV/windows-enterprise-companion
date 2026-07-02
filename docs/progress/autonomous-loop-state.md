@@ -4,8 +4,21 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M2 — Local security findings — **COMPLETE**
-  (awaiting user review before M3 starts)
+- **Milestone:** M3 — Local troubleshooting diagnostics (in progress, batch mode)
+- **M2:** complete and accepted by user on 2026-07-02 (footer overflow fixed in 84d41c0)
+- **User decisions for M3 slice 1 (2026-07-02):** no persistence (UI state only;
+  revisit with M5 if reporting needs diagnostics history); DNS probe default
+  cloudflare.com via Wec:Diagnostics:DnsProbeHostname (never hardcoded);
+  gateway ping: PASS on reply, WARNING on timeout (ICMP often blocked),
+  NOT_RUN without gateway, FAIL only on local probe errors/invalid address;
+  own DiagnosticResult model + DiagnosticStatus enum, no SecurityFinding reuse.
+
+## M3 slice plan
+
+| Slice | Status | Content |
+|---|---|---|
+| 1 | ✅ 2026-07-02 | Diagnostics module, network config + gateway + DNS diagnostics, Diagnostics page, 12 tests, no persistence |
+| 2+ | ⬜ pending user direction | Remaining M3 items: domain/workgroup status, time sync, event log summary, service status checks |
 - **M1.1:** complete and accepted by user on 2026-07-02
 - **User decisions for M2 (2026-07-02):** new module `Wec.Modules.Security` +
   `frontend/src/features/security`; scan history (`security_scans` +
@@ -130,6 +143,20 @@ Maintained by the autonomous development loop. One entry per iteration.
     (display name is localized)
 - Gates: dotnet 48/48 ✅ · vitest 9/9 ✅ · builds clean ✅
 - Open user decisions for M3: none technical yet — M3 needs review/kickoff
+
+### 2026-07-02 — Iteration 7 (M3 slice 1)
+- Task: network diagnostics vertical slice
+- New Core seams: INetworkInfoProvider, IPingProbe, IDnsResolver
+  (System.Net-based implementations in Infrastructure/Network — no WMI needed);
+  new ErrorCode.NetworkProbeFailed (ADR 0003 + api-types updated)
+- Semantics: probe replies distinguish "ran but negative" (Success=false ⇒
+  WARNING) from "could not run" (Result failure ⇒ FAIL/NOT_RUN); crashing
+  diagnostic becomes a visible FAIL result, run continues
+- No persistence, no getLatestRun handler (approved YAGNI)
+- Gates: dotnet 60/60 ✅ · vitest 9/9 ✅ · builds clean ✅ · app start clean
+  (EF model unchanged with diagnostics assembly registered) ✅
+- Note: user's running app instance locked Host output during build; instance
+  stopped after compile succeeded, user informed to restart
 
 ## Standing constraints (from loop definition)
 

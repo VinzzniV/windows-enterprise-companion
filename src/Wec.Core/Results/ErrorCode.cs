@@ -8,4 +8,5 @@ public enum ErrorCode
     WmiUnavailable,
     InvalidRequest,
     UnknownAction,
+    NetworkProbeFailed,
 }

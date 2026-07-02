@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
 import { SecurityPage } from '../features/security/SecurityPage';
+import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
@@ -9,6 +10,7 @@ import { StatusBadge } from '../shared/ui/StatusBadge';
 const navigation = [
   { to: '/inventory', label: 'Inventory' },
   { to: '/security', label: 'Security' },
+  { to: '/diagnostics', label: 'Diagnostics' },
 ];
 
 function AppInfoFooter() {
@@ -93,6 +95,7 @@ export function App() {
             <Route path="/" element={<Navigate to="/inventory" replace />} />
             <Route path="/inventory" element={<HardwareInfoPage />} />
             <Route path="/security" element={<SecurityPage />} />
+            <Route path="/diagnostics" element={<DiagnosticsPage />} />
           </Routes>
         </main>
       </div>
