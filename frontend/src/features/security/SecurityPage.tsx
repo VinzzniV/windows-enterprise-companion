@@ -11,6 +11,7 @@ import { Card } from '../../shared/ui/Card';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { Spinner } from '../../shared/ui/Spinner';
 import { SeverityBadge } from './SeverityBadge';
+import { ScanHistory } from './ScanHistory';
 
 const allSeverities: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
 
@@ -214,6 +215,8 @@ export function SecurityPage() {
           )}
         </>
       )}
+
+      {state.kind === 'loaded' && <ScanHistory refreshToken={scan?.scanId ?? null} />}
     </div>
   );
 }

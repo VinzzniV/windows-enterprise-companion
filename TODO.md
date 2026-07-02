@@ -35,9 +35,10 @@ rejected. Ordering within a section is by value/effort. Milestone work
 
 ## P2 — Quick wins on existing data
 
-- [ ] **Security scan history UI** — scans are already fully persisted
-      (`security_scans`), the UI only shows the latest: add a history view
-      with diff to the previous scan (new/resolved findings) and a trend line
+- [x] **Security scan history UI** (2026-07-02) — `security/getScanHistory`
+      (summaries with severity counts + diff latest↔previous keyed by
+      FindingId+AffectedResource), history section with dependency-free SVG
+      sparkline, `Wec:Security:HistoryLimit` option (default 20), 9 new tests
 - [ ] **AD section in the executive summary report** — missing since M4.
       Options (pick one): explicit "include live AD analysis" checkbox
       (visible run, consistent with the no-silent-queries rule) or AD scan
@@ -60,6 +61,8 @@ rejected. Ordering within a section is by value/effort. Milestone work
       in `%APPDATA%\Wec\usersettings.json` (cache TTL, AD thresholds, log
       level); would be the first legitimate write path before M6
 - [ ] **In-app log viewer** with CorrelationId filter
+- [ ] Module READMEs for Security, Diagnostics, Reporting (CLAUDE.md requires
+      one per module; only Inventory and ActiveDirectory have one)
 - [ ] **Scheduled/baseline scans** — security scan via Task Scheduler
       (headless mode) + comparison against a saved baseline
 

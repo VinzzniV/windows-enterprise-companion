@@ -40,13 +40,22 @@ const latestScan: LatestScanResult = {
   },
 };
 
+/** Routes getLatestScan/getScanHistory separately — the page invokes both. */
+function setUpInvoke(latest: LatestScanResult): void {
+  invokeMock.mockImplementation((_module: string, action: string) =>
+    action === 'getScanHistory'
+      ? Promise.resolve({ scans: [], changesSinceLastScan: null })
+      : Promise.resolve(latest),
+  );
+}
+
 describe('SecurityPage', () => {
   beforeEach(() => {
     invokeMock.mockReset();
   });
 
   it('renders findings from the latest scan', async () => {
-    invokeMock.mockResolvedValue(latestScan);
+    setUpInvoke(latestScan);
 
     render(<SecurityPage />);
     await waitForElementToBeRemoved(() => screen.queryByRole('status'));
@@ -56,7 +65,7 @@ describe('SecurityPage', () => {
   });
 
   it('hides findings whose severity filter is toggled off', async () => {
-    invokeMock.mockResolvedValue(latestScan);
+    setUpInvoke(latestScan);
 
     render(<SecurityPage />);
     await waitForElementToBeRemoved(() => screen.queryByRole('status'));
@@ -67,7 +76,7 @@ describe('SecurityPage', () => {
   });
 
   it('filters by category', async () => {
-    invokeMock.mockResolvedValue(latestScan);
+    setUpInvoke(latestScan);
 
     render(<SecurityPage />);
     await waitForElementToBeRemoved(() => screen.queryByRole('status'));
@@ -78,7 +87,7 @@ describe('SecurityPage', () => {
   });
 
   it('shows the empty state when no scan exists yet', async () => {
-    invokeMock.mockResolvedValue({ scan: null } satisfies LatestScanResult);
+    setUpInvoke({ scan: null });
 
     render(<SecurityPage />);
 

@@ -244,3 +244,33 @@ export interface AdHygieneResult {
   rules: AdHygieneRule[];
   capturedAtUtc: string;
 }
+
+/** Wec.Modules.Security.Domain.SeverityCount */
+export interface SeverityCount {
+  severity: FindingSeverity;
+  count: number;
+}
+
+/** Wec.Modules.Security.Domain.ScanSummary */
+export interface ScanSummary {
+  scanId: number;
+  startedAtUtc: string;
+  completedAtUtc: string;
+  status: ScanStatus;
+  findingCount: number;
+  severityCounts: SeverityCount[];
+}
+
+/** Wec.Modules.Security.Domain.ScanDiff */
+export interface ScanDiff {
+  latestScanId: number;
+  previousScanId: number;
+  newFindings: SecurityFinding[];
+  resolvedFindings: SecurityFinding[];
+}
+
+/** Wec.Modules.Security.Domain.ScanHistoryResult */
+export interface ScanHistoryResult {
+  scans: ScanSummary[];
+  changesSinceLastScan: ScanDiff | null;
+}

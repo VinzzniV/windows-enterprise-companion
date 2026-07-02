@@ -85,6 +85,32 @@ public sealed class SecurityScanPersistenceTests : IDisposable
         Assert.Equal(2, totalScans);
     }
 
+    [Fact]
+    public async Task GetRecentScans_ReturnsNewestFirstAndHonorsTheLimit()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        var repository = new EfSecurityScanRepository(
+            context, NullLogger<EfSecurityScanRepository>.Instance);
+
+        for (int scanNumber = 0; scanNumber < 3; scanNumber++)
+        {
+            await repository.SaveScanAsync(
+                StartedAt.AddHours(scanNumber),
+                StartedAt.AddHours(scanNumber).AddSeconds(2),
+                ScanStatus.Completed,
+                scanNumber == 2 ? [BuildFinding()] : [],
+                CancellationToken.None);
+        }
+
+        IReadOnlyList<SecurityScanResult> recent =
+            await repository.GetRecentScansAsync(2, CancellationToken.None);
+
+        Assert.Equal(2, recent.Count);
+        Assert.True(recent[0].ScanId > recent[1].ScanId);
+        Assert.Single(recent[0].Findings);
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();

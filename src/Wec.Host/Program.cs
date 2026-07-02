@@ -123,6 +123,12 @@ internal static partial class Program
             .ValidateOnStart();
 
         builder.Services
+            .AddOptions<SecurityOptions>()
+            .Bind(builder.Configuration.GetSection(SecurityOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        builder.Services
             .AddOptions<ActiveDirectoryOptions>()
             .Bind(builder.Configuration.GetSection(ActiveDirectoryOptions.SectionName))
             .ValidateDataAnnotations()

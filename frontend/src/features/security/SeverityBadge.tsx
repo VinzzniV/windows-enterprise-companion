@@ -8,12 +8,13 @@ const severityStyles: Record<FindingSeverity, string> = {
   INFO: 'border-slate-700 bg-slate-800 text-slate-300',
 };
 
-export function SeverityBadge({ severity }: { severity: FindingSeverity }) {
+export function SeverityBadge({ severity, count }: { severity: FindingSeverity; count?: number }) {
   return (
     <span
-      className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${severityStyles[severity]}`}
+      className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium ${severityStyles[severity]}`}
     >
       {severity}
+      {count !== undefined && <span className="font-normal opacity-80">{count}</span>}
     </span>
   );
 }
