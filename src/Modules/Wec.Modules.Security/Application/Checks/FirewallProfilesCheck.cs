@@ -5,7 +5,7 @@ using Wec.Modules.Security.Domain;
 
 namespace Wec.Modules.Security.Application.Checks;
 
-internal sealed class FirewallProfilesCheck : ISecurityCheck
+internal sealed partial class FirewallProfilesCheck : ISecurityCheck
 {
     private const string FirewallNamespace = @"root\standardcimv2";
     private const string ProfilesQuery = "SELECT Name, Enabled FROM MSFT_NetFirewallProfile";
@@ -54,12 +54,14 @@ internal sealed class FirewallProfilesCheck : ISecurityCheck
             }
         }
 
-        _logger.LogInformation(
-            "Firewall check evaluated {ProfileCount} profiles, {FindingCount} findings",
-            profiles.Value.Count,
-            findings.Count);
+        LogCheckEvaluated(profiles.Value.Count, findings.Count);
         return findings;
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Firewall check evaluated {ProfileCount} profiles, {FindingCount} findings")]
+    private partial void LogCheckEvaluated(int profileCount, int findingCount);
 
     // MSFT_NetFirewallProfile.Enabled is a GpoBoolean: 0 = False, 1 = True,
     // 2 = NotConfigured (effective value then comes from policy; treat as enabled

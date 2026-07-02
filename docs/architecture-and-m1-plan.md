@@ -74,10 +74,10 @@ WindowsEnterpriseCompanion/
 
 | Project | Type | Purpose | Allowed references |
 |---|---|---|---|
-| `Wec.Host` | WinForms exe (net9.0-windows) | Shell, WebView2, DI composition root, bridge router | Core, Infrastructure, all Modules |
-| `Wec.Core` | classlib (net9.0) | Contracts, Result model, module/bridge/privilege abstractions | DI.Abstractions only |
-| `Wec.Infrastructure` | classlib (net9.0-windows) | EF Core/SQLite, WMI/CIM, privilege detection, Serilog setup | Core |
-| `Wec.Modules.Inventory` | classlib (net9.0-windows) | Inventory feature: logic, domain, handlers, repository interface + EF config | Core |
+| `Wec.Host` | WinForms exe (net10.0-windows) | Shell, WebView2, DI composition root, bridge router | Core, Infrastructure, all Modules |
+| `Wec.Core` | classlib (net10.0) | Contracts, Result model, module/bridge/privilege abstractions | DI.Abstractions only |
+| `Wec.Infrastructure` | classlib (net10.0-windows) | EF Core/SQLite, WMI/CIM, privilege detection, Serilog setup | Core |
+| `Wec.Modules.Inventory` | classlib (net10.0-windows) | Inventory feature: logic, domain, handlers, repository interface + EF config | Core |
 | `Wec.Core.Tests` | xunit | Contract & Result tests | Core |
 | `Wec.Modules.Inventory.Tests` | xunit | Module logic with mocked abstractions | Inventory, Core |
 | `Wec.Infrastructure.IntegrationTests` | xunit | Real SQLite persistence, migration validation | Infrastructure, Inventory, Core |

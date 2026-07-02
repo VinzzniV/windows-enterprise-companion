@@ -6,7 +6,7 @@ using Wec.Core.Results;
 
 namespace Wec.Host.Bridge;
 
-internal sealed class ActionDispatcher
+internal sealed partial class ActionDispatcher
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ActionDispatcher> _logger;
@@ -45,7 +45,7 @@ internal sealed class ActionDispatcher
         {
             BridgeResponse response = await HandlerRegistration.Create(handler)
                 .InvokeAsync(request, cancellationToken);
-            _logger.LogInformation("Bridge request handled, success: {Success}", response.Success);
+            LogRequestHandled(response.Success);
             return response;
         }
         catch (JsonException exception)
@@ -64,4 +64,7 @@ internal sealed class ActionDispatcher
                 "An internal error occurred. See the application log for details."));
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Bridge request handled, success: {Success}")]
+    private partial void LogRequestHandled(bool success);
 }

@@ -6,7 +6,7 @@ using Wec.Core.Results;
 
 namespace Wec.Infrastructure.Wmi;
 
-public sealed class CimWmiQueryService : IWmiQueryService
+public sealed partial class CimWmiQueryService : IWmiQueryService
 {
     private const string QueryDialect = "WQL";
 
@@ -38,7 +38,7 @@ public sealed class CimWmiQueryService : IWmiQueryService
                 }
             }
 
-            _logger.LogDebug("WMI query returned {InstanceCount} instances: {WqlQuery}", instances.Count, wqlQuery);
+            LogQueryReturned(instances.Count, wqlQuery);
             return Result.Success<IReadOnlyList<WmiInstance>>(instances);
         }
         catch (CimException exception) when (exception.NativeErrorCode == NativeErrorCode.AccessDenied)
@@ -56,6 +56,9 @@ public sealed class CimWmiQueryService : IWmiQueryService
                 exception.Message));
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "WMI query returned {InstanceCount} instances: {WqlQuery}")]
+    private partial void LogQueryReturned(int instanceCount, string wqlQuery);
 
     private static WmiInstance ToWmiInstance(CimInstance cimInstance)
     {

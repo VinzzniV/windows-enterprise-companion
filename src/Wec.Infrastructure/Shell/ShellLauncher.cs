@@ -5,7 +5,7 @@ using Wec.Core.Abstractions;
 
 namespace Wec.Infrastructure.Shell;
 
-public sealed class ShellLauncher : IShellLauncher
+public sealed partial class ShellLauncher : IShellLauncher
 {
     private readonly ILogger<ShellLauncher> _logger;
 
@@ -23,7 +23,7 @@ public sealed class ShellLauncher : IShellLauncher
                 FileName = path,
                 UseShellExecute = true,
             });
-            _logger.LogInformation("Opened {Path} via shell", path);
+            LogOpenedPath(path);
             return true;
         }
         catch (Exception exception) when (exception is Win32Exception or FileNotFoundException or InvalidOperationException)
@@ -32,4 +32,7 @@ public sealed class ShellLauncher : IShellLauncher
             return false;
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Opened {Path} via shell")]
+    private partial void LogOpenedPath(string path);
 }

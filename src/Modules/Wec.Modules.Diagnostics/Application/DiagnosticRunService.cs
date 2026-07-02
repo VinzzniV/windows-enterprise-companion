@@ -5,7 +5,7 @@ using Wec.Modules.Diagnostics.Domain;
 
 namespace Wec.Modules.Diagnostics.Application;
 
-public sealed class DiagnosticRunService
+public sealed partial class DiagnosticRunService
 {
     private readonly List<IDiagnostic> _diagnostics;
     private readonly IClock _clock;
@@ -58,11 +58,13 @@ public sealed class DiagnosticRunService
         }
 
         DateTimeOffset completedAtUtc = _clock.UtcNow;
-        _logger.LogInformation(
-            "Diagnostic run finished: {ResultCount} results from {DiagnosticCount} diagnostics",
-            results.Count,
-            _diagnostics.Count);
+        LogRunFinished(results.Count, _diagnostics.Count);
 
         return Result.Success(new DiagnosticRunResult(startedAtUtc, completedAtUtc, results));
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Diagnostic run finished: {ResultCount} results from {DiagnosticCount} diagnostics")]
+    private partial void LogRunFinished(int resultCount, int diagnosticCount);
 }

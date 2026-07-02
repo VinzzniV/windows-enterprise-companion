@@ -8,7 +8,7 @@ using Wec.Host.Options;
 
 namespace Wec.Host;
 
-internal sealed class MainWindow : Form
+internal sealed partial class MainWindow : Form
 {
     private const string VirtualHostName = "app.wec";
 
@@ -64,9 +64,7 @@ internal sealed class MainWindow : Form
 
             _bridge.Attach(_webView.CoreWebView2);
             NavigateToFrontend();
-            _logger.LogInformation(
-                "WebView2 initialized, runtime version {RuntimeVersion}",
-                environment.BrowserVersionString);
+            LogWebViewInitialized(environment.BrowserVersionString);
         }
         catch (WebView2RuntimeNotFoundException exception)
         {
@@ -85,7 +83,7 @@ internal sealed class MainWindow : Form
     {
         if (_frontendOptions.UseDevServer)
         {
-            _logger.LogInformation("Loading frontend from dev server {DevServerUrl}", _frontendOptions.DevServerUrl);
+            LogLoadingFromDevServer(_frontendOptions.DevServerUrl);
             _webView.CoreWebView2.Navigate(_frontendOptions.DevServerUrl);
             return;
         }
@@ -97,7 +95,7 @@ internal sealed class MainWindow : Form
                 VirtualHostName,
                 wwwrootDirectory,
                 CoreWebView2HostResourceAccessKind.Allow);
-            _logger.LogInformation("Loading frontend from local assets in {WwwrootDirectory}", wwwrootDirectory);
+            LogLoadingFromLocalAssets(wwwrootDirectory);
             _webView.CoreWebView2.Navigate($"https://{VirtualHostName}/index.html");
         }
         else
@@ -106,4 +104,13 @@ internal sealed class MainWindow : Form
             _webView.CoreWebView2.NavigateToString(MissingAssetsPage);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "WebView2 initialized, runtime version {RuntimeVersion}")]
+    private partial void LogWebViewInitialized(string runtimeVersion);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Loading frontend from dev server {DevServerUrl}")]
+    private partial void LogLoadingFromDevServer(string devServerUrl);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Loading frontend from local assets in {WwwrootDirectory}")]
+    private partial void LogLoadingFromLocalAssets(string wwwrootDirectory);
 }

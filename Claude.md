@@ -23,7 +23,7 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 
 ## Approved architecture (summary — details in the docs above)
 
-- Single .NET 9 Windows process. WinForms shell hosting **WebView2**.
+- Single .NET 10 Windows process. WinForms shell hosting **WebView2**.
   React + TypeScript + Tailwind (Vite) UI loaded from local assets.
   NO Tauri, NO Electron, NO HTTP server, NO open ports (ADR 0001).
 - **Modular monolith.** No runtime plugin loading. Modules implement `IModule`.
@@ -74,7 +74,7 @@ in-app log viewer, dashboard module, anything from Phase 2+.
 
 ## Coding conventions
 
-- C#: .NET 9, `Nullable` enabled, `TreatWarningsAsErrors`, analyzers on,
+- C#: .NET 10, `Nullable` enabled, `TreatWarningsAsErrors`, analyzers on,
   Central Package Management (`Directory.Packages.props`).
 - **Self-explanatory names instead of comments.** Functions, classes, and
   variables must be understandable from their name alone. Comments only for

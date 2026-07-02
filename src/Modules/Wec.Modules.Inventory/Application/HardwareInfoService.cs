@@ -7,7 +7,7 @@ using Wec.Modules.Inventory.Persistence;
 
 namespace Wec.Modules.Inventory.Application;
 
-public sealed class HardwareInfoService
+public sealed partial class HardwareInfoService
 {
     private const string CimV2Namespace = @"root\cimv2";
 
@@ -40,9 +40,7 @@ public sealed class HardwareInfoService
             CachedHardwareSnapshot? cached = await _repository.GetLatestAsync(cancellationToken);
             if (cached is not null && _clock.UtcNow - cached.CapturedAtUtc < _options.CacheTtl)
             {
-                _logger.LogInformation(
-                    "Serving hardware snapshot from cache, captured {CapturedAtUtc}",
-                    cached.CapturedAtUtc);
+                LogServedFromCache(cached.CapturedAtUtc);
                 return Result.Success(new HardwareInfoResult(cached.Snapshot, cached.CapturedAtUtc, FromCache: true));
             }
         }
@@ -55,9 +53,19 @@ public sealed class HardwareInfoService
 
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
         await _repository.SaveAsync(snapshotResult.Value, capturedAtUtc, cancellationToken);
-        _logger.LogInformation("Captured fresh hardware snapshot at {CapturedAtUtc}", capturedAtUtc);
+        LogCapturedFresh(capturedAtUtc);
         return Result.Success(new HardwareInfoResult(snapshotResult.Value, capturedAtUtc, FromCache: false));
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Serving hardware snapshot from cache, captured {CapturedAtUtc}")]
+    private partial void LogServedFromCache(DateTimeOffset capturedAtUtc);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Captured fresh hardware snapshot at {CapturedAtUtc}")]
+    private partial void LogCapturedFresh(DateTimeOffset capturedAtUtc);
 
     private async Task<Result<HardwareSnapshot>> QuerySnapshotAsync(CancellationToken cancellationToken)
     {

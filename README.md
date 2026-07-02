@@ -1,6 +1,6 @@
 # Windows Enterprise Companion (WEC)
 
-Windows-only enterprise administration desktop app. Single .NET 9 process:
+Windows-only enterprise administration desktop app. Single .NET 10 process:
 WinForms shell hosting **WebView2**, React + TypeScript + Tailwind UI served
 from local assets, typed JSON message bridge — no HTTP server, no open ports
 (ADR 0001). Modular monolith; modules implement `IModule` and reference only
@@ -12,7 +12,7 @@ and the ADRs in [docs/adr/](docs/adr/).
 ## Prerequisites
 
 - Windows 11 with the WebView2 Evergreen Runtime (preinstalled on current builds)
-- .NET SDK 9.0.3xx (pinned in `global.json`)
+- .NET SDK 10.0.3xx (pinned in `global.json`)
 - Node.js ≥ 20 + npm (frontend build)
 
 ## Build & run
@@ -92,7 +92,7 @@ Migrations are applied automatically at app startup.
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every push to
 `master` and every pull request (Windows runner — the host targets
-`net9.0-windows`): frontend tests + build, backend build with
+`net10.0-windows`): frontend tests + build, backend build with
 `TreatWarningsAsErrors`, all backend tests. A published host artifact is
 uploaded **only** when every gate passed, and only for pushes to `master`.
 The release process (tags, installers) is deliberately deferred until the

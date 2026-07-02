@@ -5,7 +5,7 @@ using Wec.Core.Results;
 
 namespace Wec.Infrastructure.Network;
 
-public sealed class SystemPingProbe : IPingProbe
+public sealed partial class SystemPingProbe : IPingProbe
 {
     private readonly ILogger<SystemPingProbe> _logger;
 
@@ -24,7 +24,7 @@ public sealed class SystemPingProbe : IPingProbe
             using var ping = new Ping();
             PingReply reply = await ping.SendPingAsync(host, timeout, cancellationToken: cancellationToken);
 
-            _logger.LogDebug("Ping {Host}: {Status} in {RoundtripMs} ms", host, reply.Status, reply.RoundtripTime);
+            LogPingReply(host, reply.Status, reply.RoundtripTime);
             return Result.Success(new PingProbeReply(
                 reply.Status == IPStatus.Success,
                 reply.RoundtripTime,
@@ -41,4 +41,7 @@ public sealed class SystemPingProbe : IPingProbe
             });
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Ping {Host}: {Status} in {RoundtripMs} ms")]
+    private partial void LogPingReply(string host, IPStatus status, long roundtripMs);
 }

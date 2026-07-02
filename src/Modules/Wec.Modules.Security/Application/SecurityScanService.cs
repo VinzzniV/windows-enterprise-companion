@@ -8,7 +8,7 @@ namespace Wec.Modules.Security.Application;
 
 public sealed record LatestScanResult(SecurityScanResult? Scan);
 
-public sealed class SecurityScanService
+public sealed partial class SecurityScanService
 {
     private readonly List<ISecurityCheck> _checks;
     private readonly ISecurityScanRepository _repository;
@@ -63,16 +63,15 @@ public sealed class SecurityScanService
             findings,
             cancellationToken);
 
-        _logger.LogInformation(
-            "Security scan {ScanId} finished with status {Status}: {FindingCount} findings from {CheckCount} checks ({FailedCheckCount} crashed)",
-            scanId,
-            status,
-            findings.Count,
-            _checks.Count,
-            failedChecks);
+        LogScanFinished(scanId, status, findings.Count, _checks.Count, failedChecks);
 
         return Result.Success(new SecurityScanResult(scanId, startedAtUtc, completedAtUtc, status, findings));
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Security scan {ScanId} finished with status {Status}: {FindingCount} findings from {CheckCount} checks ({FailedCheckCount} crashed)")]
+    private partial void LogScanFinished(long scanId, ScanStatus status, int findingCount, int checkCount, int failedCheckCount);
 
     public async Task<Result<LatestScanResult>> GetLatestScanAsync(CancellationToken cancellationToken)
     {

@@ -17,7 +17,7 @@ public sealed record OpenLogsFolderResponse(string LogDirectory);
 /// validated logging options — never from the request payload — so the bridge
 /// cannot be used to open arbitrary paths.
 /// </summary>
-internal sealed class OpenLogsFolderHandler : IActionHandler<OpenLogsFolderRequest, OpenLogsFolderResponse>
+internal sealed partial class OpenLogsFolderHandler : IActionHandler<OpenLogsFolderRequest, OpenLogsFolderResponse>
 {
     private readonly LoggingOptions _loggingOptions;
     private readonly ILogger<OpenLogsFolderHandler> _logger;
@@ -51,7 +51,10 @@ internal sealed class OpenLogsFolderHandler : IActionHandler<OpenLogsFolderReque
             UseShellExecute = true,
         });
 
-        _logger.LogInformation("Opened log directory {LogDirectory} in shell", logDirectory);
+        LogDirectoryOpened(logDirectory);
         return Task.FromResult(Result.Success(new OpenLogsFolderResponse(logDirectory)));
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Opened log directory {LogDirectory} in shell")]
+    private partial void LogDirectoryOpened(string logDirectory);
 }

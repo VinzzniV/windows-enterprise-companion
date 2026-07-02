@@ -4,8 +4,17 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M9 — CI/CD (slice 1 CI verification **done**; release
-  process deliberately deferred until M8 decides the packaging direction)
+- **Milestone:** M8 — Packaging (slice 0 done; slices 1–2 pending)
+- **User decisions for M8 (2026-07-02):** upgrade to .NET 10 LTS first
+  (slice 0); package **self-contained win-x64** (~180 MB measured vs 39 MB
+  framework-dependent — zero prerequisites on target machines won);
+  distribution = portable **ZIP from CI** (slice 1) + **Inno Setup per-user
+  installer** to `%LOCALAPPDATA%\Programs` without admin rights (slice 2).
+  Explicitly out: MSIX (needs a code-signing certificate), code signing
+  (documented SmartScreen limitation), auto-update, trimming (WinForms/EF
+  reflection). WebView2: Evergreen assumed, startup detection already exists.
+  ADR 0005 documents the direction (written with slice 1).
+- **M9:** CI half done; release half unblocks after M8 slice 1/2
 - **M5:** complete 2026-07-02; **M4 (AD)** deferred by user, needs its
   access-strategy ADR before it starts
 - **M3:** complete and accepted 2026-07-02
@@ -241,6 +250,27 @@ Maintained by the autonomous development loop. One entry per iteration.
   artifact `wec-host-<sha>` uploaded. Runner annotation: v4 actions are
   Node-20-based (deprecated) — bump action majors when available
 - M9 release half (tags/installer) blocked on M8 packaging direction
+
+### 2026-07-02 — Iteration 12 (M8 slice 0) — .NET 10 LTS upgrade
+- Why first: .NET 9 is STS and left support 2026-05-12; baking an EOL runtime
+  into a self-contained package would be day-one debt
+- Changes: global.json → SDK 10.0.301 (installed via winget); all 13 csproj
+  TFMs net9.0→net10.0; CPM M.E.*/EF/EventLog 9.0.13→10.0.9; dotnet-ef tool
+  10.0.9; docs updated (README, CLAUDE.md, architecture doc; ADR 0001 left
+  as historical record)
+- **Lesson: NuGet Audit + TreatWarningsAsErrors** — the .NET 10 SDK audits
+  transitive packages; SQLitePCLRaw.lib.e_sqlite3 2.1.11 (via EF Sqlite) has
+  CVE-2025-6965 with no 2.1.x patch. Fixed by explicitly referencing
+  SQLitePCLRaw.bundle_e_sqlite3 3.0.3 (SQLite ≥ 3.50.2); integration tests
+  against real SQLite files prove compatibility. Never suppress NU1903.
+- **Lesson: CA1873** (new .NET 10 analyzer) — LogDebug/LogInformation calls
+  whose arguments box value types or call members are errors now. Fixed the
+  11 flagged sites with `[LoggerMessage]` source-generator partial methods
+  (built-in level guard, zero alloc); warning/error-level calls are exempt.
+  Watch out: the logger argument itself must be a cheap expression (no
+  `GetRequiredService` inline).
+- Gates: dotnet build 0 warnings ✅ · dotnet test 91/91 (net10.0) ✅ ·
+  vitest 9/9 ✅ · npm build ✅
 
 ## Standing constraints (from loop definition)
 

@@ -32,7 +32,7 @@ using HostFactory = Microsoft.Extensions.Hosting.Host;
 
 namespace Wec.Host;
 
-internal static class Program
+internal static partial class Program
 {
     [STAThread]
     private static void Main(string[] args)
@@ -190,11 +190,15 @@ internal static class Program
         dbContext.Database.Migrate();
         stopwatch.Stop();
 
-        scope.ServiceProvider
-            .GetRequiredService<ILogger<WecDbContext>>()
-            .LogInformation(
-                "Database migrations applied in {ElapsedMilliseconds} ms ({DatabasePath})",
-                stopwatch.ElapsedMilliseconds,
-                databasePath);
+        var migrationLogger = scope.ServiceProvider.GetRequiredService<ILogger<WecDbContext>>();
+        LogMigrationsApplied(migrationLogger, stopwatch.ElapsedMilliseconds, databasePath);
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Database migrations applied in {ElapsedMilliseconds} ms ({DatabasePath})")]
+    private static partial void LogMigrationsApplied(
+        Microsoft.Extensions.Logging.ILogger logger,
+        long elapsedMilliseconds,
+        string databasePath);
 }

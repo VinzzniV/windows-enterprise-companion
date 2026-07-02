@@ -16,7 +16,7 @@ public sealed record ReportOverview(
 
 public sealed record ReportExportResult(bool Cancelled, string? FilePath);
 
-internal sealed class ReportExportService
+internal sealed partial class ReportExportService
 {
     private static readonly JsonSerializerOptions JsonExportOptions = new(JsonSerializerDefaults.Web)
     {
@@ -105,7 +105,7 @@ internal sealed class ReportExportService
 
         if (targetPath is null)
         {
-            _logger.LogInformation("Report export ({FileExtension}) cancelled by the user", fileExtension);
+            LogExportCancelled(fileExtension);
             return Result.Success(new ReportExportResult(Cancelled: true, FilePath: null));
         }
 
@@ -124,7 +124,7 @@ internal sealed class ReportExportService
             });
         }
 
-        _logger.LogInformation("Report exported to {TargetPath}", targetPath);
+        LogExported(targetPath);
 
         if (openAfterExport)
         {
@@ -134,6 +134,12 @@ internal sealed class ReportExportService
 
         return Result.Success(new ReportExportResult(Cancelled: false, FilePath: targetPath));
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Report export ({FileExtension}) cancelled by the user")]
+    private partial void LogExportCancelled(string fileExtension);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Report exported to {TargetPath}")]
+    private partial void LogExported(string targetPath);
 
     private static string ResolveAppVersion()
     {

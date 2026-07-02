@@ -6,7 +6,7 @@ using Wec.Core.Results;
 
 namespace Wec.Infrastructure.EventLog;
 
-public sealed class SystemEventLogReader : IEventLogReader
+public sealed partial class SystemEventLogReader : IEventLogReader
 {
     private const int LevelCritical = 1;
 
@@ -51,11 +51,7 @@ public sealed class SystemEventLogReader : IEventLogReader
                 }
             }
 
-            _logger.LogDebug(
-                "Event log {LogName}: {EntryCount} critical/error entries in the last {Lookback}",
-                logName,
-                entries.Count,
-                lookback);
+            LogEntriesRead(logName, entries.Count, lookback);
             return Result.Success<IReadOnlyList<EventLogEntrySummary>>(entries);
         }
         catch (UnauthorizedAccessException exception)
@@ -82,4 +78,9 @@ public sealed class SystemEventLogReader : IEventLogReader
             });
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Event log {LogName}: {EntryCount} critical/error entries in the last {Lookback}")]
+    private partial void LogEntriesRead(string logName, int entryCount, TimeSpan lookback);
 }
