@@ -10,6 +10,7 @@ does not even expose a write operation.
 | Action | Payload | Result |
 |---|---|---|
 | `activedirectory/getOverview` | `{}` | `AdOverviewResult` — domain membership, DC list, user/group/computer counts |
+| `activedirectory/getHygiene` | `{}` | `AdHygieneResult` — privileged groups + hygiene rules (inactive users/computers, password-never-expires, disabled-but-privileged) |
 
 ## Behavior
 
@@ -20,6 +21,15 @@ does not even expose a write operation.
   may read is what WEC shows; no credential prompts).
 - Counts use paged searches with an empty attribute list (RFC 4511 `1.1`),
   so no attribute payload crosses the wire.
+- Hygiene rules report **exact counts** with **bounded example lists**
+  (`ExampleLimit`); privileged groups are resolved by well-known SID
+  (Domain/Enterprise/Schema Admins RIDs 512/519/518, Builtin Administrators
+  S-1-5-32-544), so localized group names do not matter.
+- Known limitations (documented, deliberate for M4): "inactive" relies on
+  `lastLogonTimestamp` (replicated with up to ~14 days slack; accounts that
+  never logged on are not matched); privileged group membership counts
+  **direct** members only — nested membership and ranged retrieval of
+  groups with >1500 direct members come later if needed.
 
 ## Options (`Wec:ActiveDirectory`)
 
@@ -27,6 +37,8 @@ does not even expose a write operation.
 |---|---|---|
 | `PageSize` | 500 | LDAP paged-search page size |
 | `SearchTimeout` | 30 s | Per-request client/server time limit |
+| `InactivityThreshold` | 90 days | lastLogonTimestamp age that counts as inactive |
+| `ExampleLimit` | 20 | Maximum example accounts/members per rule or group |
 
 ## Tests
 

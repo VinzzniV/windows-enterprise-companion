@@ -22,11 +22,12 @@ public sealed class DirectoryOverviewServiceTests
     {
         var clock = Substitute.For<IClock>();
         clock.UtcNow.Returns(Now);
+        IOptions<ActiveDirectoryOptions> options = Options.Create(new ActiveDirectoryOptions());
         return new DirectoryOverviewService(
-            _wmiQueryService,
+            new DomainContextService(_wmiQueryService, _directoryReader, options),
             _directoryReader,
             clock,
-            Options.Create(new ActiveDirectoryOptions()),
+            options,
             NullLogger<DirectoryOverviewService>.Instance);
     }
 

@@ -1,0 +1,55 @@
+using System.Globalization;
+
+namespace Wec.Modules.ActiveDirectory.Application;
+
+/// <summary>
+/// LDAP filters used by the module. userAccountControl bits are matched
+/// server-side with the LDAP_MATCHING_RULE_BIT_AND rule; SID-based filters
+/// keep the checks independent of localized group names (a German domain
+/// calls Domain Admins "Domänen-Admins").
+/// </summary>
+internal static class AdFilters
+{
+    private const string UacBitAnd = "userAccountControl:1.2.840.113556.1.4.803:=";
+
+    public const int UacAccountDisabled = 2;
+    public const int UacServerTrustAccount = 8192;
+    public const int UacPasswordNeverExpires = 65536;
+
+    public const string Users = "(&(objectCategory=person)(objectClass=user))";
+    public const string DisabledUsers =
+        $"(&(objectCategory=person)(objectClass=user)({UacBitAnd}2))";
+    public const string Groups = "(objectCategory=group)";
+    public const string Computers = "(objectCategory=computer)";
+    public const string DomainControllers = $"(&(objectCategory=computer)({UacBitAnd}8192))";
+    public const string EnabledPasswordNeverExpiresUsers =
+        $"(&(objectCategory=person)(objectClass=user)({UacBitAnd}65536)(!({UacBitAnd}2)))";
+
+    public static string InactiveUsers(long lastLogonCutoffFileTime) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"(&(objectCategory=person)(objectClass=user)(!({UacBitAnd}2))(lastLogonTimestamp<={lastLogonCutoffFileTime}))");
+
+    public static string InactiveComputers(long lastLogonCutoffFileTime) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"(&(objectCategory=computer)(!({UacBitAnd}2))(lastLogonTimestamp<={lastLogonCutoffFileTime}))");
+
+    public static string GroupBySid(string sidSddl) => $"(&(objectCategory=group)(objectSid={sidSddl}))";
+
+    public static string DisabledDirectMembersOfGroups(IEnumerable<string> groupDistinguishedNames)
+    {
+        string memberOfClauses = string.Concat(
+            groupDistinguishedNames.Select(dn => $"(memberOf={EscapeFilterValue(dn)})"));
+        return $"(&(objectCategory=person)(objectClass=user)({UacBitAnd}2)(|{memberOfClauses}))";
+    }
+
+    /// <summary>RFC 4515 escaping for values embedded in LDAP filters.</summary>
+    public static string EscapeFilterValue(string value) =>
+        value
+            .Replace(@"\", @"\5c", StringComparison.Ordinal)
+            .Replace("*", @"\2a", StringComparison.Ordinal)
+            .Replace("(", @"\28", StringComparison.Ordinal)
+            .Replace(")", @"\29", StringComparison.Ordinal)
+            .Replace("\0", @"\00", StringComparison.Ordinal);
+}

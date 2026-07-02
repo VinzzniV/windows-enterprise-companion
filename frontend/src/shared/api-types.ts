@@ -211,3 +211,36 @@ export interface AdOverviewResult {
   computerCount: number;
   capturedAtUtc: string;
 }
+
+/** Wec.Modules.ActiveDirectory.Domain.AdAccountInfo */
+export interface AdAccountInfo {
+  name: string;
+  distinguishedName: string;
+  lastLogonUtc: string | null;
+}
+
+/** Wec.Modules.ActiveDirectory.Domain.AdHygieneRule */
+export interface AdHygieneRule {
+  ruleId: string;
+  title: string;
+  matchCount: number;
+  examples: AdAccountInfo[];
+  recommendation: string;
+}
+
+/** Wec.Modules.ActiveDirectory.Domain.PrivilegedGroupInfo */
+export interface PrivilegedGroupInfo {
+  groupName: string;
+  distinguishedName: string;
+  directMemberCount: number;
+  memberDistinguishedNames: string[];
+}
+
+/** Wec.Modules.ActiveDirectory.Domain.AdHygieneResult */
+export interface AdHygieneResult {
+  domainJoined: boolean;
+  domainName: string | null;
+  privilegedGroups: PrivilegedGroupInfo[];
+  rules: AdHygieneRule[];
+  capturedAtUtc: string;
+}

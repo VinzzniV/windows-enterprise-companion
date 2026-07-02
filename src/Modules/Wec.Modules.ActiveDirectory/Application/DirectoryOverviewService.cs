@@ -6,29 +6,23 @@ using Wec.Modules.ActiveDirectory.Domain;
 
 namespace Wec.Modules.ActiveDirectory.Application;
 
-public sealed partial class DirectoryOverviewService
+internal sealed partial class DirectoryOverviewService
 {
-    private const string CimV2Namespace = @"root\cimv2";
-
-    // userAccountControl bitwise-AND matching rule (LDAP_MATCHING_RULE_BIT_AND)
-    private const string UacBitFilter = "userAccountControl:1.2.840.113556.1.4.803:=";
-    private const int UacAccountDisabled = 2;
-    private const int UacServerTrustAccount = 8192;
-
-    private readonly IWmiQueryService _wmiQueryService;
+    private readonly DomainContextService _domainContextService;
     private readonly IDirectoryReader _directoryReader;
     private readonly IClock _clock;
     private readonly ActiveDirectoryOptions _options;
     private readonly ILogger<DirectoryOverviewService> _logger;
 
+    // DI requires a public constructor even on internal types
     public DirectoryOverviewService(
-        IWmiQueryService wmiQueryService,
+        DomainContextService domainContextService,
         IDirectoryReader directoryReader,
         IClock clock,
         IOptions<ActiveDirectoryOptions> options,
         ILogger<DirectoryOverviewService> logger)
     {
-        _wmiQueryService = wmiQueryService;
+        _domainContextService = domainContextService;
         _directoryReader = directoryReader;
         _clock = clock;
         _options = options.Value;
@@ -37,18 +31,13 @@ public sealed partial class DirectoryOverviewService
 
     public async Task<Result<AdOverviewResult>> GetOverviewAsync(CancellationToken cancellationToken)
     {
-        Result<IReadOnlyList<WmiInstance>> computerSystems = await _wmiQueryService.QueryAsync(
-            CimV2Namespace,
-            "SELECT PartOfDomain, Domain FROM Win32_ComputerSystem",
-            cancellationToken);
-        if (computerSystems.IsFailure)
+        Result<DomainContext> context = await _domainContextService.GetContextAsync(cancellationToken);
+        if (context.IsFailure)
         {
-            return Result.Failure<AdOverviewResult>(computerSystems.Error!);
+            return Result.Failure<AdOverviewResult>(context.Error!);
         }
 
-        WmiInstance? computerSystem = computerSystems.Value.Count > 0 ? computerSystems.Value[0] : null;
-        bool partOfDomain = computerSystem?.GetValue<bool?>("PartOfDomain") ?? false;
-        if (computerSystem is null || !partOfDomain)
+        if (!context.Value.DomainJoined)
         {
             // A workgroup machine is a valid answer, not an error (ADR 0006)
             return Result.Success(new AdOverviewResult(
@@ -63,32 +52,24 @@ public sealed partial class DirectoryOverviewService
                 _clock.UtcNow));
         }
 
-        string domainName = computerSystem.GetString("Domain")!;
-
-        Result<string> namingContext = await ReadDefaultNamingContextAsync(domainName, cancellationToken);
-        if (namingContext.IsFailure)
-        {
-            return Result.Failure<AdOverviewResult>(namingContext.Error!);
-        }
+        string domainName = context.Value.DomainName!;
+        string namingContext = context.Value.DefaultNamingContext!;
 
         Result<IReadOnlyList<DomainControllerInfo>> domainControllers =
-            await DiscoverDomainControllersAsync(domainName, namingContext.Value, cancellationToken);
+            await DiscoverDomainControllersAsync(domainName, namingContext, cancellationToken);
         if (domainControllers.IsFailure)
         {
             return Result.Failure<AdOverviewResult>(domainControllers.Error!);
         }
 
         Result<int> userCount = await CountAsync(
-            domainName, namingContext.Value, "(&(objectCategory=person)(objectClass=user))", cancellationToken);
+            domainName, namingContext, AdFilters.Users, cancellationToken);
         Result<int> disabledUserCount = await CountAsync(
-            domainName,
-            namingContext.Value,
-            $"(&(objectCategory=person)(objectClass=user)({UacBitFilter}{UacAccountDisabled}))",
-            cancellationToken);
+            domainName, namingContext, AdFilters.DisabledUsers, cancellationToken);
         Result<int> groupCount = await CountAsync(
-            domainName, namingContext.Value, "(objectCategory=group)", cancellationToken);
+            domainName, namingContext, AdFilters.Groups, cancellationToken);
         Result<int> computerCount = await CountAsync(
-            domainName, namingContext.Value, "(objectCategory=computer)", cancellationToken);
+            domainName, namingContext, AdFilters.Computers, cancellationToken);
 
         Result<int>? firstFailedCount = new[] { userCount, disabledUserCount, groupCount, computerCount }
             .FirstOrDefault(count => count.IsFailure);
@@ -101,7 +82,7 @@ public sealed partial class DirectoryOverviewService
         return Result.Success(new AdOverviewResult(
             DomainJoined: true,
             domainName,
-            namingContext.Value,
+            namingContext,
             domainControllers.Value,
             userCount.Value,
             disabledUserCount.Value,
@@ -110,40 +91,13 @@ public sealed partial class DirectoryOverviewService
             _clock.UtcNow));
     }
 
-    private async Task<Result<string>> ReadDefaultNamingContextAsync(
-        string domainName,
-        CancellationToken cancellationToken)
-    {
-        Result<IReadOnlyList<DirectoryEntryData>> rootDse = await _directoryReader.SearchAsync(
-            BuildQuery(domainName, string.Empty, "(objectClass=*)", ["defaultNamingContext"], DirectorySearchScope.Base),
-            cancellationToken);
-        if (rootDse.IsFailure)
-        {
-            return Result.Failure<string>(rootDse.Error!);
-        }
-
-        string? namingContext = rootDse.Value.Count > 0
-            ? rootDse.Value[0].GetFirstValue("defaultNamingContext")
-            : null;
-        return namingContext is not null
-            ? Result.Success(namingContext)
-            : Result.Failure<string>(new Error(
-                ErrorCode.DirectoryUnavailable,
-                "The RootDSE did not expose a default naming context."));
-    }
-
     private async Task<Result<IReadOnlyList<DomainControllerInfo>>> DiscoverDomainControllersAsync(
         string domainName,
         string namingContext,
         CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<DirectoryEntryData>> entries = await _directoryReader.SearchAsync(
-            BuildQuery(
-                domainName,
-                namingContext,
-                $"(&(objectCategory=computer)({UacBitFilter}{UacServerTrustAccount}))",
-                ["dNSHostName"],
-                DirectorySearchScope.Subtree),
+            BuildQuery(domainName, namingContext, AdFilters.DomainControllers, ["dNSHostName"]),
             cancellationToken);
         if (entries.IsFailure)
         {
@@ -166,7 +120,7 @@ public sealed partial class DirectoryOverviewService
     {
         // Empty attribute list = entries only, no attribute payload
         Result<IReadOnlyList<DirectoryEntryData>> entries = await _directoryReader.SearchAsync(
-            BuildQuery(domainName, namingContext, ldapFilter, [], DirectorySearchScope.Subtree),
+            BuildQuery(domainName, namingContext, ldapFilter, []),
             cancellationToken);
         return entries.IsFailure
             ? Result.Failure<int>(entries.Error!)
@@ -177,9 +131,15 @@ public sealed partial class DirectoryOverviewService
         string domainName,
         string baseDistinguishedName,
         string ldapFilter,
-        IReadOnlyList<string> attributes,
-        DirectorySearchScope scope) =>
-        new(domainName, baseDistinguishedName, ldapFilter, attributes, scope, _options.PageSize, _options.SearchTimeout);
+        IReadOnlyList<string> attributes) =>
+        new(
+            domainName,
+            baseDistinguishedName,
+            ldapFilter,
+            attributes,
+            DirectorySearchScope.Subtree,
+            _options.PageSize,
+            _options.SearchTimeout);
 
     [LoggerMessage(
         Level = LogLevel.Information,

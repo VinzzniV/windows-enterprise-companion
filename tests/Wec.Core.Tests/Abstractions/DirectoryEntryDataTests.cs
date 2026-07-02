@@ -27,6 +27,21 @@ public sealed class DirectoryEntryDataTests
     }
 
     [Fact]
+    public void GetBytes_DecodesBase64AndRejectsNonBase64()
+    {
+        byte[] payload = [1, 5, 0, 0, 0, 42];
+        var entry = new DirectoryEntryData("CN=Test", new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["objectSid"] = [Convert.ToBase64String(payload)],
+            ["description"] = ["definitely not base64!!"],
+        });
+
+        Assert.Equal(payload, entry.GetBytes("objectSid"));
+        Assert.Null(entry.GetBytes("description"));
+        Assert.Null(entry.GetBytes("absent"));
+    }
+
+    [Fact]
     public void GetLong_ParsesNumericAttributeValues()
     {
         var entry = new DirectoryEntryData("CN=Test", new Dictionary<string, IReadOnlyList<string>>

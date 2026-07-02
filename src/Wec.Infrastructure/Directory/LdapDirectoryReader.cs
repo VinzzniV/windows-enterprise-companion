@@ -108,8 +108,20 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
         var attributes = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (string attributeName in entry.Attributes.AttributeNames)
         {
-            attributes[attributeName] =
-                [.. entry.Attributes[attributeName].GetValues(typeof(string)).Cast<string>()];
+            var values = new List<string>();
+            foreach (object? value in entry.Attributes[attributeName])
+            {
+                // S.DS.P sniffs values: UTF-8 decodable ⇒ string, otherwise byte[].
+                // Binary values (objectSid, objectGUID) cross the seam as Base64 —
+                // DirectoryEntryData.GetBytes is the decoding counterpart.
+                values.Add(value switch
+                {
+                    byte[] binaryValue => Convert.ToBase64String(binaryValue),
+                    _ => value?.ToString() ?? string.Empty,
+                });
+            }
+
+            attributes[attributeName] = values;
         }
 
         return new DirectoryEntryData(entry.DistinguishedName, attributes);

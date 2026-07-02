@@ -33,4 +33,26 @@ public sealed class DirectoryEntryData
         long.TryParse(GetFirstValue(attributeName), System.Globalization.CultureInfo.InvariantCulture, out long value)
             ? value
             : null;
+
+    /// <summary>
+    /// Binary attribute values (e.g. objectSid) cross the seam Base64-encoded;
+    /// this decodes the first value. Returns null when absent or not Base64.
+    /// </summary>
+    public byte[]? GetBytes(string attributeName)
+    {
+        string? value = GetFirstValue(attributeName);
+        if (value is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return Convert.FromBase64String(value);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
 }

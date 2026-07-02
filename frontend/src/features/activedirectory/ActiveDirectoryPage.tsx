@@ -1,12 +1,18 @@
 import { useCallback, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
-import type { AdOverviewResult } from '../../shared/api-types';
+import type { AdHygieneResult, AdOverviewResult } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 
 type OverviewState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; overview: AdOverviewResult }
+  | { kind: 'error'; message: string };
+
+type HygieneState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'loaded'; hygiene: AdHygieneResult }
   | { kind: 'error'; message: string };
 
 function OverviewStat({ label, value }: { label: string; value: number }) {
@@ -20,6 +26,7 @@ function OverviewStat({ label, value }: { label: string; value: number }) {
 
 export function ActiveDirectoryPage() {
   const [state, setState] = useState<OverviewState>({ kind: 'idle' });
+  const [hygieneState, setHygieneState] = useState<HygieneState>({ kind: 'idle' });
 
   const loadOverview = useCallback(() => {
     setState({ kind: 'loading' });
@@ -33,7 +40,20 @@ export function ActiveDirectoryPage() {
       );
   }, []);
 
+  const loadHygiene = useCallback(() => {
+    setHygieneState({ kind: 'loading' });
+    invoke<AdHygieneResult>('activedirectory', 'getHygiene', {}, 120_000)
+      .then((hygiene) => setHygieneState({ kind: 'loaded', hygiene }))
+      .catch((error: unknown) =>
+        setHygieneState({
+          kind: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+  }, []);
+
   const overview = state.kind === 'loaded' ? state.overview : null;
+  const hygiene = hygieneState.kind === 'loaded' ? hygieneState.hygiene : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -44,14 +64,24 @@ export function ActiveDirectoryPage() {
             Read-only directory overview as the current user — nothing is ever written to AD.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={loadOverview}
-          disabled={state.kind === 'loading'}
-          className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
-        >
-          {state.kind === 'loading' ? 'Analyzing …' : 'Analyze directory'}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={loadOverview}
+            disabled={state.kind === 'loading'}
+            className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
+          >
+            {state.kind === 'loading' ? 'Analyzing …' : 'Analyze directory'}
+          </button>
+          <button
+            type="button"
+            onClick={loadHygiene}
+            disabled={hygieneState.kind === 'loading'}
+            className="rounded border border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:opacity-50"
+          >
+            {hygieneState.kind === 'loading' ? 'Checking …' : 'Run hygiene checks'}
+          </button>
+        </div>
       </header>
 
       {state.kind === 'idle' && (
@@ -109,6 +139,74 @@ export function ActiveDirectoryPage() {
               </ul>
             )}
           </Card>
+        </>
+      )}
+
+      {hygieneState.kind === 'error' && (
+        <Card title="Hygiene check error">
+          <p className="text-sm text-red-400">{hygieneState.message}</p>
+        </Card>
+      )}
+
+      {hygiene && !hygiene.domainJoined && (
+        <Card title="Hygiene checks">
+          <p className="text-sm text-slate-300">Not domain-joined — nothing to check.</p>
+        </Card>
+      )}
+
+      {hygiene?.domainJoined && (
+        <>
+          <Card title={`Privileged groups (${hygiene.privilegedGroups.length})`}>
+            <ul className="flex flex-col gap-3 text-sm">
+              {hygiene.privilegedGroups.map((group) => (
+                <li key={group.distinguishedName} className="flex flex-col gap-0.5">
+                  <span className="font-medium">
+                    {group.groupName}
+                    <span className="ml-2 text-xs font-normal text-slate-400">
+                      {group.directMemberCount} direct member{group.directMemberCount === 1 ? '' : 's'}
+                    </span>
+                  </span>
+                  {group.memberDistinguishedNames.map((member) => (
+                    <span key={member} className="font-mono text-xs text-slate-500">
+                      {member}
+                    </span>
+                  ))}
+                  {group.directMemberCount > group.memberDistinguishedNames.length && (
+                    <span className="text-xs text-slate-500">
+                      … and {group.directMemberCount - group.memberDistinguishedNames.length} more
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          {hygiene.rules.map((rule) => (
+            <Card key={rule.ruleId} title={`${rule.title} — ${rule.matchCount}`}>
+              <div className="flex flex-col gap-2 text-sm">
+                <p className="text-slate-400">{rule.recommendation}</p>
+                {rule.examples.length > 0 && (
+                  <ul className="flex flex-col gap-1">
+                    {rule.examples.map((account) => (
+                      <li key={account.distinguishedName} className="flex items-baseline gap-2">
+                        <span>{account.name}</span>
+                        {account.lastLogonUtc && (
+                          <span className="text-xs text-slate-500">
+                            last logon {new Date(account.lastLogonUtc).toLocaleDateString()}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {rule.matchCount > rule.examples.length && (
+                  <p className="text-xs text-slate-500">
+                    Showing {rule.examples.length} of {rule.matchCount} matches.
+                  </p>
+                )}
+              </div>
+            </Card>
+          ))}
         </>
       )}
     </div>

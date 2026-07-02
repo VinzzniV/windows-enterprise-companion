@@ -4,13 +4,10 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M4 — AD read-only analysis (started 2026-07-02 after user
-  resumed the loop; M8 + M9 complete, release v0.1.0 published)
-- **M4 slice plan:** ADR 0006 first (done, Proposed), then slice 1 =
-  module + domain detection + DC discovery + users/groups overview counts;
-  slice 2 = hygiene checks (inactive users/computers, password-never-expires,
-  privileged groups, disabled-but-privileged). No persistence in M4 slice 1
-  (same YAGNI call as M3).
+- **Milestone:** M4 — COMPLETE 2026-07-02 (both slices) ⇒ awaiting user
+  review; remaining roadmap: M6 (remediation, needs ADR), M7 (AI, optional)
+- ADR 0006 governs all AD access; ADR 0004 still Proposed (user sign-off
+  pending since M5)
 - **User decisions for M8 (2026-07-02):** upgrade to .NET 10 LTS first
   (slice 0); package **self-contained win-x64** (~180 MB measured vs 39 MB
   framework-dependent — zero prerequisites on target machines won);
@@ -370,6 +367,28 @@ Maintained by the autonomous development loop. One entry per iteration.
   vitest 9/9 ✅ · npm build ✅ · app start smoke test with module registered ✅
 - Next: M4 slice 2 — hygiene checks (inactive users/computers,
   password-never-expires, privileged groups, disabled-but-privileged)
+
+### 2026-07-02 — Iteration 18 (M4 slice 2) — M4 COMPLETE
+- Task: hygiene checks batch (activedirectory/getHygiene)
+- Seam extension: binary attribute values (objectSid) cross as Base64;
+  DirectoryEntryData.GetBytes decodes — needed because privileged groups are
+  resolved by well-known SID (domain SID from domain head + RIDs 512/519/518,
+  Builtin S-1-5-32-544), which survives localized group names
+- DomainContextService extracted (shared WMI detection + RootDSE step for
+  overview and hygiene); AdFilters centralizes LDAP filters incl. RFC 4515
+  escaping (tested with parens/star/backslash DNs)
+- Rules (exact counts, examples bounded by ExampleLimit option): inactive
+  users/computers (lastLogonTimestamp < now − InactivityThreshold, enabled
+  only), enabled password-never-expires, disabled-but-privileged (direct
+  memberOf on privileged group DNs). Documented limits: lastLogonTimestamp
+  replication slack, never-logged-on not matched, direct members only,
+  no ranged retrieval >1500
+- **Lesson: MS.DI requires PUBLIC constructors** — internal ctor on a
+  registered service crashes at startup (unit tests pass via
+  InternalsVisibleTo!); the app-start smoke test caught it. Convention now:
+  internal class + public ctor.
+- Gates: dotnet build 0 warnings ✅ · dotnet test 113/113 ✅ · vitest 9/9 ✅ ·
+  npm build ✅ · app start smoke test ✅ (after the DI fix)
 
 ## Standing constraints (from loop definition)
 
