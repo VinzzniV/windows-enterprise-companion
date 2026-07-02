@@ -3,6 +3,7 @@ import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
 import { SecurityPage } from '../features/security/SecurityPage';
 import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
+import { ReportingPage } from '../features/reporting/ReportingPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
@@ -11,6 +12,7 @@ const navigation = [
   { to: '/inventory', label: 'Inventory' },
   { to: '/security', label: 'Security' },
   { to: '/diagnostics', label: 'Diagnostics' },
+  { to: '/reporting', label: 'Reporting' },
 ];
 
 function AppInfoFooter() {
@@ -96,6 +98,7 @@ export function App() {
             <Route path="/inventory" element={<HardwareInfoPage />} />
             <Route path="/security" element={<SecurityPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
+            <Route path="/reporting" element={<ReportingPage />} />
           </Routes>
         </main>
       </div>

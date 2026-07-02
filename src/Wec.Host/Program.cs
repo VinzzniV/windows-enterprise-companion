@@ -11,11 +11,13 @@ using Wec.Core.Abstractions;
 using Wec.Core.Messaging;
 using Wec.Core.Privileges;
 using Wec.Host.Bridge;
+using Wec.Host.Dialogs;
 using Wec.Host.Options;
 using Wec.Infrastructure.Logging;
 using Wec.Infrastructure.Persistence;
 using Wec.Infrastructure.Privileges;
 using Wec.Infrastructure.Registry;
+using Wec.Infrastructure.Shell;
 using Wec.Core.Modules;
 using Wec.Infrastructure.Time;
 using Wec.Infrastructure.Wmi;
@@ -23,6 +25,7 @@ using Wec.Infrastructure.EventLog;
 using Wec.Infrastructure.Network;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.Inventory;
+using Wec.Modules.Reporting;
 using Wec.Modules.Security;
 
 using HostFactory = Microsoft.Extensions.Hosting.Host;
@@ -116,7 +119,7 @@ internal static class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        IModule[] modules = [new InventoryModule(), new SecurityModule(), new DiagnosticsModule()];
+        IModule[] modules = [new InventoryModule(), new SecurityModule(), new DiagnosticsModule(), new ReportingModule()];
         foreach (IModule module in modules)
         {
             module.RegisterServices(builder.Services);
@@ -139,6 +142,8 @@ internal static class Program
         builder.Services.AddSingleton<IPingProbe, SystemPingProbe>();
         builder.Services.AddSingleton<IDnsResolver, SystemDnsResolver>();
         builder.Services.AddSingleton<IEventLogReader, SystemEventLogReader>();
+        builder.Services.AddSingleton<IShellLauncher, ShellLauncher>();
+        builder.Services.AddSingleton<ISaveFileDialogService, WinFormsSaveFileDialogService>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();

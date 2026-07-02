@@ -4,8 +4,23 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M3 — Local troubleshooting diagnostics — **COMPLETE**
-  (awaiting user review before M4 starts)
+- **Milestone:** M5 — Reporting/export (in progress; **M5 moved before M4 by
+  user decision on 2026-07-02** — M4 (AD) deferred, needs its access-strategy
+  ADR before it starts)
+- **M3:** complete and accepted 2026-07-02
+- **User decisions for M5 (2026-07-02):** slice 1 = HTML executive summary of
+  latest inventory snapshot + latest persisted security scan only (no
+  diagnostics — live-only, never silently triggered by an export); save
+  dialog, user picks the path, no silent writes to Documents/AppData; English;
+  self-contained HTML, inline CSS, printable, no external assets; slice 2 =
+  JSON export of the same data set; no PDF, no report designer.
+
+## M5 slice plan
+
+| Slice | Status | Content |
+|---|---|---|
+| 1 | ✅ 2026-07-02 | ADR 0004 (cross-module read contracts), report data providers, HTML generator, save-dialog export, Reporting page, 12 tests |
+| 2 | ⬜ next | JSON export of the same data set |
 - **M2:** complete and accepted by user on 2026-07-02 (footer overflow fixed in 84d41c0)
 - **User decisions for M3 slice 1 (2026-07-02):** no persistence (UI state only;
   revisit with M5 if reporting needs diagnostics history); DNS probe default
@@ -178,6 +193,24 @@ Maintained by the autonomous development loop. One entry per iteration.
     result with per-service evidence); monitored set is an option
     (default Dhcp, Dnscache, LanmanWorkstation, EventLog)
 - Gates: dotnet 76/76 ✅ · vitest 9/9 ✅ · builds clean ✅ · app start clean ✅
+
+### 2026-07-02 — Iteration 9 (M5 slice 1)
+- Task: Reporting module with HTML executive summary export
+- **ADR 0004 (Proposed):** cross-module read contracts in Wec.Core.Contracts —
+  owning module implements (InventoryReportDataProvider,
+  SecurityReportDataProvider), consumers depend on the Core interface only;
+  enums cross as strings + SeverityRank; deliberate DTO duplication instead of
+  module references / domain-in-Core / in-process handler calls
+- New Core seams: ISaveFileDialogService (implemented in HOST — WinForms UI,
+  not Infrastructure), IShellLauncher (Infrastructure); new
+  ErrorCode.FileWriteFailed
+- Export flow: dialog cancel = success{cancelled:true} (not an error);
+  openAfterExport flag opens only the file just written — no path ever
+  crosses the bridge inbound; nothing-to-export = NOT_FOUND before any dialog
+- HTML generator is a pure static function: deterministic, HTML-encodes all
+  values (XSS test), no external references (test-enforced)
+- Gates: dotnet 88/88 ✅ · vitest 9/9 ✅ · builds clean ✅ · app start clean ✅
+- Next: M5 slice 2 — JSON export of the same data set
 
 ## Standing constraints (from loop definition)
 

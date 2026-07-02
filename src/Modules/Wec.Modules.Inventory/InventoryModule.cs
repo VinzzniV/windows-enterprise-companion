@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Wec.Core.Contracts;
 using Wec.Core.Messaging;
 using Wec.Core.Modules;
 using Wec.Modules.Inventory.Application;
@@ -16,6 +17,7 @@ public sealed class InventoryModule : IModule
         services.AddScoped<IHardwareSnapshotRepository, EfHardwareSnapshotRepository>();
         services.AddScoped<HardwareInfoService>();
         services.AddScoped<DiskEncryptionService>();
+        services.AddScoped<IInventoryReportDataProvider, InventoryReportDataProvider>();
         services.AddScoped<IActionHandler, GetHardwareInfoHandler>();
         services.AddScoped<IActionHandler, GetDiskEncryptionStatusHandler>();
     }

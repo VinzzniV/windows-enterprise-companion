@@ -10,4 +10,5 @@ public enum ErrorCode
     UnknownAction,
     NetworkProbeFailed,
     EventLogUnavailable,
+    FileWriteFailed,
 }

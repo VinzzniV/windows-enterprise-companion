@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Wec.Core.Contracts;
 using Wec.Core.Messaging;
 using Wec.Core.Modules;
 using Wec.Modules.Security.Application;
@@ -16,6 +17,7 @@ public sealed class SecurityModule : IModule
     {
         services.AddScoped<ISecurityScanRepository, EfSecurityScanRepository>();
         services.AddScoped<SecurityScanService>();
+        services.AddScoped<ISecurityReportDataProvider, SecurityReportDataProvider>();
         services.AddScoped<ISecurityCheck, FirewallProfilesCheck>();
         services.AddScoped<ISecurityCheck, DefenderStatusCheck>();
         services.AddScoped<ISecurityCheck, Smb1ProtocolCheck>();

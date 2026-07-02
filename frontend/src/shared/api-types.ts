@@ -29,7 +29,8 @@ export type ErrorCode =
   | 'INVALID_REQUEST'
   | 'UNKNOWN_ACTION'
   | 'NETWORK_PROBE_FAILED'
-  | 'EVENT_LOG_UNAVAILABLE';
+  | 'EVENT_LOG_UNAVAILABLE'
+  | 'FILE_WRITE_FAILED';
 
 /** Wec.Modules.Inventory.Handlers.GetHardwareInfoRequest */
 export interface GetHardwareInfoRequest {
@@ -170,4 +171,23 @@ export interface DiagnosticRunResult {
   startedAtUtc: string;
   completedAtUtc: string;
   results: DiagnosticResult[];
+}
+
+/** Wec.Modules.Reporting.Application.ReportOverview */
+export interface ReportOverview {
+  inventoryCapturedAtUtc: string | null;
+  securityScanCompletedAtUtc: string | null;
+  securityScanStatus: string | null;
+  securityFindingCount: number | null;
+}
+
+/** Wec.Modules.Reporting.Handlers.ExportHtmlReportRequest */
+export interface ExportHtmlReportRequest {
+  openAfterExport?: boolean;
+}
+
+/** Wec.Modules.Reporting.Application.HtmlExportResult */
+export interface HtmlExportResult {
+  cancelled: boolean;
+  filePath: string | null;
 }
