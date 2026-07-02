@@ -17,6 +17,14 @@ public sealed class SecurityModule : IModule
         services.AddScoped<ISecurityScanRepository, EfSecurityScanRepository>();
         services.AddScoped<SecurityScanService>();
         services.AddScoped<ISecurityCheck, FirewallProfilesCheck>();
+        services.AddScoped<ISecurityCheck, DefenderStatusCheck>();
+        services.AddScoped<ISecurityCheck, Smb1ProtocolCheck>();
+        services.AddScoped<ISecurityCheck, RdpAccessCheck>();
+        services.AddScoped<ISecurityCheck, BitLockerCheck>();
+        services.AddScoped<ISecurityCheck, SecureBootCheck>();
+        services.AddScoped<ISecurityCheck, TpmCheck>();
+        services.AddScoped<ISecurityCheck, OsSupportCheck>();
+        services.AddScoped<ISecurityCheck, LocalAdministratorsCheck>();
         services.AddScoped<IActionHandler, RunSecurityScanHandler>();
         services.AddScoped<IActionHandler, GetLatestSecurityScanHandler>();
     }

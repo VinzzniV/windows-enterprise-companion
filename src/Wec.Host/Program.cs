@@ -15,6 +15,7 @@ using Wec.Host.Options;
 using Wec.Infrastructure.Logging;
 using Wec.Infrastructure.Persistence;
 using Wec.Infrastructure.Privileges;
+using Wec.Infrastructure.Registry;
 using Wec.Core.Modules;
 using Wec.Infrastructure.Time;
 using Wec.Infrastructure.Wmi;
@@ -124,6 +125,7 @@ internal static class Program
         builder.Services.AddScoped<DbContext>(serviceProvider => serviceProvider.GetRequiredService<WecDbContext>());
 
         builder.Services.AddSingleton<IWmiQueryService, CimWmiQueryService>();
+        builder.Services.AddSingleton<IRegistryReader, WindowsRegistryReader>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();

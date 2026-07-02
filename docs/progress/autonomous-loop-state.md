@@ -4,7 +4,8 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M2 — Local security findings (in progress, batch mode)
+- **Milestone:** M2 — Local security findings — **COMPLETE**
+  (awaiting user review before M3 starts)
 - **M1.1:** complete and accepted by user on 2026-07-02
 - **User decisions for M2 (2026-07-02):** new module `Wec.Modules.Security` +
   `frontend/src/features/security`; scan history (`security_scans` +
@@ -21,8 +22,8 @@ Maintained by the autonomous development loop. One entry per iteration.
 | Slice | Status | Content |
 |---|---|---|
 | 1 | ✅ 2026-07-02 | Module skeleton, models, scan-history persistence + migration, firewall check, runScan/getLatestScan handlers, Security page with filters, 10 new tests |
-| 2 | ⬜ next | Remaining checks batch: Defender, SMB1, RDP, BitLocker (elevation-aware), Secure Boot, TPM, OS support (offline), local Administrators |
-| — | after slice 2 | M2 complete ⇒ NEEDS_USER_REVIEW |
+| 2 | ✅ 2026-07-02 | All eight remaining checks + IRegistryReader abstraction + 24 tests |
+| — | — | **M2 complete ⇒ stopped with NEEDS_USER_REVIEW** |
 - **M1 (Local hardware inventory):** complete — 10 steps, commits `34ddc8d`…`0ef3790`,
   DoD verified (unelevated start, CIM → SQLite cache → bridge → React,
   RequiresElevation path, 14 backend tests)
@@ -104,6 +105,31 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Gates: dotnet 24/24 ✅ · vitest 9/9 ✅ · builds clean ✅ · migration applied
   on the real DB at startup (421 ms) ✅
 - Next: slice 2 — remaining eight checks as one batch with tests
+
+### 2026-07-02 — Iteration 6 (M2 slice 2) — M2 COMPLETE
+- Task: remaining eight checks as one batch
+- New Core abstraction: `IRegistryReader` (read-only, HKLM only) +
+  `WindowsRegistryReader` in Infrastructure — same seam pattern as
+  IWmiQueryService, no ADR needed
+- Checks and severity decisions (conservative-lower rule where unspecified):
+  - Defender: AV disabled = HIGH (fixed); RTP-only off = MEDIUM (weaker state)
+  - SMB1 enabled (Win32_OptionalFeature) = HIGH (fixed); absent = no finding
+  - RDP enabled (fDenyTSConnections=0) = MEDIUM (fixed); missing value =
+    Windows default deny = no finding
+  - BitLocker: unelevated = INFO not-run w/ RequiredPrivilege (existing
+    semantics); unprotected volume = MEDIUM (range MEDIUM-HIGH unspecified)
+  - Secure Boot disabled = MEDIUM (fixed); state missing (legacy BIOS/VM)
+    = LOW (range LOW-MEDIUM)
+  - TPM: access denied = INFO not-run; absent = LOW (VM-plausible evidence);
+    present-but-disabled = MEDIUM (stronger evidence)
+  - OS support: offline lifecycle table (Home/Pro dates, builds 19044-26200);
+    past EOS = MEDIUM (range MEDIUM-HIGH, dates edition-approximate);
+    unknown build = INFO
+  - Local Administrators: membership documented as INFO; broad principals
+    (EN/DE well-known names) = MEDIUM; group resolved via SID S-1-5-32-544
+    (display name is localized)
+- Gates: dotnet 48/48 ✅ · vitest 9/9 ✅ · builds clean ✅
+- Open user decisions for M3: none technical yet — M3 needs review/kickoff
 
 ## Standing constraints (from loop definition)
 
