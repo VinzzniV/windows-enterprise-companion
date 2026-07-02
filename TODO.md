@@ -16,8 +16,8 @@ rejected. Ordering within a section is by value/effort. Milestone work
         request deserialization)
 - [x] **App-start smoke test in CI** (2026-07-02) — runs the published exe on
       master/tag pushes, asserts "WebView2 initialized" in the log
-- [ ] **React ErrorBoundary** at app level — a render error in one page must
-      show an error card, not blank the whole app
+- [x] **React ErrorBoundary** per route (2026-07-02) — render errors show an
+      error card with "Try again"; navigation resets the boundary
 - [x] Add `frontend/*.tsbuildinfo` to `.gitignore` and untrack (2026-07-02)
 - [x] Bump `<Version>` in `Directory.Build.props` → 0.2.0 (2026-07-02)
 - [x] **Dependabot** for NuGet + npm + GitHub Actions, weekly, grouped
@@ -48,8 +48,10 @@ rejected. Ordering within a section is by value/effort. Milestone work
 
 ## P3 — Mid-term features
 
-- [ ] **Frontend component tests** — at least SecurityPage (filters) and
-      ReportingPage (export states) with a mocked `invoke`
+- [x] **Frontend component tests** (2026-07-02) — Testing Library added;
+      SecurityPage (findings, severity + category filters, empty state),
+      ReportingPage (export success/cancel, disabled without data),
+      ErrorBoundary; vitest setup file with explicit cleanup
 - [ ] **Inventory expansion**: network adapters, GPU, installed software
       (registry uninstall keys, NOT Win32_Product), monitors
 - [ ] **Hardware snapshot history** — keep more than the latest snapshot,

@@ -9,6 +9,7 @@ import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
 import { LogoMark } from '../shared/ui/LogoMark';
+import { ErrorBoundary } from '../shared/ui/ErrorBoundary';
 import { SplashIntro } from './SplashIntro';
 import { navIcons } from './navIcons';
 
@@ -72,16 +73,19 @@ function AppRoutes() {
   const location = useLocation();
 
   return (
-    // Key on the path so route changes replay the subtle enter animation
+    // Key on the path so route changes replay the enter animation and
+    // reset the error boundary
     <div key={location.pathname} className="wec-page-enter">
-      <Routes>
-        <Route path="/" element={<Navigate to="/inventory" replace />} />
-        <Route path="/inventory" element={<HardwareInfoPage />} />
-        <Route path="/security" element={<SecurityPage />} />
-        <Route path="/diagnostics" element={<DiagnosticsPage />} />
-        <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
-        <Route path="/reporting" element={<ReportingPage />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<Navigate to="/inventory" replace />} />
+          <Route path="/inventory" element={<HardwareInfoPage />} />
+          <Route path="/security" element={<SecurityPage />} />
+          <Route path="/diagnostics" element={<DiagnosticsPage />} />
+          <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
+          <Route path="/reporting" element={<ReportingPage />} />
+        </Routes>
+      </ErrorBoundary>
     </div>
   );
 }
