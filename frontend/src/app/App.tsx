@@ -31,8 +31,21 @@ function AppInfoFooter() {
       <span className="truncate" title={appInfo.databasePath}>
         DB: {appInfo.databasePath}
       </span>
-      <span className="truncate" title={appInfo.logDirectory}>
-        Logs: {appInfo.logDirectory}
+      <span className="flex items-center gap-2">
+        <span className="min-w-0 truncate" title={appInfo.logDirectory}>
+          Logs: {appInfo.logDirectory}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            invoke('system', 'openLogsFolder').catch(() => {
+              /* surfaced in host log; nothing actionable in the UI */
+            });
+          }}
+          className="shrink-0 rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
+        >
+          Open
+        </button>
       </span>
     </div>
   );

@@ -21,7 +21,7 @@ Maintained by the autonomous development loop. One entry per iteration.
 | Show app version | ✅ iteration 2 | `system/getAppInfo` + sidebar footer; version from Directory.Build.props (0.1.0) |
 | Show database path | ✅ iteration 2 | resolved from DatabaseOptions, shown in footer with tooltip |
 | Show log file path | ✅ iteration 2 | resolved from LoggingOptions; footer also shows elevation badge |
-| Open logs folder button | ⬜ open | shell-open action; harmless, but document as host-side action |
+| Open logs folder button | ✅ iteration 3 | `system/openLogsFolder`; path only from validated options, never from payload |
 | README: run instructions + current limitations | 🔶 partial | run instructions exist; limitations section missing |
 | Document unelevated behavior + cache verification | 🔶 partial | ADR 0002/0003 cover design; user-facing doc missing |
 
@@ -48,6 +48,18 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Next recommended: open-logs-folder button (host-side shell-open of the log
   directory — benign, but document as a host action), or README limitations
   section + unelevated/cache documentation to close out the docs items
+
+### 2026-07-02 — Iteration 3
+- Task: open-logs-folder button
+- Changes: `OpenLogsFolderHandler` (system/openLogsFolder; shell-opens the
+  log directory, path exclusively from LoggingOptions — payload carries no
+  path, so the bridge cannot open arbitrary folders), Host registration,
+  "Open" button in the sidebar footer
+- Gates: `dotnet build` ✅ · `npm test` 9/9 ✅ · `npm run build` ✅ ·
+  `dotnet test` 3/3 assemblies ✅
+- Next recommended: final docs slice — README "current limitations" section
+  plus unelevated-behavior and cache-verification documentation; completing
+  it finishes M1.1 ⇒ stop with NEEDS_USER_REVIEW
 
 ## Standing constraints (from loop definition)
 
