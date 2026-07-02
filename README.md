@@ -88,6 +88,16 @@ dotnet ef migrations add <Name> --project src/Wec.Infrastructure --startup-proje
 
 Migrations are applied automatically at app startup.
 
+## Continuous integration
+
+[.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every push to
+`master` and every pull request (Windows runner — the host targets
+`net9.0-windows`): frontend tests + build, backend build with
+`TreatWarningsAsErrors`, all backend tests. A published host artifact is
+uploaded **only** when every gate passed, and only for pushes to `master`.
+The release process (tags, installers) is deliberately deferred until the
+packaging direction is decided (roadmap M8).
+
 ## Runtime locations
 
 | What | Where |

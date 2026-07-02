@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-test:
+    # net9.0-windows + WinForms host: Windows runner is mandatory
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up .NET (pinned via global.json)
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test
+
+      # Emits into src/Wec.Host/wwwroot so the host publish carries the UI
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Backend build (TreatWarningsAsErrors)
+        run: dotnet build --configuration Release
+
+      - name: Backend tests
+        run: dotnet test --configuration Release --no-build
+
+      # Artifact only when every gate above passed, and only for pushes to master
+      - name: Publish host
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: dotnet publish src/Wec.Host --configuration Release --no-build --output publish
+
+      - name: Upload artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wec-host-${{ github.sha }}
+          path: publish
+          if-no-files-found: error
+          retention-days: 14

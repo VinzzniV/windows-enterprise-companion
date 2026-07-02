@@ -4,9 +4,10 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M5 — Reporting/export — **COMPLETE** (M5 was moved before M4
-  by user decision on 2026-07-02; M4 (AD) is deferred and needs its
-  access-strategy ADR before it starts)
+- **Milestone:** M9 — CI/CD (slice 1 CI verification **done**; release
+  process deliberately deferred until M8 decides the packaging direction)
+- **M5:** complete 2026-07-02; **M4 (AD)** deferred by user, needs its
+  access-strategy ADR before it starts
 - **M3:** complete and accepted 2026-07-02
 - **User decisions for M5 (2026-07-02):** slice 1 = HTML executive summary of
   latest inventory snapshot + latest persisted security scan only (no
@@ -225,6 +226,17 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Gates: dotnet 91/91 ✅ · vitest 9/9 ✅ · builds clean ✅ · app start clean ✅
 - Roadmap state: M1, M1.1, M2, M3, M5 complete; M4 (AD) deferred by user,
   requires access-strategy ADR; then M6/M7/M8/M9 per roadmap order
+
+### 2026-07-02 — Iteration 11 (M9 slice 1)
+- Task: CI workflow (user pulled M9 forward)
+- .github/workflows/ci.yml: windows-latest (net9.0-windows host), Node 22 +
+  npm cache, .NET pinned via global.json; gates in order: npm ci → npm test →
+  npm run build (fills wwwroot) → dotnet build Release → dotnet test Release;
+  publish + artifact upload ONLY on green master pushes (14-day retention)
+- Locally replayed the exact pipeline: Release build 0 warnings, 91/91 tests
+  green in Release, publish output verified (exe + appsettings + wwwroot)
+- NOTE: repo has no GitHub remote yet — workflow activates on first push
+- M9 release half (tags/installer) blocked on M8 packaging direction
 
 ## Standing constraints (from loop definition)
 
