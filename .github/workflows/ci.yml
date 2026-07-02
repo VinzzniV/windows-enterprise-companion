@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Fail fast before building anything from a mislabeled tag
       - name: Verify tag matches project version
@@ -38,14 +38,14 @@ jobs:
           }
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Set up .NET (pinned via global.json)
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
 
@@ -75,6 +75,27 @@ jobs:
         if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
         run: dotnet publish src/Wec.Host --configuration Release --runtime win-x64 --self-contained true --output publish
 
+      # Startup smoke test on the published exe: catches the wiring-crash class
+      # (EF model mismatch, DI ctor problems) that unit tests cannot see.
+      # The runner image ships Edge, so the WebView2 Evergreen runtime exists.
+      - name: Smoke-test published host
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        shell: pwsh
+        run: |
+          $process = Start-Process publish\Wec.Host.exe -PassThru
+          Start-Sleep -Seconds 20
+          $exitedEarly = $process.HasExited
+          if (-not $exitedEarly) { Stop-Process -Id $process.Id -Force }
+          $logDirectory = "$env:LOCALAPPDATA\Wec\logs"
+          $log = Get-ChildItem $logDirectory -File -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime | Select-Object -Last 1
+          $initialized = $log -and (Select-String -Path $log.FullName -Pattern 'WebView2 initialized' -Quiet)
+          if ($exitedEarly -or -not $initialized) {
+            Write-Host "exited early: $exitedEarly, WebView2 initialized: $initialized"
+            if ($log) { Get-Content $log.FullName -Tail 50 }
+            exit 1
+          }
+
       - name: Create portable ZIP
         if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
         id: package
@@ -96,7 +117,7 @@ jobs:
 
       - name: Upload ZIP artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wec-win-x64-${{ github.sha }}
           path: ${{ steps.package.outputs.zip-name }}
@@ -105,7 +126,7 @@ jobs:
 
       - name: Upload installer artifact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wec-setup-${{ github.sha }}
           path: dist/*.exe

@@ -14,18 +14,16 @@ rejected. Ordering within a section is by value/effort. Milestone work
         INTERNAL_ERROR without leaking the exception message)
   - [x] `BridgeJson` envelope tests (camelCase, SCREAMING_SNAKE enums,
         request deserialization)
-- [ ] **App-start smoke test in CI** — launch the published exe on the Windows
-      runner, wait ~10 s, assert "WebView2 initialized" appears in the log;
-      catches the startup-crash class unit tests structurally cannot see
+- [x] **App-start smoke test in CI** (2026-07-02) — runs the published exe on
+      master/tag pushes, asserts "WebView2 initialized" in the log
 - [ ] **React ErrorBoundary** at app level — a render error in one page must
       show an error card, not blank the whole app
-- [ ] Add `frontend/*.tsbuildinfo` to `.gitignore` and untrack (build artifacts)
-- [ ] Bump `<Version>` in `Directory.Build.props` before the next release tag
-      (0.1.0 is already published; the CI tag guard enforces the match)
-- [ ] **Dependabot/Renovate** for NuGet + npm + GitHub Actions — ADR 0005 made
-      runtime patching our duty; nobody reminds us otherwise
-- [ ] Bump GitHub Actions majors when Node-22-based versions ship
-      (checkout/setup-node/setup-dotnet/upload-artifact are Node-20-deprecated)
+- [x] Add `frontend/*.tsbuildinfo` to `.gitignore` and untrack (2026-07-02)
+- [x] Bump `<Version>` in `Directory.Build.props` → 0.2.0 (2026-07-02)
+- [x] **Dependabot** for NuGet + npm + GitHub Actions, weekly, grouped
+      (2026-07-02)
+- [x] Bump GitHub Actions majors (2026-07-02): checkout v7, setup-node v6,
+      setup-dotnet v5, upload-artifact v7
 
 ## P1 — Pending decisions (user)
 

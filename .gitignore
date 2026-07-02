@@ -9,6 +9,7 @@ TestResults/
 node_modules/
 frontend/dist/
 src/Wec.Host/wwwroot/
+*.tsbuildinfo
 
 # EF design-time artifacts
 wec-design-time.db
