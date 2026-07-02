@@ -15,6 +15,8 @@ public sealed class InventoryModule : IModule
     {
         services.AddScoped<IHardwareSnapshotRepository, EfHardwareSnapshotRepository>();
         services.AddScoped<HardwareInfoService>();
+        services.AddScoped<DiskEncryptionService>();
         services.AddScoped<IActionHandler, GetHardwareInfoHandler>();
+        services.AddScoped<IActionHandler, GetDiskEncryptionStatusHandler>();
     }
 }

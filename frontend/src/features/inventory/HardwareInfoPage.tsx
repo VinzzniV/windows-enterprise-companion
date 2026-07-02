@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '../../shared/bridge/bridgeClient';
-import type { GetHardwareInfoRequest, HardwareInfoResult } from '../../shared/api-types';
+import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
+import type {
+  DiskEncryptionStatus,
+  EncryptableVolume,
+  GetHardwareInfoRequest,
+  HardwareInfoResult,
+} from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
+import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '—';
@@ -15,6 +21,73 @@ type LoadState =
   | { kind: 'loading' }
   | { kind: 'loaded'; result: HardwareInfoResult }
   | { kind: 'error'; message: string };
+
+type EncryptionState =
+  | { kind: 'loading' }
+  | { kind: 'loaded'; volumes: EncryptableVolume[] }
+  | { kind: 'requiresElevation'; message: string }
+  | { kind: 'error'; message: string };
+
+function EncryptionCard() {
+  const [state, setState] = useState<EncryptionState>({ kind: 'loading' });
+
+  useEffect(() => {
+    invoke<DiskEncryptionStatus>('inventory', 'getDiskEncryptionStatus')
+      .then((status) => setState({ kind: 'loaded', volumes: status.volumes }))
+      .catch((error: unknown) => {
+        if (error instanceof BridgeInvokeError && error.error.code === 'ACCESS_DENIED') {
+          setState({ kind: 'requiresElevation', message: error.error.message });
+        } else {
+          setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) });
+        }
+      });
+  }, []);
+
+  return (
+    <Card title="Disk encryption (BitLocker)">
+      {state.kind === 'loading' && <p className="text-sm text-slate-400">Checking …</p>}
+
+      {state.kind === 'requiresElevation' && (
+        <div className="flex flex-col gap-2">
+          <StatusBadge variant="elevation">Requires elevation</StatusBadge>
+          <p className="text-sm text-slate-400">{state.message}</p>
+          <p className="text-xs text-slate-500">
+            Restart the app as administrator to run this check.
+          </p>
+        </div>
+      )}
+
+      {state.kind === 'error' && (
+        <div className="flex flex-col gap-2">
+          <StatusBadge variant="error">Failed</StatusBadge>
+          <p className="text-sm text-slate-400">{state.message}</p>
+        </div>
+      )}
+
+      {state.kind === 'loaded' && (
+        <ul className="flex flex-col gap-1 text-sm">
+          {state.volumes.map((volume, index) => (
+            <li key={index} className="flex items-center gap-2">
+              <span className="w-10">{volume.driveLetter ?? '—'}</span>
+              <StatusBadge
+                variant={
+                  volume.protectionStatus === 'PROTECTED'
+                    ? 'success'
+                    : volume.protectionStatus === 'UNPROTECTED'
+                      ? 'error'
+                      : 'neutral'
+                }
+              >
+                {volume.protectionStatus}
+              </StatusBadge>
+            </li>
+          ))}
+          {state.volumes.length === 0 && <li className="text-slate-400">No encryptable volumes found.</li>}
+        </ul>
+      )}
+    </Card>
+  );
+}
 
 export function HardwareInfoPage() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
@@ -139,6 +212,8 @@ export function HardwareInfoPage() {
               </tbody>
             </table>
           </Card>
+
+          <EncryptionCard />
         </div>
       )}
     </div>

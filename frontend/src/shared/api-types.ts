@@ -72,3 +72,17 @@ export interface HardwareInfoResult {
   capturedAtUtc: string;
   fromCache: boolean;
 }
+
+/** Wec.Modules.Inventory.Domain.VolumeProtectionStatus (SCREAMING_SNAKE on the wire) */
+export type VolumeProtectionStatus = 'UNPROTECTED' | 'PROTECTED' | 'UNKNOWN';
+
+/** Wec.Modules.Inventory.Domain.EncryptableVolume */
+export interface EncryptableVolume {
+  driveLetter: string | null;
+  protectionStatus: VolumeProtectionStatus;
+}
+
+/** Wec.Modules.Inventory.Application.DiskEncryptionStatus */
+export interface DiskEncryptionStatus {
+  volumes: EncryptableVolume[];
+}
