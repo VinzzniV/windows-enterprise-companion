@@ -50,16 +50,28 @@ jobs:
       - name: Backend tests
         run: dotnet test --configuration Release --no-build
 
-      # Artifact only when every gate above passed, and only for pushes to master
-      - name: Publish host
+      # Packaging (ADR 0005): self-contained win-x64 so target machines need no
+      # .NET runtime. Compiles for the RID, so --no-build does not apply here.
+      # Only when every gate above passed, and only for pushes to master.
+      - name: Publish host (self-contained win-x64)
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        run: dotnet publish src/Wec.Host --configuration Release --no-build --output publish
+        run: dotnet publish src/Wec.Host --configuration Release --runtime win-x64 --self-contained true --output publish
+
+      - name: Create portable ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        id: package
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version.Trim()
+          $zipName = "wec-$version-win-x64.zip"
+          Compress-Archive -Path publish\* -DestinationPath $zipName
+          "zip-name=$zipName" >> $env:GITHUB_OUTPUT
 
       - name: Upload artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
-          name: wec-host-${{ github.sha }}
-          path: publish
+          name: wec-win-x64-${{ github.sha }}
+          path: ${{ steps.package.outputs.zip-name }}
           if-no-files-found: error
           retention-days: 14

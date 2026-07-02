@@ -272,6 +272,24 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Gates: dotnet build 0 warnings ✅ · dotnet test 91/91 (net10.0) ✅ ·
   vitest 9/9 ✅ · npm build ✅
 
+### 2026-07-02 — Iteration 13 (M8 slice 1)
+- Task: ADR 0005 + self-contained ZIP packaging in CI
+- ADR 0005 (Accepted — decisions made interactively by the user): runtime
+  self-contained win-x64; formats ZIP (CI) + Inno per-user (slice 2); no
+  signing/MSIX/auto-update/trimming/MSI, each with documented reasoning
+- ci.yml: publish step now `--runtime win-x64 --self-contained true`
+  (compiles for the RID — no `--no-build`); versioned
+  `wec-<version>-win-x64.zip` via Compress-Archive (version parsed from
+  Directory.Build.props); artifact renamed `wec-win-x64-<sha>`
+- Locally replayed: publish OK, ZIP 76.9 MB (≈180 MB uncompressed), exe +
+  wwwroot verified; smoke test: published exe ran 10 s, WebView2 up, bridge
+  answered getHardwareInfo, BitLocker correctly RequiresElevation, process
+  stopped cleanly
+- README: CI section + limitations (SmartScreen note instead of "no
+  packaging yet"); .gitignore: publish/ + local ZIPs
+- Gates: dotnet build 0 warnings ✅ · dotnet test 91/91 ✅ · vitest 9/9 ✅ ·
+  npm build ✅
+
 ## Standing constraints (from loop definition)
 
 - One small task per iteration; finish M1.1 before M2.

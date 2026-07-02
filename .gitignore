@@ -13,6 +13,10 @@ src/Wec.Host/wwwroot/
 # EF design-time artifacts
 wec-design-time.db
 
+# Local packaging output (CI builds the real artifacts)
+publish/
+wec-*-win-x64.zip
+
 # Local agent tooling
 .claude/
 

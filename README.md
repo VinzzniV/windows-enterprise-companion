@@ -62,7 +62,9 @@ Logs (rolling daily, path shown in the sidebar footer) carry a
   per-action elevation prompt (deliberate, ADR 0002).
 - TypeScript API types are mirrored manually from the C# DTOs
   (`frontend/src/shared/api-types.ts`) — review on every DTO change.
-- No installer/packaging and no CI pipeline yet (roadmap M8/M9).
+- Artifacts are not code-signed (no certificate yet) — SmartScreen warns on
+  first run of downloaded builds. See
+  [ADR 0005](docs/adr/0005-packaging-and-distribution.md).
 
 ## Development workflow
 
@@ -93,10 +95,10 @@ Migrations are applied automatically at app startup.
 [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every push to
 `master` and every pull request (Windows runner — the host targets
 `net10.0-windows`): frontend tests + build, backend build with
-`TreatWarningsAsErrors`, all backend tests. A published host artifact is
-uploaded **only** when every gate passed, and only for pushes to `master`.
-The release process (tags, installers) is deliberately deferred until the
-packaging direction is decided (roadmap M8).
+`TreatWarningsAsErrors`, all backend tests. When every gate passed on a push
+to `master`, CI publishes the host **self-contained for win-x64** (no .NET
+runtime needed on target machines, ADR 0005) and uploads a portable
+`wec-<version>-win-x64.zip` artifact.
 
 ## Runtime locations
 
