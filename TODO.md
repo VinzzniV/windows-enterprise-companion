@@ -43,9 +43,10 @@ rejected. Ordering within a section is by value/effort. Milestone work
       Options (pick one): explicit "include live AD analysis" checkbox
       (visible run, consistent with the no-silent-queries rule) or AD scan
       persistence analogous to security scans
-- [ ] **"Restart as administrator" button** — user-initiated relaunch with
-      UAC prompt (ADR-0002-conform, no auto-elevation); removes the biggest
-      elevation UX friction
+- [x] **"Restart as administrator" button** (2026-07-02) — sidebar footer,
+      only visible unelevated; launches an elevated copy of this exe via UAC
+      ("runas"), dismissed prompt = valid outcome, then closes the unelevated
+      instance; 4 handler tests
 
 ## P3 — Mid-term features
 

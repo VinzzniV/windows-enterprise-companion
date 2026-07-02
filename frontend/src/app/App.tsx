@@ -46,6 +46,19 @@ function AppInfoFooter() {
           </StatusBadge>
         </span>
       </div>
+      {!appInfo.isElevated && (
+        <button
+          type="button"
+          title="Starts an elevated copy via the UAC prompt and closes this one"
+          onClick={() => {
+            // A dismissed UAC prompt is a valid outcome; errors surface in the host log
+            invoke('system', 'restartElevated', {}, 120_000).catch(() => {});
+          }}
+          className="self-start rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
+        >
+          Restart as administrator
+        </button>
+      )}
       <span className="truncate" title={appInfo.databasePath}>
         DB: {appInfo.databasePath}
       </span>

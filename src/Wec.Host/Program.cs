@@ -172,6 +172,9 @@ internal static partial class Program
         builder.Services.AddSingleton<IActionHandler, PingHandler>();
         builder.Services.AddSingleton<IActionHandler, GetAppInfoHandler>();
         builder.Services.AddSingleton<IActionHandler, OpenLogsFolderHandler>();
+        builder.Services.AddSingleton<IElevatedProcessLauncher, ShellElevatedProcessLauncher>();
+        builder.Services.AddSingleton<IAppShutdown, MainWindowShutdown>();
+        builder.Services.AddSingleton<IActionHandler, RestartElevatedHandler>();
         builder.Services.AddSingleton<ActionDispatcher>();
         builder.Services.AddSingleton<WebViewBridge>();
         builder.Services.AddSingleton<MainWindow>();

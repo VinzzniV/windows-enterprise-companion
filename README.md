@@ -48,8 +48,11 @@ rights render a "Requires elevation" status instead of failing silently.
   (`Standard user` / `Administrator`) reported by `IPrivilegeContext`.
 - Checks declare their required privilege. Unelevated, the BitLocker card on
   the Inventory page shows an amber **Requires elevation** badge — this is
-  expected, not an error. To run those checks, close the app and start it
-  again via *Run as administrator* (manual, per ADR 0002).
+  expected, not an error. To run those checks, use **Restart as
+  administrator** in the sidebar footer: it starts an elevated copy via the
+  regular UAC prompt and closes the unelevated instance. The app still never
+  elevates itself (ADR 0002) — dismissing the UAC prompt simply keeps the
+  current instance running.
 - Access-denied results always carry the required privilege in the typed
   error envelope (`ACCESS_DENIED` + `requiredPrivilege`, ADR 0003).
 
@@ -73,8 +76,8 @@ Logs (rolling daily, path shown in the sidebar footer) carry a
 - Inventory covers CPU, memory banks, physical disks, OS and BitLocker
   status; no monitors, GPUs, network adapters or installed software.
 - The snapshot cache keeps only the latest snapshot (no history).
-- Elevation requires a manual restart as administrator; there is no
-  per-action elevation prompt (deliberate, ADR 0002).
+- Elevation applies to the whole app via restart (button in the sidebar
+  footer); there is no per-action elevation prompt (deliberate, ADR 0002).
 - TypeScript API types are mirrored manually from the C# DTOs
   (`frontend/src/shared/api-types.ts`) — review on every DTO change.
 - Artifacts are not code-signed (no certificate yet) — SmartScreen warns on

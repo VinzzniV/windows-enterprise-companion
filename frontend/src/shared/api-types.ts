@@ -274,3 +274,8 @@ export interface ScanHistoryResult {
   scans: ScanSummary[];
   changesSinceLastScan: ScanDiff | null;
 }
+
+/** Wec.Host.Bridge.RestartElevatedResult */
+export interface RestartElevatedResult {
+  cancelled: boolean;
+}
