@@ -1,6 +1,6 @@
 # ADR 0003: IPC Envelope Contract
 
-- **Status:** Draft (written during M1 step 4; finalized in step 10)
+- **Status:** Accepted
 - **Date:** 2026-07-02
 - **Deciders:** Vinz
 - **Supersedes:** —
@@ -68,6 +68,10 @@ this ADR normalizes to one rule — every enum is SCREAMING_SNAKE on the wire.
 Handlers implement `IActionHandler<TPayload, TResult>` (Wec.Core), receive a
 typed payload, and return `Result<TResult>`. They never see JSON, envelopes,
 or WebView2 types — that is the bridge layer's job (`Wec.Host/Bridge`).
+
+Handlers are resolved from a DI scope per request so they can depend on
+scoped services (DbContext etc.). Uniqueness of `(module, action)` across all
+registrations is validated once at startup.
 
 ### Events
 
