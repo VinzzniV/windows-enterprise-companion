@@ -71,6 +71,12 @@ internal static class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        builder.Services
+            .AddOptions<FrontendOptions>()
+            .Bind(builder.Configuration.GetSection(FrontendOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         builder.Services.AddSerilog((serviceProvider, loggerConfiguration) =>
             SerilogConfiguration.Configure(
                 loggerConfiguration,

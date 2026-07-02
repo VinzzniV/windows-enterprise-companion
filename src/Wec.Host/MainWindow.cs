@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Web.WebView2.Core;
@@ -9,31 +10,18 @@ namespace Wec.Host;
 
 internal sealed class MainWindow : Form
 {
-    // Temporary until M1 step 5 wires the real frontend; exercises the bridge round trip
-    private const string PlaceholderPage = """
+    private const string VirtualHostName = "app.wec";
+
+    private const string MissingAssetsPage = """
         <!doctype html>
         <html>
         <head><meta charset="utf-8"><title>WEC</title></head>
         <body style="font-family: system-ui; display: grid; place-items: center; height: 100vh; margin: 0; background: #0f172a; color: #e2e8f0;">
           <div style="text-align: center;">
             <h1>Windows Enterprise Companion</h1>
-            <p>Host bootstrap OK — frontend assets not wired yet (M1 step 5).</p>
-            <p id="bridge-status">Bridge: waiting for ping response …</p>
+            <p>Frontend assets are missing. Run <code>npm run build</code> in <code>frontend/</code> and rebuild,
+               or enable <code>Wec:Frontend:UseDevServer</code>.</p>
           </div>
-          <script>
-            const bridge = window.chrome?.webview;
-            if (bridge) {
-              bridge.addEventListener('message', (event) => {
-                const response = event.data;
-                if (response.id === 'placeholder-ping' && response.success) {
-                  document.getElementById('bridge-status').textContent =
-                    `Bridge: round trip OK — ${response.data.message} @ ${response.data.timestamp}`;
-                  bridge.postMessage({ id: 'placeholder-ping-confirmed', module: 'system', action: 'ping', payload: null });
-                }
-              });
-              bridge.postMessage({ id: 'placeholder-ping', module: 'system', action: 'ping', payload: null });
-            }
-          </script>
         </body>
         </html>
         """;
@@ -41,12 +29,18 @@ internal sealed class MainWindow : Form
     private readonly WebView2 _webView;
     private readonly WebViewBridge _bridge;
     private readonly WebViewOptions _webViewOptions;
+    private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<MainWindow> _logger;
 
-    public MainWindow(WebViewBridge bridge, IOptions<WebViewOptions> webViewOptions, ILogger<MainWindow> logger)
+    public MainWindow(
+        WebViewBridge bridge,
+        IOptions<WebViewOptions> webViewOptions,
+        IOptions<FrontendOptions> frontendOptions,
+        ILogger<MainWindow> logger)
     {
         _bridge = bridge;
         _webViewOptions = webViewOptions.Value;
+        _frontendOptions = frontendOptions.Value;
         _logger = logger;
 
         Text = "Windows Enterprise Companion";
@@ -69,7 +63,7 @@ internal sealed class MainWindow : Form
             await _webView.EnsureCoreWebView2Async(environment);
 
             _bridge.Attach(_webView.CoreWebView2);
-            _webView.CoreWebView2.NavigateToString(PlaceholderPage);
+            NavigateToFrontend();
             _logger.LogInformation(
                 "WebView2 initialized, runtime version {RuntimeVersion}",
                 environment.BrowserVersionString);
@@ -84,6 +78,32 @@ internal sealed class MainWindow : Form
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             Close();
+        }
+    }
+
+    private void NavigateToFrontend()
+    {
+        if (_frontendOptions.UseDevServer)
+        {
+            _logger.LogInformation("Loading frontend from dev server {DevServerUrl}", _frontendOptions.DevServerUrl);
+            _webView.CoreWebView2.Navigate(_frontendOptions.DevServerUrl);
+            return;
+        }
+
+        string wwwrootDirectory = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        if (File.Exists(Path.Combine(wwwrootDirectory, "index.html")))
+        {
+            _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                VirtualHostName,
+                wwwrootDirectory,
+                CoreWebView2HostResourceAccessKind.Allow);
+            _logger.LogInformation("Loading frontend from local assets in {WwwrootDirectory}", wwwrootDirectory);
+            _webView.CoreWebView2.Navigate($"https://{VirtualHostName}/index.html");
+        }
+        else
+        {
+            _logger.LogWarning("No frontend assets found in {WwwrootDirectory}", wwwrootDirectory);
+            _webView.CoreWebView2.NavigateToString(MissingAssetsPage);
         }
     }
 }
