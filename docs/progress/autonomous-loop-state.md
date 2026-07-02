@@ -4,8 +4,25 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M1.1 — Stabilization and UX hardening — **COMPLETE**
-  (awaiting user review before M2 starts)
+- **Milestone:** M2 — Local security findings (in progress, batch mode)
+- **M1.1:** complete and accepted by user on 2026-07-02
+- **User decisions for M2 (2026-07-02):** new module `Wec.Modules.Security` +
+  `frontend/src/features/security`; scan history (`security_scans` +
+  `security_findings`, minimal schema); severities fixed per check
+  (SMB1/firewall-off/Defender-off = HIGH, RDP/SecureBoot-off = MEDIUM,
+  TPM = LOW–MEDIUM by evidence, BitLocker-blocked = INFO/LOW per existing
+  error semantics, risky local admins = MEDIUM; unclear ⇒ conservative lower
+  + documented reasoning); no configurable severity; Security page with scan
+  status/button, severity+category filters, evidence, recommendation,
+  elevation display. Batch mode: one coherent slice per iteration.
+
+## M2 slice plan
+
+| Slice | Status | Content |
+|---|---|---|
+| 1 | ✅ 2026-07-02 | Module skeleton, models, scan-history persistence + migration, firewall check, runScan/getLatestScan handlers, Security page with filters, 10 new tests |
+| 2 | ⬜ next | Remaining checks batch: Defender, SMB1, RDP, BitLocker (elevation-aware), Secure Boot, TPM, OS support (offline), local Administrators |
+| — | after slice 2 | M2 complete ⇒ NEEDS_USER_REVIEW |
 - **M1 (Local hardware inventory):** complete — 10 steps, commits `34ddc8d`…`0ef3790`,
   DoD verified (unelevated start, CIM → SQLite cache → bridge → React,
   RequiresElevation path, 14 backend tests)
@@ -72,6 +89,21 @@ Maintained by the autonomous development loop. One entry per iteration.
   persistence model, severity mapping ownership, and whether M2 becomes a new
   Wec.Modules.Security module (it should, per architecture) — plus review of
   the M1.1 UX in the running app.
+
+### 2026-07-02 — Iteration 5 (M2 slice 1)
+- Task: Security module vertical slice with firewall check
+- Key design points: `ISecurityCheck` converts expected failures into INFO
+  findings (visible, never silent); crashing check ⇒ scan status
+  COMPLETED_WITH_ERRORS, other checks keep running; `MSFT_NetFirewallProfile`
+  GpoBoolean (0/1/2) handled, NotConfigured treated as enabled (no false alarm);
+  scan history preserved (no replace-on-save)
+- **Lesson recorded:** EF Core 9 fails `Migrate()` when the runtime model
+  differs from the snapshot (PendingModelChangesWarning). Integration tests
+  must compose the model with ALL module assemblies —
+  `IntegrationDbContextFactory` is now the single place to register them.
+- Gates: dotnet 24/24 ✅ · vitest 9/9 ✅ · builds clean ✅ · migration applied
+  on the real DB at startup (421 ms) ✅
+- Next: slice 2 — remaining eight checks as one batch with tests
 
 ## Standing constraints (from loop definition)
 

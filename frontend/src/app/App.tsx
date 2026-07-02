@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
+import { SecurityPage } from '../features/security/SecurityPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
 
-const navigation = [{ to: '/inventory', label: 'Inventory' }];
+const navigation = [
+  { to: '/inventory', label: 'Inventory' },
+  { to: '/security', label: 'Security' },
+];
 
 function AppInfoFooter() {
   const [appInfo, setAppInfo] = useState<AppInfoResponse | null>(null);
@@ -84,6 +88,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/inventory" replace />} />
             <Route path="/inventory" element={<HardwareInfoPage />} />
+            <Route path="/security" element={<SecurityPage />} />
           </Routes>
         </main>
       </div>

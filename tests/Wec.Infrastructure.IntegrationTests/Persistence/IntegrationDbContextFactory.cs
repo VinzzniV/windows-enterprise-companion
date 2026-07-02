@@ -1,21 +1,22 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Design;
 using Wec.Infrastructure.Persistence;
 using Wec.Modules.Inventory.Persistence;
 using Wec.Modules.Security.Persistence;
 
-namespace Wec.Host;
+namespace Wec.Infrastructure.IntegrationTests.Persistence;
 
 /// <summary>
-/// Used only by the dotnet-ef tools:
-/// dotnet ef migrations add &lt;Name&gt; --project src/Wec.Infrastructure --startup-project src/Wec.Host
+/// Builds the context with ALL module assemblies, exactly like the host.
+/// EF Core 9 fails Migrate() when the runtime model differs from the migration
+/// snapshot (PendingModelChangesWarning), so a partial model is not an option.
+/// New module ⇒ add its assembly here.
 /// </summary>
-internal sealed class DesignTimeWecDbContextFactory : IDesignTimeDbContextFactory<WecDbContext>
+internal static class IntegrationDbContextFactory
 {
-    public WecDbContext CreateDbContext(string[] args)
+    public static WecDbContext Create(string databasePath)
     {
         var optionsBuilder = new DbContextOptionsBuilder<WecDbContext>();
-        optionsBuilder.UseSqlite("Data Source=wec-design-time.db");
+        optionsBuilder.UseSqlite($"Data Source={databasePath}");
         return new WecDbContext(
             optionsBuilder.Options,
             new ModelAssemblyRegistry([

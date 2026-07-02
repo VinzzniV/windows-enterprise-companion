@@ -94,3 +94,47 @@ export interface EncryptableVolume {
 export interface DiskEncryptionStatus {
   volumes: EncryptableVolume[];
 }
+
+/** Wec.Modules.Security.Domain.FindingSeverity (SCREAMING_SNAKE on the wire) */
+export type FindingSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+/** Wec.Modules.Security.Domain.FindingCategory (SCREAMING_SNAKE on the wire) */
+export type FindingCategory =
+  | 'FIREWALL'
+  | 'MALWARE_PROTECTION'
+  | 'NETWORK_SERVICES'
+  | 'ENCRYPTION'
+  | 'PLATFORM_INTEGRITY'
+  | 'ACCOUNTS'
+  | 'OPERATING_SYSTEM';
+
+/** Wec.Modules.Security.Domain.ScanStatus (SCREAMING_SNAKE on the wire) */
+export type ScanStatus = 'COMPLETED' | 'COMPLETED_WITH_ERRORS' | 'FAILED';
+
+/** Wec.Modules.Security.Domain.SecurityFinding */
+export interface SecurityFinding {
+  findingId: string;
+  title: string;
+  description: string;
+  severity: FindingSeverity;
+  category: FindingCategory;
+  affectedResource: string;
+  evidence: Record<string, string>;
+  recommendation: string;
+  requiredPrivilege: PrivilegeLevel | null;
+  capturedAtUtc: string;
+}
+
+/** Wec.Modules.Security.Domain.SecurityScanResult */
+export interface SecurityScanResult {
+  scanId: number;
+  startedAtUtc: string;
+  completedAtUtc: string;
+  status: ScanStatus;
+  findings: SecurityFinding[];
+}
+
+/** Wec.Modules.Security.Application.LatestScanResult */
+export interface LatestScanResult {
+  scan: SecurityScanResult | null;
+}

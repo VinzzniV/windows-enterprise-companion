@@ -3,3 +3,5 @@
 [*.cs]
 # CA1707: underscore naming (Method_Scenario_Expectation) is the established xUnit convention
 dotnet_diagnostic.CA1707.severity = none
+# CA1861: inline expected-value arrays in assertions are idiomatic test code
+dotnet_diagnostic.CA1861.severity = none

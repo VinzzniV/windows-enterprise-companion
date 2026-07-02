@@ -17,14 +17,7 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         Path.GetTempPath(),
         $"wec-integration-{Guid.NewGuid():N}.db");
 
-    private WecDbContext CreateContext()
-    {
-        var optionsBuilder = new DbContextOptionsBuilder<WecDbContext>();
-        optionsBuilder.UseSqlite($"Data Source={_databasePath}");
-        return new WecDbContext(
-            optionsBuilder.Options,
-            new ModelAssemblyRegistry([typeof(HardwareSnapshotRecord).Assembly]));
-    }
+    private WecDbContext CreateContext() => IntegrationDbContextFactory.Create(_databasePath);
 
     private static HardwareSnapshot BuildSnapshot() => new(
         new CpuInfo("Integration CPU", 8, 16, 3600),

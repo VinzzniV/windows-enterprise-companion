@@ -19,6 +19,7 @@ using Wec.Core.Modules;
 using Wec.Infrastructure.Time;
 using Wec.Infrastructure.Wmi;
 using Wec.Modules.Inventory;
+using Wec.Modules.Security;
 
 using HostFactory = Microsoft.Extensions.Hosting.Host;
 
@@ -105,7 +106,7 @@ internal static class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        IModule[] modules = [new InventoryModule()];
+        IModule[] modules = [new InventoryModule(), new SecurityModule()];
         foreach (IModule module in modules)
         {
             module.RegisterServices(builder.Services);
