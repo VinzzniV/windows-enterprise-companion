@@ -4,7 +4,13 @@ Maintained by the autonomous development loop. One entry per iteration.
 
 ## Current position
 
-- **Milestone:** M9 — release half (M8 complete 2026-07-02)
+- **Milestone:** M4 — AD read-only analysis (started 2026-07-02 after user
+  resumed the loop; M8 + M9 complete, release v0.1.0 published)
+- **M4 slice plan:** ADR 0006 first (done, Proposed), then slice 1 =
+  module + domain detection + DC discovery + users/groups overview counts;
+  slice 2 = hygiene checks (inactive users/computers, password-never-expires,
+  privileged groups, disabled-but-privileged). No persistence in M4 slice 1
+  (same YAGNI call as M3).
 - **User decisions for M8 (2026-07-02):** upgrade to .NET 10 LTS first
   (slice 0); package **self-contained win-x64** (~180 MB measured vs 39 MB
   framework-dependent — zero prerequisites on target machines won);
@@ -326,6 +332,21 @@ Maintained by the autonomous development loop. One entry per iteration.
   wec-0.1.0-setup.exe (56.4 MB); parallel master run also green
 - **M9 complete.** Remaining roadmap: M4 (AD, needs access-strategy ADR),
   M6 (remediation, needs ADR), M7 (AI, optional)
+
+### 2026-07-02 — Iteration 16 (M4 kickoff)
+- Task: ADR 0006 — Active Directory access strategy (required before any
+  M4 implementation)
+- Decision: LDAP via System.DirectoryServices.Protocols behind a new Core
+  seam `IDirectoryReader` (search-only shape = read-only enforced by the
+  interface, IWmiQueryService pattern); current Windows identity only, no
+  credential storage; domain detection via Win32_ComputerSystem; new
+  ErrorCode.DirectoryUnavailable; paged searches with attribute allowlists;
+  all tunables as Wec:ActiveDirectory options
+- Rejected: ADSI (COM + read/write API mix), AccountManagement (legacy,
+  slow), PowerShell RSAT module (dependency weight)
+- Gates: docs-only; build/test baseline green from v0.1.0 release runs
+- Next: M4 slice 1 — Wec.Modules.ActiveDirectory + IDirectoryReader seam +
+  domain detection + DC discovery + user/group overview + UI + tests
 
 ## Standing constraints (from loop definition)
 
