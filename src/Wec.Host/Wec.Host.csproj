@@ -16,6 +16,7 @@
     <ProjectReference Include="..\Modules\Wec.Modules.Security\Wec.Modules.Security.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.Diagnostics\Wec.Modules.Diagnostics.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.Reporting\Wec.Modules.Reporting.csproj" />
+    <ProjectReference Include="..\Modules\Wec.Modules.ActiveDirectory\Wec.Modules.ActiveDirectory.csproj" />
   </ItemGroup>
 
   <ItemGroup>

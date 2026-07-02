@@ -24,6 +24,7 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="System.Diagnostics.EventLog" Version="10.0.9" />
+    <PackageVersion Include="System.DirectoryServices.Protocols" Version="10.0.9" />
   </ItemGroup>
   <ItemGroup Label="Tests">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />

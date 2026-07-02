@@ -348,6 +348,29 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Next: M4 slice 1 — Wec.Modules.ActiveDirectory + IDirectoryReader seam +
   domain detection + DC discovery + user/group overview + UI + tests
 
+### 2026-07-02 — Iteration 17 (M4 slice 1)
+- Task: AD module vertical slice (overview)
+- New Core seam per ADR 0006: IDirectoryReader (search-only) +
+  DirectorySearchQuery/DirectoryEntryData (case-insensitive multi-value
+  attributes, GetLong for AD numerics); ErrorCode.DirectoryUnavailable
+  (ADR 0003 + api-types updated)
+- Infrastructure: LdapDirectoryReader (S.DS.Protocols 10.0.9, Negotiate,
+  paged via PageResultRequestControl, no referral chasing, empty attribute
+  list ⇒ RFC 4511 "1.1" = count-only); InsufficientAccessRights ⇒
+  ACCESS_DENIED, other LDAP failures ⇒ DIRECTORY_UNAVAILABLE
+- Module: DirectoryOverviewService — WMI domain detection first (workgroup ⇒
+  valid domainJoined:false result, directory never touched — test-enforced);
+  RootDSE ⇒ defaultNamingContext; DC discovery via userAccountControl bit
+  8192; user/disabled/group/computer counts; activedirectory/getOverview
+- UI: Active Directory page (analyze button, workgroup card, stat tiles,
+  DC list); nav + api-types extended
+- No persistence, no factory changes needed (module has no EF entities —
+  like Diagnostics/Reporting)
+- Gates: dotnet build 0 warnings ✅ · dotnet test 100/100 (7 assemblies) ✅ ·
+  vitest 9/9 ✅ · npm build ✅ · app start smoke test with module registered ✅
+- Next: M4 slice 2 — hygiene checks (inactive users/computers,
+  password-never-expires, privileged groups, disabled-but-privileged)
+
 ## Standing constraints (from loop definition)
 
 - One small task per iteration; finish M1.1 before M2.

@@ -3,6 +3,7 @@ import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
 import { SecurityPage } from '../features/security/SecurityPage';
 import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
+import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
 import { ReportingPage } from '../features/reporting/ReportingPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
@@ -12,6 +13,7 @@ const navigation = [
   { to: '/inventory', label: 'Inventory' },
   { to: '/security', label: 'Security' },
   { to: '/diagnostics', label: 'Diagnostics' },
+  { to: '/activedirectory', label: 'Active Directory' },
   { to: '/reporting', label: 'Reporting' },
 ];
 
@@ -98,6 +100,7 @@ export function App() {
             <Route path="/inventory" element={<HardwareInfoPage />} />
             <Route path="/security" element={<SecurityPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
+            <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
             <Route path="/reporting" element={<ReportingPage />} />
           </Routes>
         </main>

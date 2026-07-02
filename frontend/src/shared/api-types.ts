@@ -30,7 +30,8 @@ export type ErrorCode =
   | 'UNKNOWN_ACTION'
   | 'NETWORK_PROBE_FAILED'
   | 'EVENT_LOG_UNAVAILABLE'
-  | 'FILE_WRITE_FAILED';
+  | 'FILE_WRITE_FAILED'
+  | 'DIRECTORY_UNAVAILABLE';
 
 /** Wec.Modules.Inventory.Handlers.GetHardwareInfoRequest */
 export interface GetHardwareInfoRequest {
@@ -190,4 +191,23 @@ export interface ExportReportRequest {
 export interface ReportExportResult {
   cancelled: boolean;
   filePath: string | null;
+}
+
+/** Wec.Modules.ActiveDirectory.Domain.DomainControllerInfo */
+export interface DomainControllerInfo {
+  hostName: string;
+  distinguishedName: string;
+}
+
+/** Wec.Modules.ActiveDirectory.Domain.AdOverviewResult */
+export interface AdOverviewResult {
+  domainJoined: boolean;
+  domainName: string | null;
+  defaultNamingContext: string | null;
+  domainControllers: DomainControllerInfo[];
+  userCount: number;
+  disabledUserCount: number;
+  groupCount: number;
+  computerCount: number;
+  capturedAtUtc: string;
 }

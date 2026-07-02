@@ -11,4 +11,5 @@ public enum ErrorCode
     NetworkProbeFailed,
     EventLogUnavailable,
     FileWriteFailed,
+    DirectoryUnavailable,
 }

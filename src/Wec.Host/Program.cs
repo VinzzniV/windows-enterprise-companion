@@ -23,6 +23,8 @@ using Wec.Infrastructure.Time;
 using Wec.Infrastructure.Wmi;
 using Wec.Infrastructure.EventLog;
 using Wec.Infrastructure.Network;
+using Wec.Infrastructure.Directory;
+using Wec.Modules.ActiveDirectory;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.Inventory;
 using Wec.Modules.Reporting;
@@ -119,7 +121,20 @@ internal static partial class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        IModule[] modules = [new InventoryModule(), new SecurityModule(), new DiagnosticsModule(), new ReportingModule()];
+        builder.Services
+            .AddOptions<ActiveDirectoryOptions>()
+            .Bind(builder.Configuration.GetSection(ActiveDirectoryOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        IModule[] modules =
+        [
+            new InventoryModule(),
+            new SecurityModule(),
+            new DiagnosticsModule(),
+            new ReportingModule(),
+            new ActiveDirectoryModule(),
+        ];
         foreach (IModule module in modules)
         {
             module.RegisterServices(builder.Services);
@@ -142,6 +157,7 @@ internal static partial class Program
         builder.Services.AddSingleton<IPingProbe, SystemPingProbe>();
         builder.Services.AddSingleton<IDnsResolver, SystemDnsResolver>();
         builder.Services.AddSingleton<IEventLogReader, SystemEventLogReader>();
+        builder.Services.AddSingleton<IDirectoryReader, LdapDirectoryReader>();
         builder.Services.AddSingleton<IShellLauncher, ShellLauncher>();
         builder.Services.AddSingleton<ISaveFileDialogService, WinFormsSaveFileDialogService>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
