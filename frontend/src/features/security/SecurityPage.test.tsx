@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitForElementToBeRemoved } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { LatestScanResult, SecurityFinding } from '../../shared/api-types';
 import { SecurityPage } from './SecurityPage';
@@ -58,9 +58,11 @@ describe('SecurityPage', () => {
     setUpInvoke(latestScan);
 
     render(<SecurityPage />);
-    await waitForElementToBeRemoved(() => screen.queryByRole('status'));
 
-    expect(screen.getByText('Firewall disabled')).toBeDefined();
+    // Wait for content instead of spinner removal: the page and the history
+    // section each render a role="status" spinner, and their resolution
+    // order races on slow CI runners
+    expect(await screen.findByText('Firewall disabled')).toBeDefined();
     expect(screen.getByText('Admins documented')).toBeDefined();
   });
 
@@ -68,7 +70,7 @@ describe('SecurityPage', () => {
     setUpInvoke(latestScan);
 
     render(<SecurityPage />);
-    await waitForElementToBeRemoved(() => screen.queryByRole('status'));
+    await screen.findByText('Firewall disabled');
     await userEvent.click(screen.getByRole('button', { name: 'HIGH' }));
 
     expect(screen.queryByText('Firewall disabled')).toBeNull();
@@ -79,7 +81,7 @@ describe('SecurityPage', () => {
     setUpInvoke(latestScan);
 
     render(<SecurityPage />);
-    await waitForElementToBeRemoved(() => screen.queryByRole('status'));
+    await screen.findByText('Firewall disabled');
     await userEvent.selectOptions(screen.getByRole('combobox'), 'ACCOUNTS');
 
     expect(screen.queryByText('Firewall disabled')).toBeNull();
