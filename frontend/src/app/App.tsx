@@ -1,7 +1,42 @@
+import { useEffect, useState } from 'react';
 import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
+import { invoke } from '../shared/bridge/bridgeClient';
+import type { AppInfoResponse } from '../shared/api-types';
+import { StatusBadge } from '../shared/ui/StatusBadge';
 
 const navigation = [{ to: '/inventory', label: 'Inventory' }];
+
+function AppInfoFooter() {
+  const [appInfo, setAppInfo] = useState<AppInfoResponse | null>(null);
+
+  useEffect(() => {
+    invoke<AppInfoResponse>('system', 'getAppInfo')
+      .then(setAppInfo)
+      .catch(() => setAppInfo(null));
+  }, []);
+
+  if (!appInfo) {
+    return null;
+  }
+
+  return (
+    <div className="mt-auto flex flex-col gap-1.5 border-t border-slate-800 px-4 py-3 text-xs text-slate-500">
+      <div className="flex items-center justify-between">
+        <span>v{appInfo.version}</span>
+        <StatusBadge variant={appInfo.isElevated ? 'elevation' : 'neutral'}>
+          {appInfo.isElevated ? 'Administrator' : 'Standard user'}
+        </StatusBadge>
+      </div>
+      <span className="truncate" title={appInfo.databasePath}>
+        DB: {appInfo.databasePath}
+      </span>
+      <span className="truncate" title={appInfo.logDirectory}>
+        Logs: {appInfo.logDirectory}
+      </span>
+    </div>
+  );
+}
 
 export function App() {
   return (
@@ -30,6 +65,7 @@ export function App() {
               </NavLink>
             ))}
           </nav>
+          <AppInfoFooter />
         </aside>
         <main className="flex-1 overflow-y-auto p-6">
           <Routes>

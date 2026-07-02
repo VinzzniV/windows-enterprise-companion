@@ -9,6 +9,14 @@ export interface PingResponse {
   timestamp: string;
 }
 
+/** Wec.Host.Bridge.AppInfoResponse */
+export interface AppInfoResponse {
+  version: string;
+  databasePath: string;
+  logDirectory: string;
+  isElevated: boolean;
+}
+
 /** Wec.Core.Privileges.PrivilegeLevel (SCREAMING_SNAKE on the wire, ADR 0003) */
 export type PrivilegeLevel = 'STANDARD_USER' | 'ADMINISTRATOR';
 

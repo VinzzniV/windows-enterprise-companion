@@ -126,6 +126,7 @@ internal static class Program
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();
+        builder.Services.AddSingleton<IActionHandler, GetAppInfoHandler>();
         builder.Services.AddSingleton<ActionDispatcher>();
         builder.Services.AddSingleton<WebViewBridge>();
         builder.Services.AddSingleton<MainWindow>();

@@ -13,6 +13,9 @@ src/Wec.Host/wwwroot/
 # EF design-time artifacts
 wec-design-time.db
 
+# Local agent tooling
+.claude/
+
 # OS
 Thumbs.db
 Desktop.ini

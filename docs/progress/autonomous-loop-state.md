@@ -18,9 +18,9 @@ Maintained by the autonomous development loop. One entry per iteration.
 | Readable error state | ✅ done in M1 | Error card with message |
 | Requires-elevation state | ✅ done in M1 | `StatusBadge` variant `elevation` on BitLocker card |
 | Refresh inventory button | ✅ done in M1 | forceRefresh via bridge |
-| Show app version | ⬜ open | needs backend action (system module) + UI placement |
-| Show database path | ⬜ open | same system-info surface as version |
-| Show log file path | ⬜ open | same system-info surface as version |
+| Show app version | ✅ iteration 2 | `system/getAppInfo` + sidebar footer; version from Directory.Build.props (0.1.0) |
+| Show database path | ✅ iteration 2 | resolved from DatabaseOptions, shown in footer with tooltip |
+| Show log file path | ✅ iteration 2 | resolved from LoggingOptions; footer also shows elevation badge |
 | Open logs folder button | ⬜ open | shell-open action; harmless, but document as host-side action |
 | README: run instructions + current limitations | 🔶 partial | run instructions exist; limitations section missing |
 | Document unelevated behavior + cache verification | 🔶 partial | ADR 0002/0003 cover design; user-facing doc missing |
@@ -36,6 +36,18 @@ Maintained by the autonomous development loop. One entry per iteration.
   `dotnet test` 14/14 ✅
 - Next recommended: system-info surface (app version + database path + log path)
   as one vertical slice — new `system/getAppInfo` bridge action + UI footer/panel
+
+### 2026-07-02 — Iteration 2
+- Task: show app version, database path, log path (system-info vertical slice)
+- Changes: `GetAppInfoHandler` (system/getAppInfo: version, resolved DB path,
+  resolved log dir, isElevated), registered in Host; `Version` 0.1.0 in
+  Directory.Build.props; sidebar `AppInfoFooter` with elevation badge;
+  api-types mirror; `.claude/` gitignored (agent tooling artifact)
+- Gates: `npm test` 9/9 ✅ · `npm run build` ✅ · `dotnet build` ✅ ·
+  `dotnet test` 14/14 ✅ · live run: getAppInfo answered success: true ✅
+- Next recommended: open-logs-folder button (host-side shell-open of the log
+  directory — benign, but document as a host action), or README limitations
+  section + unelevated/cache documentation to close out the docs items
 
 ## Standing constraints (from loop definition)
 
