@@ -26,11 +26,15 @@ function AppInfoFooter() {
 
   return (
     <div className="mt-auto flex flex-col gap-1.5 border-t border-slate-800 px-4 py-3 text-xs text-slate-500">
-      <div className="flex items-center justify-between">
-        <span>v{appInfo.version}</span>
-        <StatusBadge variant={appInfo.isElevated ? 'elevation' : 'neutral'}>
-          {appInfo.isElevated ? 'Administrator' : 'Standard user'}
-        </StatusBadge>
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate" title={`v${appInfo.version}`}>
+          v{appInfo.version}
+        </span>
+        <span className="shrink-0 whitespace-nowrap">
+          <StatusBadge variant={appInfo.isElevated ? 'elevation' : 'neutral'}>
+            {appInfo.isElevated ? 'Administrator' : 'Standard user'}
+          </StatusBadge>
+        </span>
       </div>
       <span className="truncate" title={appInfo.databasePath}>
         DB: {appInfo.databasePath}

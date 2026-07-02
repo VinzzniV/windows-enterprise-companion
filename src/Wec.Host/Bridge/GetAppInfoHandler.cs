@@ -41,9 +41,11 @@ internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppI
         GetAppInfoRequest payload,
         CancellationToken cancellationToken)
     {
-        string version = Assembly.GetExecutingAssembly()
+        string informationalVersion = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             ?? "unknown";
+        // The SDK appends "+<git commit hash>" build metadata; not display-worthy
+        string version = informationalVersion.Split('+')[0];
 
         return Task.FromResult(Result.Success(new AppInfoResponse(
             version,
