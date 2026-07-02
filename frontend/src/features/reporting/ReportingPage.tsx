@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { ExportReportRequest, ReportExportResult, ReportOverview } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
+import { Spinner } from '../../shared/ui/Spinner';
 
 type OverviewState =
   | { kind: 'loading' }
@@ -65,7 +66,7 @@ export function ReportingPage() {
         <p className="text-sm text-slate-400">Executive summary export of the local machine</p>
       </header>
 
-      {overviewState.kind === 'loading' && <p className="text-sm text-slate-400">Loading overview …</p>}
+      {overviewState.kind === 'loading' && <Spinner label="Loading overview …" />}
 
       {overviewState.kind === 'error' && (
         <Card title="Error">

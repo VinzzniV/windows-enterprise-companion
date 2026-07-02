@@ -9,6 +9,7 @@ import type {
 } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
+import { Spinner } from '../../shared/ui/Spinner';
 import { SeverityBadge } from './SeverityBadge';
 
 const allSeverities: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
@@ -146,7 +147,7 @@ export function SecurityPage() {
         </div>
       </header>
 
-      {state.kind === 'loading' && <p className="text-sm text-slate-400">Loading latest scan …</p>}
+      {state.kind === 'loading' && <Spinner label="Loading latest scan …" />}
 
       {state.kind === 'error' && (
         <Card title="Error">

@@ -126,7 +126,16 @@ export function invoke<TResponse>(
   payload?: unknown,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<TResponse> {
-  const messenger = getMessenger();
+  // Always reject instead of throwing synchronously: callers use promise
+  // .catch() paths, and a synchronous throw inside a React effect would tear
+  // down the whole component tree instead of showing the page's error state.
+  let messenger: WebView2Messenger;
+  try {
+    messenger = getMessenger();
+  } catch (error) {
+    return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+  }
+
   ensureListener(messenger);
 
   const id = crypto.randomUUID();

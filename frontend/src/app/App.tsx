@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { HashRouter, Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
 import { SecurityPage } from '../features/security/SecurityPage';
 import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
@@ -8,13 +8,16 @@ import { ReportingPage } from '../features/reporting/ReportingPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
+import { LogoMark } from '../shared/ui/LogoMark';
+import { SplashIntro } from './SplashIntro';
+import { navIcons } from './navIcons';
 
 const navigation = [
-  { to: '/inventory', label: 'Inventory' },
-  { to: '/security', label: 'Security' },
-  { to: '/diagnostics', label: 'Diagnostics' },
-  { to: '/activedirectory', label: 'Active Directory' },
-  { to: '/reporting', label: 'Reporting' },
+  { to: '/inventory', label: 'Inventory', icon: navIcons.inventory },
+  { to: '/security', label: 'Security', icon: navIcons.security },
+  { to: '/diagnostics', label: 'Diagnostics', icon: navIcons.diagnostics },
+  { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
+  { to: '/reporting', label: 'Reporting', icon: navIcons.reporting },
 ];
 
 function AppInfoFooter() {
@@ -65,13 +68,34 @@ function AppInfoFooter() {
   );
 }
 
+function AppRoutes() {
+  const location = useLocation();
+
+  return (
+    // Key on the path so route changes replay the subtle enter animation
+    <div key={location.pathname} className="wec-page-enter">
+      <Routes>
+        <Route path="/" element={<Navigate to="/inventory" replace />} />
+        <Route path="/inventory" element={<HardwareInfoPage />} />
+        <Route path="/security" element={<SecurityPage />} />
+        <Route path="/diagnostics" element={<DiagnosticsPage />} />
+        <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
+        <Route path="/reporting" element={<ReportingPage />} />
+      </Routes>
+    </div>
+  );
+}
+
 export function App() {
+  const [introDone, setIntroDone] = useState(false);
+
   return (
     <HashRouter>
       <div className="flex h-screen bg-slate-950 text-slate-100">
         <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900">
-          <div className="border-b border-slate-800 px-4 py-4">
-            <h1 className="text-sm font-semibold tracking-wide text-slate-200">
+          <div className="flex items-center gap-2.5 border-b border-slate-800 px-4 py-4">
+            <LogoMark className="h-7 w-7 shrink-0 text-slate-300" />
+            <h1 className="text-sm font-semibold leading-tight tracking-wide text-slate-200">
               Windows Enterprise Companion
             </h1>
           </div>
@@ -81,13 +105,14 @@ export function App() {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `rounded px-3 py-2 text-sm transition-colors ${
+                  `relative flex items-center gap-2.5 rounded px-3 py-2 text-sm transition-colors ${
                     isActive
-                      ? 'bg-slate-800 font-medium text-white'
+                      ? 'bg-slate-800 font-medium text-white before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-sky-400'
                       : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
                   }`
                 }
               >
+                {item.icon}
                 {item.label}
               </NavLink>
             ))}
@@ -95,16 +120,10 @@ export function App() {
           <AppInfoFooter />
         </aside>
         <main className="flex-1 overflow-y-auto p-6">
-          <Routes>
-            <Route path="/" element={<Navigate to="/inventory" replace />} />
-            <Route path="/inventory" element={<HardwareInfoPage />} />
-            <Route path="/security" element={<SecurityPage />} />
-            <Route path="/diagnostics" element={<DiagnosticsPage />} />
-            <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
-            <Route path="/reporting" element={<ReportingPage />} />
-          </Routes>
+          <AppRoutes />
         </main>
       </div>
+      {!introDone && <SplashIntro onDone={() => setIntroDone(true)} />}
     </HashRouter>
   );
 }

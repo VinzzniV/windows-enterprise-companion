@@ -390,6 +390,25 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Gates: dotnet build 0 warnings ✅ · dotnet test 113/113 ✅ · vitest 9/9 ✅ ·
   npm build ✅ · app start smoke test ✅ (after the DI fix)
 
+### 2026-07-02 — Iteration 19 (user-directed UX polish)
+- Task: intro animation + general usability (user request, outside milestones)
+- SplashIntro: once per app start, ~1.9 s, logo stroke-draw + staggered bars +
+  wordmark + sweep; purely decorative overlay (app loads underneath);
+  prefers-reduced-motion collapses it to a short static frame
+- LogoMark shared by splash and sidebar header; nav got icons + sky accent
+  indicator; subtle page-enter transition keyed on route
+- Native: MainWindow BackColor + WebView2 DefaultBackgroundColor = slate-950
+  (#020617) — kills the white flash before first paint
+- Usability: shared Spinner replaces bare "Loading …" texts on all five
+  pages; global :focus-visible ring (keyboard nav); dark thin scrollbars;
+  selection color
+- **Bug found via browser preview: bridgeClient.invoke threw synchronously
+  when the bridge is missing — inside a React effect that unmounts the whole
+  tree (blank app) instead of reaching .catch(). invoke now always returns a
+  rejected promise; test updated accordingly.**
+- Gates: vitest 9/9 ✅ · npm build ✅ · dotnet build 0 warnings ✅ ·
+  dotnet test 113/113 ✅ · app smoke test with splash in WebView2 ✅
+
 ## Standing constraints (from loop definition)
 
 - One small task per iteration; finish M1.1 before M2.

@@ -1,1 +1,159 @@
 @import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Splash intro (SplashIntro.tsx / LogoMark.tsx)
+   --------------------------------------------------------------------------- */
+
+.wec-logo-hex {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: wec-draw 900ms ease-out forwards;
+}
+
+.wec-logo-bar {
+  opacity: 0;
+  transform-origin: left center;
+  animation: wec-bar-in 350ms ease-out forwards;
+}
+
+.wec-splash-logo {
+  animation: wec-rise 600ms ease-out both;
+}
+
+.wec-splash-title {
+  animation: wec-rise 600ms ease-out 350ms both;
+}
+
+.wec-splash-subtitle {
+  animation: wec-rise 600ms ease-out 550ms both;
+}
+
+.wec-splash-track {
+  animation: wec-rise 600ms ease-out 750ms both;
+}
+
+.wec-splash-sweep {
+  animation: wec-sweep 1100ms ease-in-out 800ms infinite;
+}
+
+.wec-splash-leave {
+  animation: wec-splash-out 450ms ease-in forwards;
+}
+
+@keyframes wec-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes wec-bar-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes wec-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wec-sweep {
+  from {
+    transform: translateX(-150%);
+  }
+  to {
+    transform: translateX(450%);
+  }
+}
+
+@keyframes wec-splash-out {
+  to {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wec-logo-hex,
+  .wec-logo-bar,
+  .wec-splash-logo,
+  .wec-splash-title,
+  .wec-splash-subtitle,
+  .wec-splash-track {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+    transform: none;
+  }
+
+  .wec-splash-sweep {
+    animation: none;
+    opacity: 0;
+  }
+
+  .wec-splash-leave {
+    animation: wec-splash-out 200ms ease-in forwards;
+  }
+
+  .wec-page-enter {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Page content transition
+   --------------------------------------------------------------------------- */
+
+.wec-page-enter {
+  animation: wec-rise 250ms ease-out both;
+}
+
+/* ---------------------------------------------------------------------------
+   Usability defaults: keyboard focus, dark scrollbars, selection
+   --------------------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--color-sky-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-sky-400) 30%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-slate-700) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-slate-700);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-slate-600);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

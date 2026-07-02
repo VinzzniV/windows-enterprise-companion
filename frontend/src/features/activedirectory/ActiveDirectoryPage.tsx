@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AdHygieneResult, AdOverviewResult } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
+import { Spinner } from '../../shared/ui/Spinner';
 
 type OverviewState =
   | { kind: 'idle' }
@@ -89,6 +90,8 @@ export function ActiveDirectoryPage() {
           Run the analysis to query the domain this machine is joined to.
         </p>
       )}
+
+      {state.kind === 'loading' && <Spinner label="Querying the directory …" />}
 
       {state.kind === 'error' && (
         <Card title="Error">

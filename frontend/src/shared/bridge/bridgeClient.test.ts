@@ -141,10 +141,12 @@ describe('invoke', () => {
     await expect(promise).resolves.toBe('pong');
   });
 
-  it('throws BridgeUnavailableError outside the WebView2 host', async () => {
+  it('rejects with BridgeUnavailableError outside the WebView2 host', async () => {
     const { invoke, BridgeUnavailableError } = await importBridge();
 
-    expect(() => invoke('system', 'ping')).toThrow(BridgeUnavailableError);
+    // Must reject (not throw synchronously): a synchronous throw inside a
+    // React effect would unmount the tree instead of reaching .catch()
+    await expect(invoke('system', 'ping')).rejects.toBeInstanceOf(BridgeUnavailableError);
   });
 });
 

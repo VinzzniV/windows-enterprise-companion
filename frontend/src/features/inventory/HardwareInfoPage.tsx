@@ -8,6 +8,7 @@ import type {
 } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
+import { Spinner } from '../../shared/ui/Spinner';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '—';
@@ -45,7 +46,7 @@ function EncryptionCard() {
 
   return (
     <Card title="Disk encryption (BitLocker)">
-      {state.kind === 'loading' && <p className="text-sm text-slate-400">Checking …</p>}
+      {state.kind === 'loading' && <Spinner label="Checking encryption status …" />}
 
       {state.kind === 'requiresElevation' && (
         <div className="flex flex-col gap-2">
@@ -131,7 +132,7 @@ export function HardwareInfoPage() {
         </div>
       </header>
 
-      {state.kind === 'loading' && <p className="text-sm text-slate-400">Loading hardware information …</p>}
+      {state.kind === 'loading' && <Spinner label="Loading hardware information …" />}
 
       {state.kind === 'error' && (
         <Card title="Error">

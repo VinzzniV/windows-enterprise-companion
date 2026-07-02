@@ -3,6 +3,7 @@ import { invoke } from '../../shared/bridge/bridgeClient';
 import type { DiagnosticResult, DiagnosticRunResult, DiagnosticStatus } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
+import { Spinner } from '../../shared/ui/Spinner';
 
 const statusStyles: Record<DiagnosticStatus, string> = {
   PASS: 'border-emerald-700 bg-emerald-900/60 text-emerald-300',
@@ -107,7 +108,7 @@ export function DiagnosticsPage() {
         </Card>
       )}
 
-      {state.kind === 'running' && <p className="text-sm text-slate-400">Running diagnostics …</p>}
+      {state.kind === 'running' && <Spinner label="Running diagnostics …" />}
 
       {state.kind === 'error' && (
         <Card title="Error">

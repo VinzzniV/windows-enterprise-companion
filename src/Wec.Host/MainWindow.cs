@@ -46,8 +46,15 @@ internal sealed partial class MainWindow : Form
         Text = "Windows Enterprise Companion";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(1280, 800);
+        // Match the UI's slate-950 so neither the form nor the WebView flashes
+        // white before the frontend has painted
+        BackColor = Color.FromArgb(2, 6, 23);
 
-        _webView = new WebView2 { Dock = DockStyle.Fill };
+        _webView = new WebView2
+        {
+            Dock = DockStyle.Fill,
+            DefaultBackgroundColor = Color.FromArgb(2, 6, 23),
+        };
         Controls.Add(_webView);
 
         Load += HandleLoad;
