@@ -440,3 +440,172 @@ export interface ScanHistoryResult {
 export interface RestartElevatedResult {
   cancelled: boolean;
 }
+
+/** Wec.Modules.PatchManagement.Domain.PatchWorkflowState (ADR 0008) */
+export type PatchWorkflowState =
+  | 'DETECTED'
+  | 'UPDATE_AVAILABLE'
+  | 'DOWNLOAD_NEEDED'
+  | 'PACKAGE_PREPARED'
+  | 'UPLOADED'
+  | 'READY_FOR_PILOT'
+  | 'APPROVED'
+  | 'ROLLOUT_REQUESTED'
+  | 'COMPLETED'
+  | 'FAILED';
+
+/** Wec.Modules.PatchManagement.Handlers.OpsiConnectRequest */
+export interface OpsiConnectRequest {
+  server: string;
+  userName: string;
+  password: string;
+  trustServerCertificate: boolean;
+}
+
+/** Wec.Modules.PatchManagement.Handlers.OpsiConnectionStatusResult */
+export interface OpsiConnectionStatusResult {
+  connected: boolean;
+  serverUrl: string | null;
+  userName: string | null;
+  opsiVersion: string | null;
+  defaultDepotFilter: string;
+}
+
+/** Wec.Modules.PatchManagement.Application.PatchDepotSummary */
+export interface PatchDepotSummary {
+  id: string;
+  description: string | null;
+  isConfigServer: boolean;
+  clientCount: number;
+}
+
+/** Wec.Modules.PatchManagement.Application.PatchDepotVersion */
+export interface PatchDepotVersion {
+  depotId: string;
+  version: string;
+}
+
+/** Wec.Modules.PatchManagement.Application.PatchClientState */
+export interface PatchClientState {
+  clientId: string;
+  depotId: string | null;
+  installedVersion: string | null;
+  targetVersion: string | null;
+  installationStatus: string | null;
+  actionRequest: string | null;
+  actionResult: string | null;
+  state: PatchWorkflowState;
+}
+
+/** Wec.Modules.PatchManagement.Application.InventoryDetection */
+export interface InventoryDetection {
+  host: string;
+  version: string | null;
+}
+
+/** Wec.Modules.PatchManagement.Application.UnmappedSoftware */
+export interface UnmappedSoftware {
+  name: string;
+  versions: string[];
+  hostCount: number;
+  suggestedProductId: string | null;
+}
+
+/** Wec.Modules.PatchManagement.Application.PatchProductRow */
+export interface PatchProductRow {
+  productId: string;
+  name: string | null;
+  availableVersion: string | null;
+  depotVersions: PatchDepotVersion[];
+  state: PatchWorkflowState;
+  installedClientCount: number;
+  outdatedClientCount: number;
+  failedClientCount: number;
+  pendingActionCount: number;
+  lastError: string | null;
+  clients: PatchClientState[];
+  mappedSoftwareNames: string[];
+  inventoryDetections: InventoryDetection[];
+}
+
+/** Wec.Modules.PatchManagement.Application.PatchDashboardSummary */
+export interface PatchDashboardSummary {
+  productCount: number;
+  productsWithUpdates: number;
+  productsWithFailures: number;
+  pendingRolloutCount: number;
+  clientCount: number;
+  depotCount: number;
+  unmappedSoftwareCount: number;
+}
+
+/** Wec.Modules.PatchManagement.Application.PatchDashboardResult */
+export interface PatchDashboardResult {
+  serverUrl: string;
+  depotFilter: string | null;
+  generatedAtUtc: string;
+  summary: PatchDashboardSummary;
+  depots: PatchDepotSummary[];
+  products: PatchProductRow[];
+  unmappedSoftware: UnmappedSoftware[];
+}
+
+/** Wec.Modules.PatchManagement.Application.RolloutPreviewClient */
+export interface RolloutPreviewClient {
+  clientId: string;
+  depotId: string | null;
+  installedVersion: string | null;
+  targetVersion: string | null;
+  currentState: PatchWorkflowState;
+}
+
+/** Wec.Modules.PatchManagement.Application.RolloutPreview */
+export interface RolloutPreview {
+  productId: string;
+  productName: string | null;
+  depotFilter: string | null;
+  plannedAction: string;
+  clients: RolloutPreviewClient[];
+  generatedAtUtc: string;
+}
+
+/** Wec.Modules.PatchManagement.Application.RolloutRequestOutcome */
+export interface RolloutRequestOutcome {
+  requestedClientCount: number;
+}
+
+/** Wec.Modules.PatchManagement.Application.PreparePackagesPlan */
+export interface PreparePackagesPlan {
+  command: string;
+  note: string;
+}
+
+/** Wec.Modules.PatchManagement.Persistence.ProductMapping */
+export interface ProductMapping {
+  softwareName: string;
+  opsiProductId: string;
+}
+
+/** Wec.Modules.PatchManagement.Handlers.MappingsResult */
+export interface MappingsResult {
+  mappings: ProductMapping[];
+}
+
+/** Wec.Modules.PatchManagement.Persistence.PatchAuditEntry */
+export interface PatchAuditEntry {
+  id: number;
+  timestampUtc: string;
+  userName: string;
+  action: string;
+  productId: string | null;
+  depotId: string | null;
+  targetClients: string[];
+  previewJson: string | null;
+  result: string;
+  errorMessage: string | null;
+}
+
+/** Wec.Modules.PatchManagement.Handlers.AuditLogResult */
+export interface AuditLogResult {
+  entries: PatchAuditEntry[];
+}

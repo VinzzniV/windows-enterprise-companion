@@ -4,6 +4,7 @@ import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
 import { SecurityPage } from '../features/security/SecurityPage';
 import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
 import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
+import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
 import { ReportingPage } from '../features/reporting/ReportingPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
@@ -18,6 +19,7 @@ const navigation = [
   { to: '/security', label: 'Security', icon: navIcons.security },
   { to: '/diagnostics', label: 'Diagnostics', icon: navIcons.diagnostics },
   { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
+  { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
   { to: '/reporting', label: 'Reporting', icon: navIcons.reporting },
 ];
 
@@ -96,6 +98,7 @@ function AppRoutes() {
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
+          <Route path="/patchmanagement" element={<PatchManagementPage />} />
           <Route path="/reporting" element={<ReportingPage />} />
         </Routes>
       </ErrorBoundary>
