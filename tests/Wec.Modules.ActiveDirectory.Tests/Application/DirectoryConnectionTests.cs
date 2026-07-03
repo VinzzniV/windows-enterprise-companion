@@ -46,6 +46,86 @@ public sealed class DirectoryConnectionRequestTests
         Assert.True(connection.IsFailure);
         Assert.Equal(ErrorCode.InvalidRequest, connection.Error!.Code);
     }
+
+    [Fact]
+    public void UpnUserName_KeepsNameAndDropsDomain()
+    {
+        Result<ScanCredentials> credentials = DirectoryConnectionRequest.NormalizeCredentials(
+            " svc-audit@contoso.local ", credentialDomain: null, "pw", directoryDomain: null);
+
+        Assert.True(credentials.IsSuccess);
+        Assert.Equal("svc-audit@contoso.local", credentials.Value.UserName);
+        // A domain next to a UPN would make LDAP treat the name as a SAM name
+        Assert.Null(credentials.Value.Domain);
+    }
+
+    [Fact]
+    public void DownLevelUserName_IsSplitIntoDomainAndUser()
+    {
+        Result<ScanCredentials> credentials = DirectoryConnectionRequest.NormalizeCredentials(
+            @"CONTOSO\svc-audit", credentialDomain: "IGNORED", "pw", directoryDomain: null);
+
+        Assert.True(credentials.IsSuccess);
+        Assert.Equal("svc-audit", credentials.Value.UserName);
+        Assert.Equal("CONTOSO", credentials.Value.Domain);
+    }
+
+    [Fact]
+    public void PlainUserWithCredentialDomain_IsCarried()
+    {
+        Result<ScanCredentials> credentials = DirectoryConnectionRequest.NormalizeCredentials(
+            "svc-audit", credentialDomain: "CONTOSO", "pw", directoryDomain: "other.example");
+
+        Assert.True(credentials.IsSuccess);
+        Assert.Equal("svc-audit", credentials.Value.UserName);
+        Assert.Equal("CONTOSO", credentials.Value.Domain);
+    }
+
+    [Fact]
+    public void PlainUserWithoutCredentialDomain_DefaultsToDirectoryDomain()
+    {
+        Result<ScanCredentials> credentials = DirectoryConnectionRequest.NormalizeCredentials(
+            "svc-audit", credentialDomain: null, "pw", directoryDomain: "contoso.local");
+
+        Assert.True(credentials.IsSuccess);
+        Assert.Equal("contoso.local", credentials.Value.Domain);
+    }
+
+    [Fact]
+    public void PlainUserWithoutAnyDomain_IsInvalidRequestNamingTheAcceptedForms()
+    {
+        Result<ScanCredentials> credentials = DirectoryConnectionRequest.NormalizeCredentials(
+            "svc-audit", credentialDomain: null, "pw", directoryDomain: null);
+
+        Assert.True(credentials.IsFailure);
+        Assert.Equal(ErrorCode.InvalidRequest, credentials.Error!.Code);
+        Assert.Contains(@"DOMAIN\user", credentials.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(@"\svc-audit")]
+    [InlineData(@"CONTOSO\")]
+    public void MalformedDownLevelName_IsInvalidRequest(string userName)
+    {
+        Result<ScanCredentials> credentials = DirectoryConnectionRequest.NormalizeCredentials(
+            userName, credentialDomain: null, "pw", directoryDomain: null);
+
+        Assert.True(credentials.IsFailure);
+        Assert.Equal(ErrorCode.InvalidRequest, credentials.Error!.Code);
+    }
+
+    [Fact]
+    public void RequestWithDownLevelUserName_ProducesNormalizedConnection()
+    {
+        Result<DirectoryConnection> connection = new DirectoryConnectionRequest(
+            Domain: "contoso.local",
+            UserName: @"CONTOSO\svc-audit",
+            Password: "pw").ToConnection();
+
+        Assert.True(connection.IsSuccess);
+        Assert.Equal("svc-audit", connection.Value.Credentials.UserName);
+        Assert.Equal("CONTOSO", connection.Value.Credentials.Domain);
+    }
 }
 
 public sealed class DomainContextServiceConnectionTests

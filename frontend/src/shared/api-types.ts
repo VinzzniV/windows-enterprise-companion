@@ -302,6 +302,13 @@ export interface DiagnosticResult {
   capturedAtUtc: string;
 }
 
+/** Wec.Modules.ActiveDirectory.Handlers.TestDirectoryConnectionResult */
+export interface TestDirectoryConnectionResult {
+  domainJoined: boolean;
+  domainName: string | null;
+  defaultNamingContext: string | null;
+}
+
 /** Wec.Modules.Diagnostics.Handlers.RunDiagnosticsRequest */
 export interface RunDiagnosticsRequest {
   target?: TargetRequest | null;

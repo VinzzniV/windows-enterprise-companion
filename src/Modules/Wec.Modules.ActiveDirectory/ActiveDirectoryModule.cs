@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Wec.Core.Messaging;
 using Wec.Core.Modules;
 using Wec.Modules.ActiveDirectory.Application;
@@ -17,5 +17,6 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<DirectoryHygieneService>();
         services.AddScoped<IActionHandler, GetAdOverviewHandler>();
         services.AddScoped<IActionHandler, GetAdHygieneHandler>();
+        services.AddScoped<IActionHandler, TestDirectoryConnectionHandler>();
     }
 }

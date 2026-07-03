@@ -4,6 +4,7 @@ import type {
   AdHygieneResult,
   AdOverviewResult,
   DirectoryConnectionRequest,
+  TestDirectoryConnectionResult,
 } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
@@ -94,10 +95,29 @@ function OverviewStat({ label, value }: { label: string; value: number }) {
   );
 }
 
+type TestBindState =
+  | { kind: 'idle' }
+  | { kind: 'testing' }
+  | { kind: 'ok'; result: TestDirectoryConnectionResult }
+  | { kind: 'error'; message: string; hint?: string };
+
 export function ActiveDirectoryPage() {
   const [state, setState] = useState<OverviewState>({ kind: 'idle' });
   const [hygieneState, setHygieneState] = useState<HygieneState>({ kind: 'idle' });
   const [connectionForm, setConnectionForm] = useState<ConnectionFormState>(emptyConnectionForm);
+  const [testBindState, setTestBindState] = useState<TestBindState>({ kind: 'idle' });
+
+  const testConnection = useCallback(() => {
+    setTestBindState({ kind: 'testing' });
+    invoke<TestDirectoryConnectionResult>(
+      'activedirectory',
+      'testConnection',
+      { connection: toConnectionRequest(connectionForm) },
+      120_000,
+    )
+      .then((result) => setTestBindState({ kind: 'ok', result }))
+      .catch((error: unknown) => setTestBindState({ kind: 'error', ...adError(error) }));
+  }, [connectionForm]);
 
   const loadOverview = useCallback(() => {
     setState({ kind: 'loading' });
@@ -178,22 +198,57 @@ export function ActiveDirectoryPage() {
           Use explicit credentials
         </label>
         {connectionForm.useExplicitCredentials && (
-          <CredentialFields
-            values={{
-              userName: connectionForm.userName,
-              domain: connectionForm.userDomain,
-              password: connectionForm.password,
-            }}
-            onChange={(patch) =>
-              setForm({
-                ...(patch.userName !== undefined && { userName: patch.userName }),
-                ...(patch.domain !== undefined && { userDomain: patch.domain }),
-                ...(patch.password !== undefined && { password: patch.password }),
-              })
-            }
-            domainPlaceholder="Credential domain (optional)"
-            domainAriaLabel="Credential domain"
-          />
+          <>
+            <CredentialFields
+              values={{
+                userName: connectionForm.userName,
+                domain: connectionForm.userDomain,
+                password: connectionForm.password,
+              }}
+              onChange={(patch) =>
+                setForm({
+                  ...(patch.userName !== undefined && { userName: patch.userName }),
+                  ...(patch.domain !== undefined && { userDomain: patch.domain }),
+                  ...(patch.password !== undefined && { password: patch.password }),
+                })
+              }
+              domainPlaceholder="Credential domain (optional)"
+              domainAriaLabel="Credential domain"
+            />
+            <p className="text-xs text-slate-500">
+              The credential domain is the account's domain — not necessarily the directory being
+              analyzed. Accepted forms: <span className="font-mono">user@domain.tld</span>,{' '}
+              <span className="font-mono">DOMAIN\user</span>, or user + credential domain.
+            </p>
+            {connectionForm.userName.trim() !== '' &&
+              !connectionForm.userName.includes('@') &&
+              !connectionForm.userName.includes('\\') &&
+              connectionForm.userDomain.trim() === '' && (
+                <p className="text-xs text-amber-400">
+                  {connectionForm.domain.trim() !== ''
+                    ? `No credential domain set — "${connectionForm.domain.trim()}" (the directory domain) will be used.`
+                    : 'This user name has no domain. Enter it as user@domain.tld or DOMAIN\\user, or fill in the credential domain.'}
+                </p>
+              )}
+          </>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={testConnection} disabled={testBindState.kind === 'testing'}>
+            {testBindState.kind === 'testing' ? 'Testing …' : 'Test connection'}
+          </Button>
+          {testBindState.kind === 'ok' && (
+            <span className="text-sm text-emerald-400">
+              {testBindState.result.domainJoined
+                ? `Connected — ${testBindState.result.domainName} (${testBindState.result.defaultNamingContext})`
+                : 'This machine is not domain-joined and no domain was entered.'}
+            </span>
+          )}
+        </div>
+        {testBindState.kind === 'error' && (
+          <div role="alert" className="flex flex-col gap-1">
+            <p className="break-words text-sm text-red-400">{testBindState.message}</p>
+            {testBindState.hint && <p className="text-xs text-slate-400">{testBindState.hint}</p>}
+          </div>
         )}
       </fieldset>
 
