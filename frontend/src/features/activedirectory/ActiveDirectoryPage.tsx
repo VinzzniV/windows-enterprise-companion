@@ -1,8 +1,54 @@
 import { useCallback, useState } from 'react';
-import { invoke } from '../../shared/bridge/bridgeClient';
-import type { AdHygieneResult, AdOverviewResult } from '../../shared/api-types';
+import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
+import type {
+  AdHygieneResult,
+  AdOverviewResult,
+  DirectoryConnectionRequest,
+} from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
+
+function adErrorText(error: unknown): string {
+  if (error instanceof BridgeInvokeError) {
+    const details = error.error.details ? ` — ${error.error.details}` : '';
+    return `${error.error.code}: ${error.error.message}${details}`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+interface ConnectionFormState {
+  domain: string;
+  server: string;
+  useExplicitCredentials: boolean;
+  userName: string;
+  userDomain: string;
+  password: string;
+}
+
+const emptyConnectionForm: ConnectionFormState = {
+  domain: '',
+  server: '',
+  useExplicitCredentials: false,
+  userName: '',
+  userDomain: '',
+  password: '',
+};
+
+function toConnectionRequest(form: ConnectionFormState): DirectoryConnectionRequest | null {
+  const request: DirectoryConnectionRequest = {};
+  if (form.domain.trim() !== '') request.domain = form.domain.trim();
+  if (form.server.trim() !== '') request.server = form.server.trim();
+  if (form.useExplicitCredentials && form.userName.trim() !== '') {
+    request.userName = form.userName.trim();
+    request.userDomain = form.userDomain.trim() || null;
+    request.password = form.password;
+  }
+  return Object.keys(request).length > 0 ? request : null;
+}
+
+const connectionInputClass =
+  'rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 ' +
+  'placeholder:text-slate-500 focus:border-sky-500 focus:outline-none disabled:opacity-50';
 
 type OverviewState =
   | { kind: 'idle' }
@@ -28,30 +74,34 @@ function OverviewStat({ label, value }: { label: string; value: number }) {
 export function ActiveDirectoryPage() {
   const [state, setState] = useState<OverviewState>({ kind: 'idle' });
   const [hygieneState, setHygieneState] = useState<HygieneState>({ kind: 'idle' });
+  const [connectionForm, setConnectionForm] = useState<ConnectionFormState>(emptyConnectionForm);
 
   const loadOverview = useCallback(() => {
     setState({ kind: 'loading' });
-    invoke<AdOverviewResult>('activedirectory', 'getOverview', {}, 120_000)
+    invoke<AdOverviewResult>(
+      'activedirectory',
+      'getOverview',
+      { connection: toConnectionRequest(connectionForm) },
+      120_000,
+    )
       .then((overview) => setState({ kind: 'loaded', overview }))
-      .catch((error: unknown) =>
-        setState({
-          kind: 'error',
-          message: error instanceof Error ? error.message : String(error),
-        }),
-      );
-  }, []);
+      .catch((error: unknown) => setState({ kind: 'error', message: adErrorText(error) }));
+  }, [connectionForm]);
 
   const loadHygiene = useCallback(() => {
     setHygieneState({ kind: 'loading' });
-    invoke<AdHygieneResult>('activedirectory', 'getHygiene', {}, 120_000)
+    invoke<AdHygieneResult>(
+      'activedirectory',
+      'getHygiene',
+      { connection: toConnectionRequest(connectionForm) },
+      120_000,
+    )
       .then((hygiene) => setHygieneState({ kind: 'loaded', hygiene }))
-      .catch((error: unknown) =>
-        setHygieneState({
-          kind: 'error',
-          message: error instanceof Error ? error.message : String(error),
-        }),
-      );
-  }, []);
+      .catch((error: unknown) => setHygieneState({ kind: 'error', message: adErrorText(error) }));
+  }, [connectionForm]);
+
+  const setForm = (patch: Partial<ConnectionFormState>) =>
+    setConnectionForm((current) => ({ ...current, ...patch }));
 
   const overview = state.kind === 'loaded' ? state.overview : null;
   const hygiene = hygieneState.kind === 'loaded' ? hygieneState.hygiene : null;
@@ -85,9 +135,71 @@ export function ActiveDirectoryPage() {
         </div>
       </header>
 
+      <fieldset className="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+          Directory connection (optional — empty analyzes this machine's domain as the current user)
+        </legend>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <input
+            type="text"
+            value={connectionForm.domain}
+            onChange={(event) => setForm({ domain: event.target.value })}
+            placeholder="Domain (DNS name, e.g. contoso.local)"
+            aria-label="Domain"
+            className={connectionInputClass}
+          />
+          <input
+            type="text"
+            value={connectionForm.server}
+            onChange={(event) => setForm({ server: event.target.value })}
+            placeholder="Domain controller (optional)"
+            aria-label="Domain controller"
+            className={connectionInputClass}
+          />
+        </div>
+        <label className="flex items-center gap-1.5 text-sm">
+          <input
+            type="checkbox"
+            checked={connectionForm.useExplicitCredentials}
+            onChange={(event) => setForm({ useExplicitCredentials: event.target.checked })}
+          />
+          Use explicit credentials
+        </label>
+        {connectionForm.useExplicitCredentials && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input
+              type="text"
+              value={connectionForm.userName}
+              onChange={(event) => setForm({ userName: event.target.value })}
+              placeholder="User name"
+              aria-label="User name"
+              className={connectionInputClass}
+            />
+            <input
+              type="text"
+              value={connectionForm.userDomain}
+              onChange={(event) => setForm({ userDomain: event.target.value })}
+              placeholder="Credential domain (optional)"
+              aria-label="Credential domain"
+              className={connectionInputClass}
+            />
+            <input
+              type="password"
+              value={connectionForm.password}
+              onChange={(event) => setForm({ password: event.target.value })}
+              placeholder="Password"
+              aria-label="Password"
+              autoComplete="off"
+              className={connectionInputClass}
+            />
+          </div>
+        )}
+      </fieldset>
+
       {state.kind === 'idle' && (
         <p className="text-sm text-slate-400">
-          Run the analysis to query the domain this machine is joined to.
+          Run the analysis to query the domain this machine is joined to — or name another
+          domain/DC above.
         </p>
       )}
 

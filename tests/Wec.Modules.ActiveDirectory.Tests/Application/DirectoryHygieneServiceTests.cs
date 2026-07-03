@@ -86,7 +86,7 @@ public sealed class DirectoryHygieneServiceTests
     {
         SetUpComputerSystem(partOfDomain: false);
 
-        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(CancellationToken.None);
+        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.False(result.Value.DomainJoined);
@@ -99,7 +99,7 @@ public sealed class DirectoryHygieneServiceTests
         SetUpDomainScaffolding();
         long expectedCutoff = Now.Subtract(TimeSpan.FromDays(90)).UtcDateTime.ToFileTimeUtc();
 
-        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(CancellationToken.None);
+        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         await _directoryReader.Received(1).SearchAsync(
@@ -126,7 +126,7 @@ public sealed class DirectoryHygieneServiceTests
                 Entry("CN=c", ("sAMAccountName", "c")),
             ]));
 
-        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(CancellationToken.None);
+        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
         AdHygieneRule rule = Assert.Single(result.Value.Rules, r => r.RuleId == "WEC-AD-INACTIVE-USERS");
         Assert.Equal(3, rule.MatchCount);
@@ -142,7 +142,7 @@ public sealed class DirectoryHygieneServiceTests
     {
         SetUpDomainScaffolding();
 
-        await CreateService().GetHygieneAsync(CancellationToken.None);
+        await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
         await _directoryReader.Received(1).SearchAsync(
             Arg.Is<DirectorySearchQuery>(query =>
@@ -167,7 +167,7 @@ public sealed class DirectoryHygieneServiceTests
                     }),
             ]));
 
-        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(CancellationToken.None);
+        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         PrivilegedGroupInfo group = Assert.Single(result.Value.PrivilegedGroups);
@@ -193,7 +193,7 @@ public sealed class DirectoryHygieneServiceTests
                 Entry(trickyGroupDn, ("sAMAccountName", "Domain Admins")),
             ]));
 
-        await CreateService().GetHygieneAsync(CancellationToken.None);
+        await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
         await _directoryReader.Received(1).SearchAsync(
             Arg.Is<DirectorySearchQuery>(query =>
@@ -212,7 +212,7 @@ public sealed class DirectoryHygieneServiceTests
             .Returns(Result.Failure<IReadOnlyList<DirectoryEntryData>>(new Error(
                 ErrorCode.AccessDenied, "Read refused")));
 
-        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(CancellationToken.None);
+        Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);

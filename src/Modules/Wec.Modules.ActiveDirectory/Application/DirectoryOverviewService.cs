@@ -14,6 +14,9 @@ internal sealed partial class DirectoryOverviewService
     private readonly ActiveDirectoryOptions _options;
     private readonly ILogger<DirectoryOverviewService> _logger;
 
+    // Scoped service, one bridge request per instance — set once per call
+    private DirectoryConnection _connection = DirectoryConnection.Default;
+
     // DI requires a public constructor even on internal types
     public DirectoryOverviewService(
         DomainContextService domainContextService,
@@ -29,9 +32,12 @@ internal sealed partial class DirectoryOverviewService
         _logger = logger;
     }
 
-    public async Task<Result<AdOverviewResult>> GetOverviewAsync(CancellationToken cancellationToken)
+    public async Task<Result<AdOverviewResult>> GetOverviewAsync(
+        DirectoryConnection connection,
+        CancellationToken cancellationToken)
     {
-        Result<DomainContext> context = await _domainContextService.GetContextAsync(cancellationToken);
+        _connection = connection;
+        Result<DomainContext> context = await _domainContextService.GetContextAsync(connection, cancellationToken);
         if (context.IsFailure)
         {
             return Result.Failure<AdOverviewResult>(context.Error!);
@@ -139,7 +145,9 @@ internal sealed partial class DirectoryOverviewService
             attributes,
             DirectorySearchScope.Subtree,
             _options.PageSize,
-            _options.SearchTimeout);
+            _options.SearchTimeout,
+            _connection.Server,
+            _connection.Credentials);
 
     [LoggerMessage(
         Level = LogLevel.Information,

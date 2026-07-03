@@ -20,6 +20,9 @@ internal sealed partial class DirectoryHygieneService
     private readonly ActiveDirectoryOptions _options;
     private readonly ILogger<DirectoryHygieneService> _logger;
 
+    // Scoped service, one bridge request per instance — set once per call
+    private DirectoryConnection _connection = DirectoryConnection.Default;
+
     // DI requires a public constructor even on internal types
     public DirectoryHygieneService(
         DomainContextService domainContextService,
@@ -35,9 +38,12 @@ internal sealed partial class DirectoryHygieneService
         _logger = logger;
     }
 
-    public async Task<Result<AdHygieneResult>> GetHygieneAsync(CancellationToken cancellationToken)
+    public async Task<Result<AdHygieneResult>> GetHygieneAsync(
+        DirectoryConnection connection,
+        CancellationToken cancellationToken)
     {
-        Result<DomainContext> context = await _domainContextService.GetContextAsync(cancellationToken);
+        _connection = connection;
+        Result<DomainContext> context = await _domainContextService.GetContextAsync(connection, cancellationToken);
         if (context.IsFailure)
         {
             return Result.Failure<AdHygieneResult>(context.Error!);
@@ -230,7 +236,9 @@ internal sealed partial class DirectoryHygieneService
                 ["objectSid"],
                 DirectorySearchScope.Base,
                 _options.PageSize,
-                _options.SearchTimeout),
+                _options.SearchTimeout,
+                _connection.Server,
+                _connection.Credentials),
             cancellationToken);
         if (domainHead.IsFailure)
         {
@@ -267,7 +275,9 @@ internal sealed partial class DirectoryHygieneService
             attributes,
             DirectorySearchScope.Subtree,
             _options.PageSize,
-            _options.SearchTimeout);
+            _options.SearchTimeout,
+            _connection.Server,
+            _connection.Credentials);
 
     [LoggerMessage(
         Level = LogLevel.Information,

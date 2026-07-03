@@ -1,6 +1,7 @@
 # ADR 0006: Active Directory Access Strategy
 
-- **Status:** Accepted (2026-07-02)
+- **Status:** Accepted (2026-07-02) · Revised 2026-07-03 (credentials & target
+  selection, together with ADR 0007)
 - **Date:** 2026-07-02
 - **Deciders:** Vinz
 - **Supersedes:** —
@@ -39,19 +40,32 @@ existing architecture:
    **search only** — the read-only rule is enforced by the seam's shape, not
    by convention. Domain interpretation (what makes an account "inactive")
    lives in the module, so it is unit-testable against the mocked seam.
-3. **Authentication: current Windows identity only** (Negotiate). No
-   credential prompt, no credential storage, no alternate-credentials feature
-   in M4. Whatever the logged-on user may read is what WEC shows — consistent
-   with ADR 0002 (capabilities of the invoking identity, never self-elevate).
-4. **Domain context detection stays local:** domain membership comes from
-   `Win32_ComputerSystem` via the existing `IWmiQueryService`; the LDAP
-   server is addressed by domain name (locator-based), never hardcoded.
-   Not domain-joined ⇒ the module reports `NotApplicable`-style results,
-   no LDAP connection is attempted.
-5. **Expected failures are `Result` errors, not exceptions:** new
-   `ErrorCode.DirectoryUnavailable` for unreachable/failed LDAP;
-   `AccessDenied` (existing) carries through when the directory refuses a
-   read. Both surface visibly in the UI, never as empty lists.
+3. **Authentication: current Windows identity by default (Negotiate),
+   explicit credentials optional** *(revised 2026-07-03)*. The original M4
+   decision was current-identity-only; the remote-analysis requirements
+   (ADR 0007) added optional explicit credentials: the search query may carry
+   `ScanCredentials` (user, domain, password) that the LDAP connection binds
+   with via Negotiate. The ADR 0007 credential policy applies unchanged —
+   in-memory for the duration of one request, never logged, never persisted;
+   any future "save credentials" feature must use the Windows Credential
+   Manager and gets its own ADR revision.
+4. **Domain context detection stays local, with an optional override**
+   *(revised 2026-07-03)*: by default, domain membership comes from
+   `Win32_ComputerSystem` via `IWmiQueryService` and the LDAP server is
+   addressed by domain name (locator-based). Optionally the caller may name
+   the domain and/or a specific domain controller explicitly — that skips
+   local detection and lets a workgroup machine analyze a foreign domain.
+   Without an override, not domain-joined ⇒ the module reports
+   `NotApplicable`-style results, no LDAP connection is attempted.
+5. **Expected failures are `Result` errors, not exceptions, and
+   diagnostically distinct** *(revised 2026-07-03)*: instead of one generic
+   `DIRECTORY_UNAVAILABLE`, failures map to `DNS_RESOLUTION_FAILED` (own DNS
+   probe before connecting), `AUTHENTICATION_FAILED` (LDAP bind rejected,
+   error 49), `DIRECTORY_UNAVAILABLE` with a DC-down/firewall explanation
+   (server down, error 81), `CONNECTION_TIMEOUT` (client/server time limits),
+   `NOT_FOUND` (search base/naming context missing) and `ACCESS_DENIED`
+   (`InsufficientAccessRights`). All surface visibly in the UI, never as
+   empty lists.
 6. **Query discipline:** paged searches (`PageResultRequestControl`),
    explicit attribute allowlists per check (never `*`), client- and
    server-side time limits from options (`Wec:ActiveDirectory:*` — page

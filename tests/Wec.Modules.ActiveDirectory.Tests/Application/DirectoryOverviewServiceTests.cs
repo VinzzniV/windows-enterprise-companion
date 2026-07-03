@@ -52,7 +52,7 @@ public sealed class DirectoryOverviewServiceTests
     {
         SetUpComputerSystem(partOfDomain: false);
 
-        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(CancellationToken.None);
+        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.False(result.Value.DomainJoined);
@@ -66,7 +66,7 @@ public sealed class DirectoryOverviewServiceTests
         _wmiQueryService.QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(Error.WmiUnavailable("WMI down")));
 
-        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(CancellationToken.None);
+        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
@@ -104,7 +104,7 @@ public sealed class DirectoryOverviewServiceTests
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([Entry("CN=pc1")]));
 
-        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(CancellationToken.None);
+        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         AdOverviewResult overview = result.Value;
@@ -127,7 +127,7 @@ public sealed class DirectoryOverviewServiceTests
             .Returns(Result.Failure<IReadOnlyList<DirectoryEntryData>>(new Error(
                 ErrorCode.DirectoryUnavailable, "LDAP server unreachable")));
 
-        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(CancellationToken.None);
+        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.DirectoryUnavailable, result.Error!.Code);
@@ -140,7 +140,7 @@ public sealed class DirectoryOverviewServiceTests
         _directoryReader.SearchAsync(Arg.Any<DirectorySearchQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([Entry(string.Empty)]));
 
-        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(CancellationToken.None);
+        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.DirectoryUnavailable, result.Error!.Code);
@@ -162,7 +162,7 @@ public sealed class DirectoryOverviewServiceTests
             .Returns(Result.Failure<IReadOnlyList<DirectoryEntryData>>(new Error(
                 ErrorCode.AccessDenied, "Read refused")));
 
-        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(CancellationToken.None);
+        Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);

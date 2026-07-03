@@ -256,6 +256,20 @@ export interface ReportExportResult {
   filePath: string | null;
 }
 
+/** Wec.Modules.ActiveDirectory.Application.DirectoryConnectionRequest — all fields optional; empty = own domain, current user */
+export interface DirectoryConnectionRequest {
+  domain?: string | null;
+  server?: string | null;
+  userName?: string | null;
+  userDomain?: string | null;
+  password?: string | null;
+}
+
+/** Wec.Modules.ActiveDirectory.Handlers.GetAdOverviewRequest / GetAdHygieneRequest */
+export interface AdAnalysisRequest {
+  connection?: DirectoryConnectionRequest | null;
+}
+
 /** Wec.Modules.ActiveDirectory.Domain.DomainControllerInfo */
 export interface DomainControllerInfo {
   hostName: string;

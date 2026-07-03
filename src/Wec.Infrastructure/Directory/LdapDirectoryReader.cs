@@ -6,9 +6,10 @@ using Wec.Core.Results;
 namespace Wec.Infrastructure.Directory;
 
 /// <summary>
-/// LDAP implementation of the read-only directory seam (ADR 0006).
-/// Binds with the current Windows identity (Negotiate), pages every search
-/// and never chases referrals. Attribute list "1.1" (RFC 4511) requests no
+/// LDAP implementation of the read-only directory seam (ADR 0006, revised by
+/// ADR 0007). Binds via Negotiate with the current Windows identity or, when
+/// the query carries explicit credentials, with those. Pages every search and
+/// never chases referrals. Attribute list "1.1" (RFC 4511) requests no
 /// attributes — used when the caller only counts entries.
 /// </summary>
 public sealed partial class LdapDirectoryReader : IDirectoryReader
@@ -30,13 +31,29 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
 
     private Result<IReadOnlyList<DirectoryEntryData>> ExecuteSearch(DirectorySearchQuery query)
     {
+        string connectionTarget = query.Server ?? query.DomainDnsName;
+
+        Error? dnsError = ProbeDnsResolution(connectionTarget);
+        if (dnsError is not null)
+        {
+            return Result.Failure<IReadOnlyList<DirectoryEntryData>>(dnsError);
+        }
+
         try
         {
-            using var connection = new LdapConnection(new LdapDirectoryIdentifier(query.DomainDnsName));
+            using var connection = new LdapConnection(new LdapDirectoryIdentifier(connectionTarget));
             connection.AuthType = AuthType.Negotiate;
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
             connection.Timeout = query.TimeLimit;
+            if (query.Credentials is { Mode: Wec.Core.Targets.CredentialMode.Explicit } explicitCredentials)
+            {
+                connection.Credential = new System.Net.NetworkCredential(
+                    explicitCredentials.UserName,
+                    explicitCredentials.Password,
+                    explicitCredentials.Domain);
+            }
+
             connection.Bind();
 
             string[] attributes = query.Attributes.Count > 0
@@ -70,29 +87,43 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
                 pageControl.Cookie = pageResponse.Cookie;
             }
 
-            LogSearchCompleted(entries.Count, query.LdapFilter, query.DomainDnsName);
+            LogSearchCompleted(entries.Count, query.LdapFilter, connectionTarget);
             return Result.Success<IReadOnlyList<DirectoryEntryData>>(entries);
         }
-        catch (DirectoryOperationException exception)
-            when (exception.Response?.ResultCode == ResultCode.InsufficientAccessRights)
+        catch (LdapException exception)
         {
-            _logger.LogWarning(exception, "Directory search denied: {LdapFilter}", query.LdapFilter);
-            return Result.Failure<IReadOnlyList<DirectoryEntryData>>(new Error(
-                ErrorCode.AccessDenied,
-                "The directory refused the read with the current credentials.")
-            {
-                Details = exception.Message,
-            });
+            Error error = LdapErrorMapper.MapLdapException(exception.ErrorCode, exception.Message, connectionTarget);
+            _logger.LogWarning(
+                exception, "Directory search failed with {ErrorCode}: {LdapFilter}", error.Code, query.LdapFilter);
+            return Result.Failure<IReadOnlyList<DirectoryEntryData>>(error);
         }
-        catch (Exception exception) when (exception is LdapException or DirectoryOperationException)
+        catch (DirectoryOperationException exception)
         {
-            _logger.LogWarning(exception, "Directory search failed: {LdapFilter}", query.LdapFilter);
-            return Result.Failure<IReadOnlyList<DirectoryEntryData>>(new Error(
-                ErrorCode.DirectoryUnavailable,
-                $"The directory for '{query.DomainDnsName}' could not be queried.")
+            Error error = LdapErrorMapper.MapOperationResult(
+                exception.Response?.ResultCode, exception.Message, connectionTarget);
+            _logger.LogWarning(
+                exception, "Directory search failed with {ErrorCode}: {LdapFilter}", error.Code, query.LdapFilter);
+            return Result.Failure<IReadOnlyList<DirectoryEntryData>>(error);
+        }
+    }
+
+    private static Error? ProbeDnsResolution(string target)
+    {
+        try
+        {
+            _ = System.Net.Dns.GetHostAddresses(target);
+            return null;
+        }
+        catch (System.Net.Sockets.SocketException exception)
+        {
+            return new Error(
+                ErrorCode.DnsResolutionFailed,
+                $"The directory host '{target}' could not be resolved in DNS.")
             {
-                Details = exception.Message,
-            });
+                Details = "The configured DNS servers do not know this name — on a non-domain "
+                    + "network, point DNS at the domain's DNS servers or specify a DC directly. "
+                    + exception.Message,
+            };
         }
     }
 
