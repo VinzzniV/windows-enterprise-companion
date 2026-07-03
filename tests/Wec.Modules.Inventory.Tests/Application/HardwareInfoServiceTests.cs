@@ -380,6 +380,40 @@ public class HardwareInfoServiceTests
     }
 
     [Fact]
+    public async Task CacheOnly_ServesStoredSnapshotIgnoringTtlWithoutQueryingWmi()
+    {
+        HardwareSnapshot storedSnapshot = BuildSnapshot();
+        _repository.GetLatestAsync(LocalHostKey, Arg.Any<CancellationToken>())
+            .Returns(new CachedHardwareSnapshot(storedSnapshot, Now.AddDays(-30)));
+        HardwareInfoService service = CreateService(cacheTtl: TimeSpan.FromMinutes(15));
+
+        Result<HardwareInfoResult> result = await service.GetHardwareInfoAsync(
+            ScanTarget.Local, ScanCredentials.CurrentUser, forceRefresh: false,
+            CancellationToken.None, cacheOnly: true);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.FromCache);
+        Assert.Same(storedSnapshot, result.Value.Snapshot);
+        await _wmiQueryService.DidNotReceiveWithAnyArgs().QueryAsync(
+            default!, default!, default!, default!, default!, default);
+    }
+
+    [Fact]
+    public async Task CacheOnly_WithoutStoredSnapshot_ReturnsNotFound()
+    {
+        _repository.GetLatestAsync(LocalHostKey, Arg.Any<CancellationToken>())
+            .Returns((CachedHardwareSnapshot?)null);
+        HardwareInfoService service = CreateService();
+
+        Result<HardwareInfoResult> result = await service.GetHardwareInfoAsync(
+            ScanTarget.Local, ScanCredentials.CurrentUser, forceRefresh: false,
+            CancellationToken.None, cacheOnly: true);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.NotFound, result.Error!.Code);
+    }
+
+    [Fact]
     public async Task ForceRefresh_BypassesCacheLookup()
     {
         SetUpSuccessfulWmiQueries();

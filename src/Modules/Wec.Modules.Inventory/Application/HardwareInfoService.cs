@@ -46,9 +46,22 @@ public sealed partial class HardwareInfoService
         ScanTarget target,
         ScanCredentials credentials,
         bool forceRefresh,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool cacheOnly = false)
     {
         string hostKey = target.CacheKey;
+        if (cacheOnly)
+        {
+            // Restores stored results without touching the network — used when
+            // the page reloads previously scanned hosts
+            CachedHardwareSnapshot? stored = await _repository.GetLatestAsync(hostKey, cancellationToken);
+            return stored is null
+                ? Result.Failure<HardwareInfoResult>(Error.NotFound(
+                    $"No stored snapshot for '{target.DisplayName}'."))
+                : Result.Success(new HardwareInfoResult(
+                    target.DisplayName, stored.Snapshot, stored.CapturedAtUtc, FromCache: true));
+        }
+
         if (!forceRefresh)
         {
             CachedHardwareSnapshot? cached = await _repository.GetLatestAsync(hostKey, cancellationToken);

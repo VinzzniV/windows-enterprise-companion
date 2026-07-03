@@ -15,22 +15,26 @@ public sealed record AppInfoResponse(
     string Version,
     string DatabasePath,
     string LogDirectory,
-    bool IsElevated);
+    bool IsElevated,
+    int MaxParallelScans);
 
 internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppInfoResponse>
 {
     private readonly DatabaseOptions _databaseOptions;
     private readonly LoggingOptions _loggingOptions;
     private readonly IPrivilegeContext _privilegeContext;
+    private readonly Wec.Core.Targets.RemoteScanOptions _remoteScanOptions;
 
     public GetAppInfoHandler(
         IOptions<DatabaseOptions> databaseOptions,
         IOptions<LoggingOptions> loggingOptions,
-        IPrivilegeContext privilegeContext)
+        IPrivilegeContext privilegeContext,
+        IOptions<Wec.Core.Targets.RemoteScanOptions> remoteScanOptions)
     {
         _databaseOptions = databaseOptions.Value;
         _loggingOptions = loggingOptions.Value;
         _privilegeContext = privilegeContext;
+        _remoteScanOptions = remoteScanOptions.Value;
     }
 
     public string Module => "system";
@@ -51,6 +55,7 @@ internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppI
             version,
             Path.GetFullPath(Environment.ExpandEnvironmentVariables(_databaseOptions.DatabasePath)),
             Path.GetFullPath(Environment.ExpandEnvironmentVariables(_loggingOptions.LogDirectory)),
-            _privilegeContext.IsElevated)));
+            _privilegeContext.IsElevated,
+            _remoteScanOptions.MaxParallelScans)));
     }
 }

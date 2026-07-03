@@ -95,6 +95,25 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task ListHostsAsync_ReturnsAllStoredHosts_AndDeleteRemovesOne()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        var repository = new EfHardwareSnapshotRepository(
+            context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+        await repository.SaveAsync("PC-001", BuildSnapshot(), DateTimeOffset.UtcNow, CancellationToken.None);
+        await repository.SaveAsync("PC-002", BuildSnapshot(), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        IReadOnlyList<StoredInventoryHost> hosts = await repository.ListHostsAsync(CancellationToken.None);
+        Assert.Equal(["PC-001", "PC-002"], hosts.Select(host => host.Host).ToArray());
+
+        await repository.DeleteAsync("PC-001", CancellationToken.None);
+
+        IReadOnlyList<StoredInventoryHost> remaining = await repository.ListHostsAsync(CancellationToken.None);
+        Assert.Equal("PC-002", Assert.Single(remaining).Host);
+    }
+
+    [Fact]
     public async Task GetLatestAsync_ForUnknownHost_ReturnsNull()
     {
         using WecDbContext context = CreateContext();

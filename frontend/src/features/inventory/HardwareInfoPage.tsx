@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
 import type {
+  AppInfoResponse,
   DiskEncryptionStatus,
   EncryptableVolume,
   GetHardwareInfoRequest,
   HardwareInfoResult,
+  ListInventoryHostsResult,
   PhysicalNetworkAdapter,
   TargetRequest,
 } from '../../shared/api-types';
@@ -20,9 +22,27 @@ import {
   LOCAL_TARGET_SELECTION,
   TargetSelector,
   hostKeyOf,
+  toHostList,
   toTargetRequest,
+  toTargetRequestForHost,
   type TargetSelection,
 } from '../../shared/targets/TargetSelector';
+
+/** Runs one task per item with a bounded number of parallel workers. */
+async function runWithConcurrencyLimit<T>(
+  items: T[],
+  limit: number,
+  run: (item: T) => Promise<void>,
+): Promise<void> {
+  const queue = [...items];
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(limit, queue.length)) }, async () => {
+      for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
+        await run(item);
+      }
+    }),
+  );
+}
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '—';
@@ -323,50 +343,84 @@ export function HardwareInfoPage() {
   const [entries, setEntries] = useState<HostEntry[]>([]);
   const [selectedKey, setSelectedKey] = useState('LOCAL');
 
-  const load = useCallback((target: TargetRequest | null, forceRefresh: boolean) => {
-    const key = hostKeyOf(target);
-    setSelectedKey(key);
-    setEntries((current) => {
-      const existing = current.find((entry) => entry.key === key);
-      const entry: HostEntry = {
-        key,
-        label: existing?.label ?? (target?.host ?? 'Local machine'),
-        target,
-        state: { kind: 'loading' },
-      };
-      return existing
-        ? current.map((candidate) => (candidate.key === key ? entry : candidate))
-        : [...current, entry];
-    });
+  const load = useCallback(
+    (
+      target: TargetRequest | null,
+      forceRefresh: boolean,
+      options?: { cacheOnly?: boolean; select?: boolean },
+    ): Promise<void> => {
+      const key = hostKeyOf(target);
+      if (options?.select !== false) {
+        setSelectedKey(key);
+      }
+      setEntries((current) => {
+        const existing = current.find((entry) => entry.key === key);
+        const entry: HostEntry = {
+          key,
+          label: existing?.label ?? (target?.host ?? 'Local machine'),
+          target,
+          state: { kind: 'loading' },
+        };
+        return existing
+          ? current.map((candidate) => (candidate.key === key ? entry : candidate))
+          : [...current, entry];
+      });
 
-    const payload: GetHardwareInfoRequest = { forceRefresh, target };
-    invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', payload)
-      .then((result) =>
-        setEntries((current) =>
-          current.map((entry) =>
-            entry.key === key
-              ? { ...entry, label: result.host, state: { kind: 'loaded', result } }
-              : entry,
+      const payload: GetHardwareInfoRequest = { forceRefresh, target, cacheOnly: options?.cacheOnly };
+      return invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', payload)
+        .then((result) =>
+          setEntries((current) =>
+            current.map((entry) =>
+              entry.key === key
+                ? { ...entry, label: result.host, state: { kind: 'loaded', result } }
+                : entry,
+            ),
           ),
-        ),
-      )
-      .catch((error: unknown) =>
-        setEntries((current) =>
-          current.map((entry) =>
-            entry.key === key ? { ...entry, state: { kind: 'error', message: errorText(error) } } : entry,
+        )
+        .catch((error: unknown) =>
+          setEntries((current) =>
+            current.map((entry) =>
+              entry.key === key
+                ? { ...entry, state: { kind: 'error', message: errorText(error) } }
+                : entry,
+            ),
           ),
-        ),
-      );
-  }, []);
+        );
+    },
+    [],
+  );
 
   useEffect(() => {
-    load(null, false);
+    void load(null, false);
+    // Restore previously scanned hosts from the store — no network traffic
+    invoke<ListInventoryHostsResult>('inventory', 'listHosts')
+      .then((stored) => {
+        for (const storedHost of stored.hosts) {
+          if (storedHost.host !== hostKeyOf(null)) {
+            void load({ host: storedHost.host }, false, { cacheOnly: true, select: false });
+          }
+        }
+      })
+      .catch(() => {
+        // Bridge unavailable (browser preview) — start with the local entry only
+      });
   }, [load]);
 
   const removeEntry = (key: string) => {
     setEntries((current) => current.filter((entry) => entry.key !== key));
     setSelectedKey((current) => (current === key ? 'LOCAL' : current));
+    invoke('inventory', 'deleteHostSnapshot', { host: key }).catch(() => {
+      // Already gone or bridge unavailable — the entry is removed either way
+    });
   };
+
+  const scanAllHosts = useCallback(async () => {
+    const hosts = toHostList(selection);
+    const appInfo = await invoke<AppInfoResponse>('system', 'getAppInfo').catch(() => null);
+    await runWithConcurrencyLimit(hosts, appInfo?.maxParallelScans ?? 4, (host) =>
+      load(toTargetRequestForHost(selection, host), false, { select: false }),
+    );
+  }, [selection, load]);
 
   const anyLoading = entries.some((entry) => entry.state.kind === 'loading');
   const selectedEntry = entries.find((entry) => entry.key === selectedKey) ?? entries[0] ?? null;
@@ -376,14 +430,22 @@ export function HardwareInfoPage() {
       <PageHeader title="Inventory" subtitle="Hardware overview per scanned computer">
         <Button
           variant="primary"
-          onClick={() => load(toTargetRequest(selection), false)}
-          disabled={anyLoading || (selection.mode === 'remote' && selection.host.trim() === '')}
+          onClick={() =>
+            selection.mode === 'multiple'
+              ? void scanAllHosts()
+              : void load(toTargetRequest(selection), false)
+          }
+          disabled={
+            anyLoading ||
+            (selection.mode === 'remote' && selection.host.trim() === '') ||
+            (selection.mode === 'multiple' && toHostList(selection).length === 0)
+          }
         >
-          Scan target
+          {selection.mode === 'multiple' ? 'Scan all hosts' : 'Scan target'}
         </Button>
       </PageHeader>
 
-      <TargetSelector selection={selection} onChange={setSelection} disabled={anyLoading} />
+      <TargetSelector selection={selection} onChange={setSelection} disabled={anyLoading} allowMultiple />
 
       <div className="flex items-start gap-4">
         {entries.length > 1 && (

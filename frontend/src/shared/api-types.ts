@@ -15,6 +15,7 @@ export interface AppInfoResponse {
   databasePath: string;
   logDirectory: string;
   isElevated: boolean;
+  maxParallelScans: number;
 }
 
 /** Wec.Core.Privileges.PrivilegeLevel (SCREAMING_SNAKE on the wire, ADR 0003) */
@@ -50,6 +51,19 @@ export interface TargetRequest {
 export interface GetHardwareInfoRequest {
   forceRefresh?: boolean;
   target?: TargetRequest | null;
+  /** Serve the stored snapshot without touching the network (NOT_FOUND if none). */
+  cacheOnly?: boolean;
+}
+
+/** Wec.Modules.Inventory.Persistence.StoredInventoryHost */
+export interface StoredInventoryHost {
+  host: string;
+  capturedAtUtc: string;
+}
+
+/** Wec.Modules.Inventory.Handlers.ListInventoryHostsResult */
+export interface ListInventoryHostsResult {
+  hosts: StoredInventoryHost[];
 }
 
 /** Wec.Modules.Inventory.Handlers.GetDiskEncryptionStatusRequest */

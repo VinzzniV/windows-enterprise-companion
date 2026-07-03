@@ -45,6 +45,17 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
         }
     }
 
+    public async Task<IReadOnlyList<StoredInventoryHost>> ListHostsAsync(CancellationToken cancellationToken) =>
+        await _dbContext.Set<HardwareSnapshotRecord>()
+            .OrderBy(snapshot => snapshot.Host)
+            .Select(snapshot => new StoredInventoryHost(snapshot.Host, snapshot.CapturedAtUtc))
+            .ToListAsync(cancellationToken);
+
+    public Task DeleteAsync(string hostKey, CancellationToken cancellationToken) =>
+        _dbContext.Set<HardwareSnapshotRecord>()
+            .Where(snapshot => snapshot.Host == hostKey)
+            .ExecuteDeleteAsync(cancellationToken);
+
     public async Task SaveAsync(
         string hostKey,
         HardwareSnapshot snapshot,

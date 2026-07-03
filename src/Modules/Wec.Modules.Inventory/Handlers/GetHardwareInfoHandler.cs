@@ -1,11 +1,14 @@
-using Wec.Core.Messaging;
+﻿using Wec.Core.Messaging;
 using Wec.Core.Results;
 using Wec.Core.Targets;
 using Wec.Modules.Inventory.Application;
 
 namespace Wec.Modules.Inventory.Handlers;
 
-public sealed record GetHardwareInfoRequest(bool ForceRefresh = false, TargetRequest? Target = null);
+public sealed record GetHardwareInfoRequest(
+    bool ForceRefresh = false,
+    TargetRequest? Target = null,
+    bool CacheOnly = false);
 
 internal sealed class GetHardwareInfoHandler : IActionHandler<GetHardwareInfoRequest, HardwareInfoResult>
 {
@@ -35,6 +38,7 @@ internal sealed class GetHardwareInfoHandler : IActionHandler<GetHardwareInfoReq
             targetRequest.ToScanTarget(),
             credentials.Value,
             payload.ForceRefresh,
-            cancellationToken);
+            cancellationToken,
+            payload.CacheOnly);
     }
 }
