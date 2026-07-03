@@ -4,6 +4,17 @@ Living document: check items off, reprioritize freely, delete what gets
 rejected. Ordering within a section is by value/effort. Milestone work
 (M6, M7) still follows the loop protocol: ADR + user decisions first.
 
+## Done 2026-07-03 — Enterprise UX pass
+
+Shared design-system primitives (Button, PageHeader, SummaryMetric,
+EmptyState/ErrorState, DetailsDisclosure, DataTable, EvidenceList) and a
+consistent information architecture across all five pages: severity/status
+summary strips, host/status/timestamp context on every result view,
+LOCAL-ONLY / NOT-RUN checks rendered as coverage notes instead of findings,
+compact batch rows, grouped inventory cards, collapsible diagnostics
+evidence, AD overview/hygiene sections with action-oriented error hints,
+explicit local-only scope on Reporting.
+
 ## Done 2026-07-03 — Remote analysis (ADR 0007, ADR 0006 revision)
 
 Local + remote read-only analysis shipped in six slices: Core target/

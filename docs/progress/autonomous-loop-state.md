@@ -454,6 +454,30 @@ Maintained by the autonomous development loop. One entry per iteration.
   deliberate cut — WMI-transportable diagnostics recorded as follow-up in
   TODO.md; connectivity probes stay local by nature
 
+### 2026-07-03 — Enterprise UX pass (goal-directed session, six commits)
+- UX audit findings: five pages with five different header/action/error
+  patterns; result-to-target relationship visible only on Security; coverage
+  findings (LOCAL-ONLY/NOT-RUN) looked like security problems; diagnostics
+  evidence always fully expanded; no summary metrics anywhere; three badge
+  implementations; tables without overflow handling; primary button color
+  inconsistent (sky vs slate)
+- Shared primitives in frontend/src/shared/ui: Button, PageHeader,
+  SummaryMetric, EmptyState/ErrorState, DetailsDisclosure, DataTable,
+  EvidenceList; StatusBadge gained an info variant; content max-width
+- Security: severity summary strip + host/status/timestamp context line;
+  coverage notes separated from findings; batch rows compact with
+  collapsible details
+- Diagnostics: Pass/Warning/Fail/Not-run summary; next steps first on
+  failing checks, evidence collapsed (open on FAIL); category headers with
+  attention counts
+- Inventory: System/CPU/Memory/Storage/Network/GPU/Monitors/Software/
+  BitLocker grouping on DataTable; actionable remote error hint
+- AD: overview/hygiene sections; per-error-code what-to-do hints; connection
+  form explains its fields. Reporting: local-only scope explicit
+- New tests: coverage-note separation (Security), diagnostics summary/error
+  (DiagnosticsPage.test.tsx). Gates: tsc clean, vitest green, npm build,
+  dotnet build 0 warnings, all backend tests green
+
 ## Standing constraints (from loop definition)
 
 - One small task per iteration; finish M1.1 before M2.

@@ -10,6 +10,12 @@ Analysis is read-only and targets the local machine or, for Inventory,
 Security and Active Directory, remote Windows clients over WinRM/LDAP
 (ADR 0007). Each module has its own README under `src/Modules/`.
 
+The UI follows a small shared design system (`frontend/src/shared/ui`):
+uniform page headers, buttons, badges, summary metrics, data tables and
+empty/error states. Every result view names the host, scan status and
+timestamp it belongs to; results for a previously selected target are never
+shown next to a newly selected one.
+
 Authoritative docs: [docs/architecture-and-m1-plan.md](docs/architecture-and-m1-plan.md)
 and the ADRs in [docs/adr/](docs/adr/).
 
