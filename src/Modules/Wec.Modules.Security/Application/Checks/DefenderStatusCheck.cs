@@ -10,20 +10,28 @@ internal sealed class DefenderStatusCheck : ISecurityCheck
 
     private readonly IWmiQueryService _wmiQueryService;
     private readonly IClock _clock;
+    private readonly SecurityOptions _options;
 
-    public DefenderStatusCheck(IWmiQueryService wmiQueryService, IClock clock)
+    public DefenderStatusCheck(
+        IWmiQueryService wmiQueryService,
+        IClock clock,
+        Microsoft.Extensions.Options.IOptions<SecurityOptions> options)
     {
         _wmiQueryService = wmiQueryService;
         _clock = clock;
+        _options = options.Value;
     }
 
     public string CheckId => "WEC-SEC-DEFENDER";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+        SecurityScanContext context,
+        CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<WmiInstance>> status = await _wmiQueryService.QueryAsync(
+            context,
             DefenderNamespace,
-            "SELECT AntivirusEnabled, RealTimeProtectionEnabled FROM MSFT_MpComputerStatus",
+            "SELECT AntivirusEnabled, RealTimeProtectionEnabled, AntivirusSignatureAge FROM MSFT_MpComputerStatus",
             cancellationToken);
 
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
@@ -87,6 +95,30 @@ internal sealed class DefenderStatusCheck : ISecurityCheck
                     ["source"] = $@"{DefenderNamespace}\MSFT_MpComputerStatus",
                 },
                 "Re-enable real-time protection in Windows Security > Virus & threat protection.",
+                RequiredPrivilege: null,
+                capturedAtUtc));
+        }
+
+        long? signatureAgeDays = defender.GetInteger("AntivirusSignatureAge");
+        int maxSignatureAgeDays = _options.MaxDefenderSignatureAgeDays;
+        if (signatureAgeDays is not null && signatureAgeDays > maxSignatureAgeDays)
+        {
+            findings.Add(new SecurityFinding(
+                $"{CheckId}-SIGNATURES-STALE",
+                $"Microsoft Defender signatures are {signatureAgeDays} days old",
+                "The antivirus definitions have not been updated recently. Detection quality degrades "
+                    + "quickly with stale signatures; an update pipeline problem is likely.",
+                FindingSeverity.Medium,
+                FindingCategory.MalwareProtection,
+                "Microsoft Defender",
+                new Dictionary<string, string>
+                {
+                    ["antivirusSignatureAgeDays"] = signatureAgeDays.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["threshold"] = maxSignatureAgeDays.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["source"] = $@"{DefenderNamespace}\MSFT_MpComputerStatus",
+                },
+                "Trigger a definition update (Windows Security > Virus & threat protection > "
+                    + "Protection updates) and verify the machine can reach the update source.",
                 RequiredPrivilege: null,
                 capturedAtUtc));
         }

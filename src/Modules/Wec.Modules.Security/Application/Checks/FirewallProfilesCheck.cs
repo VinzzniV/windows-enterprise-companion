@@ -26,9 +26,12 @@ internal sealed partial class FirewallProfilesCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-FIREWALL";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+        SecurityScanContext context,
+        CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<WmiInstance>> profiles = await _wmiQueryService.QueryAsync(
+            context,
             FirewallNamespace,
             ProfilesQuery,
             cancellationToken);

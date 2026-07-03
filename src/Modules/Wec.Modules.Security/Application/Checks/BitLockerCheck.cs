@@ -23,14 +23,17 @@ internal sealed class BitLockerCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-BITLOCKER";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+        SecurityScanContext context,
+        CancellationToken cancellationToken)
     {
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 
         // Same elevation-aware semantics as the inventory BitLocker card (ADR 0002):
         // fail deterministically before touching WMI. INFO severity per the agreed
         // rule — a check blocked by missing rights is reported, not alarmed.
-        if (!_privilegeContext.Satisfies(PrivilegeLevel.Administrator))
+        // Remote rights come from the connection credentials, not this process.
+        if (context.Target.IsLocal && !_privilegeContext.Satisfies(PrivilegeLevel.Administrator))
         {
             return [CheckFindings.NotRun(
                 CheckId,
@@ -45,6 +48,7 @@ internal sealed class BitLockerCheck : ISecurityCheck
         }
 
         Result<IReadOnlyList<WmiInstance>> volumes = await _wmiQueryService.QueryAsync(
+            context,
             VolumeEncryptionNamespace,
             "SELECT DriveLetter, ProtectionStatus FROM Win32_EncryptableVolume",
             cancellationToken);

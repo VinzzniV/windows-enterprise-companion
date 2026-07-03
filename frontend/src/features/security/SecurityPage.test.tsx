@@ -30,6 +30,7 @@ function finding(overrides: Partial<SecurityFinding>): SecurityFinding {
 const latestScan: LatestScanResult = {
   scan: {
     scanId: 1,
+    host: 'TESTHOST',
     startedAtUtc: '2026-07-02T18:00:00Z',
     completedAtUtc: '2026-07-02T18:00:05Z',
     status: 'COMPLETED',

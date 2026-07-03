@@ -22,6 +22,7 @@ public sealed class EfSecurityScanRepository : ISecurityScanRepository
     }
 
     public async Task<long> SaveScanAsync(
+        string hostKey,
         DateTimeOffset startedAtUtc,
         DateTimeOffset completedAtUtc,
         ScanStatus status,
@@ -30,6 +31,7 @@ public sealed class EfSecurityScanRepository : ISecurityScanRepository
     {
         var scanRecord = new SecurityScanRecord
         {
+            Host = hostKey,
             StartedAtUtc = startedAtUtc,
             CompletedAtUtc = completedAtUtc,
             Status = status.ToString(),
@@ -42,10 +44,11 @@ public sealed class EfSecurityScanRepository : ISecurityScanRepository
         return scanRecord.Id;
     }
 
-    public async Task<SecurityScanResult?> GetLatestScanAsync(CancellationToken cancellationToken)
+    public async Task<SecurityScanResult?> GetLatestScanAsync(string hostKey, CancellationToken cancellationToken)
     {
         SecurityScanRecord? scanRecord = await _dbContext.Set<SecurityScanRecord>()
             .Include(scan => scan.Findings)
+            .Where(scan => scan.Host == hostKey)
             .OrderByDescending(scan => scan.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -53,11 +56,13 @@ public sealed class EfSecurityScanRepository : ISecurityScanRepository
     }
 
     public async Task<IReadOnlyList<SecurityScanResult>> GetRecentScansAsync(
+        string hostKey,
         int limit,
         CancellationToken cancellationToken)
     {
         List<SecurityScanRecord> scanRecords = await _dbContext.Set<SecurityScanRecord>()
             .Include(scan => scan.Findings)
+            .Where(scan => scan.Host == hostKey)
             .OrderByDescending(scan => scan.Id)
             .Take(limit)
             .ToListAsync(cancellationToken);
@@ -67,6 +72,7 @@ public sealed class EfSecurityScanRepository : ISecurityScanRepository
 
     private SecurityScanResult ToScanResult(SecurityScanRecord record) => new(
         record.Id,
+        record.Host,
         record.StartedAtUtc,
         record.CompletedAtUtc,
         Enum.TryParse(record.Status, out ScanStatus status) ? status : ScanStatus.Failed,

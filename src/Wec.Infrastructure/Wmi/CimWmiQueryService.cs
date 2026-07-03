@@ -136,12 +136,26 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
 
     private static WmiInstance ToWmiInstance(CimInstance cimInstance)
     {
-        var properties = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var properties = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            // WMI system-property convention; lets consumers see the concrete
+            // class of association endpoints (e.g. Win32_UserAccount vs Win32_Group)
+            [WmiInstance.ClassNameProperty] = cimInstance.CimSystemProperties?.ClassName,
+        };
         foreach (CimProperty property in cimInstance.CimInstanceProperties)
         {
-            properties[property.Name] = property.Value;
+            properties[property.Name] = NormalizeValue(property.Value);
         }
 
         return new WmiInstance(properties);
     }
+
+    private static object? NormalizeValue(object? value) => value switch
+    {
+        // Reference properties (associations like Win32_GroupUser.PartComponent)
+        // arrive as nested CimInstances; modules only know the Core WmiInstance type
+        CimInstance nestedInstance => ToWmiInstance(nestedInstance),
+        CimInstance[] nestedInstances => nestedInstances.Select(ToWmiInstance).ToArray(),
+        _ => value,
+    };
 }

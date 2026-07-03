@@ -3,6 +3,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.Security.Application;
 using Wec.Modules.Security.Domain;
 using Wec.Modules.Security.Persistence;
@@ -21,20 +22,26 @@ public class SecurityScanServiceTests
         _clock.UtcNow.Returns(Now);
         _repository
             .SaveScanAsync(
+                Arg.Any<string>(),
                 Arg.Any<DateTimeOffset>(),
                 Arg.Any<DateTimeOffset>(),
                 Arg.Any<ScanStatus>(),
                 Arg.Any<IReadOnlyList<SecurityFinding>>(),
                 Arg.Any<CancellationToken>())
             .Returns(42L);
-        return new SecurityScanService(checks, _repository, _clock, NullLogger<SecurityScanService>.Instance);
+        return new SecurityScanService(
+            checks,
+            _repository,
+            _clock,
+            Microsoft.Extensions.Options.Options.Create(new RemoteScanOptions()),
+            NullLogger<SecurityScanService>.Instance);
     }
 
     private static ISecurityCheck CheckReturning(params SecurityFinding[] findings)
     {
         var check = Substitute.For<ISecurityCheck>();
         check.CheckId.Returns("TEST-CHECK");
-        check.EvaluateAsync(Arg.Any<CancellationToken>())
+        check.EvaluateAsync(Arg.Any<SecurityScanContext>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<SecurityFinding>>(findings));
         return check;
     }
@@ -58,13 +65,16 @@ public class SecurityScanServiceTests
             CheckReturning(Finding("A")),
             CheckReturning(Finding("B"), Finding("C")));
 
-        Result<SecurityScanResult> result = await service.RunScanAsync(CancellationToken.None);
+        Result<SecurityScanResult> result = await service.RunScanAsync(
+            ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(42L, result.Value.ScanId);
+        Assert.Equal(Environment.MachineName, result.Value.Host);
         Assert.Equal(ScanStatus.Completed, result.Value.Status);
         Assert.Equal(new[] { "A", "B", "C" }, result.Value.Findings.Select(finding => finding.FindingId));
         await _repository.Received(1).SaveScanAsync(
+            ScanTarget.Local.CacheKey,
             Now,
             Now,
             ScanStatus.Completed,
@@ -77,12 +87,13 @@ public class SecurityScanServiceTests
     {
         var crashingCheck = Substitute.For<ISecurityCheck>();
         crashingCheck.CheckId.Returns("CRASHING-CHECK");
-        crashingCheck.EvaluateAsync(Arg.Any<CancellationToken>())
+        crashingCheck.EvaluateAsync(Arg.Any<SecurityScanContext>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("bug"));
 
         SecurityScanService service = CreateService(crashingCheck, CheckReturning(Finding("SURVIVOR")));
 
-        Result<SecurityScanResult> result = await service.RunScanAsync(CancellationToken.None);
+        Result<SecurityScanResult> result = await service.RunScanAsync(
+            ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(ScanStatus.CompletedWithErrors, result.Value.Status);
@@ -92,10 +103,12 @@ public class SecurityScanServiceTests
     [Fact]
     public async Task GetLatestScan_ReturnsNullScanWhenNothingWasPersisted()
     {
-        _repository.GetLatestScanAsync(Arg.Any<CancellationToken>()).Returns((SecurityScanResult?)null);
+        _repository.GetLatestScanAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((SecurityScanResult?)null);
         SecurityScanService service = CreateService();
 
-        Result<LatestScanResult> result = await service.GetLatestScanAsync(CancellationToken.None);
+        Result<LatestScanResult> result = await service.GetLatestScanAsync(
+            ScanTarget.Local, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value.Scan);

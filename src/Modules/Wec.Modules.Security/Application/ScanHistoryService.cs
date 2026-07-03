@@ -17,10 +17,12 @@ internal sealed class ScanHistoryService
         _options = options.Value;
     }
 
-    public async Task<Result<ScanHistoryResult>> GetHistoryAsync(CancellationToken cancellationToken)
+    public async Task<Result<ScanHistoryResult>> GetHistoryAsync(
+        Wec.Core.Targets.ScanTarget target,
+        CancellationToken cancellationToken)
     {
         IReadOnlyList<SecurityScanResult> scans =
-            await _repository.GetRecentScansAsync(_options.HistoryLimit, cancellationToken);
+            await _repository.GetRecentScansAsync(target.CacheKey, _options.HistoryLimit, cancellationToken);
 
         ScanDiff? changes = scans.Count >= 2 ? BuildDiff(scans[0], scans[1]) : null;
         return Result.Success(new ScanHistoryResult([.. scans.Select(ToSummary)], changes));

@@ -10,6 +10,11 @@ public sealed class SecurityScanRecordConfiguration : IEntityTypeConfiguration<S
         builder.ToTable("security_scans");
         builder.HasKey(scan => scan.Id);
         builder.Property(scan => scan.Id).HasColumnName("id");
+        builder.Property(scan => scan.Host)
+            .HasColumnName("host")
+            .HasDefaultValue(string.Empty)
+            .IsRequired();
+        builder.HasIndex(scan => scan.Host).HasDatabaseName("ix_security_scans_host");
         // SQLite cannot order/compare DateTimeOffset columns; store UTC ticks
         builder.Property(scan => scan.StartedAtUtc)
             .HasColumnName("started_at_utc")

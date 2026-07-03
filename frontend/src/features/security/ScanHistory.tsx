@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
-import type { ScanHistoryResult, ScanSummary } from '../../shared/api-types';
+import type { ScanHistoryResult, ScanSummary, TargetRequest } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
 import { SeverityBadge } from './SeverityBadge';
@@ -40,19 +40,21 @@ function TrendSparkline({ scans }: { scans: ScanSummary[] }) {
 interface ScanHistoryProps {
   /** Changes when a new scan lands; triggers a refetch. */
   refreshToken: number | null;
+  /** History is per host; null = local machine. */
+  target?: TargetRequest | null;
 }
 
-export function ScanHistory({ refreshToken }: ScanHistoryProps) {
+export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
   const [state, setState] = useState<HistoryState>({ kind: 'loading' });
 
   useEffect(() => {
     setState({ kind: 'loading' });
-    invoke<ScanHistoryResult>('security', 'getScanHistory')
+    invoke<ScanHistoryResult>('security', 'getScanHistory', { target })
       .then((history) => setState({ kind: 'loaded', history }))
       .catch((error: unknown) =>
         setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),
       );
-  }, [refreshToken]);
+  }, [refreshToken, target]);
 
   if (state.kind === 'loading') {
     return <Spinner label="Loading scan history …" />;

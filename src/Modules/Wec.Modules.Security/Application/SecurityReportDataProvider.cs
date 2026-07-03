@@ -16,7 +16,9 @@ internal sealed class SecurityReportDataProvider : ISecurityReportDataProvider
 
     public async Task<SecurityReportData?> GetLatestScanAsync(CancellationToken cancellationToken)
     {
-        SecurityScanResult? scan = await _repository.GetLatestScanAsync(cancellationToken);
+        // The executive summary reports on the machine WEC runs on
+        SecurityScanResult? scan = await _repository.GetLatestScanAsync(
+            Wec.Core.Targets.ScanTarget.Local.CacheKey, cancellationToken);
         if (scan is null)
         {
             return null;

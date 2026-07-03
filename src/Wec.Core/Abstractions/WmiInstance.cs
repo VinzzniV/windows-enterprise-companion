@@ -2,6 +2,9 @@ namespace Wec.Core.Abstractions;
 
 public sealed class WmiInstance
 {
+    /// <summary>WMI system-property name under which providers expose the concrete class name.</summary>
+    public const string ClassNameProperty = "__CLASS";
+
     private readonly IReadOnlyDictionary<string, object?> _properties;
 
     public WmiInstance(IReadOnlyDictionary<string, object?> properties)

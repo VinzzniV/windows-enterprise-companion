@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.Security.Application;
 using Wec.Modules.Security.Domain;
 using Wec.Modules.Security.Persistence;
@@ -32,10 +33,10 @@ public sealed class ScanHistoryServiceTests
         Now);
 
     private static SecurityScanResult Scan(long id, params SecurityFinding[] findings) =>
-        new(id, Now.AddMinutes(-id), Now.AddMinutes(-id).AddSeconds(5), ScanStatus.Completed, findings);
+        new(id, Environment.MachineName, Now.AddMinutes(-id), Now.AddMinutes(-id).AddSeconds(5), ScanStatus.Completed, findings);
 
     private void SetUpScans(params SecurityScanResult[] newestFirst) =>
-        _repository.GetRecentScansAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _repository.GetRecentScansAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(newestFirst);
 
     [Fact]
@@ -47,7 +48,7 @@ public sealed class ScanHistoryServiceTests
             Finding("B", "r2", FindingSeverity.Info),
             Finding("C", "r3", FindingSeverity.High)));
 
-        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(CancellationToken.None);
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(ScanTarget.Local, CancellationToken.None);
 
         ScanSummary summary = Assert.Single(result.Value.Scans);
         Assert.Equal(3, summary.FindingCount);
@@ -61,7 +62,7 @@ public sealed class ScanHistoryServiceTests
     {
         SetUpScans(Scan(1, Finding("A", "r1")));
 
-        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(CancellationToken.None);
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(ScanTarget.Local, CancellationToken.None);
 
         Assert.Null(result.Value.ChangesSinceLastScan);
     }
@@ -73,7 +74,7 @@ public sealed class ScanHistoryServiceTests
             Scan(2, Finding("STAYS", "r1"), Finding("NEW", "r2")),
             Scan(1, Finding("STAYS", "r1"), Finding("RESOLVED", "r3")));
 
-        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(CancellationToken.None);
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(ScanTarget.Local, CancellationToken.None);
 
         ScanDiff diff = result.Value.ChangesSinceLastScan!;
         Assert.Equal(2, diff.LatestScanId);
@@ -90,7 +91,7 @@ public sealed class ScanHistoryServiceTests
             Scan(2, Finding("FW-OFF", "Profile 'Public'"), Finding("FW-OFF", "Profile 'Private'")),
             Scan(1, Finding("FW-OFF", "Profile 'Public'")));
 
-        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(CancellationToken.None);
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(ScanTarget.Local, CancellationToken.None);
 
         SecurityFinding newFinding = Assert.Single(result.Value.ChangesSinceLastScan!.NewFindings);
         Assert.Equal("Profile 'Private'", newFinding.AffectedResource);
@@ -101,7 +102,7 @@ public sealed class ScanHistoryServiceTests
     {
         SetUpScans();
 
-        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(CancellationToken.None);
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(ScanTarget.Local, CancellationToken.None);
 
         Assert.Empty(result.Value.Scans);
         Assert.Null(result.Value.ChangesSinceLastScan);

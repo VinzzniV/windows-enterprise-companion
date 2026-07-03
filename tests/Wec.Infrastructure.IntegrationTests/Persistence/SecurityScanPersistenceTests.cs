@@ -40,6 +40,7 @@ public sealed class SecurityScanPersistenceTests : IDisposable
             var repository = new EfSecurityScanRepository(
                 writeContext, NullLogger<EfSecurityScanRepository>.Instance);
             scanId = await repository.SaveScanAsync(
+                "PC-001",
                 StartedAt,
                 StartedAt.AddSeconds(3),
                 ScanStatus.Completed,
@@ -50,7 +51,7 @@ public sealed class SecurityScanPersistenceTests : IDisposable
         using WecDbContext readContext = CreateContext();
         var reloadedRepository = new EfSecurityScanRepository(
             readContext, NullLogger<EfSecurityScanRepository>.Instance);
-        SecurityScanResult? reloaded = await reloadedRepository.GetLatestScanAsync(CancellationToken.None);
+        SecurityScanResult? reloaded = await reloadedRepository.GetLatestScanAsync("PC-001", CancellationToken.None);
 
         Assert.NotNull(reloaded);
         Assert.Equal(scanId, reloaded.ScanId);
@@ -72,11 +73,13 @@ public sealed class SecurityScanPersistenceTests : IDisposable
             context, NullLogger<EfSecurityScanRepository>.Instance);
 
         await repository.SaveScanAsync(
+            "PC-001",
             StartedAt.AddHours(-1), StartedAt.AddHours(-1), ScanStatus.Completed, [], CancellationToken.None);
         long latestScanId = await repository.SaveScanAsync(
+            "PC-001",
             StartedAt, StartedAt.AddSeconds(2), ScanStatus.CompletedWithErrors, [BuildFinding()], CancellationToken.None);
 
-        SecurityScanResult? latest = await repository.GetLatestScanAsync(CancellationToken.None);
+        SecurityScanResult? latest = await repository.GetLatestScanAsync("PC-001", CancellationToken.None);
         int totalScans = await context.Set<SecurityScanRecord>().CountAsync();
 
         Assert.NotNull(latest);
@@ -96,6 +99,7 @@ public sealed class SecurityScanPersistenceTests : IDisposable
         for (int scanNumber = 0; scanNumber < 3; scanNumber++)
         {
             await repository.SaveScanAsync(
+                "PC-001",
                 StartedAt.AddHours(scanNumber),
                 StartedAt.AddHours(scanNumber).AddSeconds(2),
                 ScanStatus.Completed,
@@ -104,7 +108,7 @@ public sealed class SecurityScanPersistenceTests : IDisposable
         }
 
         IReadOnlyList<SecurityScanResult> recent =
-            await repository.GetRecentScansAsync(2, CancellationToken.None);
+            await repository.GetRecentScansAsync("PC-001", 2, CancellationToken.None);
 
         Assert.Equal(2, recent.Count);
         Assert.True(recent[0].ScanId > recent[1].ScanId);

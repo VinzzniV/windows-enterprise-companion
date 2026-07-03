@@ -184,9 +184,15 @@ export interface SecurityFinding {
   capturedAtUtc: string;
 }
 
+/** Wec.Modules.Security.Handlers — runScan/getLatestScan/getScanHistory payloads */
+export interface SecurityScanRequest {
+  target?: TargetRequest | null;
+}
+
 /** Wec.Modules.Security.Domain.SecurityScanResult */
 export interface SecurityScanResult {
   scanId: number;
+  host: string;
   startedAtUtc: string;
   completedAtUtc: string;
   status: ScanStatus;

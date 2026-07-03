@@ -9,6 +9,7 @@ public enum ScanStatus
 
 public sealed record SecurityScanResult(
     long ScanId,
+    string Host,
     DateTimeOffset StartedAtUtc,
     DateTimeOffset CompletedAtUtc,
     ScanStatus Status,

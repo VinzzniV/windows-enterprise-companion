@@ -20,10 +20,24 @@ internal sealed class SecureBootCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-SECUREBOOT";
 
-    public Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+        SecurityScanContext context,
+        CancellationToken cancellationToken)
     {
-        Result<object?> state = _registryReader.ReadLocalMachineValue(SecureBootStateKey, SecureBootEnabledValue);
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
+
+        if (!context.Target.IsLocal)
+        {
+            return Task.FromResult<IReadOnlyList<SecurityFinding>>([CheckFindings.LocalOnly(
+                CheckId,
+                "Secure Boot state was not checked on the remote target",
+                FindingCategory.PlatformIntegrity,
+                "Secure Boot",
+                context.Target.DisplayName,
+                capturedAtUtc)]);
+        }
+
+        Result<object?> state = _registryReader.ReadLocalMachineValue(SecureBootStateKey, SecureBootEnabledValue);
 
         if (state.IsFailure)
         {

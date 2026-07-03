@@ -5,7 +5,7 @@ using Wec.Modules.Security.Domain;
 
 namespace Wec.Modules.Security.Handlers;
 
-public sealed record GetScanHistoryRequest;
+public sealed record GetScanHistoryRequest(TargetRequest? Target = null);
 
 internal sealed class GetScanHistoryHandler : IActionHandler<GetScanHistoryRequest, ScanHistoryResult>
 {
@@ -23,5 +23,7 @@ internal sealed class GetScanHistoryHandler : IActionHandler<GetScanHistoryReque
     public Task<Result<ScanHistoryResult>> HandleAsync(
         GetScanHistoryRequest payload,
         CancellationToken cancellationToken) =>
-        _scanHistoryService.GetHistoryAsync(cancellationToken);
+        _scanHistoryService.GetHistoryAsync(
+            (payload.Target ?? new TargetRequest()).ToScanTarget(),
+            cancellationToken);
 }

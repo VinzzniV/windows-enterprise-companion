@@ -35,9 +35,12 @@ internal sealed class OsSupportCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-OSSUPPORT";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+        SecurityScanContext context,
+        CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<WmiInstance>> operatingSystems = await _wmiQueryService.QueryAsync(
+            context,
             CimV2Namespace,
             "SELECT Caption, BuildNumber FROM Win32_OperatingSystem",
             cancellationToken);

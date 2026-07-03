@@ -20,12 +20,25 @@ internal sealed class RdpAccessCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-RDP";
 
-    public Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+        SecurityScanContext context,
+        CancellationToken cancellationToken)
     {
+        DateTimeOffset capturedAtUtc = _clock.UtcNow;
+
+        if (!context.Target.IsLocal)
+        {
+            return Task.FromResult<IReadOnlyList<SecurityFinding>>([CheckFindings.LocalOnly(
+                CheckId,
+                "Remote Desktop state was not checked on the remote target",
+                FindingCategory.NetworkServices,
+                "Remote Desktop (RDP)",
+                context.Target.DisplayName,
+                capturedAtUtc)]);
+        }
+
         Result<object?> denyConnections =
             _registryReader.ReadLocalMachineValue(TerminalServerKey, DenyConnectionsValue);
-
-        DateTimeOffset capturedAtUtc = _clock.UtcNow;
 
         if (denyConnections.IsFailure)
         {

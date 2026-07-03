@@ -12,6 +12,12 @@ import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { Spinner } from '../../shared/ui/Spinner';
 import { SeverityBadge } from './SeverityBadge';
 import { ScanHistory } from './ScanHistory';
+import {
+  LOCAL_TARGET_SELECTION,
+  TargetSelector,
+  toTargetRequest,
+  type TargetSelection,
+} from '../../shared/targets/TargetSelector';
 
 const allSeverities: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
 
@@ -63,26 +69,33 @@ function FindingCard({ finding }: { finding: SecurityFinding }) {
 export function SecurityPage() {
   const [state, setState] = useState<PageState>({ kind: 'loading' });
   const [scanning, setScanning] = useState(false);
+  const [selection, setSelection] = useState<TargetSelection>(LOCAL_TARGET_SELECTION);
+  const [activeTarget, setActiveTarget] = useState<ReturnType<typeof toTargetRequest>>(null);
   const [hiddenSeverities, setHiddenSeverities] = useState<Set<FindingSeverity>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<FindingCategory | 'ALL'>('ALL');
 
   useEffect(() => {
-    invoke<LatestScanResult>('security', 'getLatestScan')
+    setState({ kind: 'loading' });
+    invoke<LatestScanResult>('security', 'getLatestScan', { target: activeTarget })
       .then((result) => setState({ kind: 'loaded', scan: result.scan }))
       .catch((error: unknown) =>
         setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),
       );
-  }, []);
+  }, [activeTarget]);
 
   const runScan = useCallback(() => {
+    const target = toTargetRequest(selection);
     setScanning(true);
-    invoke<SecurityScanResult>('security', 'runScan')
-      .then((scan) => setState({ kind: 'loaded', scan }))
+    invoke<SecurityScanResult>('security', 'runScan', { target }, 120_000)
+      .then((scan) => {
+        setActiveTarget(target);
+        setState({ kind: 'loaded', scan });
+      })
       .catch((error: unknown) =>
         setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),
       )
       .finally(() => setScanning(false));
-  }, []);
+  }, [selection]);
 
   const scan = state.kind === 'loaded' ? state.scan : null;
 
@@ -115,37 +128,41 @@ export function SecurityPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Security</h1>
-          <p className="text-sm text-slate-400">Read-only local security findings</p>
+      <header className="flex flex-col gap-3">
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">Security</h1>
+            <p className="text-sm text-slate-400">Read-only security findings per scanned computer</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {scan && (
+              <span className="flex items-center gap-2 text-xs text-slate-400">
+                <span className="font-medium text-slate-300">{scan.host}</span>
+                <StatusBadge
+                  variant={
+                    scan.status === 'COMPLETED'
+                      ? 'success'
+                      : scan.status === 'COMPLETED_WITH_ERRORS'
+                        ? 'elevation'
+                        : 'error'
+                  }
+                >
+                  {scan.status.replaceAll('_', ' ')}
+                </StatusBadge>
+                {new Date(scan.completedAtUtc).toLocaleString()} — {scan.findings.length} findings
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={runScan}
+              disabled={scanning || state.kind === 'loading' || (selection.mode === 'remote' && selection.host.trim() === '')}
+              className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
+            >
+              {scanning ? 'Scanning …' : 'Run scan'}
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {scan && (
-            <span className="flex items-center gap-2 text-xs text-slate-400">
-              <StatusBadge
-                variant={
-                  scan.status === 'COMPLETED'
-                    ? 'success'
-                    : scan.status === 'COMPLETED_WITH_ERRORS'
-                      ? 'elevation'
-                      : 'error'
-                }
-              >
-                {scan.status.replaceAll('_', ' ')}
-              </StatusBadge>
-              {new Date(scan.completedAtUtc).toLocaleString()} — {scan.findings.length} findings
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={runScan}
-            disabled={scanning || state.kind === 'loading'}
-            className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
-          >
-            {scanning ? 'Scanning …' : 'Run scan'}
-          </button>
-        </div>
+        <TargetSelector selection={selection} onChange={setSelection} disabled={scanning} />
       </header>
 
       {state.kind === 'loading' && <Spinner label="Loading latest scan …" />}
@@ -159,7 +176,7 @@ export function SecurityPage() {
       {state.kind === 'loaded' && !scan && (
         <Card title="No scan yet">
           <p className="text-sm text-slate-400">
-            No security scan has been run on this machine. Start one with "Run scan".
+            No security scan has been run against this target. Start one with "Run scan".
           </p>
         </Card>
       )}
@@ -216,7 +233,9 @@ export function SecurityPage() {
         </>
       )}
 
-      {state.kind === 'loaded' && <ScanHistory refreshToken={scan?.scanId ?? null} />}
+      {state.kind === 'loaded' && (
+        <ScanHistory refreshToken={scan?.scanId ?? null} target={activeTarget} />
+      )}
     </div>
   );
 }

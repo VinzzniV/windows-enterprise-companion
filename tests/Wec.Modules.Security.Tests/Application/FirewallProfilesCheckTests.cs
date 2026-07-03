@@ -3,6 +3,7 @@ using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Privileges;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.Security.Application.Checks;
 using Wec.Modules.Security.Domain;
 
@@ -23,7 +24,13 @@ public class FirewallProfilesCheckTests
 
     private void SetUpProfiles(params WmiInstance[] profiles) =>
         _wmiQueryService
-            .QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .QueryAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<WmiInstance>>(profiles));
 
     private static WmiInstance Profile(string name, object? enabled) =>
@@ -34,7 +41,7 @@ public class FirewallProfilesCheckTests
     {
         SetUpProfiles(Profile("Domain", true), Profile("Private", true), Profile("Public", true));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
 
         Assert.Empty(findings);
     }
@@ -44,7 +51,7 @@ public class FirewallProfilesCheckTests
     {
         SetUpProfiles(Profile("Domain", true), Profile("Public", false));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal(FindingSeverity.High, finding.Severity);
@@ -60,7 +67,7 @@ public class FirewallProfilesCheckTests
         // MSFT_NetFirewallProfile.Enabled can surface as uint16: 0/1/2 (NotConfigured)
         SetUpProfiles(Profile("Domain", (ushort)0), Profile("Private", (ushort)1), Profile("Public", (ushort)2));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal("Domain", finding.Evidence["profile"]);
@@ -70,11 +77,17 @@ public class FirewallProfilesCheckTests
     public async Task WmiFailure_ProducesConservativeInfoFindingInsteadOfSilence()
     {
         _wmiQueryService
-            .QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .QueryAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
             .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(
                 Error.WmiUnavailable("WMI service unreachable")));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal(FindingSeverity.Info, finding.Severity);
@@ -85,11 +98,17 @@ public class FirewallProfilesCheckTests
     public async Task AccessDenied_CarriesRequiredPrivilegeOnTheFinding()
     {
         _wmiQueryService
-            .QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .QueryAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
             .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(
                 Error.AccessDenied("access denied", PrivilegeLevel.Administrator)));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal(PrivilegeLevel.Administrator, finding.RequiredPrivilege);

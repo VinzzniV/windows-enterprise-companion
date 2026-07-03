@@ -4,7 +4,7 @@ using Wec.Modules.Security.Application;
 
 namespace Wec.Modules.Security.Handlers;
 
-public sealed record GetLatestSecurityScanRequest;
+public sealed record GetLatestSecurityScanRequest(TargetRequest? Target = null);
 
 internal sealed class GetLatestSecurityScanHandler : IActionHandler<GetLatestSecurityScanRequest, LatestScanResult>
 {
@@ -22,5 +22,7 @@ internal sealed class GetLatestSecurityScanHandler : IActionHandler<GetLatestSec
     public Task<Result<LatestScanResult>> HandleAsync(
         GetLatestSecurityScanRequest payload,
         CancellationToken cancellationToken) =>
-        _securityScanService.GetLatestScanAsync(cancellationToken);
+        _securityScanService.GetLatestScanAsync(
+            (payload.Target ?? new TargetRequest()).ToScanTarget(),
+            cancellationToken);
 }

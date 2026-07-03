@@ -28,6 +28,10 @@ public sealed class SecurityModule : IModule
         services.AddScoped<ISecurityCheck, TpmCheck>();
         services.AddScoped<ISecurityCheck, OsSupportCheck>();
         services.AddScoped<ISecurityCheck, LocalAdministratorsCheck>();
+        services.AddScoped<ISecurityCheck, UacCheck>();
+        services.AddScoped<ISecurityCheck, WindowsUpdateRecencyCheck>();
+        services.AddScoped<ISecurityCheck, RebootPendingCheck>();
+        services.AddScoped<ISecurityCheck, AccountPolicyCheck>();
         services.AddScoped<IActionHandler, RunSecurityScanHandler>();
         services.AddScoped<IActionHandler, GetLatestSecurityScanHandler>();
         services.AddScoped<IActionHandler, GetScanHistoryHandler>();

@@ -19,11 +19,14 @@ internal sealed class TpmCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-TPM";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+        SecurityScanContext context,
+        CancellationToken cancellationToken)
     {
         // Win32_Tpm requires elevation on most systems; the access-denied result
         // becomes a NOT-RUN finding carrying the required privilege.
         Result<IReadOnlyList<WmiInstance>> tpm = await _wmiQueryService.QueryAsync(
+            context,
             TpmNamespace,
             "SELECT IsEnabled_InitialValue, IsActivated_InitialValue, SpecVersion FROM Win32_Tpm",
             cancellationToken);

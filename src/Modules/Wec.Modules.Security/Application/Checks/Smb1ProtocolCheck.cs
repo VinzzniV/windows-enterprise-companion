@@ -20,9 +20,12 @@ internal sealed class Smb1ProtocolCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-SMB1";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+        SecurityScanContext context,
+        CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<WmiInstance>> feature = await _wmiQueryService.QueryAsync(
+            context,
             CimV2Namespace,
             "SELECT Name, InstallState FROM Win32_OptionalFeature WHERE Name = 'SMB1Protocol'",
             cancellationToken);
