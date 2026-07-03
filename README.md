@@ -8,7 +8,10 @@ from local assets, typed JSON message bridge — no HTTP server, no open ports
 
 Analysis is read-only and targets the local machine or, for Inventory,
 Security and Active Directory, remote Windows clients over WinRM/LDAP
-(ADR 0007). Each module has its own README under `src/Modules/`.
+(ADR 0007). The Patch Management module is the one deliberate exception to
+read-only: it can write opsi rollout action requests, gated behind a
+mandatory preview, explicit confirmation and an audit log (ADR 0008).
+Each module has its own README under `src/Modules/`.
 
 The UI follows a small shared design system (`frontend/src/shared/ui`):
 uniform page headers, buttons, badges, summary metrics, data tables and
@@ -27,6 +30,7 @@ and the ADRs in [docs/adr/](docs/adr/).
 | Security | 13 read-only checks with per-host scan history; single-host and parallel multi-host scans | yes (registry/SAM checks marked local-only) |
 | Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting; parallel multi-host runs | WMI-based checks yes; connectivity probes stay local-perspective |
 | Active Directory | Domain overview + hygiene checks over LDAP; test bind | own or explicitly named domain/DC |
+| Patch Management | Semi-automatic opsi workflow hub (ADR 0008): dashboard, inventory comparison, mandatory rollout preview with confirmation, audit log; session-only credentials | opsi server over JSON-RPC (HTTPS :4447) |
 | Reporting | HTML/JSON executive summary of the local machine | local |
 
 ## Prerequisites
@@ -135,6 +139,9 @@ as access denied (the error text says so).
   the UI yet (the bridge has no cancel channel).
 - Elevation applies to the whole app via restart (button in the sidebar
   footer); there is no per-action elevation prompt (deliberate, ADR 0002).
+- Patch Management prepares `opsi-package-updater` runs as planned, audited
+  commands but does not execute them (no SSH channel yet, ADR 0008); the
+  only opsi write is the confirmed rollout action request.
 - TypeScript API types are mirrored manually from the C# DTOs
   (`frontend/src/shared/api-types.ts`) — review on every DTO change.
 - Artifacts are not code-signed (no certificate yet) — SmartScreen warns on

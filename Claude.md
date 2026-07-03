@@ -51,6 +51,11 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
   credentials are Core types (`Wec.Core.Targets`); explicit credentials are
   in-memory per request, never persisted. Local-only checks report
   `UNSUPPORTED_REMOTE_OPERATION`-style findings instead of silently skipping.
+- Patch management (ADR 0008): opsi over JSON-RPC behind `IOpsiClient`;
+  session-scoped in-memory credentials (never persisted/logged). The single
+  deliberate write exception to read-only: rollout action requests, only
+  after preview + explicit confirmation, always audited
+  (`patchmanagement_audit_entries`).
 - Persistence: one `WecDbContext` (Infrastructure) + SQLite at
   `%LOCALAPPDATA%\Wec\wec.db`. EF Core migrations from day 1, applied at startup.
   Module entity configurations (`IEntityTypeConfiguration<T>`) live in the module,

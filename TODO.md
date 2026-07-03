@@ -4,6 +4,32 @@ Living document: check items off, reprioritize freely, delete what gets
 rejected. Ordering within a section is by value/effort. Milestone work
 (M6, M7) still follows the loop protocol: ADR + user decisions first.
 
+## Done 2026-07-03 — Patch management (opsi) MVP
+
+New Wec.Modules.PatchManagement + "Patch Management" page (ADR 0008):
+IOpsiClient Core seam with a JSON-RPC opsiconfd client (typed errors incl.
+untrusted-CA hint), session-only in-memory credentials with test
+connection, dashboard joining opsi depots/clients/products/states with WEC
+inventory software via IInstalledSoftwareInventoryProvider and a manual
+mapping table (exact-match suggestions only), depot filter with Denkingen
+default, full workflow-state model (MVP derives Detected/UpdateAvailable/
+RolloutRequested/Completed/Failed), mandatory rollout preview + explicit
+confirmation before the only write (actionRequest=setup), "prepare
+packages" as a planned+audited opsi-package-updater command, persistent
+audit log with UI.
+
+Follow-ups spawned by that work:
+
+- [ ] Execute opsi-package-updater over SSH (needs an SSH client
+      dependency decision + own ADR revision); today the command is only
+      planned and audited
+- [ ] Nessus/vulnerability data per opsi productId (criticality column is
+      prepared conceptually via the mapping table, ADR 0008)
+- [ ] Pilot/test client group flow (Ready for pilot → Approved states are
+      modeled but not yet driven by the UI; current admin acts as pilot)
+- [ ] Verify against the real opsi server (JSON-RPC shapes are tested
+      against fixtures; live opsi 4.2/4.3 field variance not yet proven)
+
 ## Done 2026-07-03 — Remote completion pass
 
 Inventory: plausible link speeds (WMI sentinel → unknown), per-adapter
