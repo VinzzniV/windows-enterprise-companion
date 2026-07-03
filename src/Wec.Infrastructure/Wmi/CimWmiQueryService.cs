@@ -49,7 +49,12 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
 
         try
         {
-            using CimSession session = CreateSession(target, credentials, connection);
+            // The password must outlive the queries, not just CimSession.Create:
+            // WSMan connects and authenticates lazily on the first operation.
+            using SecureString? explicitPassword = credentials.Mode == CredentialMode.Explicit
+                ? ToSecureString(credentials.Password!)
+                : null;
+            using CimSession session = CreateSession(target, credentials, connection, explicitPassword);
             var instances = new List<WmiInstance>();
             foreach (CimInstance cimInstance in session.QueryInstances(wmiNamespace, QueryDialect, wqlQuery))
             {
@@ -76,7 +81,11 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
         }
     }
 
-    private static CimSession CreateSession(ScanTarget target, ScanCredentials credentials, ConnectionOptions connection)
+    private static CimSession CreateSession(
+        ScanTarget target,
+        ScanCredentials credentials,
+        ConnectionOptions connection,
+        SecureString? explicitPassword)
     {
         if (target.IsLocal)
         {
@@ -90,12 +99,11 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
 
         if (credentials.Mode == CredentialMode.Explicit)
         {
-            using SecureString password = ToSecureString(credentials.Password!);
             sessionOptions.AddDestinationCredentials(new CimCredential(
                 PasswordAuthenticationMechanism.Negotiate,
                 credentials.Domain,
                 credentials.UserName,
-                password));
+                explicitPassword));
         }
 
         return CimSession.Create(target.Host, sessionOptions);
