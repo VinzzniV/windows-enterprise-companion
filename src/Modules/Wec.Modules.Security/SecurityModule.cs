@@ -17,6 +17,7 @@ public sealed class SecurityModule : IModule
     {
         services.AddScoped<ISecurityScanRepository, EfSecurityScanRepository>();
         services.AddScoped<SecurityScanService>();
+        services.AddScoped<BatchSecurityScanService>();
         services.AddScoped<ScanHistoryService>();
         services.AddScoped<ISecurityReportDataProvider, SecurityReportDataProvider>();
         services.AddScoped<ISecurityCheck, FirewallProfilesCheck>();
@@ -33,6 +34,7 @@ public sealed class SecurityModule : IModule
         services.AddScoped<ISecurityCheck, RebootPendingCheck>();
         services.AddScoped<ISecurityCheck, AccountPolicyCheck>();
         services.AddScoped<IActionHandler, RunSecurityScanHandler>();
+        services.AddScoped<IActionHandler, RunBatchSecurityScanHandler>();
         services.AddScoped<IActionHandler, GetLatestSecurityScanHandler>();
         services.AddScoped<IActionHandler, GetScanHistoryHandler>();
     }

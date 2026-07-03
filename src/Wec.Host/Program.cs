@@ -185,6 +185,9 @@ internal static partial class Program
         builder.Services.AddSingleton<IActionHandler, RestartElevatedHandler>();
         builder.Services.AddSingleton<ActionDispatcher>();
         builder.Services.AddSingleton<WebViewBridge>();
+        builder.Services.AddSingleton<WebViewBridgeEventPublisher>();
+        builder.Services.AddSingleton<IBridgeEventPublisher>(serviceProvider =>
+            serviceProvider.GetRequiredService<WebViewBridgeEventPublisher>());
         builder.Services.AddSingleton<MainWindow>();
 
         return builder.Build();

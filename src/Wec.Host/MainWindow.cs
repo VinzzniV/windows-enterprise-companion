@@ -28,17 +28,20 @@ internal sealed partial class MainWindow : Form
 
     private readonly WebView2 _webView;
     private readonly WebViewBridge _bridge;
+    private readonly WebViewBridgeEventPublisher _eventPublisher;
     private readonly WebViewOptions _webViewOptions;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<MainWindow> _logger;
 
     public MainWindow(
         WebViewBridge bridge,
+        WebViewBridgeEventPublisher eventPublisher,
         IOptions<WebViewOptions> webViewOptions,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<MainWindow> logger)
     {
         _bridge = bridge;
+        _eventPublisher = eventPublisher;
         _webViewOptions = webViewOptions.Value;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
@@ -70,6 +73,7 @@ internal sealed partial class MainWindow : Form
             await _webView.EnsureCoreWebView2Async(environment);
 
             _bridge.Attach(_webView.CoreWebView2);
+            _eventPublisher.Attach(this, _webView.CoreWebView2);
             NavigateToFrontend();
             LogWebViewInitialized(environment.BrowserVersionString);
         }

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { invoke } from '../../shared/bridge/bridgeClient';
+import { invoke, subscribe } from '../../shared/bridge/bridgeClient';
 import type {
+  BatchScanProgress,
+  BatchScanResult,
   FindingCategory,
   FindingSeverity,
+  HostScanStatus,
   LatestScanResult,
+  RunBatchSecurityScanRequest,
   SecurityFinding,
   SecurityScanResult,
 } from '../../shared/api-types';
@@ -15,9 +19,35 @@ import { ScanHistory } from './ScanHistory';
 import {
   LOCAL_TARGET_SELECTION,
   TargetSelector,
+  toHostList,
   toTargetRequest,
   type TargetSelection,
 } from '../../shared/targets/TargetSelector';
+
+const hostStatusStyles: Record<HostScanStatus, string> = {
+  QUEUED: 'border-slate-700 bg-slate-800 text-slate-300',
+  CONNECTING: 'border-sky-700 bg-sky-900/60 text-sky-300',
+  RUNNING: 'border-sky-700 bg-sky-900/60 text-sky-300',
+  COMPLETED: 'border-emerald-700 bg-emerald-900/60 text-emerald-300',
+  COMPLETED_WITH_ERRORS: 'border-amber-700 bg-amber-900/60 text-amber-300',
+  FAILED: 'border-red-700 bg-red-900/60 text-red-300',
+};
+
+function HostStatusBadge({ status }: { status: HostScanStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${hostStatusStyles[status]}`}
+    >
+      {status.replaceAll('_', ' ')}
+    </span>
+  );
+}
+
+type BatchState =
+  | { kind: 'idle' }
+  | { kind: 'running'; statuses: Record<string, HostScanStatus> }
+  | { kind: 'done'; result: BatchScanResult }
+  | { kind: 'error'; message: string };
 
 const allSeverities: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
 
@@ -97,6 +127,52 @@ export function SecurityPage() {
       .finally(() => setScanning(false));
   }, [selection]);
 
+  const [batchState, setBatchState] = useState<BatchState>({ kind: 'idle' });
+
+  useEffect(() => {
+    if (batchState.kind !== 'running') {
+      return;
+    }
+    try {
+      return subscribe('security', 'batchScanProgress', (payload) => {
+        const progress = payload as BatchScanProgress;
+        setBatchState((current) =>
+          current.kind === 'running'
+            ? { kind: 'running', statuses: { ...current.statuses, [progress.host]: progress.status } }
+            : current,
+        );
+      });
+    } catch {
+      // Bridge unavailable (browser preview) — batch progress stays static
+      return undefined;
+    }
+  }, [batchState.kind]);
+
+  const runBatchScan = useCallback(() => {
+    const hosts = toHostList(selection);
+    const payload: RunBatchSecurityScanRequest = { hosts };
+    if (selection.credentialMode === 'explicit' && selection.userName.trim() !== '') {
+      payload.userName = selection.userName.trim();
+      payload.domain = selection.domain.trim() || null;
+      payload.password = selection.password;
+    }
+    setBatchState({
+      kind: 'running',
+      statuses: Object.fromEntries(hosts.map((host) => [host, 'QUEUED' as HostScanStatus])),
+    });
+    invoke<BatchScanResult>('security', 'runBatchScan', payload, 600_000)
+      .then((result) => setBatchState({ kind: 'done', result }))
+      .catch((error: unknown) =>
+        setBatchState({
+          kind: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+  }, [selection]);
+
+  const isBatchMode = selection.mode === 'multiple';
+  const batchRunning = batchState.kind === 'running';
+
   const scan = state.kind === 'loaded' ? state.scan : null;
 
   const availableCategories = useMemo(
@@ -154,16 +230,80 @@ export function SecurityPage() {
             )}
             <button
               type="button"
-              onClick={runScan}
-              disabled={scanning || state.kind === 'loading' || (selection.mode === 'remote' && selection.host.trim() === '')}
+              onClick={isBatchMode ? runBatchScan : runScan}
+              disabled={
+                scanning ||
+                batchRunning ||
+                state.kind === 'loading' ||
+                (selection.mode === 'remote' && selection.host.trim() === '') ||
+                (isBatchMode && toHostList(selection).length === 0)
+              }
               className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
             >
-              {scanning ? 'Scanning …' : 'Run scan'}
+              {scanning || batchRunning ? 'Scanning …' : isBatchMode ? 'Scan all hosts' : 'Run scan'}
             </button>
           </div>
         </div>
-        <TargetSelector selection={selection} onChange={setSelection} disabled={scanning} />
+        <TargetSelector
+          selection={selection}
+          onChange={setSelection}
+          disabled={scanning || batchRunning}
+          allowMultiple
+        />
       </header>
+
+      {batchState.kind === 'running' && (
+        <Card title="Batch scan in progress">
+          <ul className="flex flex-col gap-1 text-sm">
+            {Object.entries(batchState.statuses).map(([host, status]) => (
+              <li key={host} className="flex items-center justify-between gap-3">
+                <span>{host}</span>
+                <HostStatusBadge status={status} />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {batchState.kind === 'error' && (
+        <Card title="Batch scan error">
+          <p className="text-sm text-red-400">{batchState.message}</p>
+        </Card>
+      )}
+
+      {batchState.kind === 'done' && (
+        <Card title={`Batch scan results (${batchState.result.hosts.length} hosts)`}>
+          <ul className="flex flex-col gap-3 text-sm">
+            {batchState.result.hosts.map((outcome) => (
+              <li key={outcome.host} className="rounded border border-slate-800 bg-slate-950/50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium">{outcome.host}</span>
+                  <HostStatusBadge status={outcome.status} />
+                </div>
+                {outcome.error && (
+                  <p className="mt-2 text-xs text-red-400">
+                    {outcome.error.phase}: {outcome.error.code} — {outcome.error.message}
+                    {outcome.error.details ? ` ${outcome.error.details}` : ''}
+                  </p>
+                )}
+                {outcome.scan && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-slate-300">
+                      {outcome.scan.findings.length} findings —{' '}
+                      {new Date(outcome.scan.completedAtUtc).toLocaleString()}
+                    </summary>
+                    <ul className="mt-2 flex flex-col gap-3">
+                      {outcome.scan.findings.map((finding, index) => (
+                        <FindingCard key={`${finding.findingId}-${index}`} finding={finding} />
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {state.kind === 'loading' && <Spinner label="Loading latest scan …" />}
 

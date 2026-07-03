@@ -204,6 +204,56 @@ export interface LatestScanResult {
   scan: SecurityScanResult | null;
 }
 
+/** Wec.Modules.Security.Domain.HostScanStatus (SCREAMING_SNAKE on the wire) */
+export type HostScanStatus =
+  | 'QUEUED'
+  | 'CONNECTING'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'COMPLETED_WITH_ERRORS'
+  | 'FAILED';
+
+/** Wec.Core.Targets.ScanPhase (SCREAMING_SNAKE on the wire) */
+export type ScanPhase = 'RESOLVE' | 'CONNECT' | 'AUTHENTICATE' | 'QUERY';
+
+/** Wec.Core.Targets.ScanError */
+export interface ScanError {
+  host: string;
+  phase: ScanPhase;
+  code: ErrorCode;
+  message: string;
+  details: string | null;
+}
+
+/** Wec.Modules.Security.Domain.HostScanOutcome */
+export interface HostScanOutcome {
+  host: string;
+  status: HostScanStatus;
+  scan: SecurityScanResult | null;
+  error: ScanError | null;
+}
+
+/** Wec.Modules.Security.Domain.BatchScanResult */
+export interface BatchScanResult {
+  startedAtUtc: string;
+  completedAtUtc: string;
+  hosts: HostScanOutcome[];
+}
+
+/** Wec.Modules.Security.Handlers.RunBatchSecurityScanRequest */
+export interface RunBatchSecurityScanRequest {
+  hosts: string[];
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
+}
+
+/** security/batchScanProgress event payload */
+export interface BatchScanProgress {
+  host: string;
+  status: HostScanStatus;
+}
+
 /** Wec.Modules.Diagnostics.Domain.DiagnosticStatus (SCREAMING_SNAKE on the wire) */
 export type DiagnosticStatus = 'PASS' | 'WARNING' | 'FAIL' | 'NOT_RUN';
 
