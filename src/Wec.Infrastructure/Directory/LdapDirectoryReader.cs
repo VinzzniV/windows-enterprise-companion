@@ -1,4 +1,5 @@
 using System.DirectoryServices.Protocols;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
@@ -142,20 +143,44 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
             var values = new List<string>();
             foreach (object? value in entry.Attributes[attributeName])
             {
-                // S.DS.P sniffs values: UTF-8 decodable ⇒ string, otherwise byte[].
-                // Binary values (objectSid, objectGUID) cross the seam as Base64 —
-                // DirectoryEntryData.GetBytes is the decoding counterpart.
-                values.Add(value switch
-                {
-                    byte[] binaryValue => Convert.ToBase64String(binaryValue),
-                    _ => value?.ToString() ?? string.Empty,
-                });
+                values.Add(DecodeAttributeValue(value));
             }
 
             attributes[attributeName] = values;
         }
 
         return new DirectoryEntryData(entry.DistinguishedName, attributes);
+    }
+
+    private static readonly UTF8Encoding StrictUtf8 =
+        new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>
+    /// S.DS.P hands every value received off the wire back as byte[] —
+    /// directory strings are UTF-8 and must be decoded (a Base64 DN would be
+    /// used as a search base and fail with BAD_NAME). Only genuinely binary
+    /// values (objectSid, objectGUID) stay Base64; DirectoryEntryData.GetBytes
+    /// is the decoding counterpart.
+    /// </summary>
+    internal static string DecodeAttributeValue(object? value)
+    {
+        if (value is not byte[] rawValue)
+        {
+            return value?.ToString() ?? string.Empty;
+        }
+
+        try
+        {
+            string decoded = StrictUtf8.GetString(rawValue);
+            return decoded.Any(character =>
+                char.IsControl(character) && character is not '\r' and not '\n' and not '\t')
+                ? Convert.ToBase64String(rawValue)
+                : decoded;
+        }
+        catch (DecoderFallbackException)
+        {
+            return Convert.ToBase64String(rawValue);
+        }
     }
 
     [LoggerMessage(
