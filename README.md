@@ -109,6 +109,9 @@ instead of being skipped silently.
 Known limitations: workgroup targets may require WinRM `TrustedHosts` on the
 scanning machine (NTLM fallback); firewall-blocked and service-stopped WinRM
 are indistinguishable from the client side (one combined error message).
+Rejected credentials report `AUTHENTICATION_FAILED`, missing rights on the
+target report `ACCESS_DENIED` — except under NTLM, where WinRM reports both
+as access denied (the error text says so).
 
 ## Current limitations
 

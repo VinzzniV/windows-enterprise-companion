@@ -31,15 +31,28 @@ internal static class RemoteCimErrorMapper
         bool isRemote,
         string targetDisplayName)
     {
-        if (wsmanErrorCode is WsmanAccessDenied or WsmanInvalidAuthentication or WsmanLogonFailure
-            || nativeErrorCode == NativeErrorCode.AccessDenied)
+        if (wsmanErrorCode is WsmanInvalidAuthentication or WsmanLogonFailure)
+        {
+            return new Error(
+                ErrorCode.AuthenticationFailed,
+                $"Authentication against '{targetDisplayName}' failed.")
+            {
+                Details = "The credentials were rejected. " + message,
+            };
+        }
+
+        if (wsmanErrorCode is WsmanAccessDenied || nativeErrorCode == NativeErrorCode.AccessDenied)
         {
             return isRemote
+                // No requiredPrivilege: elevating the *scanning* machine would not
+                // help — the account lacks rights on the *target*.
                 ? new Error(
-                    ErrorCode.AuthenticationFailed,
-                    $"Authentication against '{targetDisplayName}' failed.")
+                    ErrorCode.AccessDenied,
+                    $"Access to '{targetDisplayName}' was denied.")
                 {
-                    Details = "The credentials were rejected, or the account lacks remote management rights. " + message,
+                    Details = "The account lacks remote management rights on the target "
+                        + "(Administrators or Remote Management Users). With NTLM, rejected "
+                        + "credentials can also surface as access denied. " + message,
                 }
                 : Error.AccessDenied(
                     "Access to WMI was denied.",

@@ -10,16 +10,28 @@ public sealed class RemoteCimErrorMapperTests
     private const string Target = "pc-042";
 
     [Theory]
-    [InlineData(0x80070005u)]
     [InlineData(0x80338043u)]
     [InlineData(0x8033809Du)]
-    public void RemoteAccessDeniedClass_MapsToAuthenticationFailed(uint wsmanErrorCode)
+    public void WsmanCredentialRejection_MapsToAuthenticationFailed(uint wsmanErrorCode)
     {
         Error error = RemoteCimErrorMapper.Map(
             NativeErrorCode.Failed, wsmanErrorCode, "denied", isRemote: true, Target);
 
         Assert.Equal(ErrorCode.AuthenticationFailed, error.Code);
         Assert.Contains(Target, error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RemoteAccessDenied_MapsToAccessDeniedWithoutLocalPrivilegeHint()
+    {
+        Error error = RemoteCimErrorMapper.Map(
+            NativeErrorCode.Failed, 0x80070005u, "denied", isRemote: true, Target);
+
+        Assert.Equal(ErrorCode.AccessDenied, error.Code);
+        // Elevating the scanning machine would not help — no requiredPrivilege
+        Assert.Null(error.RequiredPrivilege);
+        Assert.Contains("remote management rights", error.Details, StringComparison.Ordinal);
+        Assert.Contains("NTLM", error.Details, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -29,7 +29,7 @@ public sealed record ScanError(
     {
         ErrorCode.DnsResolutionFailed => ScanPhase.Resolve,
         ErrorCode.ConnectionTimeout or ErrorCode.WinRmUnavailable => ScanPhase.Connect,
-        ErrorCode.AuthenticationFailed => ScanPhase.Authenticate,
+        ErrorCode.AuthenticationFailed or ErrorCode.AccessDenied => ScanPhase.Authenticate,
         _ => ScanPhase.Query,
     };
 }

@@ -61,9 +61,13 @@ Constraints:
    - `DNS_RESOLUTION_FAILED` — own DNS probe before any session attempt,
      because WSMan buries name-resolution errors in generic transport codes.
    - `CONNECTION_TIMEOUT` — WSMan connect/operation timeout.
-   - `AUTHENTICATION_FAILED` — WSMan access-denied class on a remote target
-     (rejected credentials or missing remote-management rights; WinRM cannot
-     distinguish the two, the error text names both).
+   - `AUTHENTICATION_FAILED` — WSMan rejected the credentials
+     (logon failure / invalid authentication HRESULTs).
+   - `ACCESS_DENIED` on a remote target — the account authenticated but lacks
+     remote management rights on the target; carries no `requiredPrivilege`
+     because elevating the *scanning* machine would not help. Caveat: with
+     NTLM, rejected credentials also surface as access denied — the error
+     text names that.
    - `WIN_RM_UNAVAILABLE` — WinRM not running or firewall blocks 5985/5986
      (indistinguishable from the client side; the error text names both).
    - `UNSUPPORTED_REMOTE_OPERATION` — a check that can only run locally was
