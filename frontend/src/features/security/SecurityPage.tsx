@@ -19,6 +19,7 @@ import { ScanHistory } from './ScanHistory';
 import {
   LOCAL_TARGET_SELECTION,
   TargetSelector,
+  hostKeyOf,
   toHostList,
   toTargetRequest,
   type TargetSelection,
@@ -104,23 +105,29 @@ export function SecurityPage() {
   const [hiddenSeverities, setHiddenSeverities] = useState<Set<FindingSeverity>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<FindingCategory | 'ALL'>('ALL');
 
-  useEffect(() => {
+  const loadLatest = useCallback((target: ReturnType<typeof toTargetRequest>) => {
+    setActiveTarget(target);
     setState({ kind: 'loading' });
-    invoke<LatestScanResult>('security', 'getLatestScan', { target: activeTarget })
+    invoke<LatestScanResult>('security', 'getLatestScan', { target })
       .then((result) => setState({ kind: 'loaded', scan: result.scan }))
       .catch((error: unknown) =>
         setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),
       );
-  }, [activeTarget]);
+  }, []);
+
+  useEffect(() => {
+    loadLatest(null);
+  }, [loadLatest]);
 
   const runScan = useCallback(() => {
     const target = toTargetRequest(selection);
     setScanning(true);
+    // Displayed results always belong to the scanned target — clear the old
+    // ones immediately instead of showing them next to the new selection
+    setActiveTarget(target);
+    setState({ kind: 'loading' });
     invoke<SecurityScanResult>('security', 'runScan', { target }, 120_000)
-      .then((scan) => {
-        setActiveTarget(target);
-        setState({ kind: 'loaded', scan });
-      })
+      .then((scan) => setState({ kind: 'loaded', scan }))
       .catch((error: unknown) =>
         setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),
       )
@@ -173,6 +180,14 @@ export function SecurityPage() {
   const isBatchMode = selection.mode === 'multiple';
   const batchRunning = batchState.kind === 'running';
 
+  // Never show results for a different computer than the one selected: the
+  // single-scan panels render only while selection and displayed target match
+  const selectedTargetIncomplete = selection.mode === 'remote' && selection.host.trim() === '';
+  const showSingleResults =
+    !isBatchMode &&
+    !selectedTargetIncomplete &&
+    hostKeyOf(toTargetRequest(selection)) === hostKeyOf(activeTarget);
+
   const scan = state.kind === 'loaded' ? state.scan : null;
 
   const availableCategories = useMemo(
@@ -211,7 +226,7 @@ export function SecurityPage() {
             <p className="text-sm text-slate-400">Read-only security findings per scanned computer</p>
           </div>
           <div className="flex items-center gap-3">
-            {scan && (
+            {showSingleResults && scan && (
               <span className="flex items-center gap-2 text-xs text-slate-400">
                 <span className="font-medium text-slate-300">{scan.host}</span>
                 <StatusBadge
@@ -252,7 +267,7 @@ export function SecurityPage() {
         />
       </header>
 
-      {batchState.kind === 'running' && (
+      {isBatchMode && batchState.kind === 'running' && (
         <Card title="Batch scan in progress">
           <ul className="flex flex-col gap-1 text-sm">
             {Object.entries(batchState.statuses).map(([host, status]) => (
@@ -265,13 +280,13 @@ export function SecurityPage() {
         </Card>
       )}
 
-      {batchState.kind === 'error' && (
+      {isBatchMode && batchState.kind === 'error' && (
         <Card title="Batch scan error">
           <p className="text-sm text-red-400">{batchState.message}</p>
         </Card>
       )}
 
-      {batchState.kind === 'done' && (
+      {isBatchMode && batchState.kind === 'done' && (
         <Card title={`Batch scan results (${batchState.result.hosts.length} hosts)`}>
           <ul className="flex flex-col gap-3 text-sm">
             {batchState.result.hosts.map((outcome) => (
@@ -305,15 +320,38 @@ export function SecurityPage() {
         </Card>
       )}
 
-      {state.kind === 'loading' && <Spinner label="Loading latest scan …" />}
+      {!isBatchMode && !showSingleResults && (
+        <Card title="No results for this target yet">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-slate-400">
+              The selection points at a different computer than the results shown before.
+              Run a scan — or load the last saved scan for this target.
+            </p>
+            <div>
+              <button
+                type="button"
+                onClick={() => loadLatest(toTargetRequest(selection))}
+                disabled={selectedTargetIncomplete || scanning}
+                className="rounded border border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:opacity-50"
+              >
+                Load last saved scan
+              </button>
+            </div>
+          </div>
+        </Card>
+      )}
 
-      {state.kind === 'error' && (
+      {showSingleResults && state.kind === 'loading' && (
+        <Spinner label={scanning ? 'Scanning …' : 'Loading latest scan …'} />
+      )}
+
+      {showSingleResults && state.kind === 'error' && (
         <Card title="Error">
           <p className="text-sm text-red-400">{state.message}</p>
         </Card>
       )}
 
-      {state.kind === 'loaded' && !scan && (
+      {showSingleResults && state.kind === 'loaded' && !scan && (
         <Card title="No scan yet">
           <p className="text-sm text-slate-400">
             No security scan has been run against this target. Start one with "Run scan".
@@ -321,7 +359,7 @@ export function SecurityPage() {
         </Card>
       )}
 
-      {scan && (
+      {showSingleResults && scan && (
         <>
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-slate-500">Severity:</span>
@@ -373,7 +411,7 @@ export function SecurityPage() {
         </>
       )}
 
-      {state.kind === 'loaded' && (
+      {showSingleResults && state.kind === 'loaded' && (
         <ScanHistory refreshToken={scan?.scanId ?? null} target={activeTarget} />
       )}
     </div>

@@ -89,6 +89,17 @@ describe('SecurityPage', () => {
     expect(screen.getByText('Admins documented')).toBeDefined();
   });
 
+  it('hides results from the previous target when the selection changes', async () => {
+    setUpInvoke(latestScan);
+
+    render(<SecurityPage />);
+    await screen.findByText('Firewall disabled');
+    await userEvent.click(screen.getByRole('radio', { name: 'Remote computer' }));
+
+    expect(screen.queryByText('Firewall disabled')).toBeNull();
+    expect(screen.getByText('No results for this target yet')).toBeDefined();
+  });
+
   it('shows the empty state when no scan exists yet', async () => {
     setUpInvoke({ scan: null });
 

@@ -13,6 +13,7 @@ import { Spinner } from '../../shared/ui/Spinner';
 import {
   LOCAL_TARGET_SELECTION,
   TargetSelector,
+  hostKeyOf,
   toTargetRequest,
   type TargetSelection,
 } from '../../shared/targets/TargetSelector';
@@ -50,10 +51,6 @@ interface HostEntry {
   label: string;
   target: TargetRequest | null;
   state: LoadState;
-}
-
-function hostKeyOf(target: TargetRequest | null): string {
-  return (target?.host ?? 'LOCAL').toUpperCase();
 }
 
 type EncryptionState =

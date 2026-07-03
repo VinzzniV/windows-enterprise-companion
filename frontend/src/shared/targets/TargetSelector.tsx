@@ -39,6 +39,11 @@ export function toTargetRequest(selection: TargetSelection): TargetRequest | nul
   return { host: selection.host.trim(), ...credentialFields(selection) };
 }
 
+/** Case-insensitive identity of a target ('LOCAL' for the local machine). */
+export function hostKeyOf(target: TargetRequest | null): string {
+  return (target?.host ?? 'LOCAL').toUpperCase();
+}
+
 /** Distinct, non-empty host list for a multi-computer scan. */
 export function toHostList(selection: TargetSelection): string[] {
   return [
