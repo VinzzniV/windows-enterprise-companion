@@ -20,6 +20,7 @@
     <ProjectReference Include="..\..\src\Wec.Infrastructure\Wec.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Modules\Wec.Modules.Inventory\Wec.Modules.Inventory.csproj" />
     <ProjectReference Include="..\..\src\Modules\Wec.Modules.Security\Wec.Modules.Security.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Wec.Modules.PatchManagement\Wec.Modules.PatchManagement.csproj" />
   </ItemGroup>
 
 </Project>

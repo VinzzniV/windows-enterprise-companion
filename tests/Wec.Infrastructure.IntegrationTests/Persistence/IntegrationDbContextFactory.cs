@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wec.Infrastructure.Persistence;
 using Wec.Modules.Inventory.Persistence;
+using Wec.Modules.PatchManagement.Persistence;
 using Wec.Modules.Security.Persistence;
 
 namespace Wec.Infrastructure.IntegrationTests.Persistence;
@@ -22,6 +23,7 @@ internal static class IntegrationDbContextFactory
             new ModelAssemblyRegistry([
                 typeof(HardwareSnapshotRecord).Assembly,
                 typeof(SecurityScanRecord).Assembly,
+                typeof(PatchAuditRecord).Assembly,
             ]));
     }
 }

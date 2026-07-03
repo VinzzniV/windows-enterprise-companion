@@ -16,10 +16,19 @@ public sealed class PatchManagementModule : IModule
         // Session credentials live for the process lifetime at most (ADR 0008)
         services.AddSingleton<OpsiSessionState>();
         services.AddScoped<IPatchMappingRepository, EfPatchMappingRepository>();
+        services.AddScoped<IPatchAuditRepository, EfPatchAuditRepository>();
         services.AddScoped<PatchDashboardService>();
+        services.AddScoped<PatchActionService>();
         services.AddScoped<IActionHandler, ConnectOpsiHandler>();
         services.AddScoped<IActionHandler, DisconnectOpsiHandler>();
         services.AddScoped<IActionHandler, GetOpsiConnectionStatusHandler>();
         services.AddScoped<IActionHandler, GetPatchDashboardHandler>();
+        services.AddScoped<IActionHandler, GetRolloutPreviewHandler>();
+        services.AddScoped<IActionHandler, RequestRolloutHandler>();
+        services.AddScoped<IActionHandler, PreparePackagesHandler>();
+        services.AddScoped<IActionHandler, GetAuditLogHandler>();
+        services.AddScoped<IActionHandler, ListMappingsHandler>();
+        services.AddScoped<IActionHandler, SaveMappingHandler>();
+        services.AddScoped<IActionHandler, DeleteMappingHandler>();
     }
 }
