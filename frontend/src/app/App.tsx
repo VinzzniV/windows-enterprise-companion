@@ -137,7 +137,9 @@ export function App() {
           <AppInfoFooter />
         </aside>
         <main className="flex-1 overflow-y-auto p-6">
-          <AppRoutes />
+          <div className="mx-auto max-w-[1400px]">
+            <AppRoutes />
+          </div>
         </main>
       </div>
       {!introDone && <SplashIntro onDone={() => setIntroDone(true)} />}

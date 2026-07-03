@@ -3,6 +3,10 @@ import { invoke } from '../../shared/bridge/bridgeClient';
 import type { ExportReportRequest, ReportExportResult, ReportOverview } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
+import { Button } from '../../shared/ui/Button';
+import { PageHeader } from '../../shared/ui/PageHeader';
+import { ErrorState } from '../../shared/ui/States';
+import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 type OverviewState =
   | { kind: 'loading' }
@@ -61,21 +65,16 @@ export function ReportingPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header>
-        <h1 className="text-xl font-semibold">Reporting</h1>
-        <p className="text-sm text-slate-400">Executive summary export of the local machine</p>
-      </header>
+      <PageHeader title="Reporting" subtitle="Executive summary export">
+        <StatusBadge variant="neutral">Local machine only</StatusBadge>
+      </PageHeader>
 
       {overviewState.kind === 'loading' && <Spinner label="Loading overview …" />}
 
-      {overviewState.kind === 'error' && (
-        <Card title="Error">
-          <p className="text-sm text-red-400">{overviewState.message}</p>
-        </Card>
-      )}
+      {overviewState.kind === 'error' && <ErrorState message={overviewState.message} />}
 
       {overview && (
-        <Card title="Included data">
+        <Card title="Included data — this machine">
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
             <dt className="text-slate-400">Hardware inventory</dt>
             <dd>
@@ -96,6 +95,10 @@ export function ReportingPage() {
               Not included — diagnostics are live-only and never triggered silently by an export.
             </dd>
           </dl>
+          <p className="mt-3 text-xs text-slate-500">
+            Reports cover the machine WEC runs on. Remote scan results are not included yet
+            (recorded follow-up in TODO).
+          </p>
         </Card>
       )}
 
@@ -112,22 +115,19 @@ export function ReportingPage() {
               Open the report after export
             </label>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
+              <Button
+                variant="primary"
                 onClick={() => exportReport('exportHtml')}
                 disabled={!hasAnyData || exportState.kind === 'exporting'}
-                className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
               >
                 Export HTML
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
                 onClick={() => exportReport('exportJson')}
                 disabled={!hasAnyData || exportState.kind === 'exporting'}
-                className="rounded border border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:opacity-50"
               >
                 Export JSON
-              </button>
+              </Button>
               {exportState.kind === 'exporting' && (
                 <span className="text-sm text-slate-400">Waiting for save dialog …</span>
               )}
