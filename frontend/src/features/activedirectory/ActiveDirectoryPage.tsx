@@ -7,14 +7,36 @@ import type {
 } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
+import { Button } from '../../shared/ui/Button';
+import { PageHeader } from '../../shared/ui/PageHeader';
+import { ErrorState } from '../../shared/ui/States';
 import { CredentialFields } from '../../shared/targets/TargetSelector';
 
-function adErrorText(error: unknown): string {
+/** What the admin should do next, per typed directory error. */
+const adErrorHints: Record<string, string> = {
+  DNS_RESOLUTION_FAILED:
+    "Point this machine's DNS at a server that knows the domain (usually a domain controller), or enter a specific DC above.",
+  AUTHENTICATION_FAILED:
+    'The LDAP bind was rejected — check user name, credential domain and password.',
+  DIRECTORY_UNAVAILABLE:
+    'No domain controller answered — check that a DC is running and TCP 389 is not blocked by a firewall.',
+  CONNECTION_TIMEOUT:
+    'The directory did not answer in time — check the network path, or pin a closer domain controller above.',
+  NOT_FOUND:
+    'The naming context was not found — verify the domain name is the DNS name of the directory (e.g. corp.contoso.com).',
+  ACCESS_DENIED:
+    'The account authenticated but was refused read access — use an account with directory read rights.',
+};
+
+function adError(error: unknown): { message: string; hint?: string } {
   if (error instanceof BridgeInvokeError) {
     const details = error.error.details ? ` — ${error.error.details}` : '';
-    return `${error.error.code}: ${error.error.message}${details}`;
+    return {
+      message: `${error.error.code}: ${error.error.message}${details}`,
+      hint: adErrorHints[error.error.code],
+    };
   }
-  return error instanceof Error ? error.message : String(error);
+  return { message: error instanceof Error ? error.message : String(error) };
 }
 
 interface ConnectionFormState {
@@ -55,13 +77,13 @@ type OverviewState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; overview: AdOverviewResult }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; hint?: string };
 
 type HygieneState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; hygiene: AdHygieneResult }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; message: string; hint?: string };
 
 function OverviewStat({ label, value }: { label: string; value: number }) {
   return (
@@ -86,7 +108,7 @@ export function ActiveDirectoryPage() {
       120_000,
     )
       .then((overview) => setState({ kind: 'loaded', overview }))
-      .catch((error: unknown) => setState({ kind: 'error', message: adErrorText(error) }));
+      .catch((error: unknown) => setState({ kind: 'error', ...adError(error) }));
   }, [connectionForm]);
 
   const loadHygiene = useCallback(() => {
@@ -98,7 +120,7 @@ export function ActiveDirectoryPage() {
       120_000,
     )
       .then((hygiene) => setHygieneState({ kind: 'loaded', hygiene }))
-      .catch((error: unknown) => setHygieneState({ kind: 'error', message: adErrorText(error) }));
+      .catch((error: unknown) => setHygieneState({ kind: 'error', ...adError(error) }));
   }, [connectionForm]);
 
   const setForm = (patch: Partial<ConnectionFormState>) =>
@@ -109,38 +131,26 @@ export function ActiveDirectoryPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Active Directory</h1>
-          <p className="text-sm text-slate-400">
-            Read-only directory analysis — runs as the current user unless explicit
-            credentials are entered below. Nothing is ever written to AD.
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={loadOverview}
-            disabled={state.kind === 'loading'}
-            className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
-          >
-            {state.kind === 'loading' ? 'Analyzing …' : 'Analyze directory'}
-          </button>
-          <button
-            type="button"
-            onClick={loadHygiene}
-            disabled={hygieneState.kind === 'loading'}
-            className="rounded border border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:opacity-50"
-          >
-            {hygieneState.kind === 'loading' ? 'Checking …' : 'Run hygiene checks'}
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title="Active Directory"
+        subtitle="Read-only directory analysis — nothing is ever written to AD"
+      >
+        <Button variant="primary" onClick={loadOverview} disabled={state.kind === 'loading'}>
+          {state.kind === 'loading' ? 'Analyzing …' : 'Analyze directory'}
+        </Button>
+        <Button onClick={loadHygiene} disabled={hygieneState.kind === 'loading'}>
+          {hygieneState.kind === 'loading' ? 'Checking …' : 'Run hygiene checks'}
+        </Button>
+      </PageHeader>
 
       <fieldset className="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
         <legend className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
-          Directory connection (optional — empty analyzes this machine's domain as the current user)
+          Directory connection
         </legend>
+        <p className="text-xs text-slate-500">
+          Empty analyzes this machine's own domain as the current user. Enter a domain to analyze
+          a different directory, a DC to pin the connection, and credentials to run as another account.
+        </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <input
             type="text"
@@ -197,22 +207,23 @@ export function ActiveDirectoryPage() {
       {state.kind === 'loading' && <Spinner label="Querying the directory …" />}
 
       {state.kind === 'error' && (
-        <Card title="Error">
-          <p className="text-sm text-red-400">{state.message}</p>
-        </Card>
+        <ErrorState title="Directory analysis failed" message={state.message} hint={state.hint} />
       )}
 
       {overview && !overview.domainJoined && (
         <Card title="Not domain-joined">
           <p className="text-sm text-slate-300">
-            This machine is in a workgroup — there is no directory to analyze. Join a domain to
-            use this module.
+            This machine is in a workgroup — there is no directory to analyze. Enter a domain
+            above to analyze a foreign directory, or join a domain.
           </p>
         </Card>
       )}
 
       {overview?.domainJoined && (
-        <>
+        <section aria-label="Directory overview" className="flex flex-col gap-4">
+          <h2 className="border-b border-slate-800 pb-1 text-sm font-medium uppercase tracking-wide text-slate-400">
+            Overview
+          </h2>
           <Card title={`Domain: ${overview.domainName ?? 'unknown'}`}>
             <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
               <dt className="text-slate-400">Naming context</dt>
@@ -245,13 +256,15 @@ export function ActiveDirectoryPage() {
               </ul>
             )}
           </Card>
-        </>
+        </section>
       )}
 
       {hygieneState.kind === 'error' && (
-        <Card title="Hygiene check error">
-          <p className="text-sm text-red-400">{hygieneState.message}</p>
-        </Card>
+        <ErrorState
+          title="Hygiene checks failed"
+          message={hygieneState.message}
+          hint={hygieneState.hint}
+        />
       )}
 
       {hygiene && !hygiene.domainJoined && (
@@ -261,7 +274,10 @@ export function ActiveDirectoryPage() {
       )}
 
       {hygiene?.domainJoined && (
-        <>
+        <section aria-label="Directory hygiene" className="flex flex-col gap-4">
+          <h2 className="border-b border-slate-800 pb-1 text-sm font-medium uppercase tracking-wide text-slate-400">
+            Hygiene
+          </h2>
           <Card title={`Privileged groups (${hygiene.privilegedGroups.length})`}>
             <ul className="flex flex-col gap-3 text-sm">
               {hygiene.privilegedGroups.map((group) => (
@@ -313,7 +329,7 @@ export function ActiveDirectoryPage() {
               </div>
             </Card>
           ))}
-        </>
+        </section>
       )}
     </div>
   );
