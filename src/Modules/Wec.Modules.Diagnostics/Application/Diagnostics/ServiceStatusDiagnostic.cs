@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
 using Wec.Modules.Diagnostics.Domain;
@@ -25,7 +25,7 @@ internal sealed class ServiceStatusDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-SYS-SERVICES";
 
-    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
         if (_options.MonitoredServices.Length == 0)
         {
@@ -39,6 +39,7 @@ internal sealed class ServiceStatusDiagnostic : IDiagnostic
         string condition = string.Join(" OR ", _options.MonitoredServices
             .Select(service => $"Name = '{EscapeWqlLiteral(service)}'"));
         Result<IReadOnlyList<WmiInstance>> services = await _wmiQueryService.QueryAsync(
+            context,
             CimV2Namespace,
             $"SELECT Name, State, StartMode FROM Win32_Service WHERE {condition}",
             cancellationToken);

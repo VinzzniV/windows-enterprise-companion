@@ -6,62 +6,74 @@ using Wec.Modules.Diagnostics.Domain;
 
 namespace Wec.Modules.Diagnostics.Application.Diagnostics;
 
+/// <summary>
+/// Free space of fixed drives via Win32_LogicalDisk — one code path that
+/// works locally and against remote targets.
+/// </summary>
 internal sealed class DiskFreeSpaceDiagnostic : IDiagnostic
 {
-    private readonly IDriveInfoProvider _driveInfoProvider;
+    private const string CimV2Namespace = @"root\cimv2";
+
+    private readonly IWmiQueryService _wmiQueryService;
     private readonly DiagnosticsOptions _options;
     private readonly IClock _clock;
 
     public DiskFreeSpaceDiagnostic(
-        IDriveInfoProvider driveInfoProvider,
+        IWmiQueryService wmiQueryService,
         IOptions<DiagnosticsOptions> options,
         IClock clock)
     {
-        _driveInfoProvider = driveInfoProvider;
+        _wmiQueryService = wmiQueryService;
         _options = options.Value;
         _clock = clock;
     }
 
     public string DiagnosticId => "WEC-DIAG-SYS-DISKSPACE";
 
-    public Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
-        Result<IReadOnlyList<DriveSpaceInfo>> drives = _driveInfoProvider.GetFixedDrives();
+        // DriveType 3 = local fixed disk
+        Result<IReadOnlyList<WmiInstance>> disks = await _wmiQueryService.QueryAsync(
+            context,
+            CimV2Namespace,
+            "SELECT DeviceID, Size, FreeSpace FROM Win32_LogicalDisk WHERE DriveType = 3",
+            cancellationToken);
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 
-        if (drives.IsFailure)
+        if (disks.IsFailure)
         {
-            return Task.FromResult<IReadOnlyList<DiagnosticResult>>([BuildResult(
+            return [BuildResult(
                 DiagnosticStatus.NotRun,
                 "Disk free space could not be read",
                 new Dictionary<string, string>
                 {
-                    ["errorCode"] = drives.Error!.Code.ToString(),
-                    ["errorMessage"] = drives.Error.Message,
+                    ["errorCode"] = disks.Error!.Code.ToString(),
+                    ["errorMessage"] = disks.Error.Message,
                 },
-                ["Rerun the diagnostics; if it keeps failing check the storage stack."],
-                capturedAtUtc)]);
+                ["Rerun the diagnostics; if it keeps failing check WMI and the storage stack."],
+                capturedAtUtc)];
         }
 
         var evidence = new Dictionary<string, string>();
         var lowDrives = new List<string>();
-        foreach (DriveSpaceInfo drive in drives.Value)
+        foreach (WmiInstance disk in disks.Value)
         {
-            double freePercent = drive.TotalBytes > 0
-                ? drive.AvailableFreeBytes * 100.0 / drive.TotalBytes
-                : 0;
-            evidence[drive.Name] = string.Create(
+            string name = disk.GetString("DeviceID") ?? "?";
+            long totalBytes = disk.GetInteger("Size") ?? 0;
+            long freeBytes = disk.GetInteger("FreeSpace") ?? 0;
+            double freePercent = totalBytes > 0 ? freeBytes * 100.0 / totalBytes : 0;
+            evidence[name] = string.Create(
                 CultureInfo.InvariantCulture,
-                $"{drive.AvailableFreeBytes / 1_073_741_824.0:F1} GB free of {drive.TotalBytes / 1_073_741_824.0:F1} GB ({freePercent:F0} %)");
+                $"{freeBytes / 1_073_741_824.0:F1} GB free of {totalBytes / 1_073_741_824.0:F1} GB ({freePercent:F0} %)");
             if (freePercent < _options.MinimumFreeDiskSpacePercent)
             {
-                lowDrives.Add(drive.Name);
+                lowDrives.Add(name);
             }
         }
 
         if (lowDrives.Count > 0)
         {
-            return Task.FromResult<IReadOnlyList<DiagnosticResult>>([BuildResult(
+            return [BuildResult(
                 DiagnosticStatus.Warning,
                 $"Low disk space on {string.Join(", ", lowDrives)}",
                 evidence,
@@ -69,15 +81,15 @@ internal sealed class DiskFreeSpaceDiagnostic : IDiagnostic
                     "Free up space (Storage Sense, temporary files, old user profiles).",
                     "Windows Update and applications fail unpredictably on full system drives.",
                 ],
-                capturedAtUtc)]);
+                capturedAtUtc)];
         }
 
-        return Task.FromResult<IReadOnlyList<DiagnosticResult>>([BuildResult(
+        return [BuildResult(
             DiagnosticStatus.Pass,
             "All fixed drives have sufficient free space",
             evidence,
             [],
-            capturedAtUtc)]);
+            capturedAtUtc)];
     }
 
     private DiagnosticResult BuildResult(

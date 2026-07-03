@@ -1,6 +1,7 @@
-using NSubstitute;
+﻿using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
+using Wec.Modules.Diagnostics.Application;
 using Wec.Modules.Diagnostics.Application.Diagnostics;
 using Wec.Modules.Diagnostics.Domain;
 using MsOptions = Microsoft.Extensions.Options.Options;
@@ -24,40 +25,157 @@ internal static class DiagnosticsTestSetup
 
 public class DiskFreeSpaceDiagnosticTests
 {
-    private readonly IDriveInfoProvider _driveInfoProvider = Substitute.For<IDriveInfoProvider>();
+    private readonly IWmiQueryService _wmiQueryService = Substitute.For<IWmiQueryService>();
 
     private DiskFreeSpaceDiagnostic CreateDiagnostic() => new(
-        _driveInfoProvider, DiagnosticsTestSetup.Options(), DiagnosticsTestSetup.Clock());
+        _wmiQueryService, DiagnosticsTestSetup.Options(), DiagnosticsTestSetup.Clock());
+
+    private void SetUpLogicalDisks(params (string Name, ulong Total, ulong Free)[] disks) =>
+        _wmiQueryService.QueryAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Is<string>(query => query.Contains("Win32_LogicalDisk", StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<WmiInstance>>([.. disks.Select(disk =>
+                new WmiInstance(new Dictionary<string, object?>
+                {
+                    ["DeviceID"] = disk.Name,
+                    ["Size"] = disk.Total,
+                    ["FreeSpace"] = disk.Free,
+                }))]));
 
     [Fact]
     public async Task DriveBelowThreshold_ProducesWarning()
     {
-        _driveInfoProvider.GetFixedDrives().Returns(Result.Success<IReadOnlyList<DriveSpaceInfo>>(
-        [
-            new DriveSpaceInfo(@"C:\", TotalBytes: 100_000_000_000, AvailableFreeBytes: 5_000_000_000),
-            new DriveSpaceInfo(@"D:\", TotalBytes: 100_000_000_000, AvailableFreeBytes: 50_000_000_000),
-        ]));
+        SetUpLogicalDisks(("C:", 100_000_000_000, 5_000_000_000), ("D:", 100_000_000_000, 50_000_000_000));
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
-        Assert.Contains(@"C:\", result.Title, StringComparison.Ordinal);
+        Assert.Contains("C:", result.Title, StringComparison.Ordinal);
         Assert.Equal(DiagnosticCategory.System, result.Category);
     }
 
     [Fact]
     public async Task AllDrivesAboveThreshold_ProducesPass()
     {
-        _driveInfoProvider.GetFixedDrives().Returns(Result.Success<IReadOnlyList<DriveSpaceInfo>>(
-        [
-            new DriveSpaceInfo(@"C:\", TotalBytes: 100_000_000_000, AvailableFreeBytes: 40_000_000_000),
-        ]));
+        SetUpLogicalDisks(("C:", 100_000_000_000, 40_000_000_000));
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
+    }
+
+    [Fact]
+    public async Task RemoteTarget_QueriesTheRemoteMachine()
+    {
+        var remoteContext = new Wec.Modules.Diagnostics.Application.DiagnosticContext(
+            Wec.Core.Targets.ScanTarget.Remote("pc-042"),
+            Wec.Core.Targets.ScanCredentials.CurrentUser,
+            Wec.Core.Targets.ConnectionOptions.Default);
+        SetUpLogicalDisks(("C:", 100_000_000_000, 40_000_000_000));
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(remoteContext, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Pass, result.Status);
+        await _wmiQueryService.Received(1).QueryAsync(
+            Arg.Is<Wec.Core.Targets.ScanTarget>(target => target.Host == "pc-042"),
+            Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+            Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
+    }
+}
+
+public class RemoteDiagnosticsTests
+{
+    private static readonly Wec.Modules.Diagnostics.Application.DiagnosticContext RemoteContext = new(
+        Wec.Core.Targets.ScanTarget.Remote("pc-042"),
+        Wec.Core.Targets.ScanCredentials.CurrentUser,
+        Wec.Core.Targets.ConnectionOptions.Default);
+
+    [Fact]
+    public async Task LocalPerspectiveChecks_AreVisiblySkippedForRemoteTargets()
+    {
+        var networkInfoProvider = Substitute.For<INetworkInfoProvider>();
+        var diagnostic = new NetworkConfigurationDiagnostic(networkInfoProvider, DiagnosticsTestSetup.Clock());
+
+        DiagnosticResult result = Assert.Single(
+            await diagnostic.EvaluateAsync(RemoteContext, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.NotRun, result.Status);
+        Assert.Equal("UnsupportedRemoteOperation", result.Evidence["errorCode"]);
+        Assert.Equal("pc-042", result.Evidence["target"]);
+        // The local probe must not run against the wrong machine
+        networkInfoProvider.DidNotReceive().GetActiveAdapters();
+    }
+
+    [Fact]
+    public async Task RebootPending_RemoteTarget_ReadsSignalsThroughStdRegProv()
+    {
+        var registryReader = Substitute.For<IRegistryReader>();
+        var wmiQueryService = Substitute.For<IWmiQueryService>();
+        wmiQueryService.InvokeMethodAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Is("StdRegProv"),
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var parameters = callInfo.Arg<IReadOnlyDictionary<string, object?>>();
+                bool isRebootPendingKey = ((string?)parameters["sSubKeyName"])?.EndsWith(
+                    "RebootPending", StringComparison.Ordinal) == true;
+                return Result.Success(new WmiInstance(new Dictionary<string, object?>
+                {
+                    // Only the CBS RebootPending key exists on the fake target
+                    ["ReturnValue"] = isRebootPendingKey ? 0u : 2u,
+                }));
+            });
+        var diagnostic = new RebootPendingDiagnostic(
+            registryReader, wmiQueryService, DiagnosticsTestSetup.Clock());
+
+        DiagnosticResult result = Assert.Single(
+            await diagnostic.EvaluateAsync(RemoteContext, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+        Assert.Contains("Component Based Servicing", result.Evidence["signals"], StringComparison.Ordinal);
+        // The local registry seam must not be touched for a remote target
+        registryReader.DidNotReceiveWithAnyArgs().ReadLocalMachineSubKeyNames(default!);
+    }
+
+    [Fact]
+    public async Task RebootPending_RemoteTransportFailure_BecomesNotRunWithError()
+    {
+        var wmiQueryService = Substitute.For<IWmiQueryService>();
+        wmiQueryService.InvokeMethodAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<WmiInstance>(new Error(
+                ErrorCode.WinRmUnavailable, "WinRM on 'pc-042' is not reachable.")));
+        var diagnostic = new RebootPendingDiagnostic(
+            Substitute.For<IRegistryReader>(), wmiQueryService, DiagnosticsTestSetup.Clock());
+
+        DiagnosticResult result = Assert.Single(
+            await diagnostic.EvaluateAsync(RemoteContext, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.NotRun, result.Status);
+        Assert.Equal("WinRmUnavailable", result.Evidence["errorCode"]);
     }
 }
 
@@ -85,7 +203,7 @@ public class DnsServerReachabilityDiagnosticTests
             .Returns(Result.Success(new PingProbeReply(false, 0, "TimedOut")));
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal(DiagnosticCategory.Dns, result.Category);
@@ -100,7 +218,7 @@ public class DnsServerReachabilityDiagnosticTests
             .Returns(Result.Success(new PingProbeReply(false, 0, "TimedOut")));
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
     }
@@ -111,7 +229,7 @@ public class DnsServerReachabilityDiagnosticTests
         SetUpDnsServers();
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
     }
@@ -143,7 +261,7 @@ public class DomainControllerReachabilityDiagnosticTests
         SetUpComputerSystem(partOfDomain: false, domain: "WORKGROUP");
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         await _dnsResolver.DidNotReceive().ResolveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -158,7 +276,7 @@ public class DomainControllerReachabilityDiagnosticTests
                 ErrorCode.NetworkProbeFailed, "no such domain")));
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Fail, result.Status);
         Assert.Equal(DiagnosticCategory.Domain, result.Category);
@@ -174,7 +292,7 @@ public class DomainControllerReachabilityDiagnosticTests
             .Returns(Result.Success(new PingProbeReply(true, 2, "Success")));
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
     }
@@ -189,7 +307,7 @@ public class DomainControllerReachabilityDiagnosticTests
             .Returns(Result.Success(new PingProbeReply(false, 0, "TimedOut")));
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
     }
@@ -230,7 +348,7 @@ public class NetworkAdapterClassificationTests
         ]));
         var diagnostic = new NetworkConfigurationDiagnostic(networkInfoProvider, DiagnosticsTestSetup.Clock());
 
-        IReadOnlyList<DiagnosticResult> results = await diagnostic.EvaluateAsync(CancellationToken.None);
+        IReadOnlyList<DiagnosticResult> results = await diagnostic.EvaluateAsync(DiagnosticContext.Local, CancellationToken.None);
 
         Assert.Equal(2, results.Count);
         Assert.Equal(DiagnosticStatus.Pass, results[0].Status);

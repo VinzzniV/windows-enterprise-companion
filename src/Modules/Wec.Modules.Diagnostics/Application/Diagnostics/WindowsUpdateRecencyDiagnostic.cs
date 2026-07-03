@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
 using Wec.Modules.Diagnostics.Domain;
@@ -25,9 +25,10 @@ internal sealed class WindowsUpdateRecencyDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-SYS-UPDATES";
 
-    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<WmiInstance>> hotfixes = await _wmiQueryService.QueryAsync(
+            context,
             CimV2Namespace,
             "SELECT HotFixID, InstalledOn FROM Win32_QuickFixEngineering",
             cancellationToken);

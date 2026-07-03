@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
 using Wec.Modules.Diagnostics.Domain;
@@ -26,8 +26,15 @@ internal sealed class GatewayReachabilityDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-NET-GATEWAY";
 
-    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
+        if (!context.Target.IsLocal)
+        {
+            return [DiagnosticResults.LocalPerspective(
+                DiagnosticId, "Gateway reachability", DiagnosticCategory.Network,
+                "Default gateway", context.Target.DisplayName, _clock.UtcNow)];
+        }
+
         Result<IReadOnlyList<NetworkAdapterInfo>> adapters = _networkInfoProvider.GetActiveAdapters();
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 

@@ -1,4 +1,4 @@
-using Wec.Core.Abstractions;
+﻿using Wec.Core.Abstractions;
 using Wec.Modules.Diagnostics.Domain;
 
 namespace Wec.Modules.Diagnostics.Application.Diagnostics;
@@ -24,8 +24,15 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-NET-CONFIG";
 
-    public Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
+        if (!context.Target.IsLocal)
+        {
+            return Task.FromResult<IReadOnlyList<DiagnosticResult>>([DiagnosticResults.LocalPerspective(
+                DiagnosticId, "Network configuration", DiagnosticCategory.Network,
+                "Network adapters", context.Target.DisplayName, _clock.UtcNow)]);
+        }
+
         var adaptersResult = _networkInfoProvider.GetActiveAdapters();
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 

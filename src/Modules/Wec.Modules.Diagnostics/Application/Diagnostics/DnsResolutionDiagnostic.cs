@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
 using Wec.Modules.Diagnostics.Domain;
@@ -20,8 +20,15 @@ internal sealed class DnsResolutionDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-NET-DNS";
 
-    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
+        if (!context.Target.IsLocal)
+        {
+            return [DiagnosticResults.LocalPerspective(
+                DiagnosticId, "DNS resolution", DiagnosticCategory.Dns,
+                "DNS resolution", context.Target.DisplayName, _clock.UtcNow)];
+        }
+
         string probeHostname = _options.DnsProbeHostname;
         Result<IReadOnlyList<string>> resolution = await _dnsResolver.ResolveAsync(probeHostname, cancellationToken);
         DateTimeOffset capturedAtUtc = _clock.UtcNow;

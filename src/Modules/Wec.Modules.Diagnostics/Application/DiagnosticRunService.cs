@@ -21,7 +21,9 @@ public sealed partial class DiagnosticRunService
         _logger = logger;
     }
 
-    public async Task<Result<DiagnosticRunResult>> RunAsync(CancellationToken cancellationToken)
+    public async Task<Result<DiagnosticRunResult>> RunAsync(
+        DiagnosticContext context,
+        CancellationToken cancellationToken)
     {
         DateTimeOffset startedAtUtc = _clock.UtcNow;
         var results = new List<DiagnosticResult>();
@@ -30,7 +32,7 @@ public sealed partial class DiagnosticRunService
         {
             try
             {
-                results.AddRange(await diagnostic.EvaluateAsync(cancellationToken));
+                results.AddRange(await diagnostic.EvaluateAsync(context, cancellationToken));
             }
             catch (OperationCanceledException)
             {

@@ -1,4 +1,4 @@
-using Wec.Core.Abstractions;
+﻿using Wec.Core.Abstractions;
 using Wec.Core.Results;
 using Wec.Modules.Diagnostics.Domain;
 
@@ -25,8 +25,15 @@ internal sealed class DnsServerReachabilityDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-DNS-SERVERS";
 
-    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
+        if (!context.Target.IsLocal)
+        {
+            return [DiagnosticResults.LocalPerspective(
+                DiagnosticId, "DNS server reachability", DiagnosticCategory.Dns,
+                "DNS servers", context.Target.DisplayName, _clock.UtcNow)];
+        }
+
         Result<IReadOnlyList<NetworkAdapterInfo>> adapters = _networkInfoProvider.GetActiveAdapters();
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 

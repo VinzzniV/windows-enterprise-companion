@@ -1,4 +1,4 @@
-using Wec.Core.Abstractions;
+﻿using Wec.Core.Abstractions;
 using Wec.Core.Results;
 using Wec.Modules.Diagnostics.Domain;
 
@@ -25,8 +25,15 @@ internal sealed class TimeSynchronizationDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-SYS-TIMESYNC";
 
-    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
+        if (!context.Target.IsLocal)
+        {
+            return [DiagnosticResults.LocalPerspective(
+                DiagnosticId, "Time synchronization", DiagnosticCategory.TimeSynchronization,
+                "Windows Time service", context.Target.DisplayName, _clock.UtcNow)];
+        }
+
         Result<object?> syncType = _registryReader.ReadLocalMachineValue(W32TimeParametersKey, "Type");
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 

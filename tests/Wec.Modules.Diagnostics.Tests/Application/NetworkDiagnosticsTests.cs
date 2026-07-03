@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Wec.Core.Abstractions;
@@ -54,7 +54,7 @@ public class NetworkConfigurationDiagnosticTests
         _provider.GetActiveAdapters().Returns(Result.Failure<IReadOnlyList<NetworkAdapterInfo>>(
             new Error(ErrorCode.NetworkProbeFailed, "stack error")));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.NotRun, result.Status);
     }
 
@@ -63,7 +63,7 @@ public class NetworkConfigurationDiagnosticTests
     {
         _provider.SetUpAdapters();
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Fail, result.Status);
         Assert.NotEmpty(result.SuggestedNextSteps);
     }
@@ -73,7 +73,7 @@ public class NetworkConfigurationDiagnosticTests
     {
         _provider.SetUpAdapters(TestDefaults.Adapter(gateways: []));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains(result.SuggestedNextSteps, step => step.Contains("gateway", StringComparison.OrdinalIgnoreCase));
     }
@@ -83,7 +83,7 @@ public class NetworkConfigurationDiagnosticTests
     {
         _provider.SetUpAdapters(TestDefaults.Adapter());
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Contains("192.168.1.10/24", result.Evidence["adapter: Ethernet"], StringComparison.Ordinal);
     }
@@ -107,7 +107,7 @@ public class GatewayReachabilityDiagnosticTests
     {
         _provider.SetUpAdapters(TestDefaults.Adapter(gateways: []));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.NotRun, result.Status);
         await _pingProbe.DidNotReceive()
             .SendAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
@@ -119,7 +119,7 @@ public class GatewayReachabilityDiagnosticTests
         _provider.SetUpAdapters(TestDefaults.Adapter());
         SetUpProbeReply(success: true, roundtripMs: 2, status: "Success");
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("2", result.Evidence["roundtripMs"]);
     }
@@ -130,7 +130,7 @@ public class GatewayReachabilityDiagnosticTests
         _provider.SetUpAdapters(TestDefaults.Adapter());
         SetUpProbeReply(success: false, roundtripMs: 0, status: "TimedOut");
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains(result.SuggestedNextSteps, step => step.Contains("ICMP", StringComparison.Ordinal));
         Assert.Contains(result.SuggestedNextSteps, step => step.Contains("default route", StringComparison.OrdinalIgnoreCase));
@@ -146,7 +146,7 @@ public class GatewayReachabilityDiagnosticTests
             .Returns(Result.Failure<PingProbeReply>(new Error(
                 ErrorCode.NetworkProbeFailed, "invalid gateway address")));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Fail, result.Status);
     }
 }
@@ -165,7 +165,7 @@ public class DnsResolutionDiagnosticTests
             .ResolveAsync("cloudflare.com", Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<string>>(["104.16.132.229", "104.16.133.229"]));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Contains("104.16.132.229", result.Evidence["addresses"], StringComparison.Ordinal);
     }
@@ -178,7 +178,7 @@ public class DnsResolutionDiagnosticTests
             .Returns(Result.Failure<IReadOnlyList<string>>(new Error(
                 ErrorCode.NetworkProbeFailed, "no such host")));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Fail, result.Status);
         Assert.NotEmpty(result.SuggestedNextSteps);
     }
@@ -191,7 +191,7 @@ public class DnsResolutionDiagnosticTests
             .Returns(Result.Success<IReadOnlyList<string>>(["10.0.0.5"]));
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic("intranet.contoso.example").EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic("intranet.contoso.example").EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
 
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         await _dnsResolver.Received(1).ResolveAsync("intranet.contoso.example", Arg.Any<CancellationToken>());
@@ -205,11 +205,12 @@ public class DiagnosticRunServiceTests
     {
         var crashing = Substitute.For<IDiagnostic>();
         crashing.DiagnosticId.Returns("CRASHING");
-        crashing.EvaluateAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("bug"));
+        crashing.EvaluateAsync(Arg.Any<DiagnosticContext>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("bug"));
 
         var healthy = Substitute.For<IDiagnostic>();
         healthy.DiagnosticId.Returns("HEALTHY");
-        healthy.EvaluateAsync(Arg.Any<CancellationToken>())
+        healthy.EvaluateAsync(Arg.Any<DiagnosticContext>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<DiagnosticResult>>([new DiagnosticResult(
                 "HEALTHY", "ok", DiagnosticStatus.Pass, DiagnosticCategory.Network, "x",
                 new Dictionary<string, string>(), [], null, TestDefaults.Now)]));
@@ -217,7 +218,7 @@ public class DiagnosticRunServiceTests
         var service = new DiagnosticRunService(
             [crashing, healthy], TestDefaults.Clock(), NullLogger<DiagnosticRunService>.Instance);
 
-        Result<DiagnosticRunResult> run = await service.RunAsync(CancellationToken.None);
+        Result<DiagnosticRunResult> run = await service.RunAsync(DiagnosticContext.Local, CancellationToken.None);
 
         Assert.True(run.IsSuccess);
         Assert.Equal(2, run.Value.Results.Count);

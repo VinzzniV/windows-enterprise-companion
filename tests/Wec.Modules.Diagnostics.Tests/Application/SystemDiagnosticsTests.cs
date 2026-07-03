@@ -1,7 +1,8 @@
-using NSubstitute;
+﻿using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Privileges;
 using Wec.Core.Results;
+using Wec.Modules.Diagnostics.Application;
 using Wec.Modules.Diagnostics.Application.Diagnostics;
 using Wec.Modules.Diagnostics.Domain;
 
@@ -27,13 +28,26 @@ internal static class SystemTestSetup
     public static void SetUpWmiQuery(
         this IWmiQueryService wmiQueryService,
         string classNameFragment,
-        params WmiInstance[] instances) =>
+        params WmiInstance[] instances)
+    {
+        // Some diagnostics query through the target-aware overload, some
+        // (local-only ones) through the local convenience overload
+        wmiQueryService
+            .QueryAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Is<string>(query => query.Contains(classNameFragment, StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<WmiInstance>>(instances));
         wmiQueryService
             .QueryAsync(
                 Arg.Any<string>(),
                 Arg.Is<string>(query => query.Contains(classNameFragment, StringComparison.Ordinal)),
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<WmiInstance>>(instances));
+    }
 
     public static EventLogEntrySummary Entry(string level, string provider = "TestProvider") =>
         new(provider, 1000, level, TestDefaults.Now);
@@ -51,7 +65,7 @@ public class DomainMembershipDiagnosticTests
         _wmiQueryService.SetUpWmiQuery("Win32_ComputerSystem", SystemTestSetup.Instance(
             ("DNSHostName", "PC01"), ("PartOfDomain", true), ("Domain", "corp.contoso.example")));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("corp.contoso.example", result.Evidence["domain"]);
     }
@@ -62,7 +76,7 @@ public class DomainMembershipDiagnosticTests
         _wmiQueryService.SetUpWmiQuery("Win32_ComputerSystem", SystemTestSetup.Instance(
             ("DNSHostName", "PC01"), ("PartOfDomain", false), ("Domain", "WORKGROUP"), ("Workgroup", "WORKGROUP")));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("WORKGROUP", result.Evidence["workgroup"]);
         Assert.NotEmpty(result.SuggestedNextSteps);
@@ -72,12 +86,18 @@ public class DomainMembershipDiagnosticTests
     public async Task WmiFailure_ProducesNotRun()
     {
         _wmiQueryService
-            .QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .QueryAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
             .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(Error.WmiUnavailable("unreachable")));
 
         Assert.Equal(
             DiagnosticStatus.NotRun,
-            Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None)).Status);
+            Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None)).Status);
     }
 }
 
@@ -104,7 +124,7 @@ public class TimeSynchronizationDiagnosticTests
     {
         SetUpConfiguration("NoSync");
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains(result.SuggestedNextSteps, step => step.Contains("Kerberos", StringComparison.Ordinal));
     }
@@ -116,7 +136,7 @@ public class TimeSynchronizationDiagnosticTests
 
         Assert.Equal(
             DiagnosticStatus.Warning,
-            Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None)).Status);
+            Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None)).Status);
     }
 
     [Fact]
@@ -125,7 +145,7 @@ public class TimeSynchronizationDiagnosticTests
         // Stopped + Manual (trigger start) is the normal state on workgroup machines
         SetUpConfiguration("NTP", serviceState: "Stopped", startMode: "Manual");
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("Stopped (Manual)", result.Evidence["w32TimeService"]);
     }
@@ -136,7 +156,7 @@ public class TimeSynchronizationDiagnosticTests
         _registryReader.ReadLocalMachineValue(Arg.Any<string>(), "Type")
             .Returns(Result.Failure<object?>(Error.AccessDenied("denied", PrivilegeLevel.Administrator)));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.NotRun, result.Status);
         Assert.Equal(PrivilegeLevel.Administrator, result.RequiredPrivilege);
     }
@@ -161,7 +181,7 @@ public class EventLogSummaryDiagnosticTests
     {
         SetUpEntries(SystemTestSetup.Entry("Error"));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("1", result.Evidence["errorEntries"]);
         Assert.Equal("0", result.Evidence["criticalEntries"]);
@@ -172,7 +192,7 @@ public class EventLogSummaryDiagnosticTests
     {
         SetUpEntries(SystemTestSetup.Entry("Critical"), SystemTestSetup.Entry("Error"));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Equal("1", result.Evidence["criticalEntries"]);
     }
@@ -183,7 +203,7 @@ public class EventLogSummaryDiagnosticTests
         SetUpEntries([.. Enumerable.Range(0, 5).Select(_ => SystemTestSetup.Entry("Error", "NoisyDriver"))]);
 
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic(errorThreshold: 3).EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic(errorThreshold: 3).EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains("NoisyDriver (x5)", result.Evidence["topProviders"], StringComparison.Ordinal);
     }
@@ -196,7 +216,7 @@ public class EventLogSummaryDiagnosticTests
             .Returns(Result.Failure<IReadOnlyList<EventLogEntrySummary>>(
                 Error.AccessDenied("denied", PrivilegeLevel.Administrator)));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.NotRun, result.Status);
         Assert.Equal(PrivilegeLevel.Administrator, result.RequiredPrivilege);
     }
@@ -207,7 +227,7 @@ public class EventLogSummaryDiagnosticTests
         SetUpEntries();
 
         IReadOnlyList<DiagnosticResult> results = await CreateDiagnostic(["System", "Application"])
-            .EvaluateAsync(CancellationToken.None);
+            .EvaluateAsync(DiagnosticContext.Local, CancellationToken.None);
 
         Assert.Equal(2, results.Count);
     }
@@ -227,7 +247,7 @@ public class ServiceStatusDiagnosticTests
             SystemTestSetup.Instance(("Name", "Dhcp"), ("State", "Running"), ("StartMode", "Auto")),
             SystemTestSetup.Instance(("Name", "Dnscache"), ("State", "Running"), ("StartMode", "Auto")));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("Running (Auto)", result.Evidence["Dhcp"]);
     }
@@ -239,7 +259,7 @@ public class ServiceStatusDiagnosticTests
             SystemTestSetup.Instance(("Name", "Dhcp"), ("State", "Stopped"), ("StartMode", "Auto")),
             SystemTestSetup.Instance(("Name", "Dnscache"), ("State", "Running"), ("StartMode", "Auto")));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Contains(result.SuggestedNextSteps, step => step.Contains("'Dhcp'", StringComparison.Ordinal));
     }
@@ -250,7 +270,7 @@ public class ServiceStatusDiagnosticTests
         _wmiQueryService.SetUpWmiQuery("Win32_Service",
             SystemTestSetup.Instance(("Name", "Dnscache"), ("State", "Running"), ("StartMode", "Auto")));
 
-        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(CancellationToken.None));
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Warning, result.Status);
         Assert.Equal("not installed", result.Evidence["Dhcp"]);
     }
@@ -259,7 +279,7 @@ public class ServiceStatusDiagnosticTests
     public async Task EmptyConfiguration_ProducesNotRunPointingAtTheOption()
     {
         DiagnosticResult result = Assert.Single(
-            await CreateDiagnostic(monitoredServices: []).EvaluateAsync(CancellationToken.None));
+            await CreateDiagnostic(monitoredServices: []).EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.NotRun, result.Status);
         Assert.Contains(result.SuggestedNextSteps, step =>
             step.Contains("MonitoredServices", StringComparison.Ordinal));

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
@@ -24,8 +24,15 @@ internal sealed class EventLogSummaryDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-SYS-EVENTLOG";
 
-    public Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
+        if (!context.Target.IsLocal)
+        {
+            return Task.FromResult<IReadOnlyList<DiagnosticResult>>([DiagnosticResults.LocalPerspective(
+                DiagnosticId, "Event log summary", DiagnosticCategory.EventLog,
+                "Event logs", context.Target.DisplayName, _clock.UtcNow)]);
+        }
+
         if (_options.EventLogNames.Length == 0)
         {
             return Task.FromResult<IReadOnlyList<DiagnosticResult>>([BuildResult(

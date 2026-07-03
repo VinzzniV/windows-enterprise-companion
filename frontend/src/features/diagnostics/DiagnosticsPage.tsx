@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type {
+  AppInfoResponse,
   DiagnosticCategory,
   DiagnosticResult,
   DiagnosticRunResult,
   DiagnosticStatus,
+  TargetRequest,
 } from '../../shared/api-types';
 import { StatusBadge, type StatusBadgeVariant } from '../../shared/ui/StatusBadge';
 import { Spinner } from '../../shared/ui/Spinner';
@@ -14,6 +16,16 @@ import { SummaryMetric } from '../../shared/ui/SummaryMetric';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { EvidenceList } from '../../shared/ui/EvidenceList';
+import { Card } from '../../shared/ui/Card';
+import {
+  LOCAL_TARGET_SELECTION,
+  TargetSelector,
+  hostKeyOf,
+  toHostList,
+  toTargetRequest,
+  toTargetRequestForHost,
+  type TargetSelection,
+} from '../../shared/targets/TargetSelector';
 
 const categoryOrder: DiagnosticCategory[] = [
   'NETWORK',
@@ -99,93 +111,214 @@ function DiagnosticRow({ result }: { result: DiagnosticResult }) {
   );
 }
 
-type PageState =
-  | { kind: 'idle' }
+function RunSummary({ results }: { results: DiagnosticResult[] }) {
+  const warningCount = countByStatus(results, 'WARNING');
+  const failCount = countByStatus(results, 'FAIL');
+  return (
+    <div className="flex flex-wrap gap-2">
+      <SummaryMetric label="Pass" value={countByStatus(results, 'PASS')} tone="success" />
+      <SummaryMetric label="Warning" value={warningCount} tone={warningCount > 0 ? 'warning' : 'neutral'} />
+      <SummaryMetric label="Fail" value={failCount} tone={failCount > 0 ? 'danger' : 'neutral'} />
+      <SummaryMetric label="Not run" value={countByStatus(results, 'NOT_RUN')} tone="neutral" />
+    </div>
+  );
+}
+
+function CategorySections({ results }: { results: DiagnosticResult[] }) {
+  return (
+    <>
+      {categoryOrder
+        .map((category) => ({
+          category,
+          results: results.filter((result) => result.category === category),
+        }))
+        .filter((group) => group.results.length > 0)
+        .map((group) => {
+          const attention =
+            countByStatus(group.results, 'FAIL') + countByStatus(group.results, 'WARNING');
+          return (
+            <section key={group.category} aria-label={categoryLabels[group.category]}>
+              <h2 className="mb-2 flex items-baseline gap-2 border-b border-slate-800 pb-1 text-sm font-medium uppercase tracking-wide text-slate-400">
+                {categoryLabels[group.category]}
+                <span className="text-xs font-normal normal-case tracking-normal text-slate-500">
+                  {group.results.length} check{group.results.length === 1 ? '' : 's'}
+                  {attention > 0 && ` · ${attention} need${attention === 1 ? 's' : ''} attention`}
+                </span>
+              </h2>
+              <ul className="flex flex-col gap-2">
+                {group.results.map((result, index) => (
+                  <DiagnosticRow key={`${result.diagnosticId}-${index}`} result={result} />
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+    </>
+  );
+}
+
+type HostRunState =
   | { kind: 'running' }
   | { kind: 'done'; run: DiagnosticRunResult }
   | { kind: 'error'; message: string };
 
-export function DiagnosticsPage() {
-  const [state, setState] = useState<PageState>({ kind: 'idle' });
+interface HostRunEntry {
+  key: string;
+  label: string;
+  state: HostRunState;
+}
 
-  const run = useCallback(() => {
-    setState({ kind: 'running' });
-    invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics')
-      .then((runResult) => setState({ kind: 'done', run: runResult }))
+/** Runs one task per item with a bounded number of parallel workers. */
+async function runWithConcurrencyLimit<T>(
+  items: T[],
+  limit: number,
+  run: (item: T) => Promise<void>,
+): Promise<void> {
+  const queue = [...items];
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(limit, queue.length)) }, async () => {
+      for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
+        await run(item);
+      }
+    }),
+  );
+}
+
+export function DiagnosticsPage() {
+  const [selection, setSelection] = useState<TargetSelection>(LOCAL_TARGET_SELECTION);
+  const [entries, setEntries] = useState<HostRunEntry[]>([]);
+
+  const runForTarget = useCallback((target: TargetRequest | null): Promise<void> => {
+    const key = hostKeyOf(target);
+    setEntries((current) => {
+      const entry: HostRunEntry = {
+        key,
+        label: target?.host ?? 'Local machine',
+        state: { kind: 'running' },
+      };
+      return current.some((candidate) => candidate.key === key)
+        ? current.map((candidate) => (candidate.key === key ? entry : candidate))
+        : [...current, entry];
+    });
+    return invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target }, 120_000)
+      .then((run) =>
+        setEntries((current) =>
+          current.map((entry) =>
+            entry.key === key ? { ...entry, state: { kind: 'done', run } } : entry,
+          ),
+        ),
+      )
       .catch((error: unknown) =>
-        setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),
+        setEntries((current) =>
+          current.map((entry) =>
+            entry.key === key
+              ? {
+                  ...entry,
+                  state: {
+                    kind: 'error',
+                    message: error instanceof Error ? error.message : String(error),
+                  },
+                }
+              : entry,
+          ),
+        ),
       );
   }, []);
 
-  const results = state.kind === 'done' ? state.run.results : [];
-  const warningCount = countByStatus(results, 'WARNING');
-  const failCount = countByStatus(results, 'FAIL');
-  const notRunCount = countByStatus(results, 'NOT_RUN');
+  const run = useCallback(async () => {
+    // Results always belong to the current selection — a new run replaces them
+    setEntries([]);
+    if (selection.mode === 'multiple') {
+      const hosts = toHostList(selection);
+      const appInfo = await invoke<AppInfoResponse>('system', 'getAppInfo').catch(() => null);
+      await runWithConcurrencyLimit(hosts, appInfo?.maxParallelScans ?? 4, (host) =>
+        runForTarget(toTargetRequestForHost(selection, host)),
+      );
+    } else {
+      await runForTarget(toTargetRequest(selection));
+    }
+  }, [selection, runForTarget]);
+
+  const anyRunning = entries.some((entry) => entry.state.kind === 'running');
+  const singleEntry = entries.length === 1 ? entries[0] : null;
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Diagnostics" subtitle="Read-only troubleshooting of this machine (local only)">
-        {state.kind === 'done' && (
-          <span className="text-xs text-slate-400">
-            Run completed {new Date(state.run.completedAtUtc).toLocaleString()}
-          </span>
-        )}
-        <Button variant="primary" onClick={run} disabled={state.kind === 'running'}>
-          {state.kind === 'running' ? 'Running …' : 'Run diagnostics'}
+      <PageHeader
+        title="Diagnostics"
+        subtitle="Read-only troubleshooting per computer — connectivity probes always measure from the WEC machine"
+      >
+        <Button
+          variant="primary"
+          onClick={() => void run()}
+          disabled={
+            anyRunning ||
+            (selection.mode === 'remote' && selection.host.trim() === '') ||
+            (selection.mode === 'multiple' && toHostList(selection).length === 0)
+          }
+        >
+          {anyRunning ? 'Running …' : 'Run diagnostics'}
         </Button>
       </PageHeader>
 
-      {state.kind === 'idle' && (
+      <TargetSelector
+        selection={selection}
+        onChange={setSelection}
+        disabled={anyRunning}
+        allowMultiple
+      />
+
+      {entries.length === 0 && (
         <EmptyState
           title="System diagnostics"
-          message="Checks network configuration, gateway/DNS/domain-controller reachability, time synchronization, services, event logs, disk space, pending reboots and update recency of the local machine. Results are not persisted — this is a live troubleshooting snapshot."
+          message="Checks network configuration, reachability, time synchronization, services, event logs, disk space, pending reboots and update recency. Remote targets run the WMI-based checks; connectivity probes are marked as local-perspective and skipped. Results are not persisted — this is a live troubleshooting snapshot."
         />
       )}
 
-      {state.kind === 'running' && <Spinner label="Running diagnostics …" />}
-
-      {state.kind === 'error' && <ErrorState message={state.message} />}
-
-      {state.kind === 'done' && (
+      {singleEntry ? (
         <>
-          <div className="flex flex-wrap gap-2">
-            <SummaryMetric label="Pass" value={countByStatus(results, 'PASS')} tone="success" />
-            <SummaryMetric
-              label="Warning"
-              value={warningCount}
-              tone={warningCount > 0 ? 'warning' : 'neutral'}
-            />
-            <SummaryMetric label="Fail" value={failCount} tone={failCount > 0 ? 'danger' : 'neutral'} />
-            <SummaryMetric label="Not run" value={notRunCount} tone="neutral" />
-          </div>
-
-          {categoryOrder
-            .map((category) => ({
-              category,
-              results: results.filter((result) => result.category === category),
-            }))
-            .filter((group) => group.results.length > 0)
-            .map((group) => {
-              const attention =
-                countByStatus(group.results, 'FAIL') + countByStatus(group.results, 'WARNING');
-              return (
-                <section key={group.category} aria-label={categoryLabels[group.category]}>
-                  <h2 className="mb-2 flex items-baseline gap-2 border-b border-slate-800 pb-1 text-sm font-medium uppercase tracking-wide text-slate-400">
-                    {categoryLabels[group.category]}
-                    <span className="text-xs font-normal normal-case tracking-normal text-slate-500">
-                      {group.results.length} check{group.results.length === 1 ? '' : 's'}
-                      {attention > 0 && ` · ${attention} need${attention === 1 ? 's' : ''} attention`}
-                    </span>
-                  </h2>
-                  <ul className="flex flex-col gap-2">
-                    {group.results.map((result, index) => (
-                      <DiagnosticRow key={`${result.diagnosticId}-${index}`} result={result} />
-                    ))}
-                  </ul>
-                </section>
-              );
-            })}
+          {singleEntry.state.kind === 'running' && (
+            <Spinner label={`Running diagnostics on ${singleEntry.label} …`} />
+          )}
+          {singleEntry.state.kind === 'error' && (
+            <ErrorState title={`Error — ${singleEntry.label}`} message={singleEntry.state.message} />
+          )}
+          {singleEntry.state.kind === 'done' && (
+            <>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm">
+                <span className="font-medium">{singleEntry.label}</span>
+                <span className="text-slate-400">
+                  Run completed {new Date(singleEntry.state.run.completedAtUtc).toLocaleString()}
+                </span>
+              </div>
+              <RunSummary results={singleEntry.state.run.results} />
+              <CategorySections results={singleEntry.state.run.results} />
+            </>
+          )}
         </>
+      ) : (
+        entries.map((entry) => (
+          <Card key={entry.key} title={entry.label}>
+            {entry.state.kind === 'running' && <Spinner label="Running diagnostics …" />}
+            {entry.state.kind === 'error' && (
+              <p role="alert" className="break-words text-sm text-red-400">
+                {entry.state.message}
+              </p>
+            )}
+            {entry.state.kind === 'done' && (
+              <div className="flex flex-col gap-3">
+                <RunSummary results={entry.state.run.results} />
+                <DetailsDisclosure
+                  summary={`Show ${entry.state.run.results.length} results — completed ${new Date(entry.state.run.completedAtUtc).toLocaleString()}`}
+                >
+                  <div className="flex flex-col gap-4">
+                    <CategorySections results={entry.state.run.results} />
+                  </div>
+                </DetailsDisclosure>
+              </div>
+            )}
+          </Card>
+        ))
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-using Wec.Core.Abstractions;
+﻿using Wec.Core.Abstractions;
 using Wec.Core.Results;
 using Wec.Modules.Diagnostics.Domain;
 
@@ -30,8 +30,15 @@ internal sealed class DomainControllerReachabilityDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-DOM-DCREACH";
 
-    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
+        if (!context.Target.IsLocal)
+        {
+            return [DiagnosticResults.LocalPerspective(
+                DiagnosticId, "Domain controller reachability", DiagnosticCategory.Domain,
+                "Domain controllers", context.Target.DisplayName, _clock.UtcNow)];
+        }
+
         Result<IReadOnlyList<WmiInstance>> computerSystem = await _wmiQueryService.QueryAsync(
             CimV2Namespace,
             "SELECT PartOfDomain, Domain FROM Win32_ComputerSystem",

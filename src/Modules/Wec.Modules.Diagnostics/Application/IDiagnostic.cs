@@ -1,4 +1,4 @@
-using Wec.Modules.Diagnostics.Domain;
+﻿using Wec.Modules.Diagnostics.Domain;
 
 namespace Wec.Modules.Diagnostics.Application;
 
@@ -11,5 +11,7 @@ public interface IDiagnostic
 {
     string DiagnosticId { get; }
 
-    Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(
+        DiagnosticContext context,
+        CancellationToken cancellationToken);
 }

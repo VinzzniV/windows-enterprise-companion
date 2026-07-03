@@ -302,6 +302,11 @@ export interface DiagnosticResult {
   capturedAtUtc: string;
 }
 
+/** Wec.Modules.Diagnostics.Handlers.RunDiagnosticsRequest */
+export interface RunDiagnosticsRequest {
+  target?: TargetRequest | null;
+}
+
 /** Wec.Modules.Diagnostics.Domain.DiagnosticRunResult */
 export interface DiagnosticRunResult {
   startedAtUtc: string;

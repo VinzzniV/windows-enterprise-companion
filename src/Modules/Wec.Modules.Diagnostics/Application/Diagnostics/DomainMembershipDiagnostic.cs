@@ -1,4 +1,4 @@
-using Wec.Core.Abstractions;
+﻿using Wec.Core.Abstractions;
 using Wec.Core.Results;
 using Wec.Modules.Diagnostics.Domain;
 
@@ -19,9 +19,10 @@ internal sealed class DomainMembershipDiagnostic : IDiagnostic
 
     public string DiagnosticId => "WEC-DIAG-SYS-DOMAIN";
 
-    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<WmiInstance>> computerSystems = await _wmiQueryService.QueryAsync(
+            context,
             CimV2Namespace,
             "SELECT DNSHostName, PartOfDomain, Domain, Workgroup FROM Win32_ComputerSystem",
             cancellationToken);
@@ -51,7 +52,7 @@ internal sealed class DomainMembershipDiagnostic : IDiagnostic
 
         WmiInstance computerSystem = computerSystems.Value[0];
         bool partOfDomain = computerSystem.GetValue<bool?>("PartOfDomain") ?? false;
-        string hostName = computerSystem.GetString("DNSHostName") ?? Environment.MachineName;
+        string hostName = computerSystem.GetString("DNSHostName") ?? context.Target.DisplayName;
 
         // Informational by design: workgroup membership is a valid configuration,
         // not a problem — the result documents which world the machine lives in
