@@ -310,9 +310,11 @@ function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: 
 export function HardwareInfoPage() {
   const [selection, setSelection] = useState<TargetSelection>(LOCAL_TARGET_SELECTION);
   const [entries, setEntries] = useState<HostEntry[]>([]);
+  const [selectedKey, setSelectedKey] = useState('LOCAL');
 
   const load = useCallback((target: TargetRequest | null, forceRefresh: boolean) => {
     const key = hostKeyOf(target);
+    setSelectedKey(key);
     setEntries((current) => {
       const existing = current.find((entry) => entry.key === key);
       const entry: HostEntry = {
@@ -350,10 +352,13 @@ export function HardwareInfoPage() {
     load(null, false);
   }, [load]);
 
-  const removeEntry = (key: string) =>
+  const removeEntry = (key: string) => {
     setEntries((current) => current.filter((entry) => entry.key !== key));
+    setSelectedKey((current) => (current === key ? 'LOCAL' : current));
+  };
 
   const anyLoading = entries.some((entry) => entry.state.kind === 'loading');
+  const selectedEntry = entries.find((entry) => entry.key === selectedKey) ?? entries[0] ?? null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -375,50 +380,90 @@ export function HardwareInfoPage() {
         </div>
       </header>
 
-      {entries.map((entry) => (
-        <section key={entry.key} className="flex flex-col gap-3" aria-label={`Inventory for ${entry.label}`}>
-          <div className="flex items-end justify-between border-b border-slate-800 pb-1">
-            <h2 className="text-lg font-medium">{entry.label}</h2>
-            <div className="flex items-center gap-3">
-              {entry.state.kind === 'loaded' && (
-                <span className="text-xs text-slate-400">
-                  {entry.state.result.fromCache ? 'From cache' : 'Freshly captured'} —{' '}
-                  {new Date(entry.state.result.capturedAtUtc).toLocaleString()}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => load(entry.target, true)}
-                disabled={entry.state.kind === 'loading'}
-                className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
-              >
-                Refresh
-              </button>
-              {entry.key !== 'LOCAL' && (
+      <div className="flex items-start gap-4">
+        {entries.length > 1 && (
+          <aside className="w-56 shrink-0" aria-label="Scanned computers">
+            <ul className="flex flex-col gap-1">
+              {entries.map((entry) => (
+                <li key={entry.key} className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedKey(entry.key)}
+                    className={`flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors ${
+                      entry.key === selectedEntry?.key
+                        ? 'bg-slate-800 text-slate-100'
+                        : 'text-slate-300 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${
+                        entry.state.kind === 'loading'
+                          ? 'animate-pulse bg-sky-400'
+                          : entry.state.kind === 'error'
+                            ? 'bg-red-500'
+                            : 'bg-emerald-500'
+                      }`}
+                    />
+                    <span className="truncate">{entry.label}</span>
+                  </button>
+                  {entry.key !== 'LOCAL' && (
+                    <button
+                      type="button"
+                      onClick={() => removeEntry(entry.key)}
+                      aria-label={`Remove ${entry.label}`}
+                      className="rounded px-1.5 py-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                    >
+                      ×
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )}
+
+        {selectedEntry && (
+          <section
+            key={selectedEntry.key}
+            className="flex min-w-0 flex-1 flex-col gap-3"
+            aria-label={`Inventory for ${selectedEntry.label}`}
+          >
+            <div className="flex items-end justify-between border-b border-slate-800 pb-1">
+              <h2 className="text-lg font-medium">{selectedEntry.label}</h2>
+              <div className="flex items-center gap-3">
+                {selectedEntry.state.kind === 'loaded' && (
+                  <span className="text-xs text-slate-400">
+                    {selectedEntry.state.result.fromCache ? 'From cache' : 'Freshly captured'} —{' '}
+                    {new Date(selectedEntry.state.result.capturedAtUtc).toLocaleString()}
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => removeEntry(entry.key)}
-                  className="rounded bg-slate-800 px-3 py-1.5 text-sm text-slate-300 transition-colors hover:bg-slate-700"
+                  onClick={() => load(selectedEntry.target, true)}
+                  disabled={selectedEntry.state.kind === 'loading'}
+                  className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
                 >
-                  Remove
+                  Refresh
                 </button>
-              )}
+              </div>
             </div>
-          </div>
 
-          {entry.state.kind === 'loading' && <Spinner label={`Loading inventory for ${entry.label} …`} />}
+            {selectedEntry.state.kind === 'loading' && (
+              <Spinner label={`Loading inventory for ${selectedEntry.label} …`} />
+            )}
 
-          {entry.state.kind === 'error' && (
-            <Card title={`Error — ${entry.label}`}>
-              <p className="text-sm text-red-400">{entry.state.message}</p>
-            </Card>
-          )}
+            {selectedEntry.state.kind === 'error' && (
+              <Card title={`Error — ${selectedEntry.label}`}>
+                <p className="text-sm text-red-400">{selectedEntry.state.message}</p>
+              </Card>
+            )}
 
-          {entry.state.kind === 'loaded' && (
-            <SnapshotGrid result={entry.state.result} target={entry.target} />
-          )}
-        </section>
-      ))}
+            {selectedEntry.state.kind === 'loaded' && (
+              <SnapshotGrid result={selectedEntry.state.result} target={selectedEntry.target} />
+            )}
+          </section>
+        )}
+      </div>
     </div>
   );
 }

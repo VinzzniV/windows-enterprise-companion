@@ -7,6 +7,7 @@ import type {
 } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
+import { CredentialFields } from '../../shared/targets/TargetSelector';
 
 function adErrorText(error: unknown): string {
   if (error instanceof BridgeInvokeError) {
@@ -112,7 +113,8 @@ export function ActiveDirectoryPage() {
         <div>
           <h1 className="text-xl font-semibold">Active Directory</h1>
           <p className="text-sm text-slate-400">
-            Read-only directory overview as the current user — nothing is ever written to AD.
+            Read-only directory analysis — runs as the current user unless explicit
+            credentials are entered below. Nothing is ever written to AD.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -166,33 +168,22 @@ export function ActiveDirectoryPage() {
           Use explicit credentials
         </label>
         {connectionForm.useExplicitCredentials && (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <input
-              type="text"
-              value={connectionForm.userName}
-              onChange={(event) => setForm({ userName: event.target.value })}
-              placeholder="User name"
-              aria-label="User name"
-              className={connectionInputClass}
-            />
-            <input
-              type="text"
-              value={connectionForm.userDomain}
-              onChange={(event) => setForm({ userDomain: event.target.value })}
-              placeholder="Credential domain (optional)"
-              aria-label="Credential domain"
-              className={connectionInputClass}
-            />
-            <input
-              type="password"
-              value={connectionForm.password}
-              onChange={(event) => setForm({ password: event.target.value })}
-              placeholder="Password"
-              aria-label="Password"
-              autoComplete="off"
-              className={connectionInputClass}
-            />
-          </div>
+          <CredentialFields
+            values={{
+              userName: connectionForm.userName,
+              domain: connectionForm.userDomain,
+              password: connectionForm.password,
+            }}
+            onChange={(patch) =>
+              setForm({
+                ...(patch.userName !== undefined && { userName: patch.userName }),
+                ...(patch.domain !== undefined && { userDomain: patch.domain }),
+                ...(patch.password !== undefined && { password: patch.password }),
+              })
+            }
+            domainPlaceholder="Credential domain (optional)"
+            domainAriaLabel="Credential domain"
+          />
         )}
       </fieldset>
 

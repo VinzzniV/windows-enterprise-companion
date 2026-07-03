@@ -71,6 +71,60 @@ const inputClass =
   'rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 ' +
   'placeholder:text-slate-500 focus:border-sky-500 focus:outline-none disabled:opacity-50';
 
+export interface CredentialValues {
+  userName: string;
+  domain: string;
+  password: string;
+}
+
+/** The user/domain/password grid shared by all pages that take explicit credentials. */
+export function CredentialFields({
+  values,
+  onChange,
+  disabled,
+  domainPlaceholder = 'Domain (optional)',
+  domainAriaLabel = 'Domain',
+}: {
+  values: CredentialValues;
+  onChange(patch: Partial<CredentialValues>): void;
+  disabled?: boolean;
+  domainPlaceholder?: string;
+  domainAriaLabel?: string;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <input
+        type="text"
+        value={values.userName}
+        onChange={(event) => onChange({ userName: event.target.value })}
+        placeholder="User name"
+        aria-label="User name"
+        disabled={disabled}
+        className={inputClass}
+      />
+      <input
+        type="text"
+        value={values.domain}
+        onChange={(event) => onChange({ domain: event.target.value })}
+        placeholder={domainPlaceholder}
+        aria-label={domainAriaLabel}
+        disabled={disabled}
+        className={inputClass}
+      />
+      <input
+        type="password"
+        value={values.password}
+        onChange={(event) => onChange({ password: event.target.value })}
+        placeholder="Password"
+        aria-label="Password"
+        autoComplete="off"
+        disabled={disabled}
+        className={inputClass}
+      />
+    </div>
+  );
+}
+
 export function TargetSelector({ selection, onChange, disabled, allowMultiple }: TargetSelectorProps) {
   const set = (patch: Partial<TargetSelection>) => onChange({ ...selection, ...patch });
 
@@ -149,36 +203,11 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
           </div>
 
           {selection.credentialMode === 'explicit' && (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <input
-                type="text"
-                value={selection.userName}
-                onChange={(event) => set({ userName: event.target.value })}
-                placeholder="User name"
-                aria-label="User name"
-                disabled={disabled}
-                className={inputClass}
-              />
-              <input
-                type="text"
-                value={selection.domain}
-                onChange={(event) => set({ domain: event.target.value })}
-                placeholder="Domain (optional)"
-                aria-label="Domain"
-                disabled={disabled}
-                className={inputClass}
-              />
-              <input
-                type="password"
-                value={selection.password}
-                onChange={(event) => set({ password: event.target.value })}
-                placeholder="Password"
-                aria-label="Password"
-                autoComplete="off"
-                disabled={disabled}
-                className={inputClass}
-              />
-            </div>
+            <CredentialFields
+              values={selection}
+              onChange={(patch) => set(patch)}
+              disabled={disabled}
+            />
           )}
         </div>
       )}
