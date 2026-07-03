@@ -78,7 +78,7 @@ internal sealed class DnsResolutionDiagnostic : IDiagnostic
         DiagnosticId,
         title,
         status,
-        DiagnosticCategory.Network,
+        DiagnosticCategory.Dns,
         $"DNS resolution ({_options.DnsProbeHostname})",
         evidence,
         nextSteps,

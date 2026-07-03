@@ -1,9 +1,34 @@
 import { useCallback, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
-import type { DiagnosticResult, DiagnosticRunResult, DiagnosticStatus } from '../../shared/api-types';
+import type {
+  DiagnosticCategory,
+  DiagnosticResult,
+  DiagnosticRunResult,
+  DiagnosticStatus,
+} from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { Spinner } from '../../shared/ui/Spinner';
+
+const categoryOrder: DiagnosticCategory[] = [
+  'NETWORK',
+  'DNS',
+  'DOMAIN',
+  'TIME_SYNCHRONIZATION',
+  'SERVICES',
+  'EVENT_LOG',
+  'SYSTEM',
+];
+
+const categoryLabels: Record<DiagnosticCategory, string> = {
+  NETWORK: 'Network',
+  DNS: 'DNS',
+  DOMAIN: 'Domain',
+  TIME_SYNCHRONIZATION: 'Time',
+  SERVICES: 'Services',
+  EVENT_LOG: 'Event logs',
+  SYSTEM: 'System',
+};
 
 const statusStyles: Record<DiagnosticStatus, string> = {
   PASS: 'border-emerald-700 bg-emerald-900/60 text-emerald-300',
@@ -80,7 +105,9 @@ export function DiagnosticsPage() {
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-xl font-semibold">Diagnostics</h1>
-          <p className="text-sm text-slate-400">Read-only local troubleshooting</p>
+          <p className="text-sm text-slate-400">
+            Read-only troubleshooting — always runs on the local machine
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {state.kind === 'done' && (
@@ -100,10 +127,11 @@ export function DiagnosticsPage() {
       </header>
 
       {state.kind === 'idle' && (
-        <Card title="Network diagnostics">
+        <Card title="System diagnostics">
           <p className="text-sm text-slate-400">
-            Checks the local network configuration, default gateway reachability and DNS resolution.
-            Results are not persisted — this is a live troubleshooting snapshot.
+            Checks network configuration, gateway/DNS/domain-controller reachability, time
+            synchronization, services, event logs, disk space, pending reboots and update recency
+            of the local machine. Results are not persisted — this is a live troubleshooting snapshot.
           </p>
         </Card>
       )}
@@ -116,13 +144,25 @@ export function DiagnosticsPage() {
         </Card>
       )}
 
-      {state.kind === 'done' && (
-        <ul className="flex flex-col gap-3">
-          {state.run.results.map((result, index) => (
-            <DiagnosticCard key={`${result.diagnosticId}-${index}`} result={result} />
+      {state.kind === 'done' &&
+        categoryOrder
+          .map((category) => ({
+            category,
+            results: state.run.results.filter((result) => result.category === category),
+          }))
+          .filter((group) => group.results.length > 0)
+          .map((group) => (
+            <section key={group.category} aria-label={categoryLabels[group.category]}>
+              <h2 className="mb-2 border-b border-slate-800 pb-1 text-sm font-medium uppercase tracking-wide text-slate-400">
+                {categoryLabels[group.category]}
+              </h2>
+              <ul className="flex flex-col gap-3">
+                {group.results.map((result, index) => (
+                  <DiagnosticCard key={`${result.diagnosticId}-${index}`} result={result} />
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
-      )}
     </div>
   );
 }

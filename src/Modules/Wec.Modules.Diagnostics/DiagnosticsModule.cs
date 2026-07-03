@@ -21,6 +21,11 @@ public sealed class DiagnosticsModule : IModule
         services.AddScoped<IDiagnostic, TimeSynchronizationDiagnostic>();
         services.AddScoped<IDiagnostic, EventLogSummaryDiagnostic>();
         services.AddScoped<IDiagnostic, ServiceStatusDiagnostic>();
+        services.AddScoped<IDiagnostic, DnsServerReachabilityDiagnostic>();
+        services.AddScoped<IDiagnostic, DomainControllerReachabilityDiagnostic>();
+        services.AddScoped<IDiagnostic, DiskFreeSpaceDiagnostic>();
+        services.AddScoped<IDiagnostic, RebootPendingDiagnostic>();
+        services.AddScoped<IDiagnostic, WindowsUpdateRecencyDiagnostic>();
         services.AddScoped<IActionHandler, RunDiagnosticsHandler>();
     }
 }

@@ -58,6 +58,36 @@ public sealed class SystemNetworkInfoProvider : INetworkInfoProvider
             .Select(dns => dns.ToString())
             .ToList();
 
-        return new NetworkAdapterInfo(adapter.Name, adapter.Description, ipv4Addresses, gateways, dnsServers);
+        return new NetworkAdapterInfo(
+            adapter.Name,
+            adapter.Description,
+            ipv4Addresses,
+            gateways,
+            dnsServers,
+            FormatMacAddress(adapter),
+            adapter.Speed > 0 ? adapter.Speed : null,
+            ReadDhcpEnabled(properties),
+            adapter.NetworkInterfaceType.ToString());
+    }
+
+    private static string? FormatMacAddress(NetworkInterface adapter)
+    {
+        byte[] addressBytes = adapter.GetPhysicalAddress().GetAddressBytes();
+        return addressBytes.Length == 0
+            ? null
+            : string.Join(":", addressBytes.Select(part => part.ToString("X2", System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    private static bool? ReadDhcpEnabled(IPInterfaceProperties properties)
+    {
+        try
+        {
+            return properties.GetIPv4Properties()?.IsDhcpEnabled;
+        }
+        catch (NetworkInformationException)
+        {
+            // IPv6-only adapters have no IPv4 properties
+            return null;
+        }
     }
 }

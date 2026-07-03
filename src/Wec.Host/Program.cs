@@ -168,6 +168,7 @@ internal static partial class Program
         builder.Services.AddSingleton<IRegistryReader, WindowsRegistryReader>();
         builder.Services.AddSingleton<ILocalAccountPolicyReader, Wec.Infrastructure.Accounts.SamAccountPolicyReader>();
         builder.Services.AddSingleton<INetworkInfoProvider, SystemNetworkInfoProvider>();
+        builder.Services.AddSingleton<IDriveInfoProvider, Wec.Infrastructure.Storage.SystemDriveInfoProvider>();
         builder.Services.AddSingleton<IPingProbe, SystemPingProbe>();
         builder.Services.AddSingleton<IDnsResolver, SystemDnsResolver>();
         builder.Services.AddSingleton<IEventLogReader, SystemEventLogReader>();

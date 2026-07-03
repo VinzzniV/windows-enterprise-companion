@@ -5,6 +5,14 @@ namespace Wec.Modules.Diagnostics.Application.Diagnostics;
 
 internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
 {
+    // Virtualization/VPN/filter adapters that would otherwise drown out the
+    // physical adapters in the result list
+    private static readonly string[] VirtualAdapterMarkers =
+    [
+        "virtual", "vethernet", "hyper-v", "vmware", "virtualbox", "tap-", "tap ",
+        "wintun", "wireguard", "openvpn", "loopback", "npcap", "bluetooth",
+    ];
+
     private readonly INetworkInfoProvider _networkInfoProvider;
     private readonly IClock _clock;
 
@@ -26,6 +34,7 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
             return Task.FromResult<IReadOnlyList<DiagnosticResult>>([BuildResult(
                 DiagnosticStatus.NotRun,
                 "Network configuration could not be read",
+                "Network adapters",
                 new Dictionary<string, string>
                 {
                     ["errorCode"] = adaptersResult.Error!.Code.ToString(),
@@ -35,37 +44,46 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
                 capturedAtUtc)]);
         }
 
-        IReadOnlyList<NetworkAdapterInfo> adapters = adaptersResult.Value;
+        List<NetworkAdapterInfo> physicalAdapters = adaptersResult.Value
+            .Where(adapter => !IsVirtualAdapter(adapter))
+            .ToList();
+        List<NetworkAdapterInfo> virtualAdapters = adaptersResult.Value
+            .Where(IsVirtualAdapter)
+            .ToList();
 
-        if (adapters.Count == 0)
+        var results = new List<DiagnosticResult>();
+
+        if (physicalAdapters.Count == 0 && virtualAdapters.Count == 0)
         {
-            return Task.FromResult<IReadOnlyList<DiagnosticResult>>([BuildResult(
+            results.Add(BuildResult(
                 DiagnosticStatus.Fail,
                 "No active network adapter",
+                "Network adapters",
                 new Dictionary<string, string> { ["activeAdapters"] = "0" },
                 [
                     "Check the physical connection (cable, Wi-Fi radio switch).",
                     "Verify the adapter is enabled in Windows network settings.",
                     "Check the adapter driver in Device Manager.",
                 ],
-                capturedAtUtc)]);
+                capturedAtUtc));
+            return Task.FromResult<IReadOnlyList<DiagnosticResult>>(results);
         }
+
+        // A machine that only has virtual adapters up still needs a visible
+        // primary result — fall back to evaluating those
+        List<NetworkAdapterInfo> primaryAdapters = physicalAdapters.Count > 0 ? physicalAdapters : virtualAdapters;
 
         var evidence = new Dictionary<string, string>
         {
-            ["activeAdapters"] = adapters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["activeAdapters"] = primaryAdapters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
         };
-        foreach (NetworkAdapterInfo adapter in adapters)
+        foreach (NetworkAdapterInfo adapter in primaryAdapters)
         {
-            string addresses = adapter.Ipv4Addresses.Count > 0
-                ? string.Join(", ", adapter.Ipv4Addresses.Select(ip => $"{ip.Address}/{ip.PrefixLength}"))
-                : "(no IPv4 address)";
-            evidence[$"adapter: {adapter.Name}"] =
-                $"{addresses} · GW: {JoinOrDash(adapter.GatewayAddresses)} · DNS: {JoinOrDash(adapter.DnsServers)}";
+            evidence[$"adapter: {adapter.Name}"] = DescribeAdapter(adapter);
         }
 
-        bool anyGateway = adapters.Any(adapter => adapter.GatewayAddresses.Count > 0);
-        bool anyDnsServer = adapters.Any(adapter => adapter.DnsServers.Count > 0);
+        bool anyGateway = primaryAdapters.Any(adapter => adapter.GatewayAddresses.Count > 0);
+        bool anyDnsServer = primaryAdapters.Any(adapter => adapter.DnsServers.Count > 0);
 
         if (!anyGateway || !anyDnsServer)
         {
@@ -82,20 +100,67 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
 
             nextSteps.Add("Compare with a working device in the same network.");
 
-            return Task.FromResult<IReadOnlyList<DiagnosticResult>>([BuildResult(
+            results.Add(BuildResult(
                 DiagnosticStatus.Warning,
                 anyGateway ? "Network configured without DNS servers" : "Network configured without default gateway",
+                "Network adapters",
                 evidence,
                 nextSteps,
-                capturedAtUtc)]);
+                capturedAtUtc));
+        }
+        else
+        {
+            results.Add(BuildResult(
+                DiagnosticStatus.Pass,
+                "Network configuration looks complete",
+                "Network adapters",
+                evidence,
+                [],
+                capturedAtUtc));
         }
 
-        return Task.FromResult<IReadOnlyList<DiagnosticResult>>([BuildResult(
-            DiagnosticStatus.Pass,
-            "Network configuration looks complete",
-            evidence,
-            [],
-            capturedAtUtc)]);
+        if (physicalAdapters.Count > 0 && virtualAdapters.Count > 0)
+        {
+            var virtualEvidence = new Dictionary<string, string>();
+            foreach (NetworkAdapterInfo adapter in virtualAdapters)
+            {
+                virtualEvidence[$"adapter: {adapter.Name}"] = DescribeAdapter(adapter);
+            }
+
+            results.Add(BuildResult(
+                DiagnosticStatus.Pass,
+                $"{virtualAdapters.Count} virtual/filter adapters are active",
+                "Virtual network adapters",
+                virtualEvidence,
+                [],
+                capturedAtUtc));
+        }
+
+        return Task.FromResult<IReadOnlyList<DiagnosticResult>>(results);
+    }
+
+    internal static bool IsVirtualAdapter(NetworkAdapterInfo adapter)
+    {
+        string haystack = $"{adapter.Name} {adapter.Description}".ToLowerInvariant();
+        return VirtualAdapterMarkers.Any(marker => haystack.Contains(marker, StringComparison.Ordinal));
+    }
+
+    private static string DescribeAdapter(NetworkAdapterInfo adapter)
+    {
+        string addresses = adapter.Ipv4Addresses.Count > 0
+            ? string.Join(", ", adapter.Ipv4Addresses.Select(ip => $"{ip.Address}/{ip.PrefixLength}"))
+            : "(no IPv4 address)";
+        string linkSpeed = adapter.SpeedBitsPerSecond is > 0
+            ? $"{adapter.SpeedBitsPerSecond / 1_000_000} Mbit/s"
+            : "—";
+        string dhcp = adapter.IsDhcpEnabled switch
+        {
+            true => "DHCP",
+            false => "static",
+            null => "—",
+        };
+        return $"{addresses} · GW: {JoinOrDash(adapter.GatewayAddresses)} · DNS: {JoinOrDash(adapter.DnsServers)}"
+            + $" · MAC: {adapter.MacAddress ?? "—"} · {linkSpeed} · {dhcp} · {adapter.InterfaceType ?? "—"}";
     }
 
     private static string JoinOrDash(IReadOnlyList<string> values) =>
@@ -104,6 +169,7 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
     private DiagnosticResult BuildResult(
         DiagnosticStatus status,
         string title,
+        string affectedResource,
         IReadOnlyDictionary<string, string> evidence,
         IReadOnlyList<string> nextSteps,
         DateTimeOffset capturedAtUtc) => new(
@@ -111,7 +177,7 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
         title,
         status,
         DiagnosticCategory.Network,
-        "Network adapters",
+        affectedResource,
         evidence,
         nextSteps,
         RequiredPrivilege: null,

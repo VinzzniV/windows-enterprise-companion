@@ -210,10 +210,12 @@ export type DiagnosticStatus = 'PASS' | 'WARNING' | 'FAIL' | 'NOT_RUN';
 /** Wec.Modules.Diagnostics.Domain.DiagnosticCategory (SCREAMING_SNAKE on the wire) */
 export type DiagnosticCategory =
   | 'NETWORK'
+  | 'DNS'
   | 'DOMAIN'
   | 'TIME_SYNCHRONIZATION'
   | 'EVENT_LOG'
-  | 'SERVICES';
+  | 'SERVICES'
+  | 'SYSTEM';
 
 /** Wec.Modules.Diagnostics.Domain.DiagnosticResult */
 export interface DiagnosticResult {

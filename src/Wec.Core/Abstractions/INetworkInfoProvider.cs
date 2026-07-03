@@ -9,7 +9,11 @@ public sealed record NetworkAdapterInfo(
     string Description,
     IReadOnlyList<Ipv4AddressInfo> Ipv4Addresses,
     IReadOnlyList<string> GatewayAddresses,
-    IReadOnlyList<string> DnsServers);
+    IReadOnlyList<string> DnsServers,
+    string? MacAddress = null,
+    long? SpeedBitsPerSecond = null,
+    bool? IsDhcpEnabled = null,
+    string? InterfaceType = null);
 
 public interface INetworkInfoProvider
 {

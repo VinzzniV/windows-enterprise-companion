@@ -22,4 +22,10 @@ public sealed class DiagnosticsOptions
     public int EventLogErrorWarningThreshold { get; set; } = 50;
 
     public string[] MonitoredServices { get; set; } = [];
+
+    [Range(1, 99)]
+    public int MinimumFreeDiskSpacePercent { get; set; } = 10;
+
+    [Range(1, 730)]
+    public int MaxDaysSinceLastInstalledUpdate { get; set; } = 60;
 }

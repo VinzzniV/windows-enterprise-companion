@@ -17,6 +17,8 @@ public enum DiagnosticCategory
     TimeSynchronization = 2,
     EventLog = 3,
     Services = 4,
+    Dns = 5,
+    System = 6,
 }
 
 public sealed record DiagnosticResult(
