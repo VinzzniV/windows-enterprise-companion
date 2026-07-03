@@ -24,6 +24,12 @@ Follow-ups spawned by that work:
 - [ ] Multi-host executive summary report (Reporting reads local data only)
 - [ ] Verify remote scans against a real second machine/test domain (error
       mapping is unit-tested; WSMan HRESULT paths not yet proven live)
+- [ ] Remote-capable diagnostics for the WMI-transportable checks (services,
+      event logs, disk space, reboot pending, update recency). **Deliberate
+      scope cut from the remote-analysis goal:** Diagnostics shipped
+      local-only because the connectivity probes (ping, DNS, DC reachability,
+      time) inherently measure *this* machine; the WMI-based subset can gain
+      targets in its own slice.
 
 ## P1 — Hardening (secures everything that already exists)
 

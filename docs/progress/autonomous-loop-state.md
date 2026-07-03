@@ -438,6 +438,22 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Open follow-ups recorded in TODO.md (StdRegProv remote registry, batch
   cancel channel, multi-host report, live remote validation)
 
+### 2026-07-03 — Remote-analysis review fixes (five commits)
+- P1: explicit-credential SecureString was disposed before the WSMan session
+  authenticated (lazy connect) — now lives for the session lifetime;
+  regression test drives the remote path against an unreachable loopback
+- P2: WSMan logon-failure HRESULTs → AUTHENTICATION_FAILED, remote access
+  denied → ACCESS_DENIED without requiredPrivilege (NTLM caveat documented
+  in ADR 0007/README); ScanError maps AccessDenied to the Authenticate phase
+- P2: SecurityPage never shows results/history for a different target than
+  selected (hide + "load last saved scan"); batch panels only in multi mode
+- P2 UX: inventory host list + single detail pane; shared CredentialFields
+  grid (TargetSelector + AD form); AD subtitle no longer claims
+  current-user-only
+- P1 scope: diagnostics-remote acceptance point formally amended to a
+  deliberate cut — WMI-transportable diagnostics recorded as follow-up in
+  TODO.md; connectivity probes stay local by nature
+
 ## Standing constraints (from loop definition)
 
 - One small task per iteration; finish M1.1 before M2.
