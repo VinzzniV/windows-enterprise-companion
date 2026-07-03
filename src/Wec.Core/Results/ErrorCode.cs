@@ -17,4 +17,6 @@ public enum ErrorCode
     AuthenticationFailed,
     WinRmUnavailable,
     UnsupportedRemoteOperation,
+    ServiceUnavailable,
+    RemoteCommandFailed,
 }
