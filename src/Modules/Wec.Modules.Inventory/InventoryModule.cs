@@ -20,6 +20,7 @@ public sealed class InventoryModule : IModule
         services.AddScoped<HardwareInfoService>();
         services.AddScoped<DiskEncryptionService>();
         services.AddScoped<IInventoryReportDataProvider, InventoryReportDataProvider>();
+        services.AddScoped<IInstalledSoftwareInventoryProvider, InstalledSoftwareInventoryProvider>();
         services.AddScoped<IActionHandler, GetHardwareInfoHandler>();
         services.AddScoped<IActionHandler, GetDiskEncryptionStatusHandler>();
         services.AddScoped<IActionHandler, ListInventoryHostsHandler>();

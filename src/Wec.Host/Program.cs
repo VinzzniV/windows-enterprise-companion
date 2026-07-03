@@ -27,6 +27,7 @@ using Wec.Infrastructure.Directory;
 using Wec.Modules.ActiveDirectory;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.Inventory;
+using Wec.Modules.PatchManagement;
 using Wec.Modules.Reporting;
 using Wec.Modules.Security;
 
@@ -140,6 +141,12 @@ internal static partial class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        builder.Services
+            .AddOptions<PatchManagementOptions>()
+            .Bind(builder.Configuration.GetSection(PatchManagementOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         IModule[] modules =
         [
             new InventoryModule(),
@@ -147,6 +154,7 @@ internal static partial class Program
             new DiagnosticsModule(),
             new ReportingModule(),
             new ActiveDirectoryModule(),
+            new PatchManagementModule(),
         ];
         foreach (IModule module in modules)
         {

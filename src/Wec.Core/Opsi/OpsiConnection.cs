@@ -12,4 +12,11 @@ public sealed record OpsiConnection(
     string UserName,
     string Password,
     bool TrustServerCertificate,
-    TimeSpan RequestTimeout);
+    TimeSpan RequestTimeout)
+{
+    // The generated record ToString would print the password; keep it out of
+    // every log/exception path
+    public override string ToString() =>
+        $"OpsiConnection {{ ServiceUrl = {ServiceUrl}, UserName = {UserName}, "
+        + $"TrustServerCertificate = {TrustServerCertificate} }}";
+}
