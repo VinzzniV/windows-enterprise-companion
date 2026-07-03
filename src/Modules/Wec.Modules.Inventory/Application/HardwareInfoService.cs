@@ -136,12 +136,23 @@ public sealed partial class HardwareInfoService
 
         Result<IReadOnlyList<WmiInstance>> networkAdapters = await QueryAsync(
             target, credentials, CimV2Namespace,
-            "SELECT Name, MACAddress, Speed, NetEnabled, AdapterType FROM Win32_NetworkAdapter WHERE PhysicalAdapter = TRUE",
+            "SELECT Index, Name, MACAddress, Speed, NetEnabled, AdapterType FROM Win32_NetworkAdapter WHERE PhysicalAdapter = TRUE",
             cancellationToken);
         if (networkAdapters.IsFailure)
         {
             return Result.Failure<HardwareSnapshot>(networkAdapters.Error!);
         }
+
+        // IP addresses are enrichment: a failing config query degrades to
+        // adapters without addresses instead of failing the snapshot
+        Result<IReadOnlyList<WmiInstance>> adapterConfigurations = await QueryAsync(
+            target, credentials, CimV2Namespace,
+            "SELECT Index, IPAddress FROM Win32_NetworkAdapterConfiguration WHERE IPEnabled = TRUE",
+            cancellationToken);
+        IReadOnlyDictionary<long, IReadOnlyList<string>> ipAddressesByAdapterIndex =
+            adapterConfigurations.IsSuccess
+                ? MapIpAddressesByAdapterIndex(adapterConfigurations.Value)
+                : new Dictionary<long, IReadOnlyList<string>>();
 
         Result<IReadOnlyList<WmiInstance>> videoControllers = await QueryAsync(
             target, credentials, CimV2Namespace,
@@ -186,7 +197,11 @@ public sealed partial class HardwareInfoService
             memoryBanks.Value.Select(ToMemoryBank).ToList(),
             disks.Value.Select(ToDiskDrive).ToList(),
             ToOperatingSystemInfo(operatingSystem),
-            networkAdapters.Value.Select(ToNetworkAdapterInfo).ToList(),
+            networkAdapters.Value
+                .Select(instance => ToNetworkAdapterInfo(instance, ipAddressesByAdapterIndex))
+                .OrderByDescending(adapter => adapter.Connected == true)
+                .ThenBy(adapter => adapter.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
             videoControllers.Value.Select(ToGpuInfo).ToList(),
             monitorInfos,
             installedSoftware));
@@ -216,12 +231,45 @@ public sealed partial class HardwareInfoService
         instance.GetString("BuildNumber") ?? string.Empty,
         instance.GetString("OSArchitecture"));
 
-    private static PhysicalNetworkAdapter ToNetworkAdapterInfo(WmiInstance instance) => new(
+    // Win32_NetworkAdapter reports Int64.MaxValue (and similar sentinels) as
+    // Speed for adapters whose link speed is unknown/disconnected
+    private const long MaxPlausibleLinkSpeedBitsPerSecond = 1_000_000_000_000;
+
+    internal static long? NormalizeLinkSpeed(long? reportedSpeed) =>
+        reportedSpeed is > 0 and < MaxPlausibleLinkSpeedBitsPerSecond ? reportedSpeed : null;
+
+    private static Dictionary<long, IReadOnlyList<string>> MapIpAddressesByAdapterIndex(
+        IReadOnlyList<WmiInstance> configurations)
+    {
+        var byIndex = new Dictionary<long, IReadOnlyList<string>>();
+        foreach (WmiInstance configuration in configurations)
+        {
+            long? adapterIndex = configuration.GetInteger("Index");
+            if (adapterIndex is null || configuration.GetRawValue("IPAddress") is not string[] addresses)
+            {
+                continue;
+            }
+
+            byIndex[adapterIndex.Value] = addresses
+                .Where(address => !string.IsNullOrWhiteSpace(address))
+                .ToList();
+        }
+
+        return byIndex;
+    }
+
+    private static PhysicalNetworkAdapter ToNetworkAdapterInfo(
+        WmiInstance instance,
+        IReadOnlyDictionary<long, IReadOnlyList<string>> ipAddressesByAdapterIndex) => new(
         instance.GetString("Name") ?? "Unknown adapter",
         instance.GetString("MACAddress"),
-        instance.GetInteger("Speed"),
+        NormalizeLinkSpeed(instance.GetInteger("Speed")),
         instance.GetRawValue("NetEnabled") as bool?,
-        instance.GetString("AdapterType"));
+        instance.GetString("AdapterType"),
+        instance.GetInteger("Index") is long adapterIndex
+            && ipAddressesByAdapterIndex.TryGetValue(adapterIndex, out IReadOnlyList<string>? addresses)
+            ? addresses
+            : null);
 
     private static GpuInfo ToGpuInfo(WmiInstance instance) => new(
         instance.GetString("Name") ?? "Unknown GPU",

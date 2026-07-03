@@ -5,4 +5,5 @@ public sealed record PhysicalNetworkAdapter(
     string? MacAddress,
     long? SpeedBitsPerSecond,
     bool? Connected,
-    string? AdapterType);
+    string? AdapterType,
+    IReadOnlyList<string>? IpAddresses = null);

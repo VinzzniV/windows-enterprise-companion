@@ -5,6 +5,7 @@ import type {
   EncryptableVolume,
   GetHardwareInfoRequest,
   HardwareInfoResult,
+  PhysicalNetworkAdapter,
   TargetRequest,
 } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
@@ -31,10 +32,12 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[exponent]}`;
 }
 
-function formatLinkSpeed(bitsPerSecond: number | null): string {
-  if (!bitsPerSecond || bitsPerSecond <= 0) return '—';
-  if (bitsPerSecond >= 1_000_000_000) return `${bitsPerSecond / 1_000_000_000} Gbit/s`;
-  if (bitsPerSecond >= 1_000_000) return `${bitsPerSecond / 1_000_000} Mbit/s`;
+export function formatLinkSpeed(bitsPerSecond: number | null): string {
+  // 1 Tbit/s+ is a WMI "unknown" sentinel (e.g. Int64.MaxValue), not a link speed
+  if (!bitsPerSecond || bitsPerSecond <= 0 || bitsPerSecond >= 1_000_000_000_000) return '—';
+  if (bitsPerSecond >= 1_000_000_000)
+    return `${Number((bitsPerSecond / 1_000_000_000).toFixed(1))} Gbit/s`;
+  if (bitsPerSecond >= 1_000_000) return `${Number((bitsPerSecond / 1_000_000).toFixed(1))} Mbit/s`;
   return `${bitsPerSecond} bit/s`;
 }
 
@@ -195,20 +198,51 @@ function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: 
         {snapshot.networkAdapters == null ? (
           <NotCaptured />
         ) : (
-          <DataTable
-            rows={snapshot.networkAdapters}
-            emptyMessage="No network adapters reported."
-            columns={[
-              { header: 'Name', cell: (adapter) => adapter.name },
-              { header: 'MAC', cell: (adapter) => adapter.macAddress ?? '—' },
-              { header: 'Link speed', cell: (adapter) => formatLinkSpeed(adapter.speedBitsPerSecond) },
+          (() => {
+            const activeAdapters = snapshot.networkAdapters.filter(
+              (adapter) => adapter.connected !== false,
+            );
+            const inactiveAdapters = snapshot.networkAdapters.filter(
+              (adapter) => adapter.connected === false,
+            );
+            const adapterColumns = [
+              { header: 'Name', cell: (adapter: PhysicalNetworkAdapter) => adapter.name },
               {
-                header: 'Status',
-                cell: (adapter) =>
-                  adapter.connected == null ? '—' : adapter.connected ? 'Connected' : 'Disconnected',
+                header: 'IP addresses',
+                cell: (adapter: PhysicalNetworkAdapter) =>
+                  adapter.ipAddresses?.length ? (
+                    <span className="break-all">{adapter.ipAddresses.join(', ')}</span>
+                  ) : (
+                    '—'
+                  ),
               },
-            ]}
-          />
+              { header: 'MAC', cell: (adapter: PhysicalNetworkAdapter) => adapter.macAddress ?? '—' },
+              {
+                header: 'Link speed',
+                cell: (adapter: PhysicalNetworkAdapter) => formatLinkSpeed(adapter.speedBitsPerSecond),
+              },
+            ];
+            return (
+              <div className="flex flex-col gap-2">
+                <DataTable
+                  rows={activeAdapters}
+                  emptyMessage="No connected network adapters."
+                  columns={adapterColumns}
+                />
+                {inactiveAdapters.length > 0 && (
+                  <DetailsDisclosure
+                    summary={`${inactiveAdapters.length} disconnected adapter${inactiveAdapters.length === 1 ? '' : 's'}`}
+                  >
+                    <DataTable
+                      rows={inactiveAdapters}
+                      emptyMessage=""
+                      columns={adapterColumns}
+                    />
+                  </DetailsDisclosure>
+                )}
+              </div>
+            );
+          })()
         )}
       </Card>
 

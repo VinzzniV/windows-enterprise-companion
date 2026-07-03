@@ -96,6 +96,7 @@ export interface PhysicalNetworkAdapter {
   speedBitsPerSecond: number | null;
   connected: boolean | null;
   adapterType: string | null;
+  ipAddresses: string[] | null;
 }
 
 /** Wec.Modules.Inventory.Domain.GpuInfo */

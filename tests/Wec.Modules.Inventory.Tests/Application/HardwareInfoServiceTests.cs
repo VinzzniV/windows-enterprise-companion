@@ -79,11 +79,19 @@ public class HardwareInfoServiceTests
         });
         SetUpQuery("Win32_NetworkAdapter", new Dictionary<string, object?>
         {
+            ["Index"] = 1u,
             ["Name"] = "Test Ethernet",
             ["MACAddress"] = "00:11:22:33:44:55",
             ["Speed"] = 1000000000ul,
             ["NetEnabled"] = true,
             ["AdapterType"] = "Ethernet 802.3",
+        });
+        // Registered after the adapter setup: its matcher ("Win32_NetworkAdapter")
+        // also matches the configuration query, and the last NSubstitute setup wins
+        SetUpQuery("Win32_NetworkAdapterConfiguration", new Dictionary<string, object?>
+        {
+            ["Index"] = 1u,
+            ["IPAddress"] = new[] { "192.168.1.10", "fe80::1" },
         });
         SetUpQuery("Win32_VideoController", new Dictionary<string, object?>
         {
@@ -132,7 +140,10 @@ public class HardwareInfoServiceTests
         Assert.Equal(17179869184, Assert.Single(result.Value.Snapshot.MemoryBanks).CapacityBytes);
         Assert.Equal("Test SSD", Assert.Single(result.Value.Snapshot.Disks).Model);
         Assert.Equal("Microsoft Windows 11 Pro", result.Value.Snapshot.OperatingSystem.Caption);
-        Assert.Equal("00:11:22:33:44:55", Assert.Single(result.Value.Snapshot.NetworkAdapters!).MacAddress);
+        PhysicalNetworkAdapter adapter = Assert.Single(result.Value.Snapshot.NetworkAdapters!);
+        Assert.Equal("00:11:22:33:44:55", adapter.MacAddress);
+        Assert.Equal(1000000000, adapter.SpeedBitsPerSecond);
+        Assert.Equal(["192.168.1.10", "fe80::1"], adapter.IpAddresses);
         Assert.Equal("Test GPU", Assert.Single(result.Value.Snapshot.Gpus!).Name);
         MonitorInfo monitor = Assert.Single(result.Value.Snapshot.Monitors!);
         Assert.Equal("DEL", monitor.Manufacturer);
@@ -159,6 +170,67 @@ public class HardwareInfoServiceTests
         Assert.Null(result.Value.Snapshot.InstalledSoftware);
         await _repository.Received(1).SaveAsync(
             remoteTarget.CacheKey, result.Value.Snapshot, Now, Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(long.MaxValue)]
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    public void NormalizeLinkSpeed_TreatsSentinelsAsUnknown(long reportedSpeed)
+    {
+        Assert.Null(HardwareInfoService.NormalizeLinkSpeed(reportedSpeed));
+    }
+
+    [Fact]
+    public void NormalizeLinkSpeed_KeepsPlausibleValues()
+    {
+        Assert.Equal(2_500_000_000, HardwareInfoService.NormalizeLinkSpeed(2_500_000_000));
+    }
+
+    [Fact]
+    public async Task Adapters_SortConnectedFirstAndDropSentinelSpeed()
+    {
+        _repository.GetLatestAsync(LocalHostKey, Arg.Any<CancellationToken>())
+            .Returns((CachedHardwareSnapshot?)null);
+        SetUpSuccessfulWmiQueries();
+        _wmiQueryService
+            .QueryAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Is<string>(query =>
+                    query.Contains("Win32_NetworkAdapter", StringComparison.Ordinal)
+                    && !query.Contains("Configuration", StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<WmiInstance>>(
+            [
+                new WmiInstance(new Dictionary<string, object?>
+                {
+                    ["Index"] = 2u,
+                    ["Name"] = "Disconnected Wi-Fi",
+                    ["Speed"] = unchecked((ulong)long.MaxValue),
+                    ["NetEnabled"] = false,
+                }),
+                new WmiInstance(new Dictionary<string, object?>
+                {
+                    ["Index"] = 1u,
+                    ["Name"] = "Test Ethernet",
+                    ["Speed"] = 1000000000ul,
+                    ["NetEnabled"] = true,
+                }),
+            ]));
+        HardwareInfoService service = CreateService();
+
+        Result<HardwareInfoResult> result = await GetLocalHardwareInfoAsync(service, forceRefresh: false);
+
+        Assert.True(result.IsSuccess);
+        IReadOnlyList<PhysicalNetworkAdapter> adapters = result.Value.Snapshot.NetworkAdapters!;
+        Assert.Equal(2, adapters.Count);
+        Assert.Equal("Test Ethernet", adapters[0].Name);
+        Assert.True(adapters[0].Connected);
+        Assert.Equal("Disconnected Wi-Fi", adapters[1].Name);
+        Assert.Null(adapters[1].SpeedBitsPerSecond);
     }
 
     [Fact]
