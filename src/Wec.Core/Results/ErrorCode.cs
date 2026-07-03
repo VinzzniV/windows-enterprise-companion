@@ -12,4 +12,9 @@ public enum ErrorCode
     EventLogUnavailable,
     FileWriteFailed,
     DirectoryUnavailable,
+    DnsResolutionFailed,
+    ConnectionTimeout,
+    AuthenticationFailed,
+    WinRmUnavailable,
+    UnsupportedRemoteOperation,
 }

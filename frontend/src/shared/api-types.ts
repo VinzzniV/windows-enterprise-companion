@@ -31,7 +31,20 @@ export type ErrorCode =
   | 'NETWORK_PROBE_FAILED'
   | 'EVENT_LOG_UNAVAILABLE'
   | 'FILE_WRITE_FAILED'
-  | 'DIRECTORY_UNAVAILABLE';
+  | 'DIRECTORY_UNAVAILABLE'
+  | 'DNS_RESOLUTION_FAILED'
+  | 'CONNECTION_TIMEOUT'
+  | 'AUTHENTICATION_FAILED'
+  | 'WIN_RM_UNAVAILABLE'
+  | 'UNSUPPORTED_REMOTE_OPERATION';
+
+/** Wec.Core.Messaging.TargetRequest — omit or leave host empty for the local machine */
+export interface TargetRequest {
+  host?: string | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
+}
 
 /** Wec.Modules.Inventory.Handlers.GetHardwareInfoRequest */
 export interface GetHardwareInfoRequest {
