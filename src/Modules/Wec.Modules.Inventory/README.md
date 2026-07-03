@@ -9,8 +9,10 @@ via WinRM (ADR 0007) — remote Windows clients.
 
 | Action | Payload | Result | Notes |
 |---|---|---|---|
-| `inventory/getHardwareInfo` | `{ forceRefresh?: boolean, target?: TargetRequest }` | `HardwareInfoResult` (host, snapshot, `capturedAtUtc`, `fromCache`) | Snapshot cached in SQLite **per host**; TTL via `Wec:Inventory:CacheTtl` |
+| `inventory/getHardwareInfo` | `{ forceRefresh?: boolean, target?: TargetRequest, cacheOnly?: boolean }` | `HardwareInfoResult` (host, snapshot, `capturedAtUtc`, `fromCache`) | Snapshot stored in SQLite **per host**; TTL via `Wec:Inventory:CacheTtl`; `cacheOnly` serves the stored snapshot without touching the network (`NOT_FOUND` if none) |
 | `inventory/getDiskEncryptionStatus` | `{ target?: TargetRequest }` | `DiskEncryptionStatus` (host, volumes) | Locally requires elevation (`ACCESS_DENIED` + `requiredPrivilege`, ADR 0002); remote rights come from the connection credentials |
+| `inventory/listHosts` | `{}` | `{ hosts: [{ host, capturedAtUtc }] }` | Stored snapshots — the UI restores scanned computers across page switches |
+| `inventory/deleteHostSnapshot` | `{ host }` | `{ host }` | Removes the stored snapshot for one host |
 
 `TargetRequest` = `{ host?, userName?, domain?, password? }`; empty = local
 machine as the current user.
@@ -33,8 +35,16 @@ machine as the current user.
   overload — the same queries run locally and remotely.
 - **Installed software** is read from the registry uninstall keys (both
   bitness views), never `Win32_Product` (enumerating it triggers MSI
-  reconfiguration). Registry access is local-only, so remote snapshots have
-  `installedSoftware: null` — shown as such, never silently empty.
+  reconfiguration). Locally through the registry seam; remotely read-only
+  through the WMI `StdRegProv` provider (`RemoteInstalledSoftwareReader`,
+  needs remote registry read rights). A failed remote capture sets a
+  structured `installedSoftwareError` on the snapshot — never a silently
+  empty list.
+- **Network adapters** carry MAC, link speed (WMI unknown-sentinels like
+  `Int64.MaxValue` normalize to null), IPv4/IPv6 addresses joined from
+  `Win32_NetworkAdapterConfiguration`, and sort connected-first.
+- **Multi-host scans** run in parallel in the UI, bounded by
+  `Wec:Remote:MaxParallelScans` (exposed through `system/getAppInfo`).
 - **Monitors** (`WmiMonitorID`, `root\wmi`) are optional: headless machines
   and most VMs do not expose the class; that yields an empty list, not a
   failed snapshot.

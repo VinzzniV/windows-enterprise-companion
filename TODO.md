@@ -4,6 +4,21 @@ Living document: check items off, reprioritize freely, delete what gets
 rejected. Ordering within a section is by value/effort. Milestone work
 (M6, M7) still follows the loop protocol: ADR + user decisions first.
 
+## Done 2026-07-03 — Remote completion pass
+
+Inventory: plausible link speeds (WMI sentinel → unknown), per-adapter
+IPv4/IPv6 addresses, connected-first ordering with collapsed disconnected
+adapters; persistent per-host snapshots with delete and restore-on-load;
+parallel multi-host scans bounded by MaxParallelScans; remote software
+inventory via StdRegProv (IWmiQueryService.InvokeMethodAsync) with
+structured errors instead of silently empty lists. Diagnostics: optional
+target, WMI-based checks remote-capable (domain membership, services, disk
+space via Win32_LogicalDisk, update recency, reboot pending via StdRegProv),
+connectivity probes visibly skipped as local-perspective, shared
+Local/Remote/Multiple scope flow with per-host summaries. AD: credential
+normalization (UPN, DOMAIN\user, credential domain, directory-domain
+fallback) and an activedirectory/testConnection bind check.
+
 ## Done 2026-07-03 — Enterprise UX pass
 
 Shared design-system primitives (Button, PageHeader, SummaryMetric,
@@ -28,19 +43,20 @@ selection; parallel multi-host security scans with per-host progress events
 
 Follow-ups spawned by that work:
 
-- [ ] Remote path for the registry-based checks (RDP, Secure Boot, UAC,
-      reboot pending) via StdRegProv method invocation — needs an
-      IWmiQueryService method-invoke extension
+- [ ] Remote path for the registry-based *security* checks (RDP, Secure
+      Boot, UAC) via StdRegProv — the IWmiQueryService method-invoke
+      extension exists now (used by remote software inventory and the
+      reboot-pending diagnostic); the security checks still report
+      LOCAL-ONLY
 - [ ] Batch-scan cancellation from the UI (bridge needs a cancel channel)
 - [ ] Multi-host executive summary report (Reporting reads local data only)
 - [ ] Verify remote scans against a real second machine/test domain (error
       mapping is unit-tested; WSMan HRESULT paths not yet proven live)
-- [ ] Remote-capable diagnostics for the WMI-transportable checks (services,
-      event logs, disk space, reboot pending, update recency). **Deliberate
-      scope cut from the remote-analysis goal:** Diagnostics shipped
-      local-only because the connectivity probes (ping, DNS, DC reachability,
-      time) inherently measure *this* machine; the WMI-based subset can gain
-      targets in its own slice.
+- [x] Remote-capable diagnostics for the WMI-transportable checks
+      (2026-07-03: domain membership, services, disk space, update recency,
+      reboot pending; connectivity probes stay local-perspective by nature —
+      event-log summary stays local too, Win32_NTLogEvent is too slow over
+      WinRM)
 
 ## P1 — Hardening (secures everything that already exists)
 

@@ -23,10 +23,10 @@ and the ADRs in [docs/adr/](docs/adr/).
 
 | Module | Scope | Remote |
 |---|---|---|
-| Inventory | CPU, RAM, disks, OS, network adapters, GPUs, monitors, installed software, BitLocker; per-host snapshot cache | yes (software list local-only) |
+| Inventory | CPU, RAM, disks, OS, network adapters (with IPs), GPUs, monitors, installed software, BitLocker; persistent per-host snapshots with delete; parallel multi-host scans | yes (software via remote registry/StdRegProv) |
 | Security | 13 read-only checks with per-host scan history; single-host and parallel multi-host scans | yes (registry/SAM checks marked local-only) |
-| Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting | local-only by design |
-| Active Directory | Domain overview + hygiene checks over LDAP | own or explicitly named domain/DC |
+| Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting; parallel multi-host runs | WMI-based checks yes; connectivity probes stay local-perspective |
+| Active Directory | Domain overview + hygiene checks over LDAP; test bind | own or explicitly named domain/DC |
 | Reporting | HTML/JSON executive summary of the local machine | local |
 
 ## Prerequisites
@@ -92,9 +92,10 @@ Logs (rolling daily, path shown in the sidebar footer) carry a
 
 ## Remote analysis
 
-Inventory and Security scans reach remote clients over **WinRM** (WSMan
-CimSession); Active Directory analysis uses **LDAP**. Requirements on the
-*target* machines:
+Inventory, Security and the WMI-based Diagnostics reach remote clients over
+**WinRM** (WSMan CimSession, including StdRegProv registry reads for the
+software list and reboot-pending signals); Active Directory analysis uses
+**LDAP**. Requirements on the *target* machines:
 
 - WinRM enabled (`winrm quickconfig`, or the "Allow remote server management
   through WinRM" GPO) and **TCP 5985** (HTTP + SPNEGO-encrypted) or
@@ -121,11 +122,15 @@ as access denied (the error text says so).
 
 ## Current limitations
 
-- Diagnostics and the executive-summary report cover the local machine only
-  (deliberate — the diagnostics probes measure this machine's connectivity).
-- The installed-software list is registry-based and therefore local-only;
-  remote snapshots show it as not captured.
-- The snapshot cache keeps one snapshot per host (no history).
+- The executive-summary report covers the local machine only; diagnostics
+  connectivity probes (gateway, DNS, DC reachability, time sync, event logs)
+  always measure from the machine WEC runs on and are visibly skipped for
+  remote targets.
+- Remote software inventory reads the uninstall keys through WMI StdRegProv —
+  it needs an account with remote registry read rights and takes noticeably
+  longer than a local read (one WinRM round trip per registry value).
+- The snapshot store keeps one snapshot per host (no history); hosts stay
+  listed until deleted or rescanned.
 - Batch scans report per-host progress live, but cannot be cancelled from
   the UI yet (the bridge has no cancel channel).
 - Elevation applies to the whole app via restart (button in the sidebar

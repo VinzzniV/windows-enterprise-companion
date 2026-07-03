@@ -13,11 +13,18 @@ operation.
 |---|---|---|
 | `activedirectory/getOverview` | `{ connection?: DirectoryConnectionRequest }` | `AdOverviewResult` — domain membership, DC list, user/group/computer counts |
 | `activedirectory/getHygiene` | `{ connection?: DirectoryConnectionRequest }` | `AdHygieneResult` — privileged groups + hygiene rules (inactive users/computers, password-never-expires, disabled-but-privileged) |
+| `activedirectory/testConnection` | `{ connection?: DirectoryConnectionRequest }` | `TestDirectoryConnectionResult` — the RootDSE bind every analysis starts with; a passing test means overview/hygiene can connect |
 
 `DirectoryConnectionRequest` = `{ domain?, server?, userName?, userDomain?,
 password? }`. Empty analyzes this machine's own domain as the current user.
 An explicit `domain` skips the local WMI detection (a workgroup machine can
 analyze a foreign domain); `server` pins the connection to one DC.
+
+Credential normalization: `userName` accepts `user@domain.tld` (UPN — the
+credential domain stays empty), `DOMAIN\user` (embedded domain wins over
+`userDomain`), or a plain user with `userDomain`. A plain user without any
+credential domain falls back to `domain`; with neither set the request is
+rejected as `INVALID_REQUEST` naming the accepted forms.
 
 ## Behavior
 

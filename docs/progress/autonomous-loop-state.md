@@ -478,6 +478,34 @@ Maintained by the autonomous development loop. One entry per iteration.
   (DiagnosticsPage.test.tsx). Gates: tsc clean, vitest green, npm build,
   dotnet build 0 warnings, all backend tests green
 
+### 2026-07-03 — Remote completion pass (goal-directed session, six commits)
+- Inventory adapters: WMI unknown-speed sentinels normalize to null (backend
+  + frontend guard for old cached rows), IPv4/IPv6 joined from
+  Win32_NetworkAdapterConfiguration by adapter index, connected-first
+  ordering, disconnected adapters collapsed
+- IWmiQueryService.InvokeMethodAsync (static WMI class methods) implemented
+  in CimWmiQueryService with the query path's session/DNS-probe/error
+  mapping; proven live against local StdRegProv in an integration test
+- Remote software inventory via StdRegProv (both bitness views, no
+  Win32_Product, no SystemComponent filter remotely — would double round
+  trips); failures become a structured SoftwareCaptureError on the snapshot
+- Inventory persistence: listHosts/deleteHostSnapshot actions, cacheOnly
+  reads restore stored hosts on page load without network traffic;
+  multi-host scans bounded client-side by MaxParallelScans (from app info)
+- Diagnostics: DiagnosticContext threading; remote-capable: domain
+  membership, services, disk space (rewritten to Win32_LogicalDisk,
+  IDriveInfoProvider seam deleted), update recency, reboot pending (local
+  registry seam locally, StdRegProv remotely); connectivity probes return
+  visible NOT_RUN/UnsupportedRemoteOperation for remote targets; UI uses the
+  shared Local/Remote/Multiple flow with per-host summary + disclosure
+- AD: NormalizeCredentials (UPN / DOMAIN\user / credential domain /
+  directory-domain fallback / clear INVALID_REQUEST), testConnection action
+  (RootDSE bind), UI warns before ambiguous binds and explains directory vs
+  credential domain
+- Not done deliberately: security registry checks still LOCAL-ONLY remotely
+  (follow-up in TODO), event-log summary local (Win32_NTLogEvent too slow),
+  live validation against a second machine still open
+
 ## Standing constraints (from loop definition)
 
 - One small task per iteration; finish M1.1 before M2.
