@@ -283,13 +283,19 @@ function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: 
 
       <Card title={`Software (${snapshot.installedSoftware?.length ?? 0})`}>
         {snapshot.installedSoftware == null ? (
-          <NotCaptured
-            reason={
-              target
-                ? 'Available for the local machine only (registry-based).'
-                : undefined
-            }
-          />
+          snapshot.installedSoftwareError ? (
+            <div role="alert" className="flex flex-col gap-1">
+              <p className="break-words text-sm text-red-400">
+                {snapshot.installedSoftwareError.code}: {snapshot.installedSoftwareError.message}
+              </p>
+              <p className="text-xs text-slate-500">
+                Remote software inventory reads the registry through WMI (StdRegProv) and needs an
+                account with remote registry read rights on the target.
+              </p>
+            </div>
+          ) : (
+            <NotCaptured />
+          )
         ) : (
           <DetailsDisclosure summary={`Show ${snapshot.installedSoftware.length} entries`}>
             <div className="max-h-80 overflow-y-auto">

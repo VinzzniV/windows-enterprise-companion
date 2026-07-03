@@ -33,6 +33,7 @@ public class HardwareInfoServiceTests
             _wmiQueryService,
             _repository,
             new InstalledSoftwareReader(_registryReader),
+            new RemoteInstalledSoftwareReader(_wmiQueryService),
             _clock,
             Microsoft.Extensions.Options.Options.Create(new InventoryOptions
             {
@@ -154,9 +155,10 @@ public class HardwareInfoServiceTests
     }
 
     [Fact]
-    public async Task RemoteTarget_CachesUnderRemoteHostAndSkipsInstalledSoftware()
+    public async Task RemoteTarget_CachesUnderRemoteHostAndCapturesSoftwareRemotely()
     {
         SetUpSuccessfulWmiQueries();
+        SetUpRemoteRegistry();
         ScanTarget remoteTarget = ScanTarget.Remote("pc-042.contoso.local");
         _repository.GetLatestAsync(remoteTarget.CacheKey, Arg.Any<CancellationToken>())
             .Returns((CachedHardwareSnapshot?)null);
@@ -167,10 +169,71 @@ public class HardwareInfoServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("pc-042.contoso.local", result.Value.Host);
-        Assert.Null(result.Value.Snapshot.InstalledSoftware);
+        Assert.Null(result.Value.Snapshot.InstalledSoftwareError);
+        Assert.Equal("Remote App", Assert.Single(result.Value.Snapshot.InstalledSoftware!).Name);
         await _repository.Received(1).SaveAsync(
             remoteTarget.CacheKey, result.Value.Snapshot, Now, Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task RemoteSoftwareFailure_DegradesToStructuredErrorInsteadOfFailingSnapshot()
+    {
+        SetUpSuccessfulWmiQueries();
+        _wmiQueryService
+            .InvokeMethodAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<WmiInstance>(
+                Error.AccessDenied("registry read denied", Wec.Core.Privileges.PrivilegeLevel.Administrator)));
+        ScanTarget remoteTarget = ScanTarget.Remote("pc-042");
+        _repository.GetLatestAsync(remoteTarget.CacheKey, Arg.Any<CancellationToken>())
+            .Returns((CachedHardwareSnapshot?)null);
+        HardwareInfoService service = CreateService();
+
+        Result<HardwareInfoResult> result = await service.GetHardwareInfoAsync(
+            remoteTarget, ScanCredentials.CurrentUser, forceRefresh: false, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value.Snapshot.InstalledSoftware);
+        Assert.Equal("ACCESS_DENIED", result.Value.Snapshot.InstalledSoftwareError!.Code);
+    }
+
+    /// <summary>EnumKey succeeds for the primary view with one entry; the WOW6432Node view is absent.</summary>
+    private void SetUpRemoteRegistry()
+    {
+        SetUpRegistryMethod("EnumKey", parameters => (string?)parameters["sSubKeyName"] is { } path
+            && !path.Contains("WOW6432Node", StringComparison.Ordinal)
+            ? new Dictionary<string, object?> { ["ReturnValue"] = 0u, ["sNames"] = new[] { "RemoteApp" } }
+            : new Dictionary<string, object?> { ["ReturnValue"] = 2u });
+        SetUpRegistryMethod("GetStringValue", parameters => (string?)parameters["sValueName"] switch
+        {
+            "DisplayName" => new Dictionary<string, object?> { ["ReturnValue"] = 0u, ["sValue"] = "Remote App" },
+            "DisplayVersion" => new Dictionary<string, object?> { ["ReturnValue"] = 0u, ["sValue"] = "1.0" },
+            _ => new Dictionary<string, object?> { ["ReturnValue"] = 1u },
+        });
+    }
+
+    private void SetUpRegistryMethod(
+        string methodName,
+        Func<IReadOnlyDictionary<string, object?>, Dictionary<string, object?>> respond) =>
+        _wmiQueryService
+            .InvokeMethodAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Is("StdRegProv"),
+                Arg.Is(methodName),
+                Arg.Any<IReadOnlyDictionary<string, object?>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(callInfo => Result.Success(new WmiInstance(
+                respond(callInfo.Arg<IReadOnlyDictionary<string, object?>>()))));
 
     [Theory]
     [InlineData(long.MaxValue)]

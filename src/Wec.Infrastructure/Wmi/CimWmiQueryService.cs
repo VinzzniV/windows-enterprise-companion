@@ -81,6 +81,77 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
         }
     }
 
+    public Task<Result<WmiInstance>> InvokeMethodAsync(
+        ScanTarget target,
+        ScanCredentials credentials,
+        ConnectionOptions connection,
+        string wmiNamespace,
+        string className,
+        string methodName,
+        IReadOnlyDictionary<string, object?> inputParameters,
+        CancellationToken cancellationToken) =>
+        Task.Run(
+            () => ExecuteMethod(target, credentials, connection, wmiNamespace, className, methodName, inputParameters, cancellationToken),
+            cancellationToken);
+
+    private Result<WmiInstance> ExecuteMethod(
+        ScanTarget target,
+        ScanCredentials credentials,
+        ConnectionOptions connection,
+        string wmiNamespace,
+        string className,
+        string methodName,
+        IReadOnlyDictionary<string, object?> inputParameters,
+        CancellationToken cancellationToken)
+    {
+        if (!target.IsLocal)
+        {
+            Error? dnsError = ProbeDnsResolution(target.Host!);
+            if (dnsError is not null)
+            {
+                return Result.Failure<WmiInstance>(dnsError);
+            }
+        }
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using SecureString? explicitPassword = credentials.Mode == CredentialMode.Explicit
+                ? ToSecureString(credentials.Password!)
+                : null;
+            using CimSession session = CreateSession(target, credentials, connection, explicitPassword);
+            using var parameters = new CimMethodParametersCollection();
+            foreach ((string parameterName, object? parameterValue) in inputParameters)
+            {
+                parameters.Add(CimMethodParameter.Create(parameterName, parameterValue, CimFlags.In));
+            }
+
+            using CimMethodResult methodResult = session.InvokeMethod(wmiNamespace, className, methodName, parameters);
+            var properties = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ReturnValue"] = NormalizeValue(methodResult.ReturnValue?.Value),
+            };
+            foreach (CimMethodParameter outParameter in methodResult.OutParameters)
+            {
+                properties[outParameter.Name] = NormalizeValue(outParameter.Value);
+            }
+
+            return Result.Success(new WmiInstance(properties));
+        }
+        catch (CimException exception)
+        {
+            Error error = RemoteCimErrorMapper.Map(exception, !target.IsLocal, target.DisplayName);
+            _logger.LogWarning(
+                exception,
+                "CIM method {ClassName}.{MethodName} against {Target} failed with {ErrorCode}",
+                className,
+                methodName,
+                target.DisplayName,
+                error.Code);
+            return Result.Failure<WmiInstance>(error);
+        }
+    }
+
     private static CimSession CreateSession(
         ScanTarget target,
         ScanCredentials credentials,

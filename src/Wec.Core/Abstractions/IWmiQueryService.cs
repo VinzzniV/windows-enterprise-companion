@@ -18,4 +18,18 @@ public interface IWmiQueryService
         string wqlQuery,
         CancellationToken cancellationToken) =>
         QueryAsync(ScanTarget.Local, ScanCredentials.CurrentUser, ConnectionOptions.Default, wmiNamespace, wqlQuery, cancellationToken);
+
+    /// <summary>
+    /// Invokes a static WMI class method (e.g. StdRegProv registry reads) and
+    /// returns the out-parameters plus <c>ReturnValue</c> as a property bag.
+    /// </summary>
+    Task<Result<WmiInstance>> InvokeMethodAsync(
+        ScanTarget target,
+        ScanCredentials credentials,
+        ConnectionOptions connection,
+        string wmiNamespace,
+        string className,
+        string methodName,
+        IReadOnlyDictionary<string, object?> inputParameters,
+        CancellationToken cancellationToken);
 }

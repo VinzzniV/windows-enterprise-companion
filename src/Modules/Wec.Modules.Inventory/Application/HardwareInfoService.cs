@@ -16,6 +16,7 @@ public sealed partial class HardwareInfoService
     private readonly IWmiQueryService _wmiQueryService;
     private readonly IHardwareSnapshotRepository _repository;
     private readonly InstalledSoftwareReader _installedSoftwareReader;
+    private readonly RemoteInstalledSoftwareReader _remoteInstalledSoftwareReader;
     private readonly IClock _clock;
     private readonly InventoryOptions _options;
     private readonly ConnectionOptions _connectionOptions;
@@ -25,6 +26,7 @@ public sealed partial class HardwareInfoService
         IWmiQueryService wmiQueryService,
         IHardwareSnapshotRepository repository,
         InstalledSoftwareReader installedSoftwareReader,
+        RemoteInstalledSoftwareReader remoteInstalledSoftwareReader,
         IClock clock,
         IOptions<InventoryOptions> options,
         IOptions<RemoteScanOptions> remoteScanOptions,
@@ -33,6 +35,7 @@ public sealed partial class HardwareInfoService
         _wmiQueryService = wmiQueryService;
         _repository = repository;
         _installedSoftwareReader = installedSoftwareReader;
+        _remoteInstalledSoftwareReader = remoteInstalledSoftwareReader;
         _clock = clock;
         _options = options.Value;
         _connectionOptions = remoteScanOptions.Value.ToConnectionOptions();
@@ -84,6 +87,11 @@ public sealed partial class HardwareInfoService
         Level = LogLevel.Information,
         Message = "Monitor identification unavailable on {HostKey}: {ErrorMessage}")]
     private partial void LogMonitorsUnavailable(string hostKey, string errorMessage);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Remote software capture failed on {HostKey}: {ErrorMessage}")]
+    private partial void LogRemoteSoftwareCaptureFailed(string hostKey, string errorMessage);
 
     private Task<Result<IReadOnlyList<WmiInstance>>> QueryAsync(
         ScanTarget target,
@@ -180,9 +188,27 @@ public sealed partial class HardwareInfoService
             monitorInfos = [];
         }
 
-        IReadOnlyList<InstalledSoftwareEntry>? installedSoftware = target.IsLocal
-            ? _installedSoftwareReader.ReadInstalledSoftware()
-            : null;
+        IReadOnlyList<InstalledSoftwareEntry>? installedSoftware;
+        SoftwareCaptureError? installedSoftwareError = null;
+        if (target.IsLocal)
+        {
+            installedSoftware = _installedSoftwareReader.ReadInstalledSoftware();
+        }
+        else
+        {
+            // A failed software read degrades the snapshot with a visible,
+            // structured error — never a silently empty software list
+            Result<IReadOnlyList<InstalledSoftwareEntry>> remoteSoftware =
+                await _remoteInstalledSoftwareReader.ReadAsync(target, credentials, _connectionOptions, cancellationToken);
+            installedSoftware = remoteSoftware.IsSuccess ? remoteSoftware.Value : null;
+            if (remoteSoftware.IsFailure)
+            {
+                LogRemoteSoftwareCaptureFailed(target.CacheKey, remoteSoftware.Error!.Message);
+                installedSoftwareError = new SoftwareCaptureError(
+                    System.Text.Json.JsonNamingPolicy.SnakeCaseUpper.ConvertName(remoteSoftware.Error!.Code.ToString()),
+                    remoteSoftware.Error!.Message);
+            }
+        }
 
         WmiInstance? processor = processors.Value.Count > 0 ? processors.Value[0] : null;
         WmiInstance? operatingSystem = operatingSystems.Value.Count > 0 ? operatingSystems.Value[0] : null;
@@ -204,7 +230,8 @@ public sealed partial class HardwareInfoService
                 .ToList(),
             videoControllers.Value.Select(ToGpuInfo).ToList(),
             monitorInfos,
-            installedSoftware));
+            installedSoftware,
+            installedSoftwareError));
     }
 
     private static CpuInfo ToCpuInfo(WmiInstance instance) => new(

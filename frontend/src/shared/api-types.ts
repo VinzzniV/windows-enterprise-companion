@@ -130,6 +130,13 @@ export interface HardwareSnapshot {
   gpus?: GpuInfo[] | null;
   monitors?: MonitorInfo[] | null;
   installedSoftware?: InstalledSoftwareEntry[] | null;
+  installedSoftwareError?: SoftwareCaptureError | null;
+}
+
+/** Wec.Modules.Inventory.Domain.SoftwareCaptureError */
+export interface SoftwareCaptureError {
+  code: string;
+  message: string;
 }
 
 /** Wec.Modules.Inventory.Application.HardwareInfoResult */
