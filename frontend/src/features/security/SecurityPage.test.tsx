@@ -107,4 +107,28 @@ describe('SecurityPage', () => {
 
     expect(await screen.findByText('No scan yet')).toBeDefined();
   });
+
+  it('separates local-only coverage notes from real findings', async () => {
+    setUpInvoke({
+      scan: {
+        ...latestScan.scan!,
+        findings: [
+          finding({ findingId: 'F-HIGH', title: 'Firewall disabled', severity: 'HIGH' }),
+          finding({
+            findingId: 'WEC-SEC-UAC-LOCAL-ONLY',
+            title: 'UAC check skipped',
+            severity: 'INFO',
+          }),
+        ],
+      },
+    });
+
+    render(<SecurityPage />);
+    await screen.findByText('Firewall disabled');
+
+    expect(screen.getByText('Coverage (1 checks without a result)')).toBeDefined();
+    expect(screen.getByText('Local only')).toBeDefined();
+    // The coverage note must not inflate the finding count
+    expect(screen.getByText(/1 finding\b/)).toBeDefined();
+  });
 });
