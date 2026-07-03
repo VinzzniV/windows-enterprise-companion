@@ -14,6 +14,7 @@ operation.
 | `activedirectory/getOverview` | `{ connection?: DirectoryConnectionRequest }` | `AdOverviewResult` — domain membership, DC list, user/group/computer counts |
 | `activedirectory/getHygiene` | `{ connection?: DirectoryConnectionRequest }` | `AdHygieneResult` — privileged groups + hygiene rules (inactive users/computers, password-never-expires, disabled-but-privileged) |
 | `activedirectory/testConnection` | `{ connection?: DirectoryConnectionRequest }` | `TestDirectoryConnectionResult` — the RootDSE bind every analysis starts with; a passing test means overview/hygiene can connect |
+| `activedirectory/searchComputers` | `{ nameFilter?, includeDisabled?, connection? }` | `AdComputerSearchResult` — the Get-ADComputer-with-filter equivalent; feeds the multi-host pickers on the Inventory/Security/Diagnostics pages. Substring match by default, user-typed `*` wildcards pass through; enabled computers only unless `includeDisabled` |
 
 `DirectoryConnectionRequest` = `{ domain?, server?, userName?, userDomain?,
 password? }`. Empty analyzes this machine's own domain as the current user.
@@ -56,6 +57,7 @@ rejected as `INVALID_REQUEST` naming the accepted forms.
 | `SearchTimeout` | 30 s | Per-request client/server time limit |
 | `InactivityThreshold` | 90 days | lastLogonTimestamp age that counts as inactive |
 | `ExampleLimit` | 20 | Maximum example accounts/members per rule or group |
+| `ComputerSearchLimit` | 500 | Upper bound for the computer search behind the scan pickers (result carries a `truncated` flag) |
 
 ## Tests
 

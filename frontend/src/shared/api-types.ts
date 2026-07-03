@@ -609,3 +609,19 @@ export interface PatchAuditEntry {
 export interface AuditLogResult {
   entries: PatchAuditEntry[];
 }
+
+/** Wec.Modules.ActiveDirectory.Application.AdComputer */
+export interface AdComputer {
+  name: string;
+  dnsHostName: string | null;
+  operatingSystem: string | null;
+  enabled: boolean;
+}
+
+/** Wec.Modules.ActiveDirectory.Application.AdComputerSearchResult */
+export interface AdComputerSearchResult {
+  domainJoined: boolean;
+  domainName: string | null;
+  computers: AdComputer[];
+  truncated: boolean;
+}

@@ -15,8 +15,10 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<DomainContextService>();
         services.AddScoped<DirectoryOverviewService>();
         services.AddScoped<DirectoryHygieneService>();
+        services.AddScoped<ComputerSearchService>();
         services.AddScoped<IActionHandler, GetAdOverviewHandler>();
         services.AddScoped<IActionHandler, GetAdHygieneHandler>();
         services.AddScoped<IActionHandler, TestDirectoryConnectionHandler>();
+        services.AddScoped<IActionHandler, SearchAdComputersHandler>();
     }
 }

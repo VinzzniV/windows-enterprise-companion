@@ -29,7 +29,7 @@ and the ADRs in [docs/adr/](docs/adr/).
 | Inventory | CPU, RAM, disks, OS, network adapters (with IPs), GPUs, monitors, installed software, BitLocker; persistent per-host snapshots with delete; parallel multi-host scans | yes (software via remote registry/StdRegProv) |
 | Security | 13 read-only checks with per-host scan history; single-host and parallel multi-host scans | yes (registry/SAM checks marked local-only) |
 | Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting; parallel multi-host runs | WMI-based checks yes; connectivity probes stay local-perspective |
-| Active Directory | Domain overview + hygiene checks over LDAP; test bind | own or explicitly named domain/DC |
+| Active Directory | Domain overview + hygiene checks over LDAP; test bind; computer search that feeds the multi-host scan pickers | own or explicitly named domain/DC |
 | Patch Management | Semi-automatic opsi workflow hub (ADR 0008): dashboard, inventory comparison, mandatory rollout preview with confirmation, audit log; session-only credentials | opsi server over JSON-RPC (HTTPS :4447) |
 | Reporting | HTML/JSON executive summary of the local machine | local |
 

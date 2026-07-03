@@ -44,6 +44,32 @@ internal static class AdFilters
         return $"(&(objectCategory=person)(objectClass=user)({UacBitAnd}2)(|{memberOfClauses}))";
     }
 
+    /// <summary>
+    /// Computer search by name/DNS name. A pattern without wildcards becomes
+    /// a substring match (search-box semantics); user-typed '*' wildcards
+    /// survive escaping, everything else is escaped per RFC 4515.
+    /// </summary>
+    public static string ComputersByName(string? namePattern, bool includeDisabled)
+    {
+        string disabledClause = includeDisabled ? string.Empty : $"(!({UacBitAnd}2))";
+        string trimmed = namePattern?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0)
+        {
+            return includeDisabled ? Computers : $"(&(objectCategory=computer){disabledClause})";
+        }
+
+        string escaped = EscapeFilterValueKeepingWildcards(trimmed);
+        string pattern = escaped.Contains('*', StringComparison.Ordinal) ? escaped : $"*{escaped}*";
+        return $"(&(objectCategory=computer)(|(name={pattern})(dNSHostName={pattern})){disabledClause})";
+    }
+
+    private static string EscapeFilterValueKeepingWildcards(string value) =>
+        value
+            .Replace(@"\", @"\5c", StringComparison.Ordinal)
+            .Replace("(", @"\28", StringComparison.Ordinal)
+            .Replace(")", @"\29", StringComparison.Ordinal)
+            .Replace("\0", @"\00", StringComparison.Ordinal);
+
     /// <summary>RFC 4515 escaping for values embedded in LDAP filters.</summary>
     public static string EscapeFilterValue(string value) =>
         value

@@ -1,4 +1,6 @@
-import type { TargetRequest } from '../api-types';
+import { useState } from 'react';
+import type { AdComputer, AdComputerSearchResult, TargetRequest } from '../api-types';
+import { BridgeInvokeError, invoke } from '../bridge/bridgeClient';
 
 export interface TargetSelection {
   mode: 'local' | 'remote' | 'multiple';
@@ -166,15 +168,23 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
       )}
 
       {selection.mode === 'multiple' && (
-        <textarea
-          value={selection.hosts}
-          onChange={(event) => set({ hosts: event.target.value })}
-          placeholder="One host per line (hostname, FQDN or IP address)"
-          aria-label="Remote hosts"
-          rows={3}
-          disabled={disabled}
-          className={inputClass}
-        />
+        <>
+          <textarea
+            value={selection.hosts}
+            onChange={(event) => set({ hosts: event.target.value })}
+            placeholder="One host per line (hostname, FQDN or IP address)"
+            aria-label="Remote hosts"
+            rows={3}
+            disabled={disabled}
+            className={inputClass}
+          />
+          <AdComputerPicker
+            disabled={disabled}
+            onAdd={(hosts) =>
+              set({ hosts: [...new Set([...toHostList(selection), ...hosts])].join('\n') })
+            }
+          />
+        </>
       )}
 
       {selection.mode !== 'local' && (
@@ -212,5 +222,170 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
         </div>
       )}
     </fieldset>
+  );
+}
+
+/**
+ * "Get-ADComputer with filter" for the UI: search domain computers over the
+ * read-only LDAP seam and add the selection to the multi-host list. Runs as
+ * the current user against the machine's own domain — for explicit
+ * directory credentials use the Active Directory page.
+ */
+function AdComputerPicker({
+  disabled,
+  onAdd,
+}: {
+  disabled?: boolean;
+  onAdd(hosts: string[]): void;
+}) {
+  const [filter, setFilter] = useState('');
+  const [includeDisabled, setIncludeDisabled] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [result, setResult] = useState<AdComputerSearchResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
+
+  const hostOf = (computer: AdComputer) => computer.dnsHostName ?? computer.name;
+
+  const search = () => {
+    setSearching(true);
+    setError(null);
+    setResult(null);
+    setChecked(new Set());
+    invoke<AdComputerSearchResult>(
+      'activedirectory',
+      'searchComputers',
+      { nameFilter: filter.trim() || null, includeDisabled },
+      120_000,
+    )
+      .then((searchResult) => {
+        setResult(searchResult);
+        // Preselect what people almost always want: every enabled machine found
+        setChecked(new Set(
+          searchResult.computers.filter((computer) => computer.enabled).map(hostOf),
+        ));
+      })
+      .catch((searchError: unknown) => {
+        setError(
+          searchError instanceof BridgeInvokeError
+            ? `${searchError.error.code}: ${searchError.error.message}`
+            : searchError instanceof Error
+              ? searchError.message
+              : String(searchError),
+        );
+      })
+      .finally(() => setSearching(false));
+  };
+
+  const toggle = (host: string) =>
+    setChecked((previous) => {
+      const next = new Set(previous);
+      if (next.has(host)) {
+        next.delete(host);
+      } else {
+        next.add(host);
+      }
+      return next;
+    });
+
+  return (
+    <div className="flex flex-col gap-2 rounded border border-slate-800 bg-slate-900/60 p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          Add from Active Directory
+        </span>
+        <input
+          type="text"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              search();
+            }
+          }}
+          placeholder="Name filter (substring or * wildcard, empty = all)"
+          aria-label="AD computer name filter"
+          disabled={disabled || searching}
+          className={`${inputClass} min-w-52 flex-1`}
+        />
+        <label className="flex items-center gap-1.5 text-xs text-slate-400">
+          <input
+            type="checkbox"
+            checked={includeDisabled}
+            onChange={(event) => setIncludeDisabled(event.target.checked)}
+            disabled={disabled || searching}
+          />
+          Include disabled
+        </label>
+        <button
+          type="button"
+          onClick={search}
+          disabled={disabled || searching}
+          className="cursor-pointer rounded border border-slate-600 px-2.5 py-1 text-sm text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-default disabled:opacity-50"
+        >
+          {searching ? 'Searching…' : 'Search AD'}
+        </button>
+      </div>
+
+      {error && (
+        <p role="alert" className="text-xs text-red-400">
+          {error} — for explicit directory credentials use the Active Directory page.
+        </p>
+      )}
+
+      {result && !result.domainJoined && (
+        <p className="text-xs text-slate-400">
+          This machine is not domain-joined — the AD search needs a domain.
+        </p>
+      )}
+
+      {result?.domainJoined && (
+        <>
+          <p className="text-xs text-slate-400">
+            {result.computers.length} computer(s) in {result.domainName}
+            {result.truncated ? ' (list truncated — refine the filter)' : ''}
+          </p>
+          {result.computers.length > 0 && (
+            <>
+              <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto">
+                {result.computers.map((computer) => {
+                  const host = hostOf(computer);
+                  return (
+                    <li key={host}>
+                      <label className="flex items-center gap-2 text-sm text-slate-200">
+                        <input
+                          type="checkbox"
+                          checked={checked.has(host)}
+                          onChange={() => toggle(host)}
+                          disabled={disabled}
+                        />
+                        <span className="min-w-0 truncate">
+                          {host}
+                          {!computer.enabled && <span className="ml-1.5 text-xs text-amber-400">disabled</span>}
+                          {computer.operatingSystem && (
+                            <span className="ml-1.5 text-xs text-slate-500">{computer.operatingSystem}</span>
+                          )}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => onAdd([...checked])}
+                  disabled={disabled || checked.size === 0}
+                  className="cursor-pointer rounded bg-sky-700 px-2.5 py-1 text-sm font-medium text-slate-50 transition-colors hover:bg-sky-600 disabled:cursor-default disabled:opacity-50"
+                >
+                  Add {checked.size} computer(s) to the scan list
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
   );
 }

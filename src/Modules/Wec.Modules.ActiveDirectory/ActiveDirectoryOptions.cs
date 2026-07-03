@@ -17,4 +17,8 @@ public sealed class ActiveDirectoryOptions
     /// <summary>Upper bound for example accounts per hygiene rule; counts stay exact.</summary>
     [Range(1, 1_000)]
     public int ExampleLimit { get; set; } = 20;
+
+    /// <summary>Upper bound for the computer search behind the multi-host scan pickers.</summary>
+    [Range(1, 10_000)]
+    public int ComputerSearchLimit { get; set; } = 500;
 }
