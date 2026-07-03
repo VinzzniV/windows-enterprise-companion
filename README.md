@@ -6,8 +6,22 @@ from local assets, typed JSON message bridge — no HTTP server, no open ports
 (ADR 0001). Modular monolith; modules implement `IModule` and reference only
 `Wec.Core`.
 
+Analysis is read-only and targets the local machine or, for Inventory,
+Security and Active Directory, remote Windows clients over WinRM/LDAP
+(ADR 0007). Each module has its own README under `src/Modules/`.
+
 Authoritative docs: [docs/architecture-and-m1-plan.md](docs/architecture-and-m1-plan.md)
 and the ADRs in [docs/adr/](docs/adr/).
+
+## Modules
+
+| Module | Scope | Remote |
+|---|---|---|
+| Inventory | CPU, RAM, disks, OS, network adapters, GPUs, monitors, installed software, BitLocker; per-host snapshot cache | yes (software list local-only) |
+| Security | 13 read-only checks with per-host scan history; single-host and parallel multi-host scans | yes (registry/SAM checks marked local-only) |
+| Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting | local-only by design |
+| Active Directory | Domain overview + hygiene checks over LDAP | own or explicitly named domain/DC |
+| Reporting | HTML/JSON executive summary of the local machine | local |
 
 ## Prerequisites
 
@@ -70,12 +84,41 @@ default 15 minutes):
 Logs (rolling daily, path shown in the sidebar footer) carry a
 `CorrelationId` per bridge request for tracing a UI action end to end.
 
+## Remote analysis
+
+Inventory and Security scans reach remote clients over **WinRM** (WSMan
+CimSession); Active Directory analysis uses **LDAP**. Requirements on the
+*target* machines:
+
+- WinRM enabled (`winrm quickconfig`, or the "Allow remote server management
+  through WinRM" GPO) and **TCP 5985** (HTTP + SPNEGO-encrypted) or
+  **TCP 5986** (HTTPS) open in the firewall.
+- The scanning account must be in the target's `Administrators` group (most
+  WMI namespaces require it remotely); `Remote Management Users` works for
+  reduced scope.
+- AD analysis needs **TCP 389** to a DC and DNS servers that know the domain.
+
+Credential behavior (ADR 0007): scans run as the **current user** by default
+(Kerberos/Negotiate). Explicit credentials can be entered per scan; they live
+in memory for the duration of that request only — never logged, never
+persisted. Expected failures surface as typed per-host errors
+(`DNS_RESOLUTION_FAILED`, `CONNECTION_TIMEOUT`, `AUTHENTICATION_FAILED`,
+`WIN_RM_UNAVAILABLE`, …), and checks that can only run locally say so
+instead of being skipped silently.
+
+Known limitations: workgroup targets may require WinRM `TrustedHosts` on the
+scanning machine (NTLM fallback); firewall-blocked and service-stopped WinRM
+are indistinguishable from the client side (one combined error message).
+
 ## Current limitations
 
-- Local machine only — no remote inventory, no domain/AD features yet.
-- Inventory covers CPU, memory banks, physical disks, OS and BitLocker
-  status; no monitors, GPUs, network adapters or installed software.
-- The snapshot cache keeps only the latest snapshot (no history).
+- Diagnostics and the executive-summary report cover the local machine only
+  (deliberate — the diagnostics probes measure this machine's connectivity).
+- The installed-software list is registry-based and therefore local-only;
+  remote snapshots show it as not captured.
+- The snapshot cache keeps one snapshot per host (no history).
+- Batch scans report per-host progress live, but cannot be cancelled from
+  the UI yet (the bridge has no cancel channel).
 - Elevation applies to the whole app via restart (button in the sidebar
   footer); there is no per-action elevation prompt (deliberate, ADR 0002).
 - TypeScript API types are mirrored manually from the C# DTOs

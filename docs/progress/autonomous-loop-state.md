@@ -409,6 +409,35 @@ Maintained by the autonomous development loop. One entry per iteration.
 - Gates: vitest 9/9 ✅ · npm build ✅ · dotnet build 0 warnings ✅ ·
   dotnet test 113/113 ✅ · app smoke test with splash in WebView2 ✅
 
+### 2026-07-03 — Remote analysis (goal-directed session, six slices)
+- ADR 0007 (remote execution/credentials: WSMan CimSession, in-memory-only
+  credentials, remote error taxonomy) + ADR 0006 revised (LDAP credentials,
+  domain/DC override, diagnostic error mapping)
+- Slice 1: Wec.Core.Targets (ScanTarget/ScanCredentials/ConnectionOptions/
+  ScanError/RemoteScanOptions), TargetRequest payload, target-aware
+  IWmiQueryService, remote CimWmiQueryService + RemoteCimErrorMapper
+- Slice 2: inventory per-host cache (migration AddHostToHardwareSnapshots),
+  remote targets, adapters/GPUs/monitors/installed software, TargetSelector UI
+- Slice 3: security scan context per target; LocalAdministratorsCheck
+  repaired (nested CimInstance PartComponent — the string regex never matched
+  under MMI); new checks UAC/Defender signatures/patch level/reboot pending/
+  account policy (new ILocalAccountPolicyReader seam); host-scoped scan
+  history (migration AddHostToSecurityScans with local backfill)
+- Slice 4: diagnostics categories (Dns/System added), physical-vs-virtual
+  adapter split with MAC/speed/DHCP, new diagnostics disk space/DNS server
+  reachability/DC reachability/reboot pending/update recency; grouped UI;
+  diagnostics stay local-only by design
+- Slice 5: LdapErrorMapper (bind failed/DC down/timeout/naming context
+  missing/DNS pre-probe), explicit credentials + domain/DC selection for AD
+- Slice 6: BatchSecurityScanService (MaxParallelScans, connectivity gate,
+  per-host outcomes, scope-per-host persistence) + first bridge events
+  (IBridgeEventPublisher, security/batchScanProgress) + multi-host UI
+- Gates per slice: dotnet build 0 warnings, all backend tests green
+  (final: 218 across 8 assemblies), vitest 21/21, npm build; committed per
+  slice (6 commits + docs)
+- Open follow-ups recorded in TODO.md (StdRegProv remote registry, batch
+  cancel channel, multi-host report, live remote validation)
+
 ## Standing constraints (from loop definition)
 
 - One small task per iteration; finish M1.1 before M2.

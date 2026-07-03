@@ -1,24 +1,34 @@
 # Wec.Modules.ActiveDirectory
 
-Read-only Active Directory analysis (M4). Access strategy: ADR 0006 —
-LDAP via the search-only `IDirectoryReader` Core seam, authenticated as the
-current Windows identity. The module never writes to the directory; the seam
-does not even expose a write operation.
+Read-only Active Directory analysis (M4). Access strategy: ADR 0006 (revised
+2026-07-03) — LDAP via the search-only `IDirectoryReader` Core seam,
+authenticated as the current Windows identity or with optional explicit
+credentials (ADR 0007 policy: in-memory only, never persisted). The module
+never writes to the directory; the seam does not even expose a write
+operation.
 
 ## Bridge actions
 
 | Action | Payload | Result |
 |---|---|---|
-| `activedirectory/getOverview` | `{}` | `AdOverviewResult` — domain membership, DC list, user/group/computer counts |
-| `activedirectory/getHygiene` | `{}` | `AdHygieneResult` — privileged groups + hygiene rules (inactive users/computers, password-never-expires, disabled-but-privileged) |
+| `activedirectory/getOverview` | `{ connection?: DirectoryConnectionRequest }` | `AdOverviewResult` — domain membership, DC list, user/group/computer counts |
+| `activedirectory/getHygiene` | `{ connection?: DirectoryConnectionRequest }` | `AdHygieneResult` — privileged groups + hygiene rules (inactive users/computers, password-never-expires, disabled-but-privileged) |
+
+`DirectoryConnectionRequest` = `{ domain?, server?, userName?, userDomain?,
+password? }`. Empty analyzes this machine's own domain as the current user.
+An explicit `domain` skips the local WMI detection (a workgroup machine can
+analyze a foreign domain); `server` pins the connection to one DC.
 
 ## Behavior
 
-- **Workgroup machine:** `domainJoined: false` with empty data — a valid
-  answer rendered as "not applicable", never an error.
-- **Directory unreachable:** typed `DIRECTORY_UNAVAILABLE` error.
-- **Read refused:** typed `ACCESS_DENIED` error (whatever the logged-on user
-  may read is what WEC shows; no credential prompts).
+- **Workgroup machine without a domain override:** `domainJoined: false`
+  with empty data — a valid answer rendered as "not applicable", never an
+  error.
+- **Failures are diagnostically distinct** (ADR 0006 revision):
+  `DNS_RESOLUTION_FAILED` (own probe, with a point-DNS-at-the-domain hint),
+  `AUTHENTICATION_FAILED` (LDAP bind rejected), `DIRECTORY_UNAVAILABLE`
+  with a DC-down/firewall explanation, `CONNECTION_TIMEOUT`, `NOT_FOUND`
+  (naming context missing) and `ACCESS_DENIED` (read refused).
 - Counts use paged searches with an empty attribute list (RFC 4511 `1.1`),
   so no attribute payload crosses the wire.
 - Hygiene rules report **exact counts** with **bounded example lists**

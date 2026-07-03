@@ -4,6 +4,27 @@ Living document: check items off, reprioritize freely, delete what gets
 rejected. Ordering within a section is by value/effort. Milestone work
 (M6, M7) still follows the loop protocol: ADR + user decisions first.
 
+## Done 2026-07-03 — Remote analysis (ADR 0007, ADR 0006 revision)
+
+Local + remote read-only analysis shipped in six slices: Core target/
+credential types with WSMan remote CIM and typed remote errors; inventory
+remote with per-host cache and expanded capture (adapters/GPU/monitors/
+software); security remote with repaired local-admins parsing, five new
+checks and host-scoped history; categorized diagnostics with five new
+checks; AD with diagnostic LDAP errors, explicit credentials and domain/DC
+selection; parallel multi-host security scans with per-host progress events
+(first use of the bridge event channel).
+
+Follow-ups spawned by that work:
+
+- [ ] Remote path for the registry-based checks (RDP, Secure Boot, UAC,
+      reboot pending) via StdRegProv method invocation — needs an
+      IWmiQueryService method-invoke extension
+- [ ] Batch-scan cancellation from the UI (bridge needs a cancel channel)
+- [ ] Multi-host executive summary report (Reporting reads local data only)
+- [ ] Verify remote scans against a real second machine/test domain (error
+      mapping is unit-tested; WSMan HRESULT paths not yet proven live)
+
 ## P1 — Hardening (secures everything that already exists)
 
 - [x] **Wec.Host.Tests project** — 10 tests (2026-07-02):
@@ -56,16 +77,16 @@ rejected. Ordering within a section is by value/effort. Milestone work
       SecurityPage (findings, severity + category filters, empty state),
       ReportingPage (export success/cancel, disabled without data),
       ErrorBoundary; vitest setup file with explicit cleanup
-- [ ] **Inventory expansion**: network adapters, GPU, installed software
-      (registry uninstall keys, NOT Win32_Product), monitors
+- [x] **Inventory expansion** (2026-07-03): network adapters, GPU, installed
+      software (registry uninstall keys, NOT Win32_Product), monitors
 - [ ] **Hardware snapshot history** — keep more than the latest snapshot,
       show "what changed since last capture"
 - [ ] **Settings page** — UI for the tunables currently only editable by hand
       in `%APPDATA%\Wec\usersettings.json` (cache TTL, AD thresholds, log
       level); would be the first legitimate write path before M6
 - [ ] **In-app log viewer** with CorrelationId filter
-- [ ] Module READMEs for Security, Diagnostics, Reporting (CLAUDE.md requires
-      one per module; only Inventory and ActiveDirectory have one)
+- [x] Module READMEs for Security, Diagnostics, Reporting (2026-07-03; all
+      five modules documented)
 - [ ] **Scheduled/baseline scans** — security scan via Task Scheduler
       (headless mode) + comparison against a saved baseline
 

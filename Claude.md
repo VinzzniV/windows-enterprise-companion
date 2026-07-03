@@ -46,6 +46,11 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
   expected failures (access denied, WMI unavailable, not found).
   Exceptions are reserved for bugs; a global handler maps them to a generic
   `INTERNAL_ERROR` envelope without leaking internals.
+- Remote analysis (ADR 0007): WSMan `CimSession` behind `IWmiQueryService`,
+  LDAP credentials behind `IDirectoryReader` (ADR 0006 revision). Targets and
+  credentials are Core types (`Wec.Core.Targets`); explicit credentials are
+  in-memory per request, never persisted. Local-only checks report
+  `UNSUPPORTED_REMOTE_OPERATION`-style findings instead of silently skipping.
 - Persistence: one `WecDbContext` (Infrastructure) + SQLite at
   `%LOCALAPPDATA%\Wec\wec.db`. EF Core migrations from day 1, applied at startup.
   Module entity configurations (`IEntityTypeConfiguration<T>`) live in the module,
