@@ -15,6 +15,7 @@ public sealed class InventoryModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<IHardwareSnapshotRepository, EfHardwareSnapshotRepository>();
+        services.AddScoped<InstalledSoftwareReader>();
         services.AddScoped<HardwareInfoService>();
         services.AddScoped<DiskEncryptionService>();
         services.AddScoped<IInventoryReportDataProvider, InventoryReportDataProvider>();

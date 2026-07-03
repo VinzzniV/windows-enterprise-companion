@@ -16,7 +16,9 @@ internal sealed class InventoryReportDataProvider : IInventoryReportDataProvider
 
     public async Task<InventoryReportData?> GetLatestAsync(CancellationToken cancellationToken)
     {
-        CachedHardwareSnapshot? cached = await _repository.GetLatestAsync(cancellationToken);
+        // The executive summary reports on the machine WEC runs on
+        CachedHardwareSnapshot? cached = await _repository.GetLatestAsync(
+            Wec.Core.Targets.ScanTarget.Local.CacheKey, cancellationToken);
         if (cached is null)
         {
             return null;

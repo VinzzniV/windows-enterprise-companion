@@ -10,4 +10,7 @@ public interface IRegistryReader
 {
     /// <summary>Returns the value, or success with null when the key or value does not exist.</summary>
     Result<object?> ReadLocalMachineValue(string subKeyPath, string valueName);
+
+    /// <summary>Returns the sub key names, or success with an empty list when the key does not exist.</summary>
+    Result<IReadOnlyList<string>> ReadLocalMachineSubKeyNames(string subKeyPath);
 }

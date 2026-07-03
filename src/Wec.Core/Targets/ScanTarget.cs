@@ -17,6 +17,9 @@ public sealed record ScanTarget
 
     public string DisplayName => IsLocal ? Environment.MachineName : Host!;
 
+    /// <summary>Stable per-host key for caches and result grouping.</summary>
+    public string CacheKey => DisplayName.ToUpperInvariant();
+
     public static ScanTarget Remote(string host)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(host);

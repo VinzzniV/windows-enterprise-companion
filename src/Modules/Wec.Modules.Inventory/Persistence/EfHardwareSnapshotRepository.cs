@@ -20,9 +20,10 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
         _logger = logger;
     }
 
-    public async Task<CachedHardwareSnapshot?> GetLatestAsync(CancellationToken cancellationToken)
+    public async Task<CachedHardwareSnapshot?> GetLatestAsync(string hostKey, CancellationToken cancellationToken)
     {
         HardwareSnapshotRecord? record = await _dbContext.Set<HardwareSnapshotRecord>()
+            .Where(snapshot => snapshot.Host == hostKey)
             .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -44,13 +45,20 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
         }
     }
 
-    public async Task SaveAsync(HardwareSnapshot snapshot, DateTimeOffset capturedAtUtc, CancellationToken cancellationToken)
+    public async Task SaveAsync(
+        string hostKey,
+        HardwareSnapshot snapshot,
+        DateTimeOffset capturedAtUtc,
+        CancellationToken cancellationToken)
     {
-        // The table is a single-entry cache; replace instead of accumulating history
-        await _dbContext.Set<HardwareSnapshotRecord>().ExecuteDeleteAsync(cancellationToken);
+        // One cache entry per host; replace instead of accumulating history
+        await _dbContext.Set<HardwareSnapshotRecord>()
+            .Where(existing => existing.Host == hostKey)
+            .ExecuteDeleteAsync(cancellationToken);
 
         _dbContext.Set<HardwareSnapshotRecord>().Add(new HardwareSnapshotRecord
         {
+            Host = hostKey,
             CapturedAtUtc = capturedAtUtc,
             PayloadJson = JsonSerializer.Serialize(snapshot),
         });

@@ -31,4 +31,20 @@ public sealed class WindowsRegistryReader : IRegistryReader
                 PrivilegeLevel.Administrator));
         }
     }
+
+    public Result<IReadOnlyList<string>> ReadLocalMachineSubKeyNames(string subKeyPath)
+    {
+        try
+        {
+            using RegistryKey? key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(subKeyPath);
+            return Result.Success<IReadOnlyList<string>>(key?.GetSubKeyNames() ?? []);
+        }
+        catch (Exception exception) when (exception is SecurityException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(exception, "Registry read access denied: HKLM\\{SubKeyPath}", subKeyPath);
+            return Result.Failure<IReadOnlyList<string>>(Error.AccessDenied(
+                $"Access to registry key 'HKLM\\{subKeyPath}' was denied.",
+                PrivilegeLevel.Administrator));
+        }
+    }
 }

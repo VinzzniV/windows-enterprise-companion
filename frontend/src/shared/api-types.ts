@@ -49,6 +49,12 @@ export interface TargetRequest {
 /** Wec.Modules.Inventory.Handlers.GetHardwareInfoRequest */
 export interface GetHardwareInfoRequest {
   forceRefresh?: boolean;
+  target?: TargetRequest | null;
+}
+
+/** Wec.Modules.Inventory.Handlers.GetDiskEncryptionStatusRequest */
+export interface GetDiskEncryptionStatusRequest {
+  target?: TargetRequest | null;
 }
 
 /** Wec.Modules.Inventory.Domain.CpuInfo */
@@ -83,16 +89,51 @@ export interface OperatingSystemInfo {
   architecture: string | null;
 }
 
-/** Wec.Modules.Inventory.Domain.HardwareSnapshot */
+/** Wec.Modules.Inventory.Domain.PhysicalNetworkAdapter */
+export interface PhysicalNetworkAdapter {
+  name: string;
+  macAddress: string | null;
+  speedBitsPerSecond: number | null;
+  connected: boolean | null;
+  adapterType: string | null;
+}
+
+/** Wec.Modules.Inventory.Domain.GpuInfo */
+export interface GpuInfo {
+  name: string;
+  memoryBytes: number | null;
+  driverVersion: string | null;
+}
+
+/** Wec.Modules.Inventory.Domain.MonitorInfo */
+export interface MonitorInfo {
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+}
+
+/** Wec.Modules.Inventory.Domain.InstalledSoftwareEntry */
+export interface InstalledSoftwareEntry {
+  name: string;
+  version: string | null;
+  publisher: string | null;
+}
+
+/** Wec.Modules.Inventory.Domain.HardwareSnapshot — optional sections are null when not captured (old cache entries; installed software on remote targets) */
 export interface HardwareSnapshot {
   cpu: CpuInfo;
   memoryBanks: MemoryBank[];
   disks: DiskDrive[];
   operatingSystem: OperatingSystemInfo;
+  networkAdapters?: PhysicalNetworkAdapter[] | null;
+  gpus?: GpuInfo[] | null;
+  monitors?: MonitorInfo[] | null;
+  installedSoftware?: InstalledSoftwareEntry[] | null;
 }
 
 /** Wec.Modules.Inventory.Application.HardwareInfoResult */
 export interface HardwareInfoResult {
+  host: string;
   snapshot: HardwareSnapshot;
   capturedAtUtc: string;
   fromCache: boolean;
@@ -109,6 +150,7 @@ export interface EncryptableVolume {
 
 /** Wec.Modules.Inventory.Application.DiskEncryptionStatus */
 export interface DiskEncryptionStatus {
+  host: string;
   volumes: EncryptableVolume[];
 }
 

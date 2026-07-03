@@ -1,10 +1,11 @@
 using Wec.Core.Messaging;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.Inventory.Application;
 
 namespace Wec.Modules.Inventory.Handlers;
 
-public sealed record GetDiskEncryptionStatusRequest;
+public sealed record GetDiskEncryptionStatusRequest(TargetRequest? Target = null);
 
 internal sealed class GetDiskEncryptionStatusHandler
     : IActionHandler<GetDiskEncryptionStatusRequest, DiskEncryptionStatus>
@@ -22,6 +23,18 @@ internal sealed class GetDiskEncryptionStatusHandler
 
     public Task<Result<DiskEncryptionStatus>> HandleAsync(
         GetDiskEncryptionStatusRequest payload,
-        CancellationToken cancellationToken) =>
-        _diskEncryptionService.GetStatusAsync(cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        TargetRequest targetRequest = payload.Target ?? new TargetRequest();
+        Result<ScanCredentials> credentials = targetRequest.ToScanCredentials();
+        if (credentials.IsFailure)
+        {
+            return Task.FromResult(Result.Failure<DiskEncryptionStatus>(credentials.Error!));
+        }
+
+        return _diskEncryptionService.GetStatusAsync(
+            targetRequest.ToScanTarget(),
+            credentials.Value,
+            cancellationToken);
+    }
 }

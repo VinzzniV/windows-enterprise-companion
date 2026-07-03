@@ -4,6 +4,8 @@ public sealed class HardwareSnapshotRecord
 {
     public long Id { get; set; }
 
+    public string Host { get; set; } = string.Empty;
+
     public DateTimeOffset CapturedAtUtc { get; set; }
 
     public string PayloadJson { get; set; } = string.Empty;

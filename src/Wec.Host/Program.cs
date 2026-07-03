@@ -111,6 +111,12 @@ internal static partial class Program
             .ValidateOnStart();
 
         builder.Services
+            .AddOptions<Wec.Core.Targets.RemoteScanOptions>()
+            .Bind(builder.Configuration.GetSection(Wec.Core.Targets.RemoteScanOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        builder.Services
             .AddOptions<InventoryOptions>()
             .Bind(builder.Configuration.GetSection(InventoryOptions.SectionName))
             .ValidateDataAnnotations()

@@ -59,13 +59,13 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
             await writeContext.Database.MigrateAsync();
             var repository = new EfHardwareSnapshotRepository(
                 writeContext, NullLogger<EfHardwareSnapshotRepository>.Instance);
-            await repository.SaveAsync(snapshot, capturedAtUtc, CancellationToken.None);
+            await repository.SaveAsync("PC-001", snapshot, capturedAtUtc, CancellationToken.None);
         }
 
         using WecDbContext readContext = CreateContext();
         var reloadedRepository = new EfHardwareSnapshotRepository(
             readContext, NullLogger<EfHardwareSnapshotRepository>.Instance);
-        CachedHardwareSnapshot? reloaded = await reloadedRepository.GetLatestAsync(CancellationToken.None);
+        CachedHardwareSnapshot? reloaded = await reloadedRepository.GetLatestAsync("PC-001", CancellationToken.None);
 
         Assert.NotNull(reloaded);
         Assert.Equal(capturedAtUtc, reloaded.CapturedAtUtc);
@@ -76,18 +76,36 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAsync_ReplacesPreviousSnapshotInsteadOfAccumulating()
+    public async Task SaveAsync_ReplacesPreviousSnapshotPerHostInsteadOfAccumulating()
     {
         using WecDbContext context = CreateContext();
         await context.Database.MigrateAsync();
         var repository = new EfHardwareSnapshotRepository(
             context, NullLogger<EfHardwareSnapshotRepository>.Instance);
 
-        await repository.SaveAsync(BuildSnapshot(), DateTimeOffset.UtcNow.AddHours(-1), CancellationToken.None);
-        await repository.SaveAsync(BuildSnapshot(), DateTimeOffset.UtcNow, CancellationToken.None);
+        await repository.SaveAsync("PC-001", BuildSnapshot(), DateTimeOffset.UtcNow.AddHours(-1), CancellationToken.None);
+        await repository.SaveAsync("PC-001", BuildSnapshot(), DateTimeOffset.UtcNow, CancellationToken.None);
+        await repository.SaveAsync("PC-002", BuildSnapshot(), DateTimeOffset.UtcNow, CancellationToken.None);
 
-        int rowCount = await context.Set<HardwareSnapshotRecord>().CountAsync();
-        Assert.Equal(1, rowCount);
+        int totalRows = await context.Set<HardwareSnapshotRecord>().CountAsync();
+        int firstHostRows = await context.Set<HardwareSnapshotRecord>()
+            .CountAsync(record => record.Host == "PC-001");
+        Assert.Equal(2, totalRows);
+        Assert.Equal(1, firstHostRows);
+    }
+
+    [Fact]
+    public async Task GetLatestAsync_ForUnknownHost_ReturnsNull()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        var repository = new EfHardwareSnapshotRepository(
+            context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+        await repository.SaveAsync("PC-001", BuildSnapshot(), DateTimeOffset.UtcNow, CancellationToken.None);
+
+        CachedHardwareSnapshot? other = await repository.GetLatestAsync("PC-999", CancellationToken.None);
+
+        Assert.Null(other);
     }
 
     public void Dispose()

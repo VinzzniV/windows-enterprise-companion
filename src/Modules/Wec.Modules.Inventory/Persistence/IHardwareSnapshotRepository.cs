@@ -6,7 +6,11 @@ public sealed record CachedHardwareSnapshot(HardwareSnapshot Snapshot, DateTimeO
 
 public interface IHardwareSnapshotRepository
 {
-    Task<CachedHardwareSnapshot?> GetLatestAsync(CancellationToken cancellationToken);
+    Task<CachedHardwareSnapshot?> GetLatestAsync(string hostKey, CancellationToken cancellationToken);
 
-    Task SaveAsync(HardwareSnapshot snapshot, DateTimeOffset capturedAtUtc, CancellationToken cancellationToken);
+    Task SaveAsync(
+        string hostKey,
+        HardwareSnapshot snapshot,
+        DateTimeOffset capturedAtUtc,
+        CancellationToken cancellationToken);
 }
