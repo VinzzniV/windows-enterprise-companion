@@ -10,6 +10,11 @@ import type {
 import { Card } from '../../shared/ui/Card';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { Spinner } from '../../shared/ui/Spinner';
+import { Button } from '../../shared/ui/Button';
+import { PageHeader } from '../../shared/ui/PageHeader';
+import { ErrorState } from '../../shared/ui/States';
+import { DataTable } from '../../shared/ui/DataTable';
+import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import {
   LOCAL_TARGET_SELECTION,
   TargetSelector,
@@ -76,7 +81,7 @@ function EncryptionCard({ target }: { target: TargetRequest | null }) {
   }, [target]);
 
   return (
-    <Card title="Disk encryption (BitLocker)">
+    <Card title="BitLocker">
       {state.kind === 'loading' && <Spinner label="Checking encryption status …" />}
 
       {state.kind === 'requiresElevation' && (
@@ -121,10 +126,33 @@ function EncryptionCard({ target }: { target: TargetRequest | null }) {
   );
 }
 
+function NotCaptured({ reason }: { reason?: string }) {
+  return (
+    <p className="text-sm text-slate-400">
+      {reason ?? 'Not captured in this snapshot — refresh to include it.'}
+    </p>
+  );
+}
+
 function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: TargetRequest | null }) {
   const { snapshot } = result;
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <Card title="System">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
+          <dt className="text-slate-400">Computer</dt>
+          <dd>{result.host}</dd>
+          <dt className="text-slate-400">Operating system</dt>
+          <dd>{snapshot.operatingSystem.caption}</dd>
+          <dt className="text-slate-400">Version</dt>
+          <dd>
+            {snapshot.operatingSystem.version} (Build {snapshot.operatingSystem.buildNumber})
+          </dd>
+          <dt className="text-slate-400">Architecture</dt>
+          <dd>{snapshot.operatingSystem.architecture ?? '—'}</dd>
+        </dl>
+      </Card>
+
       <Card title="CPU">
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
           <dt className="text-slate-400">Name</dt>
@@ -138,120 +166,71 @@ function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: 
         </dl>
       </Card>
 
-      <Card title="Operating system">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
-          <dt className="text-slate-400">Name</dt>
-          <dd>{snapshot.operatingSystem.caption}</dd>
-          <dt className="text-slate-400">Version</dt>
-          <dd>
-            {snapshot.operatingSystem.version} (Build {snapshot.operatingSystem.buildNumber})
-          </dd>
-          <dt className="text-slate-400">Architecture</dt>
-          <dd>{snapshot.operatingSystem.architecture ?? '—'}</dd>
-        </dl>
-      </Card>
-
       <Card title={`Memory (${snapshot.memoryBanks.length} banks)`}>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="text-slate-400">
-              <th className="pb-1 font-normal">Manufacturer</th>
-              <th className="pb-1 font-normal">Part number</th>
-              <th className="pb-1 font-normal">Capacity</th>
-              <th className="pb-1 font-normal">Speed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {snapshot.memoryBanks.map((bank, index) => (
-              <tr key={index} className="border-t border-slate-800">
-                <td className="py-1">{bank.manufacturer ?? '—'}</td>
-                <td className="py-1">{bank.partNumber ?? '—'}</td>
-                <td className="py-1">{formatBytes(bank.capacityBytes)}</td>
-                <td className="py-1">{bank.speedMtps ? `${bank.speedMtps} MT/s` : '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          rows={snapshot.memoryBanks}
+          emptyMessage="No memory bank information available."
+          columns={[
+            { header: 'Manufacturer', cell: (bank) => bank.manufacturer ?? '—' },
+            { header: 'Part number', cell: (bank) => bank.partNumber ?? '—' },
+            { header: 'Capacity', cell: (bank) => formatBytes(bank.capacityBytes) },
+            { header: 'Speed', cell: (bank) => (bank.speedMtps ? `${bank.speedMtps} MT/s` : '—') },
+          ]}
+        />
       </Card>
 
-      <Card title={`Disks (${snapshot.disks.length})`}>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="text-slate-400">
-              <th className="pb-1 font-normal">Model</th>
-              <th className="pb-1 font-normal">Size</th>
-              <th className="pb-1 font-normal">Interface</th>
-            </tr>
-          </thead>
-          <tbody>
-            {snapshot.disks.map((disk, index) => (
-              <tr key={index} className="border-t border-slate-800">
-                <td className="py-1">{disk.model}</td>
-                <td className="py-1">{formatBytes(disk.sizeBytes)}</td>
-                <td className="py-1">{disk.interfaceType ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <Card title={`Storage (${snapshot.disks.length} disks)`}>
+        <DataTable
+          rows={snapshot.disks}
+          emptyMessage="No physical disks reported."
+          columns={[
+            { header: 'Model', cell: (disk) => disk.model },
+            { header: 'Size', cell: (disk) => formatBytes(disk.sizeBytes) },
+            { header: 'Interface', cell: (disk) => disk.interfaceType ?? '—' },
+          ]}
+        />
       </Card>
 
-      <Card title={`Network adapters (${snapshot.networkAdapters?.length ?? 0})`}>
+      <Card title={`Network (${snapshot.networkAdapters?.length ?? 0} adapters)`}>
         {snapshot.networkAdapters == null ? (
-          <p className="text-sm text-slate-400">Not captured in this snapshot — refresh to include it.</p>
+          <NotCaptured />
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-slate-400">
-                <th className="pb-1 font-normal">Name</th>
-                <th className="pb-1 font-normal">MAC</th>
-                <th className="pb-1 font-normal">Link speed</th>
-                <th className="pb-1 font-normal">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.networkAdapters.map((adapter, index) => (
-                <tr key={index} className="border-t border-slate-800">
-                  <td className="py-1">{adapter.name}</td>
-                  <td className="py-1">{adapter.macAddress ?? '—'}</td>
-                  <td className="py-1">{formatLinkSpeed(adapter.speedBitsPerSecond)}</td>
-                  <td className="py-1">
-                    {adapter.connected == null ? '—' : adapter.connected ? 'Connected' : 'Disconnected'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            rows={snapshot.networkAdapters}
+            emptyMessage="No network adapters reported."
+            columns={[
+              { header: 'Name', cell: (adapter) => adapter.name },
+              { header: 'MAC', cell: (adapter) => adapter.macAddress ?? '—' },
+              { header: 'Link speed', cell: (adapter) => formatLinkSpeed(adapter.speedBitsPerSecond) },
+              {
+                header: 'Status',
+                cell: (adapter) =>
+                  adapter.connected == null ? '—' : adapter.connected ? 'Connected' : 'Disconnected',
+              },
+            ]}
+          />
         )}
       </Card>
 
-      <Card title={`Graphics (${snapshot.gpus?.length ?? 0})`}>
+      <Card title={`GPU (${snapshot.gpus?.length ?? 0})`}>
         {snapshot.gpus == null ? (
-          <p className="text-sm text-slate-400">Not captured in this snapshot — refresh to include it.</p>
+          <NotCaptured />
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="text-slate-400">
-                <th className="pb-1 font-normal">Name</th>
-                <th className="pb-1 font-normal">Memory</th>
-                <th className="pb-1 font-normal">Driver</th>
-              </tr>
-            </thead>
-            <tbody>
-              {snapshot.gpus.map((gpu, index) => (
-                <tr key={index} className="border-t border-slate-800">
-                  <td className="py-1">{gpu.name}</td>
-                  <td className="py-1">{gpu.memoryBytes ? formatBytes(gpu.memoryBytes) : '—'}</td>
-                  <td className="py-1">{gpu.driverVersion ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            rows={snapshot.gpus}
+            emptyMessage="No graphics adapters reported."
+            columns={[
+              { header: 'Name', cell: (gpu) => gpu.name },
+              { header: 'Memory', cell: (gpu) => (gpu.memoryBytes ? formatBytes(gpu.memoryBytes) : '—') },
+              { header: 'Driver', cell: (gpu) => gpu.driverVersion ?? '—' },
+            ]}
+          />
         )}
       </Card>
 
       <Card title={`Monitors (${snapshot.monitors?.length ?? 0})`}>
         {snapshot.monitors == null ? (
-          <p className="text-sm text-slate-400">Not captured in this snapshot — refresh to include it.</p>
+          <NotCaptured />
         ) : snapshot.monitors.length === 0 ? (
           <p className="text-sm text-slate-400">No monitor identification available (typical for VMs).</p>
         ) : (
@@ -268,37 +247,29 @@ function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: 
         )}
       </Card>
 
-      <Card title={`Installed software (${snapshot.installedSoftware?.length ?? 0})`}>
+      <Card title={`Software (${snapshot.installedSoftware?.length ?? 0})`}>
         {snapshot.installedSoftware == null ? (
-          <p className="text-sm text-slate-400">
-            {target ? 'Available for the local machine only (registry-based).' : 'Not captured in this snapshot — refresh to include it.'}
-          </p>
+          <NotCaptured
+            reason={
+              target
+                ? 'Available for the local machine only (registry-based).'
+                : undefined
+            }
+          />
         ) : (
-          <details>
-            <summary className="cursor-pointer text-sm text-slate-300">
-              Show {snapshot.installedSoftware.length} entries
-            </summary>
-            <div className="mt-2 max-h-80 overflow-y-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="text-slate-400">
-                    <th className="pb-1 font-normal">Name</th>
-                    <th className="pb-1 font-normal">Version</th>
-                    <th className="pb-1 font-normal">Publisher</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {snapshot.installedSoftware.map((entry, index) => (
-                    <tr key={index} className="border-t border-slate-800">
-                      <td className="py-1">{entry.name}</td>
-                      <td className="py-1">{entry.version ?? '—'}</td>
-                      <td className="py-1">{entry.publisher ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <DetailsDisclosure summary={`Show ${snapshot.installedSoftware.length} entries`}>
+            <div className="max-h-80 overflow-y-auto">
+              <DataTable
+                rows={snapshot.installedSoftware}
+                emptyMessage="No installed software found."
+                columns={[
+                  { header: 'Name', cell: (entry) => entry.name },
+                  { header: 'Version', cell: (entry) => entry.version ?? '—' },
+                  { header: 'Publisher', cell: (entry) => entry.publisher ?? '—' },
+                ]}
+              />
             </div>
-          </details>
+          </DetailsDisclosure>
         )}
       </Card>
 
@@ -362,23 +333,17 @@ export function HardwareInfoPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Hardware Inventory</h1>
-          <p className="text-sm text-slate-400">Hardware overview per scanned computer</p>
-        </div>
-        <TargetSelector selection={selection} onChange={setSelection} disabled={anyLoading} />
-        <div>
-          <button
-            type="button"
-            onClick={() => load(toTargetRequest(selection), false)}
-            disabled={anyLoading || (selection.mode === 'remote' && selection.host.trim() === '')}
-            className="rounded bg-sky-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-sky-600 disabled:opacity-50"
-          >
-            Scan target
-          </button>
-        </div>
-      </header>
+      <PageHeader title="Inventory" subtitle="Hardware overview per scanned computer">
+        <Button
+          variant="primary"
+          onClick={() => load(toTargetRequest(selection), false)}
+          disabled={anyLoading || (selection.mode === 'remote' && selection.host.trim() === '')}
+        >
+          Scan target
+        </Button>
+      </PageHeader>
+
+      <TargetSelector selection={selection} onChange={setSelection} disabled={anyLoading} />
 
       <div className="flex items-start gap-4">
         {entries.length > 1 && (
@@ -437,14 +402,12 @@ export function HardwareInfoPage() {
                     {new Date(selectedEntry.state.result.capturedAtUtc).toLocaleString()}
                   </span>
                 )}
-                <button
-                  type="button"
+                <Button
                   onClick={() => load(selectedEntry.target, true)}
                   disabled={selectedEntry.state.kind === 'loading'}
-                  className="rounded bg-slate-700 px-3 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600 disabled:opacity-50"
                 >
                   Refresh
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -453,9 +416,11 @@ export function HardwareInfoPage() {
             )}
 
             {selectedEntry.state.kind === 'error' && (
-              <Card title={`Error — ${selectedEntry.label}`}>
-                <p className="text-sm text-red-400">{selectedEntry.state.message}</p>
-              </Card>
+              <ErrorState
+                title={`Error — ${selectedEntry.label}`}
+                message={selectedEntry.state.message}
+                hint="Check that the host is reachable, WinRM is enabled on it and the account has remote management rights."
+              />
             )}
 
             {selectedEntry.state.kind === 'loaded' && (
