@@ -15,7 +15,9 @@ public sealed class PrintManagementModule : IModule
     {
         services.AddScoped<IPrintSnapshotRepository, EfPrintSnapshotRepository>();
         services.AddScoped<PrintServerScanService>();
+        services.AddScoped<ClientPrinterScanService>();
         services.AddScoped<IActionHandler, ScanPrintServerHandler>();
+        services.AddScoped<IActionHandler, ScanClientPrintersHandler>();
         services.AddScoped<IActionHandler, ListPrintServersHandler>();
         services.AddScoped<IActionHandler, GetLatestPrintSnapshotHandler>();
         services.AddScoped<IActionHandler, GetPrintHistoryHandler>();

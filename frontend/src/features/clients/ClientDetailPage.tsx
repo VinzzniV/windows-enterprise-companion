@@ -13,13 +13,15 @@ import { isLocalClient, toClientTarget } from './clients';
 import { InventorySection } from './sections/InventorySection';
 import { SecuritySection } from './sections/SecuritySection';
 import { DiagnosticsSection } from './sections/DiagnosticsSection';
+import { PrintersSection } from './sections/PrintersSection';
 
-type SectionKey = 'inventory' | 'security' | 'diagnostics' | 'reporting';
+type SectionKey = 'inventory' | 'security' | 'diagnostics' | 'printers' | 'reporting';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'inventory', label: 'Inventory' },
   { key: 'security', label: 'Security' },
   { key: 'diagnostics', label: 'Diagnostics' },
+  { key: 'printers', label: 'Printers' },
   { key: 'reporting', label: 'Reporting' },
 ];
 
@@ -183,6 +185,7 @@ export function ClientDetailPage() {
       {section === 'inventory' && <InventorySection key={host} target={target} />}
       {section === 'security' && <SecuritySection key={host} target={target} />}
       {section === 'diagnostics' && <DiagnosticsSection key={host} target={target} />}
+      {section === 'printers' && <PrintersSection key={host} target={target} />}
       {section === 'reporting' &&
         (local ? (
           <EmptyState

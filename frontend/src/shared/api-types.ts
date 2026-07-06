@@ -690,6 +690,23 @@ export interface PrintServerSnapshot {
   printers: PrinterEntry[];
 }
 
+/** Wec.Modules.PrintManagement.Domain.ClientPrinter */
+export interface ClientPrinter {
+  name: string;
+  driverName: string | null;
+  portName: string | null;
+  location: string | null;
+  shared: boolean;
+  isNetwork: boolean;
+}
+
+/** Wec.Modules.PrintManagement.Domain.ClientPrinterScan */
+export interface ClientPrinterScan {
+  host: string;
+  capturedAtUtc: string;
+  printers: ClientPrinter[];
+}
+
 /** Wec.Modules.PrintManagement.Persistence.StoredPrintServer */
 export interface StoredPrintServer {
   server: string;
