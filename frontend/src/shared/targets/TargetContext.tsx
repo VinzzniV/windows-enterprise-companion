@@ -128,3 +128,8 @@ export function useTargets(): TargetContextValue {
   }
   return value;
 }
+
+/** Non-throwing variant: null outside a provider. For UI that should degrade quietly. */
+export function useTargetsOptional(): TargetContextValue | null {
+  return useContext(TargetContext);
+}

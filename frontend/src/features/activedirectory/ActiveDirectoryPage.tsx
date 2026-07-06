@@ -14,6 +14,7 @@ import { Checkbox } from '../../shared/ui/Checkbox';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
 import { CredentialFields } from '../../shared/targets/TargetSelector';
+import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
 
 /** What the admin should do next, per typed directory error. */
 const adErrorHints: Record<string, string> = {
@@ -185,6 +186,20 @@ export function ActiveDirectoryPage() {
             aria-label="Domain controller"
           />
         </div>
+        <SavedTargetsBar
+          role="DomainController"
+          label="Saved domain controllers"
+          currentHost={connectionForm.server}
+          currentUserName={connectionForm.useExplicitCredentials ? connectionForm.userName : null}
+          onPick={(target) =>
+            setForm({
+              server: target.host,
+              ...(target.userName
+                ? { useExplicitCredentials: true, userName: target.userName }
+                : {}),
+            })
+          }
+        />
         <Checkbox
           label="Use explicit credentials"
           checked={connectionForm.useExplicitCredentials}

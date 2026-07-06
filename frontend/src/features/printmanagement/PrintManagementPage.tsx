@@ -20,6 +20,7 @@ import {
   toTargetRequestForHost,
   type TargetSelection,
 } from '../../shared/targets/TargetSelector';
+import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
 import { DataTable } from '../../shared/ui/DataTable';
@@ -351,6 +352,22 @@ export function PrintManagementPage() {
       </PageHeader>
 
       <TargetSelector selection={selection} onChange={setSelection} disabled={scanning} allowMultiple />
+
+      <SavedTargetsBar
+        role="PrintServer"
+        label="Saved print servers"
+        currentHost={selection.mode === 'remote' ? selection.host : ''}
+        currentUserName={selection.credentialMode === 'explicit' ? selection.userName : null}
+        onPick={(target) =>
+          setSelection((current) => ({
+            ...current,
+            mode: 'remote',
+            host: target.host,
+            credentialMode: target.userName ? 'explicit' : 'currentUser',
+            userName: target.userName ?? '',
+          }))
+        }
+      />
 
       {scanning && <Spinner label="Scanning print servers" />}
       {exportMessage && <p className="text-sm text-slate-300">{exportMessage}</p>}

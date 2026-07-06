@@ -21,6 +21,7 @@ import { DataTable } from '../../shared/ui/DataTable';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
+import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
 import { Spinner } from '../../shared/ui/Spinner';
@@ -425,6 +426,15 @@ export function PatchManagementPage() {
                 )}
               </Field>
             </div>
+            <SavedTargetsBar
+              role="OpsiServer"
+              label="Saved opsi servers"
+              currentHost={form.server}
+              currentUserName={form.userName || null}
+              onPick={(target) =>
+                setForm({ ...form, server: target.host, userName: target.userName ?? form.userName })
+              }
+            />
             <Checkbox
               label="Trust server certificate (opsi uses a self-signed CA by default; this skips certificate validation for this session)"
               checked={form.trustServerCertificate}
