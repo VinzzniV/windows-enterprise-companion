@@ -58,15 +58,43 @@ against the opsi 4.3 docs, discussed 2026-07-03):
       the software mapping; needs version normalization, not every internal
       tool exists in winget.
 
-## Planned — Print management module (ideas discussed 2026-07-03, decision pending)
+## Planned — Print management module (scope agreed 2026-07-03)
 
-Printer inventory + consistency checks + gated bulk configuration; sources:
-Windows print servers via CIM (`MSFT_Printer`/`MSFT_PrinterConfiguration`,
-root\StandardCimv2, reachable through the existing IWmiQueryService seam),
-AD-published printQueue objects via IDirectoryReader, per-client printers
-via multi-host scans; SNMP (toner/page counters) would be a new dependency
-— separate decision. Writes would follow the ADR 0008 pattern
-(preview → confirm → audit) and need their own ADR.
+Context: one print server per location; fleet is Utax (= Kyocera platform:
+4020DW, 3206/3207ci, P-4539i MFP + a few one-offs) — standard Printer-MIB
+covers serial/model/status/toner uniformly. SNMPv1/v2c is enabled on the
+devices (read community currently `public`, write community empty,
+sysLocation maintained). Driving use cases: recurring report with serial/
+location/name/model, ongoing lease-renewal device swap tracking, toner
+levels visible per printer. Deliberately dropped: device mail-notification
+config checks (vendor web-UI settings, not readable via standard SNMP) and
+address-book sync automation — the durable fix for address books is the
+devices' LDAP address book against AD (employees leaving then need no
+per-device cleanup); one-time cleanups go through the web-UI CSV
+export/import.
+
+- [ ] **ADR 0009** — print management module: CIM sources from the print
+      servers (`MSFT_Printer`/`MSFT_PrinterDriver`/`MSFT_PrinterPort`,
+      root\StandardCimv2 via the existing IWmiQueryService), SNMP read-only
+      as the device source (v2c, community as an option, never logged),
+      plus the SNMP client dependency decision (library vs. minimal own
+      v2c GET)
+- [ ] **Slice 1 — inventory overview:** print-server scan (queues, drivers,
+      port IPs) enriched per device via SNMP: serial number, model,
+      sysLocation, device status, toner levels per cartridge; location
+      filter; click on a printer opens its web UI (https://<port IP>);
+      CSV export for the recurring report
+- [ ] **Slice 2 — lease diff:** persistent snapshots **with history**
+      (unlike the hardware inventory's latest-only store), serial-based
+      comparison "new / gone / swapped at the same queue" for the lease
+      renewal
+- [ ] **Slice 3 (optional, on demand):** consistency checks — driver
+      version spread, orphaned queues (port unreachable), default `public`
+      read community, empty location/comment fields
+- Backlog (not planned): central toner notification (WEC monitors levels,
+  mails the service provider, audit entry = the "when was it ordered"
+  trace; needs SMTP + scheduled scans + own ADR) — only if watching the
+  overview stops being enough
 
 ## Done 2026-07-03 — Remote completion pass
 
