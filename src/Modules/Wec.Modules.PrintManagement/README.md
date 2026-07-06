@@ -14,11 +14,19 @@ Devices that do not answer become **per-printer errors** (typed code,
 CIM data stays visible), never a scan abort. Ports without an IP
 (WSD/local) stay CIM-only rows.
 
+Server vs. client is a deliberate split (ADR 0010): `scanServer` captures a
+**print server** (queues + SNMP devices, above). `scanClientPrinters` captures
+the printers **installed on a client** — `MSFT_Printer` only, no SNMP, local
+devices and network connections — for the client-detail workspace. The Print
+Management page merges queues that share a device (serial → IP → base name)
+into one row in the UI; the serial-based lease diff is unaffected.
+
 ## Bridge actions
 
 | Action | Payload | Result |
 |---|---|---|
 | `printmanagement/scanServer` | `{ target?: TargetRequest }` | `PrintServerSnapshot` — captures and persists (history) |
+| `printmanagement/scanClientPrinters` | `{ target?: TargetRequest }` | `ClientPrinterScan` — printers installed on a client (MSFT_Printer, no SNMP, not persisted) |
 | `printmanagement/listServers` | `{}` | stored servers with latest timestamp + snapshot count |
 | `printmanagement/getLatest` | `{ server }` | latest stored snapshot (restore-on-load) |
 | `printmanagement/getHistory` | `{ server }` | snapshot stamps, newest first |

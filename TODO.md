@@ -4,6 +4,28 @@ Living document: check items off, reprioritize freely, delete what gets
 rejected. Ordering within a section is by value/effort. Milestone work
 (M6, M7) still follows the loop protocol: ADR + user decisions first.
 
+## Done 2026-07-06 — Client-centric IA + Saved Targets + Print overhaul (ADR 0010)
+
+Approved plan "Voller Umbau", shipped slice by slice (Strangler, not big-bang):
+- **Phase 0:** fixed the Inventory local-machine duplicate (learn the machine
+  name from `system/getAppInfo`, dedupe on restore); new
+  `Wec.Modules.Targets` saved-targets module (host + role + user name, never a
+  password) with migration and integration tests; shared `TargetProvider`
+  React context (saved targets + per-host session credentials in memory only).
+- **Phase 1:** Clients workspace — AD-sourced list (search + OS/site grouping,
+  unpopulated until opened), per-client detail with on-demand
+  Inventory/Security/Diagnostics/Printers/Reporting sections reusing the
+  existing views, and a two-client inventory/security compare.
+- **Phase 2:** navigation split into **Clients** (primary) + **Fleet** +
+  **Multi-host** (standalone pages kept as batch runners).
+- **Phase 3:** Print page reworked — queues merged per physical device
+  (serial → IP → base name), compact toner mini-bar, search, site grouping;
+  client-installed printers as a separate CIM path (`scanClientPrinters`).
+- **Phase 4:** `SavedTargetsBar` in the Print/AD/Patch pickers, pre-filled by
+  role.
+
+Backend build + all tests green; frontend build + tests green (86).
+
 ## Done 2026-07-03 — UI/UX rework (foundation, slices 1–6)
 
 Approved plan "Neu gedacht" (dark + fresh accent, dashboard). Shipped as
@@ -20,10 +42,10 @@ build + 54 tests green.
 
 Follow-ups spawned by that work:
 
-- [ ] Master/detail unification for Security and Diagnostics multi-host
-      views (align with Inventory). Deliberately deferred from slice 5 — it
-      is a visible behavior change best reviewed live first. Print stays a
-      consolidated cross-server table by design (its report use case).
+- [x] Master/detail unification for Security and Diagnostics — addressed by
+      the client-centric workspace (2026-07-06, ADR 0010): per-client detail
+      consolidates Inventory/Security/Diagnostics. The standalone pages remain
+      as Fleet multi-host batch runners.
 - [ ] Shared `ResultContext` component — the Security/Diagnostics context
       boxes already match; Inventory's master/detail header differs slightly.
 - [ ] Optional: command palette (Ctrl+K) for navigation + quick actions

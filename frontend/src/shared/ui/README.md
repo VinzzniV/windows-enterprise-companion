@@ -38,8 +38,13 @@ feature pages — build pages from these, don't re-style ad-hoc.
 - `api-types.ts` is hand-mirrored from the C# DTOs — update it on every DTO
   change.
 
-Not every page uses master/detail: Inventory does (host list + detail),
-while Print Management deliberately shows one consolidated table across all
-servers (the cross-server report the use case wants). Unifying
-Security/Diagnostics multi-host onto a shared master/detail is a tracked
-follow-up (TODO.md).
+Master/detail is now the **Clients** workspace (ADR 0010):
+`features/clients` lists AD-sourced clients and opens a per-client detail whose
+Inventory/Security/Diagnostics/Printers sections reuse the exported feature
+views (`SnapshotGrid`, `FindingCard`/`CoverageNotes`, `RunSummary`/
+`CategorySections`) and scan on demand through the shared `TargetProvider`
+(`shared/targets/TargetContext`) — enter credentials once per host per session.
+Saved targets (`SavedTargetsBar`, backed by `Wec.Modules.Targets`) pre-fill
+pickers by role. Print Management keeps a single consolidated table but merges
+queues per physical device with search and site grouping; the standalone
+Inventory/Security/Diagnostics pages remain as Fleet multi-host batch runners.

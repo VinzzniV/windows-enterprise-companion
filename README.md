@@ -13,10 +13,16 @@ read-only: it can write opsi rollout action requests, gated behind a
 mandatory preview, explicit confirmation and an audit log (ADR 0008).
 Each module has its own README under `src/Modules/`.
 
-The app opens on a **Dashboard** that summarizes each module from its last
-stored scan (inventory hosts, security severity, printer toner, opsi state)
-and links into it; the sidebar groups the modules (Analyze / Manage /
-Report). The UI follows a shared design system
+The primary workspace is **Clients** (ADR 0010): an Active-Directory-sourced
+client list (unpopulated until opened) where a client is scanned on demand —
+Inventory, Security, Diagnostics and installed Printers as tabbed sections that
+share one session credential per host — and two clients can be compared. The
+sidebar keeps **Fleet** views that are not per-client (**Dashboard** — a
+per-module summary of the last stored scan — Active Directory, Patch and Print
+Management) and a **Multi-host** group with the standalone pages as batch
+runners. Frequently used servers (print server, opsi, DC) can be saved as
+**targets** (host + role + user name, never a password) and pre-fill each
+picker. The UI follows a shared design system
 ([`frontend/src/shared/ui`](frontend/src/shared/ui/README.md)): bundled
 Inter (UI) and JetBrains Mono (serials/IPs/versions) fonts, semantic color
 tokens (`accent` + `ok/warn/fail/info`), and shared primitives — page
@@ -38,8 +44,9 @@ and the ADRs in [docs/adr/](docs/adr/).
 | Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting; parallel multi-host runs | WMI-based checks yes; connectivity probes stay local-perspective |
 | Active Directory | Domain overview + hygiene checks over LDAP; test bind; computer search that feeds the multi-host scan pickers | own or explicitly named domain/DC |
 | Patch Management | Semi-automatic opsi workflow hub (ADR 0008): dashboard, inventory comparison, mandatory rollout preview with confirmation, audit log; session-only credentials | opsi server over JSON-RPC (HTTPS :4447) |
-| Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels), snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009) | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
+| Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels); queues merged per physical device, search + site grouping, snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009). Client-installed printers are a separate CIM path shown in the client detail | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
 | Reporting | HTML/JSON executive summary of the local machine | local |
+| Saved Targets | Persist frequently used servers/clients (host + role + user name, never a password) to pre-fill the pickers (ADR 0010) | local (SQLite) |
 
 ## Prerequisites
 
