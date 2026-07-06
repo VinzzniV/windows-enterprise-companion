@@ -72,7 +72,7 @@ function isCoverageNote(finding: SecurityFinding): boolean {
   return finding.findingId.endsWith('-LOCAL-ONLY') || finding.findingId.endsWith('-NOT-RUN');
 }
 
-function splitFindings(findings: SecurityFinding[]): {
+export function splitFindings(findings: SecurityFinding[]): {
   problems: SecurityFinding[];
   coverage: SecurityFinding[];
 } {
@@ -86,7 +86,7 @@ function severityCount(findings: SecurityFinding[], severity: FindingSeverity): 
   return findings.filter((finding) => finding.severity === severity).length;
 }
 
-function FindingCard({ finding }: { finding: SecurityFinding }) {
+export function FindingCard({ finding }: { finding: SecurityFinding }) {
   return (
     <li className="rounded-lg border border-slate-800 bg-slate-900 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -113,7 +113,7 @@ function FindingCard({ finding }: { finding: SecurityFinding }) {
   );
 }
 
-function CoverageNotes({ notes }: { notes: SecurityFinding[] }) {
+export function CoverageNotes({ notes }: { notes: SecurityFinding[] }) {
   if (notes.length === 0) {
     return null;
   }
@@ -135,7 +135,7 @@ function CoverageNotes({ notes }: { notes: SecurityFinding[] }) {
 }
 
 /** Host + status + timestamp line every result view hangs off of. */
-function ResultContext({ scan, problemCount, coverageCount }: {
+export function ResultContext({ scan, problemCount, coverageCount }: {
   scan: SecurityScanResult;
   problemCount: number;
   coverageCount: number;
@@ -163,7 +163,7 @@ function ResultContext({ scan, problemCount, coverageCount }: {
   );
 }
 
-function SeveritySummary({ problems }: { problems: SecurityFinding[] }) {
+export function SeveritySummary({ problems }: { problems: SecurityFinding[] }) {
   return (
     <div className="flex flex-wrap gap-2">
       <SummaryMetric label="Critical" value={severityCount(problems, 'CRITICAL')} tone={severityCount(problems, 'CRITICAL') > 0 ? 'danger' : 'neutral'} />

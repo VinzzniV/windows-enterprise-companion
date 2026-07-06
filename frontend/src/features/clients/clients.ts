@@ -1,4 +1,5 @@
-import type { AdComputer, SavedTarget, StoredInventoryHost } from '../../shared/api-types';
+import type { AdComputer, SavedTarget, StoredInventoryHost, TargetRequest } from '../../shared/api-types';
+import type { CredentialValues } from '../../shared/targets/TargetSelector';
 
 /** A client in the workspace list, merged from AD, scan history and saved targets. */
 export interface ClientEntry {
@@ -103,6 +104,35 @@ export function buildClientList(
   }
 
   return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** True when the host is this machine (matched short-name, case-insensitively). */
+export function isLocalClient(host: string, machineName: string | null): boolean {
+  return machineName != null && machineName.trim() !== '' && clientKey(host) === clientKey(machineName);
+}
+
+/**
+ * Scan target for a fixed client host. The local machine scans as the current
+ * user (null target); a remote host carries the session credentials the user
+ * entered, or none (current user / Kerberos) when they haven't.
+ */
+export function toClientTarget(
+  host: string,
+  machineName: string | null,
+  credentials: CredentialValues | undefined,
+): TargetRequest | null {
+  if (isLocalClient(host, machineName)) {
+    return null;
+  }
+  if (credentials && credentials.userName.trim() !== '') {
+    return {
+      host,
+      userName: credentials.userName.trim(),
+      domain: credentials.domain.trim() || null,
+      password: credentials.password,
+    };
+  }
+  return { host };
 }
 
 export function filterClients(clients: readonly ClientEntry[], term: string): ClientEntry[] {

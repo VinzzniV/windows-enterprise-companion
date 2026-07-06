@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { AdComputer, SavedTarget, StoredInventoryHost } from '../../shared/api-types';
-import { buildClientList, filterClients, groupClients, siteOf } from './clients';
+import {
+  buildClientList,
+  filterClients,
+  groupClients,
+  isLocalClient,
+  siteOf,
+  toClientTarget,
+} from './clients';
 
 const ad = (over: Partial<AdComputer>): AdComputer => ({
   name: 'PC1',
@@ -63,6 +70,30 @@ describe('filterClients', () => {
     expect(filterClients(clients, 'kf').map((c) => c.name)).toEqual(['KF-PC1']);
     expect(filterClients(clients, 'windows 10').map((c) => c.name)).toEqual(['PK-PC2']);
     expect(filterClients(clients, '')).toHaveLength(2);
+  });
+});
+
+describe('isLocalClient / toClientTarget', () => {
+  it('treats this machine (short name, any case) as local → null target', () => {
+    expect(isLocalClient('DESKTOP-1', 'desktop-1')).toBe(true);
+    expect(isLocalClient('desktop-1.corp.local', 'DESKTOP-1')).toBe(true);
+    expect(toClientTarget('DESKTOP-1', 'desktop-1', undefined)).toBeNull();
+  });
+
+  it('remote host with no credentials scans as the current user', () => {
+    expect(toClientTarget('pc1.corp.local', 'DESKTOP-1', undefined)).toEqual({ host: 'pc1.corp.local' });
+    expect(toClientTarget('pc1', 'DESKTOP-1', { userName: '  ', domain: '', password: '' })).toEqual({
+      host: 'pc1',
+    });
+  });
+
+  it('remote host carries explicit session credentials, password never dropped', () => {
+    expect(
+      toClientTarget('pc1', 'DESKTOP-1', { userName: ' admin ', domain: ' CORP ', password: 'secret' }),
+    ).toEqual({ host: 'pc1', userName: 'admin', domain: 'CORP', password: 'secret' });
+    expect(
+      toClientTarget('pc1', 'DESKTOP-1', { userName: 'admin', domain: '', password: 'x' }),
+    ).toMatchObject({ domain: null });
   });
 });
 

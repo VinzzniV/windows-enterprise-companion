@@ -145,7 +145,7 @@ function NotCaptured({ reason }: { reason?: string }) {
   );
 }
 
-function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: TargetRequest | null }) {
+export function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: TargetRequest | null }) {
   const { snapshot } = result;
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">

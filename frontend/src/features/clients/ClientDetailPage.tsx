@@ -1,0 +1,207 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { invoke } from '../../shared/bridge/bridgeClient';
+import type { AppInfoResponse } from '../../shared/api-types';
+import { useTargets } from '../../shared/targets/TargetContext';
+import { CredentialFields, type CredentialValues } from '../../shared/targets/TargetSelector';
+import { PageHeader } from '../../shared/ui/PageHeader';
+import { Button } from '../../shared/ui/Button';
+import { Badge } from '../../shared/ui/Badge';
+import { Card } from '../../shared/ui/Card';
+import { EmptyState } from '../../shared/ui/States';
+import { isLocalClient, toClientTarget } from './clients';
+import { InventorySection } from './sections/InventorySection';
+import { SecuritySection } from './sections/SecuritySection';
+import { DiagnosticsSection } from './sections/DiagnosticsSection';
+
+type SectionKey = 'inventory' | 'security' | 'diagnostics' | 'reporting';
+
+const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: 'inventory', label: 'Inventory' },
+  { key: 'security', label: 'Security' },
+  { key: 'diagnostics', label: 'Diagnostics' },
+  { key: 'reporting', label: 'Reporting' },
+];
+
+const emptyCredentials: CredentialValues = { userName: '', domain: '', password: '' };
+
+/** Credential control for a remote client — sets session-only credentials (ADR 0007). */
+function ClientCredentialBar({ host }: { host: string }) {
+  const { credentialsFor, rememberCredentials, forgetCredentials } = useTargets();
+  const stored = credentialsFor(host);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<CredentialValues>(stored ?? emptyCredentials);
+
+  const displayUser = stored?.userName
+    ? `${stored.domain ? `${stored.domain}\\` : ''}${stored.userName}`
+    : null;
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          Credentials for {host} — kept in memory for this session only, never stored
+        </span>
+        <CredentialFields values={draft} onChange={(patch) => setDraft({ ...draft, ...patch })} />
+        <div className="flex gap-2">
+          <Button
+            variant="primary"
+            onClick={() => {
+              rememberCredentials(host, draft);
+              setEditing(false);
+            }}
+            disabled={draft.userName.trim() === ''}
+          >
+            Use these credentials
+          </Button>
+          <Button variant="ghost" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm">
+      {displayUser ? (
+        <>
+          <Badge tone="accent">Scanning as {displayUser}</Badge>
+          <button
+            type="button"
+            className="text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
+            onClick={() => {
+              setDraft(stored ?? emptyCredentials);
+              setEditing(true);
+            }}
+          >
+            Change
+          </button>
+          <button
+            type="button"
+            className="text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
+            onClick={() => forgetCredentials(host)}
+          >
+            Use current user
+          </button>
+        </>
+      ) : (
+        <>
+          <Badge tone="neutral">Scanning as current user</Badge>
+          <button
+            type="button"
+            className="text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
+            onClick={() => {
+              setDraft(emptyCredentials);
+              setEditing(true);
+            }}
+          >
+            Use explicit credentials
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function ClientDetailPage() {
+  const navigate = useNavigate();
+  const { host: rawHost } = useParams<{ host: string }>();
+  const host = decodeURIComponent(rawHost ?? '');
+
+  const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
+  const [machineName, setMachineName] = useState<string | null>(null);
+  const [section, setSection] = useState<SectionKey>('inventory');
+
+  useEffect(() => {
+    invoke<AppInfoResponse>('system', 'getAppInfo')
+      .then((info) => setMachineName(info.machineName))
+      .catch(() => setMachineName(null));
+  }, []);
+
+  const local = isLocalClient(host, machineName);
+  const credentials = credentialsFor(host);
+  const target = useMemo(
+    () => toClientTarget(host, machineName, credentials),
+    [host, machineName, credentials],
+  );
+
+  const savedEntry = useMemo(
+    () => savedTargets.find((t) => t.role === 'Client' && t.host.toUpperCase() === host.toUpperCase()),
+    [savedTargets, host],
+  );
+
+  if (host === '') {
+    return <EmptyState title="No client selected" message="Pick a client from the Clients list." />;
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader title={host} subtitle={local ? 'This machine · scanned as the current user' : 'Remote client'}>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={() => navigate('/clients')}>
+            ← All clients
+          </Button>
+          {savedEntry ? (
+            <Button variant="secondary" onClick={() => void deleteTarget(savedEntry.id)}>
+              Unsave client
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              onClick={() =>
+                void saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null })
+              }
+            >
+              Save client
+            </Button>
+          )}
+        </div>
+      </PageHeader>
+
+      {!local && <ClientCredentialBar host={host} />}
+
+      <div role="tablist" aria-label="Client sections" className="flex flex-wrap gap-1 border-b border-slate-800">
+        {SECTIONS.map((entry) => (
+          <button
+            key={entry.key}
+            role="tab"
+            aria-selected={section === entry.key}
+            type="button"
+            onClick={() => setSection(entry.key)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
+              section === entry.key
+                ? 'border-accent-400 font-medium text-white'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {entry.label}
+          </button>
+        ))}
+      </div>
+
+      {section === 'inventory' && <InventorySection key={host} target={target} />}
+      {section === 'security' && <SecuritySection key={host} target={target} />}
+      {section === 'diagnostics' && <DiagnosticsSection key={host} target={target} />}
+      {section === 'reporting' &&
+        (local ? (
+          <EmptyState
+            title="Executive report"
+            message="The executive summary report covers this local machine. It opens in the Reporting view."
+            action={
+              <Button variant="primary" onClick={() => navigate('/reporting')}>
+                Open Reporting
+              </Button>
+            }
+          />
+        ) : (
+          <Card title="Reporting — not available for remote clients">
+            <p className="text-sm text-slate-400">
+              The executive summary report is generated for the local machine only (NOT_RUN for remote
+              targets). Remote reporting is a planned follow-up.
+            </p>
+          </Card>
+        ))}
+    </div>
+  );
+}

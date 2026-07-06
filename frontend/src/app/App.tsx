@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { ClientsPage } from '../features/clients/ClientsPage';
+import { ClientDetailPage } from '../features/clients/ClientDetailPage';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
 import { SecurityPage } from '../features/security/SecurityPage';
 import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
@@ -160,6 +161,7 @@ function AppRoutes() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/clients/:host" element={<ClientDetailPage />} />
           <Route path="/inventory" element={<HardwareInfoPage />} />
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />

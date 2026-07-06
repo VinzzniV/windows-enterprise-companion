@@ -112,7 +112,7 @@ function DiagnosticRow({ result }: { result: DiagnosticResult }) {
   );
 }
 
-function RunSummary({ results }: { results: DiagnosticResult[] }) {
+export function RunSummary({ results }: { results: DiagnosticResult[] }) {
   const warningCount = countByStatus(results, 'WARNING');
   const failCount = countByStatus(results, 'FAIL');
   return (
@@ -125,7 +125,7 @@ function RunSummary({ results }: { results: DiagnosticResult[] }) {
   );
 }
 
-function CategorySections({ results }: { results: DiagnosticResult[] }) {
+export function CategorySections({ results }: { results: DiagnosticResult[] }) {
   return (
     <>
       {categoryOrder
