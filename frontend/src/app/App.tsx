@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
+import { ClientsPage } from '../features/clients/ClientsPage';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
 import { SecurityPage } from '../features/security/SecurityPage';
 import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
@@ -47,8 +48,11 @@ const navGroups: { label: string; items: NavItem[] }[] = [
 ];
 
 const dashboardNav: NavItem = { to: '/', label: 'Dashboard', icon: navIcons.dashboard };
+const clientsNav: NavItem = { to: '/clients', label: 'Clients', icon: navIcons.clients };
 
-const allNavItems = [dashboardNav, ...navGroups.flatMap((group) => group.items)];
+const topNav = [dashboardNav, clientsNav];
+
+const allNavItems = [...topNav, ...navGroups.flatMap((group) => group.items)];
 
 function sectionLabelFor(pathname: string): string {
   if (pathname === '/') {
@@ -155,6 +159,7 @@ function AppRoutes() {
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/clients" element={<ClientsPage />} />
           <Route path="/inventory" element={<HardwareInfoPage />} />
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
@@ -184,10 +189,16 @@ export function App() {
             </h1>
           </div>
           <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-2">
-            <NavLink to={dashboardNav.to} end className={navLinkClass}>
-              {dashboardNav.icon}
-              {dashboardNav.label}
-            </NavLink>
+            <div className="flex flex-col gap-1">
+              <NavLink to={dashboardNav.to} end className={navLinkClass}>
+                {dashboardNav.icon}
+                {dashboardNav.label}
+              </NavLink>
+              <NavLink to={clientsNav.to} className={navLinkClass}>
+                {clientsNav.icon}
+                {clientsNav.label}
+              </NavLink>
+            </div>
             {navGroups.map((group) => (
               <div key={group.label} className="flex flex-col gap-1">
                 <span className="px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">

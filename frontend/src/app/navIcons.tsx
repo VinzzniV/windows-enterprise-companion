@@ -21,6 +21,12 @@ export const navIcons: Record<string, ReactNode> = {
       <rect x="3" y="16" width="7" height="5" rx="1" />
     </svg>
   ),
+  clients: (
+    <svg {...iconProps}>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8M12 16v4" />
+    </svg>
+  ),
   inventory: (
     <svg {...iconProps}>
       <rect x="3" y="4" width="18" height="8" rx="2" />
