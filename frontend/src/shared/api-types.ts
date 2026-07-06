@@ -625,3 +625,122 @@ export interface AdComputerSearchResult {
   computers: AdComputer[];
   truncated: boolean;
 }
+
+/** Wec.Modules.PrintManagement.Domain.TonerSupply */
+export interface TonerSupply {
+  description: string;
+  percent: number | null;
+  isLow: boolean;
+}
+
+/** Wec.Modules.PrintManagement.Domain.PrinterDevice */
+export interface PrinterDevice {
+  serialNumber: string | null;
+  model: string | null;
+  sysName: string | null;
+  sysLocation: string | null;
+  status: string | null;
+  pageCount: number | null;
+  supplies: TonerSupply[];
+}
+
+/** Wec.Modules.PrintManagement.Domain.DeviceQueryError */
+export interface DeviceQueryError {
+  code: string;
+  message: string;
+}
+
+/** Wec.Modules.PrintManagement.Domain.PrinterEntry */
+export interface PrinterEntry {
+  queueName: string;
+  shareName: string | null;
+  driverName: string | null;
+  driverVersion: string | null;
+  portName: string | null;
+  deviceAddress: string | null;
+  location: string | null;
+  comment: string | null;
+  device: PrinterDevice | null;
+  deviceError: DeviceQueryError | null;
+}
+
+/** Wec.Modules.PrintManagement.Domain.PrintServerSnapshot */
+export interface PrintServerSnapshot {
+  server: string;
+  capturedAtUtc: string;
+  printers: PrinterEntry[];
+}
+
+/** Wec.Modules.PrintManagement.Persistence.StoredPrintServer */
+export interface StoredPrintServer {
+  server: string;
+  capturedAtUtc: string;
+  snapshotCount: number;
+}
+
+/** Wec.Modules.PrintManagement.Handlers.ListPrintServersResult */
+export interface ListPrintServersResult {
+  servers: StoredPrintServer[];
+}
+
+/** Wec.Modules.PrintManagement.Persistence.PrintSnapshotStamp */
+export interface PrintSnapshotStamp {
+  id: number;
+  capturedAtUtc: string;
+}
+
+/** Wec.Modules.PrintManagement.Handlers.PrintHistoryResult */
+export interface PrintHistoryResult {
+  snapshots: PrintSnapshotStamp[];
+}
+
+/** Wec.Modules.PrintManagement.Application.LeaseDiffDevice */
+export interface LeaseDiffDevice {
+  serialNumber: string;
+  model: string | null;
+  queueName: string | null;
+  deviceAddress: string | null;
+}
+
+/** Wec.Modules.PrintManagement.Application.LeaseQueueSwap */
+export interface LeaseQueueSwap {
+  queueName: string;
+  oldSerialNumber: string;
+  newSerialNumber: string;
+  oldModel: string | null;
+  newModel: string | null;
+}
+
+/** Wec.Modules.PrintManagement.Application.PrintServerDiff */
+export interface PrintServerDiff {
+  server: string;
+  baselineAtUtc: string;
+  latestAtUtc: string;
+  newDevices: LeaseDiffDevice[];
+  goneDevices: LeaseDiffDevice[];
+  swappedQueues: LeaseQueueSwap[];
+  devicesWithoutSerialNumber: number;
+}
+
+/** Wec.Modules.PrintManagement.Application.PrintHint */
+export interface PrintHint {
+  category: string;
+  message: string;
+}
+
+/** Wec.Modules.PrintManagement.Handlers.PrintHintsResult */
+export interface PrintHintsResult {
+  hints: PrintHint[];
+}
+
+/** Wec.Modules.PrintManagement.Handlers.ExportPrintCsvResult */
+export interface ExportPrintCsvResult {
+  cancelled: boolean;
+  filePath: string | null;
+}
+
+/** Wec.Modules.PrintManagement.Handlers.OpenDeviceWebUiResult */
+export interface OpenDeviceWebUiResult {
+  opened: boolean;
+  url: string;
+}

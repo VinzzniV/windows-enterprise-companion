@@ -46,6 +46,12 @@ export const navIcons: Record<string, ReactNode> = {
       <path d="M16.5 5.5l-9 5" />
     </svg>
   ),
+  printmanagement: (
+    <svg {...iconProps}>
+      <path d="M7 8V4h10v4M7 16H4v-8h16v8h-3" />
+      <path d="M7 13h10v7H7z" />
+    </svg>
+  ),
   reporting: (
     <svg {...iconProps}>
       <path d="M6 3h9l4 4v14H6z" />

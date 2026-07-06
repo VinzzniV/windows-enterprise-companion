@@ -5,6 +5,7 @@ import { SecurityPage } from '../features/security/SecurityPage';
 import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
 import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
 import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
+import { PrintManagementPage } from '../features/printmanagement/PrintManagementPage';
 import { ReportingPage } from '../features/reporting/ReportingPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
@@ -20,6 +21,7 @@ const navigation = [
   { to: '/diagnostics', label: 'Diagnostics', icon: navIcons.diagnostics },
   { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
   { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
+  { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
   { to: '/reporting', label: 'Reporting', icon: navIcons.reporting },
 ];
 
@@ -99,6 +101,7 @@ function AppRoutes() {
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
           <Route path="/patchmanagement" element={<PatchManagementPage />} />
+          <Route path="/printmanagement" element={<PrintManagementPage />} />
           <Route path="/reporting" element={<ReportingPage />} />
         </Routes>
       </ErrorBoundary>
