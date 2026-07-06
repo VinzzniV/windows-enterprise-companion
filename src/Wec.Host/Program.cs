@@ -28,6 +28,7 @@ using Wec.Modules.ActiveDirectory;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.Inventory;
 using Wec.Modules.PatchManagement;
+using Wec.Modules.PrintManagement;
 using Wec.Modules.Reporting;
 using Wec.Modules.Security;
 
@@ -147,6 +148,12 @@ internal static partial class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        builder.Services
+            .AddOptions<PrintManagementOptions>()
+            .Bind(builder.Configuration.GetSection(PrintManagementOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         IModule[] modules =
         [
             new InventoryModule(),
@@ -155,6 +162,7 @@ internal static partial class Program
             new ReportingModule(),
             new ActiveDirectoryModule(),
             new PatchManagementModule(),
+            new PrintManagementModule(),
         ];
         foreach (IModule module in modules)
         {

@@ -18,6 +18,7 @@
     <ProjectReference Include="..\Modules\Wec.Modules.Reporting\Wec.Modules.Reporting.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.ActiveDirectory\Wec.Modules.ActiveDirectory.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.PatchManagement\Wec.Modules.PatchManagement.csproj" />
+    <ProjectReference Include="..\Modules\Wec.Modules.PrintManagement\Wec.Modules.PrintManagement.csproj" />
   </ItemGroup>
 
   <ItemGroup>
