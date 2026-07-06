@@ -56,7 +56,7 @@ function TonerCells({ supplies }: { supplies: TonerSupply[] }) {
           key={supply.description}
           className={`inline-flex rounded border px-1.5 py-0.5 text-xs ${
             supply.isLow
-              ? 'border-red-700 bg-red-900/60 text-red-300'
+              ? 'border-fail-700 bg-fail-900/60 text-fail-300'
               : supply.percent !== null
                 ? 'border-slate-700 bg-slate-800 text-slate-300'
                 : 'border-slate-800 bg-slate-900 text-slate-500'
@@ -301,7 +301,7 @@ export function PrintManagementPage() {
               <ul className="flex flex-col gap-1.5">
                 {hints.map((hint) => (
                   <li key={`${hint.category}-${hint.message}`} className="text-sm text-slate-300">
-                    <span className="mr-2 text-xs uppercase tracking-wide text-amber-400">
+                    <span className="mr-2 text-xs uppercase tracking-wide text-warn-400">
                       {hint.category}
                     </span>
                     {hint.message}
@@ -439,7 +439,7 @@ export function PrintManagementPage() {
                   </p>
                   <div className="grid gap-4 lg:grid-cols-3">
                     <div>
-                      <h3 className="mb-1 text-sm font-medium text-emerald-400">
+                      <h3 className="mb-1 text-sm font-medium text-ok-400">
                         New ({diff.newDevices.length})
                       </h3>
                       <DataTable
@@ -453,7 +453,7 @@ export function PrintManagementPage() {
                       />
                     </div>
                     <div>
-                      <h3 className="mb-1 text-sm font-medium text-red-400">
+                      <h3 className="mb-1 text-sm font-medium text-fail-400">
                         Gone ({diff.goneDevices.length})
                       </h3>
                       <DataTable
@@ -467,7 +467,7 @@ export function PrintManagementPage() {
                       />
                     </div>
                     <div>
-                      <h3 className="mb-1 text-sm font-medium text-amber-400">
+                      <h3 className="mb-1 text-sm font-medium text-warn-400">
                         Swapped ({diff.swappedQueues.length})
                       </h3>
                       <DataTable

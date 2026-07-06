@@ -136,15 +136,15 @@ export function ReportingPage() {
               </p>
             )}
             {exportState.kind === 'exported' && (
-              <p className="text-sm text-emerald-400">
-                Report written to <span className="font-mono text-emerald-300">{exportState.filePath}</span>
+              <p className="text-sm text-ok-400">
+                Report written to <span className="font-mono text-ok-300">{exportState.filePath}</span>
               </p>
             )}
             {exportState.kind === 'cancelled' && (
               <p className="text-sm text-slate-400">Export cancelled.</p>
             )}
             {exportState.kind === 'error' && (
-              <p className="text-sm text-red-400">{exportState.message}</p>
+              <p className="text-sm text-fail-400">{exportState.message}</p>
             )}
           </div>
         </Card>

@@ -28,7 +28,7 @@ function TrendSparkline({ scans }: { scans: ScanSummary[] }) {
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className="h-9 w-40 shrink-0 text-sky-400"
+      className="h-9 w-40 shrink-0 text-accent-400"
       role="img"
       aria-label={`Finding count trend across ${counts.length} scans`}
     >
@@ -63,7 +63,7 @@ export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
   if (state.kind === 'error') {
     return (
       <Card title="Scan history">
-        <p className="text-sm text-red-400">{state.message}</p>
+        <p className="text-sm text-fail-400">{state.message}</p>
       </Card>
     );
   }
@@ -83,7 +83,7 @@ export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
             <div className="flex flex-col gap-2 text-sm">
               {changes.newFindings.map((finding) => (
                 <div key={`new-${finding.findingId}-${finding.affectedResource}`} className="flex items-center gap-2">
-                  <span className="rounded border border-red-700 bg-red-900/60 px-1.5 text-xs text-red-300">new</span>
+                  <span className="rounded border border-fail-700 bg-fail-900/60 px-1.5 text-xs text-fail-300">new</span>
                   <SeverityBadge severity={finding.severity} />
                   <span>{finding.title}</span>
                 </div>
@@ -93,7 +93,7 @@ export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
                   key={`resolved-${finding.findingId}-${finding.affectedResource}`}
                   className="flex items-center gap-2"
                 >
-                  <span className="rounded border border-emerald-700 bg-emerald-900/60 px-1.5 text-xs text-emerald-300">
+                  <span className="rounded border border-ok-700 bg-ok-900/60 px-1.5 text-xs text-ok-300">
                     resolved
                   </span>
                   <span className="text-slate-400 line-through">{finding.title}</span>

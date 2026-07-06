@@ -31,15 +31,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 
     return (
-      <section className="rounded-lg border border-red-900 bg-red-950/40 p-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-red-300">
+      <section className="rounded-lg border border-fail-900 bg-fail-950/40 p-4">
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-fail-300">
           This page crashed
         </h2>
-        <p className="mb-3 text-sm text-red-200">{this.state.error.message}</p>
+        <p className="mb-3 text-sm text-fail-200">{this.state.error.message}</p>
         <button
           type="button"
           onClick={() => this.setState({ error: null })}
-          className="rounded border border-red-700 px-3 py-1.5 text-sm text-red-200 transition-colors hover:bg-red-900/40"
+          className="rounded border border-fail-700 px-3 py-1.5 text-sm text-fail-200 transition-colors hover:bg-fail-900/40"
         >
           Try again
         </button>

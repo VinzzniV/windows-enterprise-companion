@@ -288,7 +288,7 @@ export function DiagnosticsPage() {
           <Card key={entry.key} title={entry.label}>
             {entry.state.kind === 'running' && <Spinner label="Running diagnostics …" />}
             {entry.state.kind === 'error' && (
-              <p role="alert" className="break-words text-sm text-red-400">
+              <p role="alert" className="break-words text-sm text-fail-400">
                 {entry.state.message}
               </p>
             )}

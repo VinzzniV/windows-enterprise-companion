@@ -12,7 +12,7 @@ import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
 import { Checkbox } from '../../shared/ui/Checkbox';
 import { PageHeader } from '../../shared/ui/PageHeader';
-import { ErrorState } from '../../shared/ui/States';
+import { EmptyState, ErrorState } from '../../shared/ui/States';
 import { CredentialFields } from '../../shared/targets/TargetSelector';
 
 /** What the admin should do next, per typed directory error. */
@@ -217,7 +217,7 @@ export function ActiveDirectoryPage() {
               !connectionForm.userName.includes('@') &&
               !connectionForm.userName.includes('\\') &&
               connectionForm.userDomain.trim() === '' && (
-                <p className="text-xs text-amber-400">
+                <p className="text-xs text-warn-400">
                   {connectionForm.domain.trim() !== ''
                     ? `No credential domain set — "${connectionForm.domain.trim()}" (the directory domain) will be used.`
                     : 'This user name has no domain. Enter it as user@domain.tld or DOMAIN\\user, or fill in the credential domain.'}
@@ -230,7 +230,7 @@ export function ActiveDirectoryPage() {
             {testBindState.kind === 'testing' ? 'Testing …' : 'Test connection'}
           </Button>
           {testBindState.kind === 'ok' && (
-            <span className="text-sm text-emerald-400">
+            <span className="text-sm text-ok-400">
               {testBindState.result.domainJoined
                 ? `Connected — ${testBindState.result.domainName} (${testBindState.result.defaultNamingContext})`
                 : 'This machine is not domain-joined and no domain was entered.'}
@@ -239,17 +239,17 @@ export function ActiveDirectoryPage() {
         </div>
         {testBindState.kind === 'error' && (
           <div role="alert" className="flex flex-col gap-1">
-            <p className="break-words text-sm text-red-400">{testBindState.message}</p>
+            <p className="break-words text-sm text-fail-400">{testBindState.message}</p>
             {testBindState.hint && <p className="text-xs text-slate-400">{testBindState.hint}</p>}
           </div>
         )}
       </fieldset>
 
       {state.kind === 'idle' && (
-        <p className="text-sm text-slate-400">
-          Run the analysis to query the domain this machine is joined to — or name another
-          domain/DC above.
-        </p>
+        <EmptyState
+          title="No analysis yet"
+          message="Run the analysis to query the domain this machine is joined to — or name another domain/DC above."
+        />
       )}
 
       {state.kind === 'loading' && <Spinner label="Querying the directory …" />}

@@ -167,8 +167,8 @@ describe('PrintManagementPage', () => {
     const lowChip = await screen.findByText('Toner Black 8%');
     const okChip = screen.getByText('Toner Cyan 70%');
 
-    expect(lowChip.className).toContain('red');
-    expect(okChip.className).not.toContain('red');
+    expect(lowChip.className).toContain('fail');
+    expect(okChip.className).not.toContain('fail');
   });
 
   it('loads the lease diff for a selected server', async () => {

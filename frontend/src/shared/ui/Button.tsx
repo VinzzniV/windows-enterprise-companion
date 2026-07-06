@@ -4,7 +4,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-sky-700 text-slate-50 hover:bg-sky-600 disabled:hover:bg-sky-700',
+    'bg-accent-600 text-white hover:bg-accent-500 disabled:hover:bg-accent-600',
   secondary:
     'border border-slate-600 text-slate-200 hover:bg-slate-800 disabled:hover:bg-transparent',
   ghost: 'text-slate-300 hover:bg-slate-800 hover:text-slate-100',

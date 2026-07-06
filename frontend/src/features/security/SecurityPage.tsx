@@ -191,7 +191,7 @@ function BatchHostRow({ outcome }: { outcome: BatchScanResult['hosts'][number] }
                 <SeverityBadge key={entry.severity} severity={entry.severity} count={entry.count} />
               ))}
             {findings.problems.length === 0 && (
-              <span className="text-xs text-emerald-400">No findings</span>
+              <span className="text-xs text-ok-400">No findings</span>
             )}
           </span>
         )}
@@ -202,7 +202,7 @@ function BatchHostRow({ outcome }: { outcome: BatchScanResult['hosts'][number] }
         )}
       </div>
       {outcome.error && (
-        <p role="alert" className="mt-2 break-words text-xs text-red-400">
+        <p role="alert" className="mt-2 break-words text-xs text-fail-400">
           {outcome.error.phase}: {outcome.error.code} — {outcome.error.message}
           {outcome.error.details ? ` ${outcome.error.details}` : ''}
         </p>
@@ -445,7 +445,7 @@ export function SecurityPage() {
 
           {problems.length === 0 ? (
             <Card title="Result">
-              <p className="text-sm text-emerald-400">No findings — all executed checks passed.</p>
+              <p className="text-sm text-ok-400">No findings — all executed checks passed.</p>
             </Card>
           ) : (
             <>

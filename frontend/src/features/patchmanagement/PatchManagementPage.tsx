@@ -574,7 +574,7 @@ export function PatchManagementPage() {
                 <Card title={`Product detail — ${selectedProduct.productId}`}>
                   <div className="flex flex-col gap-4">
                     {selectedProduct.lastError && (
-                      <p className="text-sm text-red-400">{selectedProduct.lastError}</p>
+                      <p className="text-sm text-fail-400">{selectedProduct.lastError}</p>
                     )}
                     <div className="text-sm text-slate-400">
                       Versions per depot:{' '}
@@ -651,11 +651,11 @@ export function PatchManagementPage() {
                         hint={previewError.hint}
                       />
                     )}
-                    {rolloutOutcome && <p className="text-sm text-emerald-400">{rolloutOutcome}</p>}
+                    {rolloutOutcome && <p className="text-sm text-ok-400">{rolloutOutcome}</p>}
 
                     {preview && (
-                      <div className="flex flex-col gap-3 rounded border border-amber-700 bg-amber-950/30 p-3">
-                        <p className="text-sm font-medium text-amber-300">
+                      <div className="flex flex-col gap-3 rounded border border-warn-700 bg-warn-950/30 p-3">
+                        <p className="text-sm font-medium text-warn-300">
                           Rollout preview — action “{preview.plannedAction}” for{' '}
                           {preview.clients.length} client(s)
                           {preview.depotFilter ? ` on ${preview.depotFilter}` : ' across all depots'}.
@@ -705,7 +705,7 @@ export function PatchManagementPage() {
                     {packagePlan && (
                       <div className="flex flex-col gap-2 rounded border border-slate-700 bg-slate-950 p-3">
                         <p className="text-sm text-slate-300">{packagePlan.note}</p>
-                        <code className="overflow-x-auto rounded bg-slate-900 p-2 text-sm text-sky-300">
+                        <code className="overflow-x-auto rounded bg-slate-900 p-2 text-sm text-accent-300">
                           {packagePlan.command}
                         </code>
                       </div>

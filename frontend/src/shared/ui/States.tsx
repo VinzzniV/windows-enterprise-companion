@@ -32,7 +32,7 @@ export function ErrorState({ title = 'Error', message, hint }: ErrorStateProps) 
   return (
     <Card title={title}>
       <div role="alert" className="flex flex-col gap-2">
-        <p className="break-words text-sm text-red-400">{message}</p>
+        <p className="break-words text-sm text-fail-400">{message}</p>
         {hint && <p className="text-sm text-slate-400">{hint}</p>}
       </div>
     </Card>

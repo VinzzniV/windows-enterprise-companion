@@ -20,16 +20,21 @@
 
   --color-ok-300: #6ee7b7;
   --color-ok-400: #34d399;
+  --color-ok-500: #10b981;
   --color-ok-700: #047857;
   --color-ok-900: #064e3b;
 
   --color-warn-300: #fcd34d;
   --color-warn-400: #fbbf24;
+  --color-warn-500: #f59e0b;
   --color-warn-700: #b45309;
   --color-warn-900: #78350f;
+  --color-warn-950: #451a03;
 
+  --color-fail-200: #fecaca;
   --color-fail-300: #fca5a5;
   --color-fail-400: #f87171;
+  --color-fail-500: #ef4444;
   --color-fail-600: #dc2626;
   --color-fail-700: #b91c1c;
   --color-fail-900: #7f1d1d;
@@ -170,13 +175,13 @@ body {
    --------------------------------------------------------------------------- */
 
 :focus-visible {
-  outline: 2px solid var(--color-sky-400);
+  outline: 2px solid var(--color-accent-400);
   outline-offset: 2px;
   border-radius: 4px;
 }
 
 ::selection {
-  background-color: color-mix(in srgb, var(--color-sky-400) 30%, transparent);
+  background-color: color-mix(in srgb, var(--color-accent-400) 35%, transparent);
 }
 
 * {

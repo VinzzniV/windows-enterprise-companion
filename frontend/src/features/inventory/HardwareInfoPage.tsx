@@ -292,7 +292,7 @@ function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: 
         {snapshot.installedSoftware == null ? (
           snapshot.installedSoftwareError ? (
             <div role="alert" className="flex flex-col gap-1">
-              <p className="break-words text-sm text-red-400">
+              <p className="break-words text-sm text-fail-400">
                 {snapshot.installedSoftwareError.code}: {snapshot.installedSoftwareError.message}
               </p>
               <p className="text-xs text-slate-500">
@@ -452,10 +452,10 @@ export function HardwareInfoPage() {
                     <span
                       className={`h-2 w-2 shrink-0 rounded-full ${
                         entry.state.kind === 'loading'
-                          ? 'animate-pulse bg-sky-400'
+                          ? 'animate-pulse bg-info-400'
                           : entry.state.kind === 'error'
-                            ? 'bg-red-500'
-                            : 'bg-emerald-500'
+                            ? 'bg-fail-500'
+                            : 'bg-ok-500'
                       }`}
                     />
                     <span className="truncate">{entry.label}</span>
