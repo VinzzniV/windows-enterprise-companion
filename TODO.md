@@ -30,6 +30,44 @@ Follow-ups spawned by that work:
 - [ ] Verify against the real opsi server (JSON-RPC shapes are tested
       against fixtures; live opsi 4.2/4.3 field variance not yet proven)
 
+## Planned — Automated package/version currency check (decided 2026-07-03)
+
+opsi only compares client ↔ depot; whether the *depot package* itself is
+outdated (vs. uib repo or vendor) is checked by nobody. Plan (researched
+against the opsi 4.3 docs, discussed 2026-07-03):
+
+- [ ] **A — Own opsi package repository** (server-side config, prerequisite):
+      HTTP(S)-served directory with the self-built `.opsi` files (naming
+      `product_<prodVer>-<pkgVer>.opsi` is the version metadata) + a `.repo`
+      file in `/etc/opsi/package-updater.repos.d/` (`baseURL`, `dirs`,
+      `active = true`; template `example.repo.template`). Makes
+      `opsi-package-updater list --updatable-packages` the single truth for
+      uib **and** self-built packages; multiple depots pull from the same
+      repo (or repo type `opsiDepotId` to replicate between depots).
+- [ ] **B — WEC reads the repos over HTTP** (no SSH needed): parse the
+      `.opsi` file names from the repo directory listings (uib:
+      opsipackages.43.opsi.org/stable, plus the own repo), compare against
+      productOnDepot, surface the reserved `DownloadNeeded` workflow state
+      in the dashboard ("repo has 128.0-2, depot has 127.0-1"). Repo URLs
+      as WEC options. Executing the update stays the planned/audited
+      opsi-package-updater command (no stable JSON-RPC for it; SSH is the
+      known follow-up).
+- [ ] **C — Vendor-level check via winget** (second step, for self-built
+      packages without a repo source): `winget show --exact --id <Id>` as
+      version oracle, opsi productId ↔ winget id via a mapping table like
+      the software mapping; needs version normalization, not every internal
+      tool exists in winget.
+
+## Planned — Print management module (ideas discussed 2026-07-03, decision pending)
+
+Printer inventory + consistency checks + gated bulk configuration; sources:
+Windows print servers via CIM (`MSFT_Printer`/`MSFT_PrinterConfiguration`,
+root\StandardCimv2, reachable through the existing IWmiQueryService seam),
+AD-published printQueue objects via IDirectoryReader, per-client printers
+via multi-host scans; SNMP (toner/page counters) would be a new dependency
+— separate decision. Writes would follow the ADR 0008 pattern
+(preview → confirm → audit) and need their own ADR.
+
 ## Done 2026-07-03 — Remote completion pass
 
 Inventory: plausible link speeds (WMI sentinel → unknown), per-adapter
