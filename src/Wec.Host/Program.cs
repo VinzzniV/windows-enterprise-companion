@@ -31,6 +31,7 @@ using Wec.Modules.PatchManagement;
 using Wec.Modules.PrintManagement;
 using Wec.Modules.Reporting;
 using Wec.Modules.Security;
+using Wec.Modules.Targets;
 
 using HostFactory = Microsoft.Extensions.Hosting.Host;
 
@@ -163,6 +164,7 @@ internal static partial class Program
             new ActiveDirectoryModule(),
             new PatchManagementModule(),
             new PrintManagementModule(),
+            new TargetsModule(),
         ];
         foreach (IModule module in modules)
         {

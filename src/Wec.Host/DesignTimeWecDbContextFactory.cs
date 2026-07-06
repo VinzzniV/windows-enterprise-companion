@@ -5,6 +5,7 @@ using Wec.Modules.Inventory.Persistence;
 using Wec.Modules.PatchManagement.Persistence;
 using Wec.Modules.PrintManagement.Persistence;
 using Wec.Modules.Security.Persistence;
+using Wec.Modules.Targets.Persistence;
 
 namespace Wec.Host;
 
@@ -25,6 +26,7 @@ internal sealed class DesignTimeWecDbContextFactory : IDesignTimeDbContextFactor
                 typeof(SecurityScanRecord).Assembly,
                 typeof(PatchAuditRecord).Assembly,
                 typeof(PrintSnapshotRecord).Assembly,
+                typeof(SavedTargetRecord).Assembly,
             ]));
     }
 }

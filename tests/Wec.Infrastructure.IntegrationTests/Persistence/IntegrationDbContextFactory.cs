@@ -4,6 +4,7 @@ using Wec.Modules.Inventory.Persistence;
 using Wec.Modules.PatchManagement.Persistence;
 using Wec.Modules.PrintManagement.Persistence;
 using Wec.Modules.Security.Persistence;
+using Wec.Modules.Targets.Persistence;
 
 namespace Wec.Infrastructure.IntegrationTests.Persistence;
 
@@ -26,6 +27,7 @@ internal static class IntegrationDbContextFactory
                 typeof(SecurityScanRecord).Assembly,
                 typeof(PatchAuditRecord).Assembly,
                 typeof(PrintSnapshotRecord).Assembly,
+                typeof(SavedTargetRecord).Assembly,
             ]));
     }
 }
