@@ -15,6 +15,7 @@ import { LogoMark } from '../shared/ui/LogoMark';
 import { ErrorBoundary } from '../shared/ui/ErrorBoundary';
 import { SplashIntro } from './SplashIntro';
 import { navIcons } from './navIcons';
+import { TargetProvider } from '../shared/targets/TargetContext';
 
 interface NavItem {
   to: string;
@@ -173,6 +174,7 @@ export function App() {
 
   return (
     <HashRouter>
+      <TargetProvider>
       <div className="flex h-screen bg-slate-950 text-slate-100">
         <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900">
           <div className="flex items-center gap-2.5 border-b border-slate-800 px-4 py-4">
@@ -212,6 +214,7 @@ export function App() {
         </main>
       </div>
       {!introDone && <SplashIntro onDone={() => setIntroDone(true)} />}
+      </TargetProvider>
     </HashRouter>
   );
 }

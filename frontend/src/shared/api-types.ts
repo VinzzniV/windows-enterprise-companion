@@ -19,6 +19,24 @@ export interface AppInfoResponse {
   machineName: string;
 }
 
+/** Wec.Modules.Targets.Persistence.TargetRoles (wire values) */
+export type TargetRole = 'Client' | 'PrintServer' | 'OpsiServer' | 'DomainController' | 'Generic';
+
+/** Wec.Modules.Targets.Persistence.SavedTarget — host + role + optional user name, never a password (ADR 0007) */
+export interface SavedTarget {
+  id: number;
+  label: string;
+  host: string;
+  role: TargetRole;
+  userName: string | null;
+  createdAtUtc: string;
+}
+
+/** Wec.Modules.Targets.Handlers.SavedTargetsResult */
+export interface SavedTargetsResult {
+  targets: SavedTarget[];
+}
+
 /** Wec.Core.Privileges.PrivilegeLevel (SCREAMING_SNAKE on the wire, ADR 0003) */
 export type PrivilegeLevel = 'STANDARD_USER' | 'ADMINISTRATOR';
 
