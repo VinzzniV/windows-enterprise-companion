@@ -26,35 +26,32 @@ interface NavItem {
   icon: ReactNode;
 }
 
+// Clients is the primary workspace; everything else is fleet- or global-scoped.
 const navGroups: { label: string; items: NavItem[] }[] = [
   {
-    label: 'Analyze',
+    label: 'Fleet',
     items: [
-      { to: '/inventory', label: 'Inventory', icon: navIcons.inventory },
-      { to: '/security', label: 'Security', icon: navIcons.security },
-      { to: '/diagnostics', label: 'Diagnostics', icon: navIcons.diagnostics },
+      { to: '/', label: 'Dashboard', icon: navIcons.dashboard },
       { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
-    ],
-  },
-  {
-    label: 'Manage',
-    items: [
       { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
       { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
     ],
   },
   {
-    label: 'Report',
-    items: [{ to: '/reporting', label: 'Reporting', icon: navIcons.reporting }],
+    // The standalone pages remain as batch runners for scanning many hosts at once.
+    label: 'Multi-host',
+    items: [
+      { to: '/inventory', label: 'Inventory', icon: navIcons.inventory },
+      { to: '/security', label: 'Security', icon: navIcons.security },
+      { to: '/diagnostics', label: 'Diagnostics', icon: navIcons.diagnostics },
+      { to: '/reporting', label: 'Reporting', icon: navIcons.reporting },
+    ],
   },
 ];
 
-const dashboardNav: NavItem = { to: '/', label: 'Dashboard', icon: navIcons.dashboard };
 const clientsNav: NavItem = { to: '/clients', label: 'Clients', icon: navIcons.clients };
 
-const topNav = [dashboardNav, clientsNav];
-
-const allNavItems = [...topNav, ...navGroups.flatMap((group) => group.items)];
+const allNavItems = [clientsNav, ...navGroups.flatMap((group) => group.items)];
 
 function sectionLabelFor(pathname: string): string {
   if (pathname === '/') {
@@ -193,23 +190,17 @@ export function App() {
             </h1>
           </div>
           <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-2">
-            <div className="flex flex-col gap-1">
-              <NavLink to={dashboardNav.to} end className={navLinkClass}>
-                {dashboardNav.icon}
-                {dashboardNav.label}
-              </NavLink>
-              <NavLink to={clientsNav.to} className={navLinkClass}>
-                {clientsNav.icon}
-                {clientsNav.label}
-              </NavLink>
-            </div>
+            <NavLink to={clientsNav.to} className={navLinkClass}>
+              {clientsNav.icon}
+              {clientsNav.label}
+            </NavLink>
             {navGroups.map((group) => (
               <div key={group.label} className="flex flex-col gap-1">
                 <span className="px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
                   {group.label}
                 </span>
                 {group.items.map((item) => (
-                  <NavLink key={item.to} to={item.to} className={navLinkClass}>
+                  <NavLink key={item.to} to={item.to} end={item.to === '/'} className={navLinkClass}>
                     {item.icon}
                     {item.label}
                   </NavLink>
