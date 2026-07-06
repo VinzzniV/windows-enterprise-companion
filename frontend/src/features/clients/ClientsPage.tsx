@@ -132,9 +132,14 @@ export function ClientsPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Clients" subtitle="Pick a client to scan it on demand — nothing runs until you open it">
-        <Button variant="secondary" onClick={() => { searchAd(adFilter, includeDisabled); reloadScanned(); }} disabled={searching}>
-          {searching ? 'Refreshing…' : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={() => navigate('/clients/compare')}>
+            Compare
+          </Button>
+          <Button variant="secondary" onClick={() => { searchAd(adFilter, includeDisabled); reloadScanned(); }} disabled={searching}>
+            {searching ? 'Refreshing…' : 'Refresh'}
+          </Button>
+        </div>
       </PageHeader>
 
       <Toolbar
