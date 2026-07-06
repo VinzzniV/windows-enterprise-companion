@@ -20,6 +20,7 @@ import { SummaryMetric } from '../../shared/ui/SummaryMetric';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { EvidenceList } from '../../shared/ui/EvidenceList';
+import { Select } from '../../shared/ui/Select';
 import { SeverityBadge } from './SeverityBadge';
 import { ScanHistory } from './ScanHistory';
 import {
@@ -465,10 +466,11 @@ export function SecurityPage() {
                   </button>
                 ))}
                 <span className="ml-4 text-slate-500">Category:</span>
-                <select
+                <Select
+                  fullWidth={false}
                   value={categoryFilter}
                   onChange={(event) => setCategoryFilter(event.target.value as FindingCategory | 'ALL')}
-                  className="rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-slate-200"
+                  aria-label="Category filter"
                 >
                   <option value="ALL">All</option>
                   {availableCategories.map((category) => (
@@ -476,7 +478,7 @@ export function SecurityPage() {
                       {categoryLabel(category)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <ul className="flex flex-col gap-3">

@@ -16,9 +16,13 @@ import type {
 } from '../../shared/api-types';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
+import { Checkbox } from '../../shared/ui/Checkbox';
 import { DataTable } from '../../shared/ui/DataTable';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
+import { Field } from '../../shared/ui/Field';
+import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
+import { Select } from '../../shared/ui/Select';
 import { Spinner } from '../../shared/ui/Spinner';
 import { StatusBadge, type StatusBadgeVariant } from '../../shared/ui/StatusBadge';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
@@ -387,48 +391,45 @@ export function PatchManagementPage() {
               (ADR 0008). The user must be in the opsi admin group.
             </p>
             <div className="grid gap-3 sm:grid-cols-3">
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-400">opsi server</span>
-                <input
-                  type="text"
-                  value={form.server}
-                  onChange={(event) => setForm({ ...form, server: event.target.value })}
-                  placeholder="opsi.example.local"
-                  className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-400">User name</span>
-                <input
-                  type="text"
-                  value={form.userName}
-                  onChange={(event) => setForm({ ...form, userName: event.target.value })}
-                  autoComplete="off"
-                  className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-slate-400">Password</span>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(event) => setForm({ ...form, password: event.target.value })}
-                  autoComplete="off"
-                  className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100"
-                />
-              </label>
+              <Field label="opsi server">
+                {(id) => (
+                  <Input
+                    id={id}
+                    type="text"
+                    value={form.server}
+                    onChange={(event) => setForm({ ...form, server: event.target.value })}
+                    placeholder="opsi.example.local"
+                  />
+                )}
+              </Field>
+              <Field label="User name">
+                {(id) => (
+                  <Input
+                    id={id}
+                    type="text"
+                    value={form.userName}
+                    onChange={(event) => setForm({ ...form, userName: event.target.value })}
+                    autoComplete="off"
+                  />
+                )}
+              </Field>
+              <Field label="Password">
+                {(id) => (
+                  <Input
+                    id={id}
+                    type="password"
+                    value={form.password}
+                    onChange={(event) => setForm({ ...form, password: event.target.value })}
+                    autoComplete="off"
+                  />
+                )}
+              </Field>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input
-                type="checkbox"
-                checked={form.trustServerCertificate}
-                onChange={(event) =>
-                  setForm({ ...form, trustServerCertificate: event.target.checked })
-                }
-              />
-              Trust server certificate (opsi uses a self-signed CA by default; this skips
-              certificate validation for this session)
-            </label>
+            <Checkbox
+              label="Trust server certificate (opsi uses a self-signed CA by default; this skips certificate validation for this session)"
+              checked={form.trustServerCertificate}
+              onChange={(event) => setForm({ ...form, trustServerCertificate: event.target.checked })}
+            />
             <div className="flex items-center gap-3">
               <Button variant="primary" onClick={connect} disabled={connecting}>
                 {connecting ? 'Testing connection…' : 'Test connection & connect'}
@@ -451,10 +452,10 @@ export function PatchManagementPage() {
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-slate-300">
               <span className="text-slate-400">Location / depot</span>
-              <select
+              <Select
+                fullWidth={false}
                 value={depotFilter}
                 onChange={(event) => changeDepotFilter(event.target.value)}
-                className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100"
               >
                 <option value="">All depots</option>
                 {(dashboard?.depots ?? []).map((depot) => (
@@ -462,7 +463,7 @@ export function PatchManagementPage() {
                     {depot.description ? `${depot.description} (${depot.id})` : depot.id}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <Button onClick={() => loadDashboard(depotFilter)} disabled={dashboardLoading}>
               Refresh
@@ -672,9 +673,10 @@ export function PatchManagementPage() {
                         />
                         {preview.clients.length > 0 && (
                           <>
-                            <label className="flex items-center gap-2 text-sm text-amber-200">
+                            <label className="flex cursor-pointer items-center gap-2 text-sm text-warn-300">
                               <input
                                 type="checkbox"
+                                className="accent-accent-500"
                                 checked={previewReviewed}
                                 onChange={(event) => setPreviewReviewed(event.target.checked)}
                               />
@@ -727,19 +729,20 @@ export function PatchManagementPage() {
                         header: 'opsi product id',
                         cell: (row) => (
                           <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              aria-label={`opsi product id for ${row.name}`}
-                              value={mappingInputs[row.name] ?? row.suggestedProductId ?? ''}
-                              onChange={(event) =>
-                                setMappingInputs((previous) => ({
-                                  ...previous,
-                                  [row.name]: event.target.value,
-                                }))
-                              }
-                              placeholder="productId"
-                              className="w-40 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-slate-100"
-                            />
+                            <div className="w-40">
+                              <Input
+                                type="text"
+                                aria-label={`opsi product id for ${row.name}`}
+                                value={mappingInputs[row.name] ?? row.suggestedProductId ?? ''}
+                                onChange={(event) =>
+                                  setMappingInputs((previous) => ({
+                                    ...previous,
+                                    [row.name]: event.target.value,
+                                  }))
+                                }
+                                placeholder="productId"
+                              />
+                            </div>
                             <Button
                               onClick={() =>
                                 saveMapping(

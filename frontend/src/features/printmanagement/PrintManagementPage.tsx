@@ -26,6 +26,7 @@ import { Card } from '../../shared/ui/Card';
 import { DataTable } from '../../shared/ui/DataTable';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { PageHeader } from '../../shared/ui/PageHeader';
+import { Select } from '../../shared/ui/Select';
 import { Spinner } from '../../shared/ui/Spinner';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
@@ -254,10 +255,10 @@ export function PrintManagementPage() {
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-slate-300">
               <span className="text-slate-400">Location / print server</span>
-              <select
+              <Select
+                fullWidth={false}
                 value={serverFilter}
                 onChange={(event) => setServerFilter(event.target.value)}
-                className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100"
               >
                 <option value="">All servers</option>
                 {servers.map((server) => (
@@ -265,7 +266,7 @@ export function PrintManagementPage() {
                     {server}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             {serverFilter !== '' && (
               <>
@@ -393,11 +394,11 @@ export function PrintManagementPage() {
                 returned and swapped devices for the lease renewal.
               </p>
               <div className="flex flex-wrap items-center gap-3">
-                <select
+                <Select
+                  fullWidth={false}
                   value={diffServer}
                   onChange={(event) => loadDiffHistory(event.target.value)}
                   aria-label="Diff server"
-                  className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
                 >
                   <option value="">Select server…</option>
                   {servers.map((server) => (
@@ -405,14 +406,14 @@ export function PrintManagementPage() {
                       {server}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {diffServer !== '' && (
                   <>
-                    <select
+                    <Select
+                      fullWidth={false}
                       value={diffBaselineId}
                       onChange={(event) => setDiffBaselineId(event.target.value)}
                       aria-label="Baseline snapshot"
-                      className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
                     >
                       <option value="">Previous scan (default)</option>
                       {diffHistory.slice(1).map((stamp) => (
@@ -420,7 +421,7 @@ export function PrintManagementPage() {
                           {formatTimestamp(stamp.capturedAtUtc)}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     <Button onClick={loadDiff}>Compare</Button>
                   </>
                 )}

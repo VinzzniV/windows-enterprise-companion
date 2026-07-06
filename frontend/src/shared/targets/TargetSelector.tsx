@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { AdComputer, AdComputerSearchResult, TargetRequest } from '../api-types';
 import { BridgeInvokeError, invoke } from '../bridge/bridgeClient';
+import { Button } from '../ui/Button';
+import { Input, controlClass } from '../ui/Input';
 
 export interface TargetSelection {
   mode: 'local' | 'remote' | 'multiple';
@@ -69,10 +71,6 @@ interface TargetSelectorProps {
   allowMultiple?: boolean;
 }
 
-const inputClass =
-  'rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 ' +
-  'placeholder:text-slate-500 focus:border-sky-500 focus:outline-none disabled:opacity-50';
-
 export interface CredentialValues {
   userName: string;
   domain: string;
@@ -95,25 +93,23 @@ export function CredentialFields({
 }) {
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-      <input
+      <Input
         type="text"
         value={values.userName}
         onChange={(event) => onChange({ userName: event.target.value })}
         placeholder="User name"
         aria-label="User name"
         disabled={disabled}
-        className={inputClass}
       />
-      <input
+      <Input
         type="text"
         value={values.domain}
         onChange={(event) => onChange({ domain: event.target.value })}
         placeholder={domainPlaceholder}
         aria-label={domainAriaLabel}
         disabled={disabled}
-        className={inputClass}
       />
-      <input
+      <Input
         type="password"
         value={values.password}
         onChange={(event) => onChange({ password: event.target.value })}
@@ -121,11 +117,12 @@ export function CredentialFields({
         aria-label="Password"
         autoComplete="off"
         disabled={disabled}
-        className={inputClass}
       />
     </div>
   );
 }
+
+const radioClass = 'accent-accent-500';
 
 export function TargetSelector({ selection, onChange, disabled, allowMultiple }: TargetSelectorProps) {
   const set = (patch: Partial<TargetSelection>) => onChange({ ...selection, ...patch });
@@ -142,10 +139,11 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
 
       <div className="flex flex-wrap gap-4">
         {modes.map((mode) => (
-          <label key={mode.value} className="flex items-center gap-1.5 text-sm">
+          <label key={mode.value} className="flex cursor-pointer items-center gap-1.5 text-sm">
             <input
               type="radio"
               name="target-mode"
+              className={radioClass}
               checked={selection.mode === mode.value}
               onChange={() => set({ mode: mode.value })}
               disabled={disabled}
@@ -156,14 +154,13 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
       </div>
 
       {selection.mode === 'remote' && (
-        <input
+        <Input
           type="text"
           value={selection.host}
           onChange={(event) => set({ host: event.target.value })}
           placeholder="Hostname, FQDN or IP address"
           aria-label="Remote host"
           disabled={disabled}
-          className={inputClass}
         />
       )}
 
@@ -176,7 +173,7 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
             aria-label="Remote hosts"
             rows={3}
             disabled={disabled}
-            className={inputClass}
+            className={`${controlClass} w-full`}
           />
           <AdComputerPicker
             disabled={disabled}
@@ -190,20 +187,22 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
       {selection.mode !== 'local' && (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-1.5 text-sm">
+            <label className="flex cursor-pointer items-center gap-1.5 text-sm">
               <input
                 type="radio"
                 name="credential-mode"
+                className={radioClass}
                 checked={selection.credentialMode === 'currentUser'}
                 onChange={() => set({ credentialMode: 'currentUser' })}
                 disabled={disabled}
               />
               Current user
             </label>
-            <label className="flex items-center gap-1.5 text-sm">
+            <label className="flex cursor-pointer items-center gap-1.5 text-sm">
               <input
                 type="radio"
                 name="credential-mode"
+                className={radioClass}
                 checked={selection.credentialMode === 'explicit'}
                 onChange={() => set({ credentialMode: 'explicit' })}
                 disabled={disabled}
@@ -294,7 +293,7 @@ function AdComputerPicker({
         <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
           Add from Active Directory
         </span>
-        <input
+        <Input
           type="text"
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
@@ -307,29 +306,25 @@ function AdComputerPicker({
           placeholder="Name filter (substring or * wildcard, empty = all)"
           aria-label="AD computer name filter"
           disabled={disabled || searching}
-          className={`${inputClass} min-w-52 flex-1`}
+          className="min-w-52 flex-1"
         />
-        <label className="flex items-center gap-1.5 text-xs text-slate-400">
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
           <input
             type="checkbox"
+            className="accent-accent-500"
             checked={includeDisabled}
             onChange={(event) => setIncludeDisabled(event.target.checked)}
             disabled={disabled || searching}
           />
           Include disabled
         </label>
-        <button
-          type="button"
-          onClick={search}
-          disabled={disabled || searching}
-          className="cursor-pointer rounded border border-slate-600 px-2.5 py-1 text-sm text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-default disabled:opacity-50"
-        >
+        <Button variant="secondary" onClick={search} disabled={disabled || searching}>
           {searching ? 'Searching…' : 'Search AD'}
-        </button>
+        </Button>
       </div>
 
       {error && (
-        <p role="alert" className="text-xs text-red-400">
+        <p role="alert" className="text-xs text-fail-400">
           {error} — for explicit directory credentials use the Active Directory page.
         </p>
       )}
@@ -353,16 +348,17 @@ function AdComputerPicker({
                   const host = hostOf(computer);
                   return (
                     <li key={host}>
-                      <label className="flex items-center gap-2 text-sm text-slate-200">
+                      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
                         <input
                           type="checkbox"
+                          className="accent-accent-500"
                           checked={checked.has(host)}
                           onChange={() => toggle(host)}
                           disabled={disabled}
                         />
                         <span className="min-w-0 truncate">
                           {host}
-                          {!computer.enabled && <span className="ml-1.5 text-xs text-amber-400">disabled</span>}
+                          {!computer.enabled && <span className="ml-1.5 text-xs text-warn-400">disabled</span>}
                           {computer.operatingSystem && (
                             <span className="ml-1.5 text-xs text-slate-500">{computer.operatingSystem}</span>
                           )}
@@ -373,14 +369,13 @@ function AdComputerPicker({
                 })}
               </ul>
               <div>
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
                   onClick={() => onAdd([...checked])}
                   disabled={disabled || checked.size === 0}
-                  className="cursor-pointer rounded bg-sky-700 px-2.5 py-1 text-sm font-medium text-slate-50 transition-colors hover:bg-sky-600 disabled:cursor-default disabled:opacity-50"
                 >
                   Add {checked.size} computer(s) to the scan list
-                </button>
+                </Button>
               </div>
             </>
           )}

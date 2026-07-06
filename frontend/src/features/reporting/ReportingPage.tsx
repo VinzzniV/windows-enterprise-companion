@@ -7,6 +7,7 @@ import { Button } from '../../shared/ui/Button';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { ErrorState } from '../../shared/ui/States';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
+import { Checkbox } from '../../shared/ui/Checkbox';
 
 type OverviewState =
   | { kind: 'loading' }
@@ -105,15 +106,11 @@ export function ReportingPage() {
       {overview && (
         <Card title="Export">
           <div className="flex flex-col gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={openAfterExport}
-                onChange={(event) => setOpenAfterExport(event.target.checked)}
-                className="accent-slate-400"
-              />
-              Open the report after export
-            </label>
+            <Checkbox
+              label="Open the report after export"
+              checked={openAfterExport}
+              onChange={(event) => setOpenAfterExport(event.target.checked)}
+            />
             <div className="flex items-center gap-2">
               <Button
                 variant="primary"

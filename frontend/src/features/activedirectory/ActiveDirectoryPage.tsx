@@ -9,6 +9,8 @@ import type {
 import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
 import { Button } from '../../shared/ui/Button';
+import { Input } from '../../shared/ui/Input';
+import { Checkbox } from '../../shared/ui/Checkbox';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { ErrorState } from '../../shared/ui/States';
 import { CredentialFields } from '../../shared/targets/TargetSelector';
@@ -69,10 +71,6 @@ function toConnectionRequest(form: ConnectionFormState): DirectoryConnectionRequ
   }
   return Object.keys(request).length > 0 ? request : null;
 }
-
-const connectionInputClass =
-  'rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 ' +
-  'placeholder:text-slate-500 focus:border-sky-500 focus:outline-none disabled:opacity-50';
 
 type OverviewState =
   | { kind: 'idle' }
@@ -172,31 +170,26 @@ export function ActiveDirectoryPage() {
           a different directory, a DC to pin the connection, and credentials to run as another account.
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <input
+          <Input
             type="text"
             value={connectionForm.domain}
             onChange={(event) => setForm({ domain: event.target.value })}
             placeholder="Domain (DNS name, e.g. contoso.local)"
             aria-label="Domain"
-            className={connectionInputClass}
           />
-          <input
+          <Input
             type="text"
             value={connectionForm.server}
             onChange={(event) => setForm({ server: event.target.value })}
             placeholder="Domain controller (optional)"
             aria-label="Domain controller"
-            className={connectionInputClass}
           />
         </div>
-        <label className="flex items-center gap-1.5 text-sm">
-          <input
-            type="checkbox"
-            checked={connectionForm.useExplicitCredentials}
-            onChange={(event) => setForm({ useExplicitCredentials: event.target.checked })}
-          />
-          Use explicit credentials
-        </label>
+        <Checkbox
+          label="Use explicit credentials"
+          checked={connectionForm.useExplicitCredentials}
+          onChange={(event) => setForm({ useExplicitCredentials: event.target.checked })}
+        />
         {connectionForm.useExplicitCredentials && (
           <>
             <CredentialFields
