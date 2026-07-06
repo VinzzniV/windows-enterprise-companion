@@ -10,7 +10,6 @@ import type {
   PrintServerDiff,
   PrintServerSnapshot,
   PrintSnapshotStamp,
-  TonerSupply,
 } from '../../shared/api-types';
 import { runWithConcurrencyLimit } from '../../shared/concurrency';
 import {
@@ -25,12 +24,21 @@ import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
 import { DataTable } from '../../shared/ui/DataTable';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
+import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
 import { Spinner } from '../../shared/ui/Spinner';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
 import { SummaryMetric } from '../../shared/ui/SummaryMetric';
+import { TonerBar } from './TonerBar';
+import {
+  filterPrinters,
+  groupBySite,
+  hasLowToner,
+  mergePrinters,
+  type MergedPrinter,
+} from './printers';
 
 function describeError(error: unknown): string {
   if (error instanceof BridgeInvokeError) {
@@ -44,29 +52,118 @@ function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
-/** Compact toner chips: "Toner Black 8%" red when low, unknown levels stay neutral. */
-function TonerCells({ supplies }: { supplies: TonerSupply[] }) {
-  if (supplies.length === 0) {
-    return <span className="text-slate-500">—</span>;
+function PrinterStatus({ printer }: { printer: MergedPrinter }) {
+  if (printer.deviceError) {
+    return <StatusBadge variant="error">{printer.deviceError.code}</StatusBadge>;
   }
+  if (printer.status) {
+    return (
+      <StatusBadge variant={printer.status === 'Idle' ? 'success' : 'info'}>{printer.status}</StatusBadge>
+    );
+  }
+  return <span className="text-slate-500">—</span>;
+}
+
+/** One physical device as a single compact row; expands to its queues and full toner. */
+function PrinterRow({
+  printer,
+  expanded,
+  onToggle,
+  onOpenWebUi,
+}: {
+  printer: MergedPrinter;
+  expanded: boolean;
+  onToggle: () => void;
+  onOpenWebUi: (address: string) => void;
+}) {
   return (
-    <div className="flex flex-wrap gap-1">
-      {supplies.map((supply) => (
-        <span
-          key={supply.description}
-          className={`inline-flex rounded border px-1.5 py-0.5 text-xs ${
-            supply.isLow
-              ? 'border-fail-700 bg-fail-900/60 text-fail-300'
-              : supply.percent !== null
-                ? 'border-slate-700 bg-slate-800 text-slate-300'
-                : 'border-slate-800 bg-slate-900 text-slate-500'
-          }`}
-        >
-          {supply.description}
-          {supply.percent !== null ? ` ${supply.percent}%` : ''}
-        </span>
-      ))}
-    </div>
+    <>
+      <tr
+        onClick={onToggle}
+        className="cursor-pointer border-t border-slate-800/70 even:bg-slate-800/20 hover:bg-slate-800/40"
+      >
+        <td className="px-3 py-1.5 align-top">
+          <div className="flex items-center gap-1.5">
+            <span className={`text-slate-500 transition-transform ${expanded ? 'rotate-90' : ''}`}>›</span>
+            <span className="font-medium text-slate-100">{printer.name}</span>
+            {printer.queues.length > 1 && (
+              <span className="text-xs text-slate-500">{printer.queues.length} queues</span>
+            )}
+          </div>
+        </td>
+        <td className="px-3 py-1.5 align-top">{printer.model ?? '—'}</td>
+        <td className="px-3 py-1.5 align-top font-mono text-[13px] tabular-nums">
+          {printer.serialNumber ?? '—'}
+        </td>
+        <td className="px-3 py-1.5 align-top">{printer.location ?? '—'}</td>
+        <td className="px-3 py-1.5 align-top">
+          <PrinterStatus printer={printer} />
+        </td>
+        <td className="px-3 py-1.5 align-top">
+          <TonerBar supplies={printer.supplies} />
+        </td>
+        <td className="px-3 py-1.5 align-top font-mono text-[13px] tabular-nums">
+          {printer.deviceAddress ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenWebUi(printer.deviceAddress!);
+              }}
+              title={`Open https://${printer.deviceAddress}/ in the browser`}
+              className="cursor-pointer text-accent-400 underline-offset-2 hover:underline"
+            >
+              {printer.deviceAddress}
+            </button>
+          ) : (
+            <span className="text-slate-500">—</span>
+          )}
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="border-t border-slate-800/40 bg-slate-950/40">
+          <td colSpan={7} className="px-3 py-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div>
+                <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Queues</h4>
+                <ul className="flex flex-col gap-1 text-sm">
+                  {printer.queues.map((queue) => (
+                    <li key={`${queue.server}-${queue.queueName}`} className="text-slate-300">
+                      <span className="font-mono text-xs text-slate-400">
+                        \\{queue.server}\{queue.shareName ?? queue.queueName}
+                      </span>
+                      {queue.driverName && (
+                        <span className="ml-2 text-xs text-slate-500">
+                          {queue.driverName}
+                          {queue.driverVersion ? ` (${queue.driverVersion})` : ''}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {printer.supplies.length > 0 && (
+                <div>
+                  <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Toner</h4>
+                  <ul className="flex flex-col gap-0.5 text-sm">
+                    {printer.supplies.map((supply) => (
+                      <li
+                        key={supply.description}
+                        className={supply.isLow ? 'text-fail-300' : 'text-slate-300'}
+                      >
+                        {supply.description}
+                        {supply.percent != null ? ` ${supply.percent}%` : ' (level unknown)'}
+                        {supply.isLow ? ' — low' : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -81,6 +178,9 @@ export function PrintManagementPage() {
   const [scanStates, setScanStates] = useState<Record<string, ServerScanState>>({});
   const [scanning, setScanning] = useState(false);
   const [serverFilter, setServerFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [groupByLocation, setGroupByLocation] = useState(false);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [hints, setHints] = useState<PrintHint[]>([]);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [maxParallelScans, setMaxParallelScans] = useState(4);
@@ -214,14 +314,27 @@ export function PrintManagementPage() {
   const visibleSnapshots = servers
     .filter((server) => serverFilter === '' || server === serverFilter)
     .map((server) => snapshots[server]);
-  const rows = visibleSnapshots.flatMap((snapshot) =>
+  const serverEntries = visibleSnapshots.flatMap((snapshot) =>
     snapshot.printers.map((entry) => ({ server: snapshot.server, entry })));
+  const printers = mergePrinters(serverEntries);
+  const queueCount = printers.reduce((sum, printer) => sum + printer.queues.length, 0);
+  const filteredPrinters = filterPrinters(printers, search);
+  const printerGroups = groupByLocation
+    ? groupBySite(filteredPrinters)
+    : [{ site: '', printers: filteredPrinters }];
 
-  const deviceCount = rows.filter((row) => row.entry.deviceAddress !== null).length;
-  const lowTonerCount = rows.filter((row) =>
-    row.entry.device?.supplies.some((supply) => supply.isLow)).length;
-  const unreachableCount = rows.filter((row) => row.entry.deviceError !== null).length;
+  const deviceCount = printers.filter((printer) => printer.deviceAddress !== null).length;
+  const lowTonerCount = printers.filter((printer) => hasLowToner(printer.supplies)).length;
+  const unreachableCount = printers.filter((printer) => printer.deviceError !== null).length;
   const failedScans = Object.entries(scanStates).filter(([, state]) => state.status === 'error');
+
+  const toggleExpanded = (key: string) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   return (
     <div className="flex flex-col gap-4">
@@ -232,7 +345,7 @@ export function PrintManagementPage() {
         <Button variant="primary" onClick={scan} disabled={scanning}>
           {scanning ? 'Scanning…' : 'Scan'}
         </Button>
-        <Button onClick={exportCsv} disabled={rows.length === 0}>
+        <Button onClick={exportCsv} disabled={printers.length === 0}>
           Export CSV
         </Button>
       </PageHeader>
@@ -250,11 +363,11 @@ export function PrintManagementPage() {
         />
       ))}
 
-      {rows.length > 0 && (
+      {printers.length > 0 && (
         <>
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-slate-300">
-              <span className="text-slate-400">Location / print server</span>
+              <span className="text-slate-400">Print server</span>
               <Select
                 fullWidth={false}
                 value={serverFilter}
@@ -281,7 +394,8 @@ export function PrintManagementPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <SummaryMetric label="Queues" value={rows.length} />
+            <SummaryMetric label="Printers" value={printers.length} />
+            <SummaryMetric label="Queues" value={queueCount} />
             <SummaryMetric label="Devices (with IP)" value={deviceCount} />
             <SummaryMetric
               label="Toner low"
@@ -312,81 +426,77 @@ export function PrintManagementPage() {
           )}
 
           <Card title="Printers">
-            <DataTable
-              columns={[
-                { header: 'Server', cell: (row) => row.server },
-                {
-                  header: 'Queue',
-                  cell: (row) => (
-                    <div>
-                      <div className="text-slate-100">{row.entry.queueName}</div>
-                      {row.entry.shareName && (
-                        <div className="text-xs text-slate-500">\\{row.server}\{row.entry.shareName}</div>
-                      )}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search name, serial, location, model or IP"
+                  aria-label="Search printers"
+                  className="w-72"
+                />
+                <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-400">
+                  <input
+                    type="checkbox"
+                    className="accent-accent-500"
+                    checked={groupByLocation}
+                    onChange={(event) => setGroupByLocation(event.target.checked)}
+                  />
+                  Group by location
+                </label>
+                <span className="text-xs text-slate-500">
+                  {filteredPrinters.length} of {printers.length} device
+                  {printers.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              {filteredPrinters.length === 0 ? (
+                <p className="text-sm text-slate-400">No printers match the search.</p>
+              ) : (
+                printerGroups.map((group) => (
+                  <div key={group.site || 'all'} className="flex flex-col gap-1">
+                    {group.site !== '' && (
+                      <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {group.site}
+                        <span className="ml-2 font-normal normal-case tracking-normal text-slate-600">
+                          {group.printers.length} device{group.printers.length === 1 ? '' : 's'}
+                        </span>
+                      </h3>
+                    )}
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-left text-sm">
+                        <thead>
+                          <tr>
+                            {['Printer', 'Model', 'Serial', 'Location', 'Status', 'Toner', 'IP / web UI'].map(
+                              (header) => (
+                                <th
+                                  key={header}
+                                  className="border-b border-slate-800 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-slate-500"
+                                >
+                                  {header}
+                                </th>
+                              ),
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.printers.map((printer) => (
+                            <PrinterRow
+                              key={printer.key}
+                              printer={printer}
+                              expanded={expanded.has(printer.key)}
+                              onToggle={() => toggleExpanded(printer.key)}
+                              onOpenWebUi={openWebUi}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ),
-                },
-                {
-                  header: 'Model',
-                  cell: (row) => row.entry.device?.model ?? '—',
-                },
-                {
-                  header: 'Serial number',
-                  mono: true,
-                  cell: (row) => row.entry.device?.serialNumber ?? '—',
-                },
-                {
-                  header: 'Location',
-                  cell: (row) =>
-                    row.entry.location
-                    ?? row.entry.device?.sysLocation
-                    ?? '—',
-                },
-                {
-                  header: 'Status',
-                  cell: (row) =>
-                    row.entry.deviceError ? (
-                      <StatusBadge variant="error">{row.entry.deviceError.code}</StatusBadge>
-                    ) : row.entry.device?.status ? (
-                      <StatusBadge variant={row.entry.device.status === 'Idle' ? 'success' : 'info'}>
-                        {row.entry.device.status}
-                      </StatusBadge>
-                    ) : (
-                      <span className="text-slate-500">—</span>
-                    ),
-                },
-                {
-                  header: 'Toner',
-                  cell: (row) => <TonerCells supplies={row.entry.device?.supplies ?? []} />,
-                },
-                {
-                  header: 'IP / web UI',
-                  mono: true,
-                  cell: (row) =>
-                    row.entry.deviceAddress ? (
-                      <button
-                        type="button"
-                        onClick={() => openWebUi(row.entry.deviceAddress!)}
-                        title={`Open https://${row.entry.deviceAddress}/ in the browser`}
-                        className="cursor-pointer text-accent-400 underline-offset-2 hover:underline"
-                      >
-                        {row.entry.deviceAddress}
-                      </button>
-                    ) : (
-                      <span className="text-slate-500">—</span>
-                    ),
-                },
-                {
-                  header: 'Driver',
-                  cell: (row) =>
-                    row.entry.driverName
-                      ? `${row.entry.driverName}${row.entry.driverVersion ? ` (${row.entry.driverVersion})` : ''}`
-                      : '—',
-                },
-              ]}
-              rows={rows}
-              emptyMessage="No printers captured yet."
-            />
+                  </div>
+                ))
+              )}
+            </div>
           </Card>
 
           <Card title="Lease swap history">
@@ -490,7 +600,7 @@ export function PrintManagementPage() {
         </>
       )}
 
-      {rows.length === 0 && !scanning && failedScans.length === 0 && (
+      {printers.length === 0 && !scanning && failedScans.length === 0 && (
         <EmptyState
           title="No printers captured yet"
           message="Scan a print server (local machine, one remote server, or several — the AD picker finds them). Stored snapshots reappear here automatically."

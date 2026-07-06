@@ -141,8 +141,8 @@ describe('PrintManagementPage', () => {
     expect(screen.getByText('UTAX P-4539i MFP')).toBeDefined();
     // Unreachable device renders its typed error instead of fake data
     expect(screen.getByText('CONNECTION_TIMEOUT')).toBeDefined();
-    // Low toner chip present with percentage
-    expect(screen.getByText('Toner Black 8%')).toBeDefined();
+    // Low toner surfaced compactly as the lowest level + low flag
+    expect(screen.getByText('8% low')).toBeDefined();
     // Consistency hint surfaced
     expect(screen.getByText(/Consistency hints/)).toBeDefined();
   });
@@ -153,22 +153,23 @@ describe('PrintManagementPage', () => {
     render(<PrintManagementPage />);
     await screen.findByText('Denkingen-EG');
 
-    await userEvent.selectOptions(
-      screen.getByLabelText(/Location \/ print server/), 'PRSRV-ROTTWEIL');
+    await userEvent.selectOptions(screen.getByLabelText('Print server'), 'PRSRV-ROTTWEIL');
 
     expect(screen.queryByText('Denkingen-EG')).toBeNull();
     expect(screen.getByText('Rottweil-1')).toBeDefined();
   });
 
-  it('marks low toner supplies with the warning style', async () => {
+  it('marks low toner with the fail style and lists the full breakdown on expand', async () => {
     mockBridge();
 
     render(<PrintManagementPage />);
-    const lowChip = await screen.findByText('Toner Black 8%');
-    const okChip = screen.getByText('Toner Cyan 70%');
+    const low = await screen.findByText('8% low');
+    expect(low.className).toContain('fail');
 
-    expect(lowChip.className).toContain('fail');
-    expect(okChip.className).not.toContain('fail');
+    // Expanding the device row reveals every supply
+    await userEvent.click(screen.getByText('Denkingen-EG'));
+    expect(await screen.findByText(/Toner Black 8%/)).toBeDefined();
+    expect(screen.getByText(/Toner Cyan 70%/)).toBeDefined();
   });
 
   it('loads the lease diff for a selected server', async () => {
