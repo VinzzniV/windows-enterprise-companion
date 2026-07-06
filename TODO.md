@@ -4,6 +4,33 @@ Living document: check items off, reprioritize freely, delete what gets
 rejected. Ordering within a section is by value/effort. Milestone work
 (M6, M7) still follows the loop protocol: ADR + user decisions first.
 
+## Done 2026-07-03 — UI/UX rework (foundation, slices 1–6)
+
+Approved plan "Neu gedacht" (dark + fresh accent, dashboard). Shipped as
+independent slices: (1) bundled Inter + JetBrains Mono fonts and Tailwind
+v4 semantic tokens (accent indigo + ok/warn/fail/info); (2) shared form
+primitives (Input/Select/Checkbox/Field/Toolbar) eliminating the three
+divergent input styles; (3) DataTable upgrade (zebra, sticky header,
+per-column align/mono, accessible row-click) and a dot+label Badge system;
+(4) app-shell rework (grouped nav, accent active state, global top bar with
+privilege + breadcrumb); (5) accent adopted on buttons/focus/selection and
+a full token color sweep across all pages, AD states unified; (6) Dashboard
+landing page with module tiles derived from persisted data. Frontend
+build + 54 tests green.
+
+Follow-ups spawned by that work:
+
+- [ ] Master/detail unification for Security and Diagnostics multi-host
+      views (align with Inventory). Deliberately deferred from slice 5 — it
+      is a visible behavior change best reviewed live first. Print stays a
+      consolidated cross-server table by design (its report use case).
+- [ ] Shared `ResultContext` component — the Security/Diagnostics context
+      boxes already match; Inventory's master/detail header differs slightly.
+- [ ] Optional: command palette (Ctrl+K) for navigation + quick actions
+      (slice 7, not built).
+- [ ] Live visual pass on the real host once the rework is running (the
+      session that built it could not screenshot the WinForms/WebView2 app).
+
 ## Done 2026-07-03 — Patch management (opsi) MVP
 
 New Wec.Modules.PatchManagement + "Patch Management" page (ADR 0008):

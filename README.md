@@ -13,11 +13,18 @@ read-only: it can write opsi rollout action requests, gated behind a
 mandatory preview, explicit confirmation and an audit log (ADR 0008).
 Each module has its own README under `src/Modules/`.
 
-The UI follows a small shared design system (`frontend/src/shared/ui`):
-uniform page headers, buttons, badges, summary metrics, data tables and
-empty/error states. Every result view names the host, scan status and
-timestamp it belongs to; results for a previously selected target are never
-shown next to a newly selected one.
+The app opens on a **Dashboard** that summarizes each module from its last
+stored scan (inventory hosts, security severity, printer toner, opsi state)
+and links into it; the sidebar groups the modules (Analyze / Manage /
+Report). The UI follows a shared design system
+([`frontend/src/shared/ui`](frontend/src/shared/ui/README.md)): bundled
+Inter (UI) and JetBrains Mono (serials/IPs/versions) fonts, semantic color
+tokens (`accent` + `ok/warn/fail/info`), and shared primitives — page
+headers, buttons, form controls, dot+label badges, summary metrics, data
+tables (zebra, sticky header, aligned/monospaced columns) and empty/error
+states. Every result view names the host, scan status and timestamp it
+belongs to; results for a previously selected target are never shown next
+to a newly selected one.
 
 Authoritative docs: [docs/architecture-and-m1-plan.md](docs/architecture-and-m1-plan.md)
 and the ADRs in [docs/adr/](docs/adr/).

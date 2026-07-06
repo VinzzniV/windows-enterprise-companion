@@ -1,0 +1,45 @@
+# Shared UI design system
+
+Dark-first, data-dense enterprise look. Everything here is used across the
+feature pages — build pages from these, don't re-style ad-hoc.
+
+## Tokens (`frontend/src/index.css`, Tailwind v4 `@theme`)
+
+- **Fonts** (bundled via `@fontsource-variable`, no CDN — ADR 0001):
+  `--font-sans` = Inter (all UI), `--font-mono` = JetBrains Mono (identifiers:
+  serials, IPs, MACs, OIDs, versions). Use `font-mono tabular-nums` for those.
+- **Accent** (`--color-accent-*`, indigo): primary buttons, active nav,
+  links, focus ring, selection. Matches the LogoMark gradient.
+- **Status** (`--color-{ok,warn,fail,info}-*`): the only semantic status
+  colors. `ok` = healthy, `warn` = attention, `fail` = broken, `info` =
+  notable. Never use raw `emerald/amber/red/sky` utilities on pages — use the
+  token names so the palette stays cohesive.
+
+## Primitives
+
+| Component | Use |
+|---|---|
+| `Button` (`primary`/`secondary`/`ghost`) | Actions; `primary` = the page's main action |
+| `Input`, `Select`, `Checkbox`, `Field`, `Toolbar` | All form controls — never hand-roll an input's classes; `controlClass` is the shared base |
+| `Badge` (`ok/warn/fail/info/neutral/accent`) | Status as **dot + label** (color is never the only signal); `StatusBadge`/`SeverityBadge` map onto it |
+| `SummaryMetric` | Number-over-label tile; tones map to the status semantics above |
+| `DataTable` | Dense table; per-column `align` + `mono`, `zebra` (default), `stickyHeader`, accessible `onRowClick` |
+| `Card`, `PageHeader`, `DetailsDisclosure`, `EvidenceList`, `Spinner` | Structure and disclosure |
+| `EmptyState`, `ErrorState` | The only empty/error presentation — no bespoke alert divs |
+| `LogoMark`, `ErrorBoundary` | Branding, per-route error isolation |
+
+## Conventions
+
+- One result-context line per result view (host · status · timestamp · counts).
+- Multi-host scans use the shared `TargetSelector` (Local / Remote / Multiple
+  + AD computer picker) and the `runWithConcurrencyLimit` pool.
+- Every icon-only control has an `aria-label`; focus is visible everywhere
+  (`:focus-visible` accent ring); `prefers-reduced-motion` is respected.
+- `api-types.ts` is hand-mirrored from the C# DTOs — update it on every DTO
+  change.
+
+Not every page uses master/detail: Inventory does (host list + detail),
+while Print Management deliberately shows one consolidated table across all
+servers (the cross-server report the use case wants). Unifying
+Security/Diagnostics multi-host onto a shared master/detail is a tracked
+follow-up (TODO.md).
