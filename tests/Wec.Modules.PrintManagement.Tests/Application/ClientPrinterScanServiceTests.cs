@@ -22,7 +22,8 @@ public sealed class ClientPrinterScanServiceTests
     }
 
     private static WmiInstance Printer(
-        string name, string? driver = null, string? port = null, string? location = null, object? shared = null) =>
+        string name, string? driver = null, string? port = null, string? location = null,
+        object? shared = null, object? network = null) =>
         new(new Dictionary<string, object?>
         {
             ["Name"] = name,
@@ -30,6 +31,7 @@ public sealed class ClientPrinterScanServiceTests
             ["PortName"] = port,
             ["Location"] = location,
             ["Shared"] = shared,
+            ["Network"] = network,
         });
 
     private void SetUpPrinters(params WmiInstance[] printers) =>
@@ -59,6 +61,21 @@ public sealed class ClientPrinterScanServiceTests
 
         Assert.Contains(printers, p => p is { Name: "Reception", Shared: true, IsNetwork: false });
         Assert.Contains(printers, p => p is { Name: "Microsoft Print to PDF", IsNetwork: false });
+    }
+
+    [Fact]
+    public async Task Capture_PrefersNetworkPropertyOverNameHeuristic()
+    {
+        SetUpPrinters(
+            Printer("Reception", network: true), // local-looking name, but MSFT says network
+            Printer(@"\\PRSRV\legacy", network: false)); // UNC name, but MSFT says local
+
+        Result<ClientPrinterScan> result = await CreateService().CaptureAsync(
+            ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.Printers.Single(p => p.Name == "Reception").IsNetwork);
+        Assert.False(result.Value.Printers.Single(p => p.Name == @"\\PRSRV\legacy").IsNetwork);
     }
 
     [Fact]

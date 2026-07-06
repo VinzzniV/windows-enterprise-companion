@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
@@ -8,8 +8,9 @@ import { PageHeader } from '../../shared/ui/PageHeader';
 import { Button } from '../../shared/ui/Button';
 import { Badge } from '../../shared/ui/Badge';
 import { Card } from '../../shared/ui/Card';
+import { Spinner } from '../../shared/ui/Spinner';
 import { EmptyState } from '../../shared/ui/States';
-import { isLocalClient, toClientTarget } from './clients';
+import { clientKey, isLocalClient, toClientTarget } from './clients';
 import { InventorySection } from './sections/InventorySection';
 import { SecuritySection } from './sections/SecuritySection';
 import { DiagnosticsSection } from './sections/DiagnosticsSection';
@@ -112,7 +113,9 @@ export function ClientDetailPage() {
   const host = decodeURIComponent(rawHost ?? '');
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
-  const [machineName, setMachineName] = useState<string | null>(null);
+  // undefined = getAppInfo not resolved yet; string|null once known. Sections
+  // must wait for this so the local machine is never scanned as a remote target.
+  const [machineName, setMachineName] = useState<string | null | undefined>(undefined);
   const [section, setSection] = useState<SectionKey>('inventory');
 
   useEffect(() => {
@@ -121,17 +124,30 @@ export function ClientDetailPage() {
       .catch(() => setMachineName(null));
   }, []);
 
-  const local = isLocalClient(host, machineName);
+  const appInfoResolved = machineName !== undefined;
+  const resolvedMachineName = machineName ?? null;
+  const local = isLocalClient(host, resolvedMachineName);
   const credentials = credentialsFor(host);
   const target = useMemo(
-    () => toClientTarget(host, machineName, credentials),
-    [host, machineName, credentials],
+    () => toClientTarget(host, resolvedMachineName, credentials),
+    [host, resolvedMachineName, credentials],
   );
 
   const savedEntry = useMemo(
-    () => savedTargets.find((t) => t.role === 'Client' && t.host.toUpperCase() === host.toUpperCase()),
+    // Match by the same short-name key the Clients list merges on, so a client
+    // saved under its short name is recognized when opened by FQDN.
+    () => savedTargets.find((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
     [savedTargets, host],
   );
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    event.preventDefault();
+    const delta = event.key === 'ArrowRight' ? 1 : -1;
+    const next = SECTIONS[(index + delta + SECTIONS.length) % SECTIONS.length];
+    setSection(next.key);
+    document.getElementById(`clienttab-${next.key}`)?.focus();
+  };
 
   if (host === '') {
     return <EmptyState title="No client selected" message="Pick a client from the Clients list." />;
@@ -164,13 +180,17 @@ export function ClientDetailPage() {
       {!local && <ClientCredentialBar host={host} />}
 
       <div role="tablist" aria-label="Client sections" className="flex flex-wrap gap-1 border-b border-slate-800">
-        {SECTIONS.map((entry) => (
+        {SECTIONS.map((entry, index) => (
           <button
             key={entry.key}
+            id={`clienttab-${entry.key}`}
             role="tab"
             aria-selected={section === entry.key}
+            aria-controls={`clientpanel-${entry.key}`}
+            tabIndex={section === entry.key ? 0 : -1}
             type="button"
             onClick={() => setSection(entry.key)}
+            onKeyDown={(event) => onTabKeyDown(event, index)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
               section === entry.key
                 ? 'border-accent-400 font-medium text-white'
@@ -182,29 +202,37 @@ export function ClientDetailPage() {
         ))}
       </div>
 
-      {section === 'inventory' && <InventorySection key={host} target={target} />}
-      {section === 'security' && <SecuritySection key={host} target={target} />}
-      {section === 'diagnostics' && <DiagnosticsSection key={host} target={target} />}
-      {section === 'printers' && <PrintersSection key={host} target={target} />}
-      {section === 'reporting' &&
-        (local ? (
-          <EmptyState
-            title="Executive report"
-            message="The executive summary report covers this local machine. It opens in the Reporting view."
-            action={
-              <Button variant="primary" onClick={() => navigate('/reporting')}>
-                Open Reporting
-              </Button>
-            }
-          />
+      <div role="tabpanel" id={`clientpanel-${section}`} aria-labelledby={`clienttab-${section}`}>
+        {!appInfoResolved ? (
+          <Spinner label="Preparing client …" />
         ) : (
-          <Card title="Reporting — not available for remote clients">
-            <p className="text-sm text-slate-400">
-              The executive summary report is generated for the local machine only (NOT_RUN for remote
-              targets). Remote reporting is a planned follow-up.
-            </p>
-          </Card>
-        ))}
+          <>
+            {section === 'inventory' && <InventorySection key={host} target={target} />}
+            {section === 'security' && <SecuritySection key={host} target={target} />}
+            {section === 'diagnostics' && <DiagnosticsSection key={host} target={target} />}
+            {section === 'printers' && <PrintersSection key={host} target={target} />}
+            {section === 'reporting' &&
+              (local ? (
+                <EmptyState
+                  title="Executive report"
+                  message="The executive summary report covers this local machine. It opens in the Reporting view."
+                  action={
+                    <Button variant="primary" onClick={() => navigate('/reporting')}>
+                      Open Reporting
+                    </Button>
+                  }
+                />
+              ) : (
+                <Card title="Reporting — not available for remote clients">
+                  <p className="text-sm text-slate-400">
+                    The executive summary report is generated for the local machine only (NOT_RUN for
+                    remote targets). Remote reporting is a planned follow-up.
+                  </p>
+                </Card>
+              ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -35,7 +35,7 @@ public sealed class ClientPrinterScanService
 
         Result<IReadOnlyList<WmiInstance>> printers = await _wmiQueryService.QueryAsync(
             target, credentials, connection, StandardCimV2Namespace,
-            "SELECT Name, ShareName, DriverName, PortName, Location, Shared FROM MSFT_Printer",
+            "SELECT Name, ShareName, DriverName, PortName, Location, Shared, Network FROM MSFT_Printer",
             cancellationToken);
         if (printers.IsFailure)
         {
@@ -63,8 +63,19 @@ public sealed class ClientPrinterScanService
             NonEmpty(instance.GetString("PortName")),
             NonEmpty(instance.GetString("Location")),
             AsBool(instance, "Shared"),
-            IsNetworkName(name));
+            IsNetwork(instance, name));
     }
+
+    /// <summary>
+    /// Prefer the authoritative MSFT_Printer.Network flag; fall back to the
+    /// \\server\queue name heuristic only when the provider omits it.
+    /// </summary>
+    internal static bool IsNetwork(WmiInstance instance, string name) => instance.GetRawValue("Network") switch
+    {
+        bool value => value,
+        string text when bool.TryParse(text, out bool parsed) => parsed,
+        _ => IsNetworkName(name),
+    };
 
     /// <summary>A network connection is named \\server\queue; a local printer is not.</summary>
     internal static bool IsNetworkName(string name) => name.StartsWith(@"\\", StringComparison.Ordinal);

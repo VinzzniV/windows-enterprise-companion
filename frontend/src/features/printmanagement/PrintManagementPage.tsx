@@ -81,7 +81,16 @@ function PrinterRow({
     <>
       <tr
         onClick={onToggle}
-        className="cursor-pointer border-t border-slate-800/70 even:bg-slate-800/20 hover:bg-slate-800/40"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
+        tabIndex={0}
+        role="button"
+        aria-expanded={expanded}
+        className="cursor-pointer border-t border-slate-800/70 even:bg-slate-800/20 hover:bg-slate-800/40 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-400"
       >
         <td className="px-3 py-1.5 align-top">
           <div className="flex items-center gap-1.5">

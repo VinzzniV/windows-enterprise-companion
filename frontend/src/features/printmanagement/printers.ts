@@ -71,7 +71,14 @@ export function mergePrinters(entries: readonly ServerEntry[]): MergedPrinter[] 
     const withDevice = group.find((item) => item.entry.device != null);
     const device = withDevice?.entry.device ?? null;
     const addressEntry = group.find((item) => item.entry.deviceAddress != null)?.entry;
-    const located = group.find((item) => item.entry.location ?? item.entry.device?.sysLocation)?.entry;
+    // Empty-string locations must not shadow a real SNMP sysLocation (server-scan
+    // queues surface a blank Location as '' rather than null).
+    const nonEmpty = (value: string | null | undefined): value is string =>
+      value != null && value.trim() !== '';
+    const location =
+      group.map((item) => item.entry.location).find(nonEmpty) ??
+      group.map((item) => item.entry.device?.sysLocation).find(nonEmpty) ??
+      null;
     const errored = group.find((item) => item.entry.deviceError != null)?.entry;
     const name = baseQueueName(group[0].entry.queueName);
 
@@ -90,7 +97,7 @@ export function mergePrinters(entries: readonly ServerEntry[]): MergedPrinter[] 
       model: device?.model ?? null,
       serialNumber: device?.serialNumber ?? null,
       deviceAddress: addressEntry?.deviceAddress ?? null,
-      location: located?.location ?? located?.device?.sysLocation ?? null,
+      location,
       status: device?.status ?? null,
       supplies: device?.supplies ?? [],
       deviceError: device ? null : errored?.deviceError ?? null,

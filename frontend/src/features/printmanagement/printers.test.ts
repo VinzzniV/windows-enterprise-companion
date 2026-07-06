@@ -83,6 +83,13 @@ describe('mergePrinters', () => {
     expect(byName.queues).toHaveLength(2);
   });
 
+  it('falls back to SNMP sysLocation when the queue location is a blank string', () => {
+    const merged = mergePrinters([
+      { server: 'PRSRV', entry: withDevice({ queueName: 'KF-NETPRT005', location: '' }, { serialNumber: 'S5', sysLocation: 'Floor 2' }) },
+    ]);
+    expect(merged[0].location).toBe('Floor 2');
+  });
+
   it('keeps the device error when no queue reached the device', () => {
     const merged = mergePrinters([
       { server: 'PRSRV', entry: entry({ queueName: 'KF-NETPRT009', deviceError: { code: 'CONNECTION_TIMEOUT', message: 'no answer' } }) },

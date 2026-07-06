@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PrintServerDiff, PrintServerSnapshot } from '../../shared/api-types';
 import { PrintManagementPage } from './PrintManagementPage';
@@ -170,6 +170,17 @@ describe('PrintManagementPage', () => {
     await userEvent.click(screen.getByText('Denkingen-EG'));
     expect(await screen.findByText(/Toner Black 8%/)).toBeDefined();
     expect(screen.getByText(/Toner Cyan 70%/)).toBeDefined();
+  });
+
+  it('expands a device row from the keyboard', async () => {
+    mockBridge();
+
+    render(<PrintManagementPage />);
+    const row = (await screen.findByText('Denkingen-EG')).closest('tr')!;
+    expect(row.getAttribute('role')).toBe('button');
+    fireEvent.keyDown(row, { key: 'Enter' });
+
+    expect(await screen.findByText(/Toner Black 8%/)).toBeDefined();
   });
 
   it('loads the lease diff for a selected server', async () => {
