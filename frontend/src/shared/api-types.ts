@@ -16,6 +16,7 @@ export interface AppInfoResponse {
   logDirectory: string;
   isElevated: boolean;
   maxParallelScans: number;
+  machineName: string;
 }
 
 /** Wec.Core.Privileges.PrivilegeLevel (SCREAMING_SNAKE on the wire, ADR 0003) */

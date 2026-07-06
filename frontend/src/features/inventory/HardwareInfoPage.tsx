@@ -28,6 +28,7 @@ import {
   type TargetSelection,
 } from '../../shared/targets/TargetSelector';
 import { runWithConcurrencyLimit } from '../../shared/concurrency';
+import { hostsToRestore } from './hosts';
 
 /** Runs one task per item with a bounded number of parallel workers. */
 
@@ -379,18 +380,23 @@ export function HardwareInfoPage() {
 
   useEffect(() => {
     void load(null, false);
-    // Restore previously scanned hosts from the store — no network traffic
-    invoke<ListInventoryHostsResult>('inventory', 'listHosts')
-      .then((stored) => {
-        for (const storedHost of stored.hosts) {
-          if (storedHost.host !== hostKeyOf(null)) {
-            void load({ host: storedHost.host }, false, { cacheOnly: true, select: false });
-          }
-        }
-      })
-      .catch(() => {
-        // Bridge unavailable (browser preview) — start with the local entry only
-      });
+    // Restore previously scanned hosts from the store — no network traffic.
+    // Learn the local machine name first so the local machine (stored under its
+    // machine name, ScanTarget.CacheKey) is not listed twice next to "LOCAL".
+    void (async () => {
+      const appInfo = await invoke<AppInfoResponse>('system', 'getAppInfo').catch(() => null);
+      const stored = await invoke<ListInventoryHostsResult>('inventory', 'listHosts').catch(
+        () => null,
+      );
+      if (!stored) return; // Bridge unavailable (browser preview) — local entry only
+      const restorable = hostsToRestore(
+        stored.hosts.map((storedHost) => storedHost.host),
+        appInfo?.machineName ?? null,
+      );
+      for (const host of restorable) {
+        void load({ host }, false, { cacheOnly: true, select: false });
+      }
+    })();
   }, [load]);
 
   const removeEntry = (key: string) => {

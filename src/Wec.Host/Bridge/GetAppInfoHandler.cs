@@ -16,7 +16,8 @@ public sealed record AppInfoResponse(
     string DatabasePath,
     string LogDirectory,
     bool IsElevated,
-    int MaxParallelScans);
+    int MaxParallelScans,
+    string MachineName);
 
 internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppInfoResponse>
 {
@@ -56,6 +57,7 @@ internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppI
             Path.GetFullPath(Environment.ExpandEnvironmentVariables(_databaseOptions.DatabasePath)),
             Path.GetFullPath(Environment.ExpandEnvironmentVariables(_loggingOptions.LogDirectory)),
             _privilegeContext.IsElevated,
-            _remoteScanOptions.MaxParallelScans)));
+            _remoteScanOptions.MaxParallelScans,
+            Environment.MachineName)));
     }
 }
