@@ -2,12 +2,14 @@ import type { ReactNode } from 'react';
 
 export type MetricTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
 
+// Fixed semantics: success = healthy/nothing-wrong, warning = attention,
+// danger = broken/failing, info = notable count, neutral = plain total.
 const toneStyles: Record<MetricTone, string> = {
   neutral: 'text-slate-100',
-  success: 'text-emerald-400',
-  warning: 'text-amber-400',
-  danger: 'text-red-400',
-  info: 'text-sky-400',
+  success: 'text-ok-400',
+  warning: 'text-warn-400',
+  danger: 'text-fail-400',
+  info: 'text-info-400',
 };
 
 interface SummaryMetricProps {

@@ -332,6 +332,7 @@ export function PrintManagementPage() {
                 },
                 {
                   header: 'Serial number',
+                  mono: true,
                   cell: (row) => row.entry.device?.serialNumber ?? '—',
                 },
                 {
@@ -360,13 +361,14 @@ export function PrintManagementPage() {
                 },
                 {
                   header: 'IP / web UI',
+                  mono: true,
                   cell: (row) =>
                     row.entry.deviceAddress ? (
                       <button
                         type="button"
                         onClick={() => openWebUi(row.entry.deviceAddress!)}
                         title={`Open https://${row.entry.deviceAddress}/ in the browser`}
-                        className="cursor-pointer text-sky-400 underline-offset-2 hover:underline"
+                        className="cursor-pointer text-accent-400 underline-offset-2 hover:underline"
                       >
                         {row.entry.deviceAddress}
                       </button>
@@ -442,7 +444,7 @@ export function PrintManagementPage() {
                       </h3>
                       <DataTable
                         columns={[
-                          { header: 'Serial', cell: (device) => device.serialNumber },
+                          { header: 'Serial', mono: true, cell: (device) => device.serialNumber },
                           { header: 'Model', cell: (device) => device.model ?? '—' },
                           { header: 'Queue', cell: (device) => device.queueName ?? '—' },
                         ]}
@@ -456,7 +458,7 @@ export function PrintManagementPage() {
                       </h3>
                       <DataTable
                         columns={[
-                          { header: 'Serial', cell: (device) => device.serialNumber },
+                          { header: 'Serial', mono: true, cell: (device) => device.serialNumber },
                           { header: 'Model', cell: (device) => device.model ?? '—' },
                           { header: 'Queue', cell: (device) => device.queueName ?? '—' },
                         ]}

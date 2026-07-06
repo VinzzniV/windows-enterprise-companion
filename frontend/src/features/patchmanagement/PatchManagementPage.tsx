@@ -521,8 +521,8 @@ export function PatchManagementPage() {
                         <button
                           type="button"
                           onClick={() => selectProduct(row.productId)}
-                          className={`cursor-pointer text-left hover:text-sky-300 ${
-                            row.productId === selectedProductId ? 'text-sky-400' : 'text-slate-100'
+                          className={`cursor-pointer text-left hover:text-accent-300 ${
+                            row.productId === selectedProductId ? 'text-accent-400' : 'text-slate-100'
                           }`}
                         >
                           <span className="font-medium">{row.productId}</span>
@@ -532,32 +532,36 @@ export function PatchManagementPage() {
                     },
                     {
                       header: 'Available',
+                      mono: true,
                       cell: (row: PatchProductRow) =>
                         row.availableVersion ?? `differs per depot (${row.depotVersions.length})`,
                     },
                     { header: 'Status', cell: (row: PatchProductRow) => <WorkflowBadge state={row.state} /> },
-                    { header: 'Installed', cell: (row: PatchProductRow) => row.installedClientCount },
+                    { header: 'Installed', align: 'right', cell: (row: PatchProductRow) => row.installedClientCount },
                     {
                       header: 'Outdated',
+                      align: 'right',
                       cell: (row: PatchProductRow) =>
                         row.outdatedClientCount > 0 ? (
-                          <span className="text-amber-400">{row.outdatedClientCount}</span>
+                          <span className="text-warn-400">{row.outdatedClientCount}</span>
                         ) : (
                           row.outdatedClientCount
                         ),
                     },
                     {
                       header: 'Failed',
+                      align: 'right',
                       cell: (row: PatchProductRow) =>
                         row.failedClientCount > 0 ? (
-                          <span className="text-red-400">{row.failedClientCount}</span>
+                          <span className="text-fail-400">{row.failedClientCount}</span>
                         ) : (
                           row.failedClientCount
                         ),
                     },
-                    { header: 'Pending', cell: (row: PatchProductRow) => row.pendingActionCount },
+                    { header: 'Pending', align: 'right', cell: (row: PatchProductRow) => row.pendingActionCount },
                     {
                       header: 'Inventory matches',
+                      align: 'right',
                       cell: (row: PatchProductRow) => row.inventoryDetections.length,
                     },
                   ]}
