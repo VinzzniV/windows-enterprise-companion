@@ -31,6 +31,7 @@ and the ADRs in [docs/adr/](docs/adr/).
 | Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting; parallel multi-host runs | WMI-based checks yes; connectivity probes stay local-perspective |
 | Active Directory | Domain overview + hygiene checks over LDAP; test bind; computer search that feeds the multi-host scan pickers | own or explicitly named domain/DC |
 | Patch Management | Semi-automatic opsi workflow hub (ADR 0008): dashboard, inventory comparison, mandatory rollout preview with confirmation, audit log; session-only credentials | opsi server over JSON-RPC (HTTPS :4447) |
+| Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels), snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009) | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
 | Reporting | HTML/JSON executive summary of the local machine | local |
 
 ## Prerequisites
