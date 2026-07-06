@@ -1,6 +1,52 @@
 @import 'tailwindcss';
 
 /* ---------------------------------------------------------------------------
+   Design tokens (Tailwind v4 @theme). Fonts are bundled (main.tsx). Semantic
+   status scales alias emerald/amber/red/sky so existing visuals are unchanged
+   while later slices migrate components onto the semantic names. The accent
+   scale (indigo) replaces the muted sky-700 for primary actions and matches
+   the LogoMark gradient (sky-400 -> indigo-500).
+   --------------------------------------------------------------------------- */
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  --color-accent-300: #a5b4fc;
+  --color-accent-400: #818cf8;
+  --color-accent-500: #6366f1;
+  --color-accent-600: #4f46e5;
+  --color-accent-700: #4338ca;
+
+  --color-ok-300: #6ee7b7;
+  --color-ok-400: #34d399;
+  --color-ok-700: #047857;
+  --color-ok-900: #064e3b;
+
+  --color-warn-300: #fcd34d;
+  --color-warn-400: #fbbf24;
+  --color-warn-700: #b45309;
+  --color-warn-900: #78350f;
+
+  --color-fail-300: #fca5a5;
+  --color-fail-400: #f87171;
+  --color-fail-600: #dc2626;
+  --color-fail-700: #b91c1c;
+  --color-fail-900: #7f1d1d;
+  --color-fail-950: #450a0a;
+
+  --color-info-300: #7dd3fc;
+  --color-info-400: #38bdf8;
+  --color-info-700: #0369a1;
+  --color-info-900: #0c4a6e;
+}
+
+/* Tailwind v4 Preflight does not force a family on body; make Inter the base. */
+body {
+  font-family: var(--font-sans);
+}
+
+/* ---------------------------------------------------------------------------
    Splash intro (SplashIntro.tsx / LogoMark.tsx)
    --------------------------------------------------------------------------- */
 
