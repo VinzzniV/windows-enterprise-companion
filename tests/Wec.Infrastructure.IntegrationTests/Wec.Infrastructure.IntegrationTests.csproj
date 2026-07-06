@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\Modules\Wec.Modules.Inventory\Wec.Modules.Inventory.csproj" />
     <ProjectReference Include="..\..\src\Modules\Wec.Modules.Security\Wec.Modules.Security.csproj" />
     <ProjectReference Include="..\..\src\Modules\Wec.Modules.PatchManagement\Wec.Modules.PatchManagement.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Wec.Modules.PrintManagement\Wec.Modules.PrintManagement.csproj" />
   </ItemGroup>
 
 </Project>

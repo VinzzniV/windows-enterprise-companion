@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Design;
 using Wec.Infrastructure.Persistence;
 using Wec.Modules.Inventory.Persistence;
 using Wec.Modules.PatchManagement.Persistence;
+using Wec.Modules.PrintManagement.Persistence;
 using Wec.Modules.Security.Persistence;
 
 namespace Wec.Host;
@@ -23,6 +24,7 @@ internal sealed class DesignTimeWecDbContextFactory : IDesignTimeDbContextFactor
                 typeof(HardwareSnapshotRecord).Assembly,
                 typeof(SecurityScanRecord).Assembly,
                 typeof(PatchAuditRecord).Assembly,
+                typeof(PrintSnapshotRecord).Assembly,
             ]));
     }
 }
