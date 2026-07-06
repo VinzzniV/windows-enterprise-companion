@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { HashRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
 import { SecurityPage } from '../features/security/SecurityPage';
 import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
@@ -44,10 +45,15 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
-const allNavItems = navGroups.flatMap((group) => group.items);
+const dashboardNav: NavItem = { to: '/', label: 'Dashboard', icon: navIcons.dashboard };
+
+const allNavItems = [dashboardNav, ...navGroups.flatMap((group) => group.items)];
 
 function sectionLabelFor(pathname: string): string {
-  return allNavItems.find((item) => pathname.startsWith(item.to))?.label ?? 'Overview';
+  if (pathname === '/') {
+    return 'Dashboard';
+  }
+  return allNavItems.find((item) => item.to !== '/' && pathname.startsWith(item.to))?.label ?? 'Overview';
 }
 
 function useAppInfo(): AppInfoResponse | null {
@@ -147,7 +153,7 @@ function AppRoutes() {
     <div key={location.pathname} className="wec-page-enter">
       <ErrorBoundary>
         <Routes>
-          <Route path="/" element={<Navigate to="/inventory" replace />} />
+          <Route path="/" element={<DashboardPage />} />
           <Route path="/inventory" element={<HardwareInfoPage />} />
           <Route path="/security" element={<SecurityPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
@@ -176,6 +182,10 @@ export function App() {
             </h1>
           </div>
           <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-2">
+            <NavLink to={dashboardNav.to} end className={navLinkClass}>
+              {dashboardNav.icon}
+              {dashboardNav.label}
+            </NavLink>
             {navGroups.map((group) => (
               <div key={group.label} className="flex flex-col gap-1">
                 <span className="px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
