@@ -174,6 +174,7 @@ internal static partial class Program
 
         builder.Services.AddSingleton<IWmiQueryService, CimWmiQueryService>();
         builder.Services.AddSingleton<Wec.Core.Opsi.IOpsiClient, Wec.Infrastructure.Opsi.JsonRpcOpsiClient>();
+        builder.Services.AddSingleton<Wec.Core.Snmp.ISnmpReader, Wec.Infrastructure.Snmp.SnmpV2cReader>();
         builder.Services.AddSingleton<IRegistryReader, WindowsRegistryReader>();
         builder.Services.AddSingleton<ILocalAccountPolicyReader, Wec.Infrastructure.Accounts.SamAccountPolicyReader>();
         builder.Services.AddSingleton<INetworkInfoProvider, SystemNetworkInfoProvider>();
