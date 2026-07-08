@@ -48,6 +48,15 @@ export function ErrorLogPage() {
 
   useEffect(load, [load]);
 
+  // "Clear" stamps a marker — log files stay on disk, the view starts fresh.
+  const clear = useCallback(() => {
+    invoke('logs', 'clearRecent', {})
+      .then(load)
+      .catch((error: unknown) =>
+        setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),
+      );
+  }, [load]);
+
   const entries = state.kind === 'loaded' ? state.result.entries : [];
   const shown = useMemo(
     () => (filter === 'errors' ? entries.filter((entry) => entry.level !== 'WRN') : entries),
@@ -58,10 +67,18 @@ export function ErrorLogPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Error log"
-        subtitle="Warnings, errors and fatals from scans and queries — newest first, read from the current log file"
+        subtitle="Warnings, errors and fatals from scans and queries — newest first, across the recent log files"
       >
         <Button variant="secondary" onClick={load} disabled={state.kind === 'loading'}>
           {state.kind === 'loading' ? 'Loading…' : 'Refresh'}
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={clear}
+          disabled={state.kind !== 'loaded' || entries.length === 0}
+          title="Hide everything logged so far — the log files themselves are kept"
+        >
+          Clear
         </Button>
       </PageHeader>
 
@@ -80,6 +97,11 @@ export function ErrorLogPage() {
         </label>
         {state.kind === 'loaded' && state.result.source && (
           <span className="text-xs text-slate-500">Source: {state.result.source}</span>
+        )}
+        {state.kind === 'loaded' && state.result.clearedAtUtc && (
+          <span className="text-xs text-slate-500">
+            Cleared {new Date(state.result.clearedAtUtc).toLocaleString()} — older entries hidden
+          </span>
         )}
       </Toolbar>
 

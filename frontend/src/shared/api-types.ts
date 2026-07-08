@@ -373,6 +373,12 @@ export interface LogEntry {
 export interface RecentLogEntriesResult {
   entries: LogEntry[];
   source: string | null;
+  clearedAtUtc: string | null;
+}
+
+/** Wec.Host.Bridge.ClearRecentLogEntriesResponse */
+export interface ClearRecentLogEntriesResult {
+  clearedAtUtc: string;
 }
 
 /** Wec.Host.Bridge.HostProbeResult — reachable = ICMP ping, manageable = TCP 5985 (WinRM) */

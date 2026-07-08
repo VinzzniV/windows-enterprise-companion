@@ -44,4 +44,29 @@ public sealed class RecentLogEntriesParserTests
         Assert.Single(entries);
         Assert.Equal("ERR", entries[0].Level); // the newest kept
     }
+
+    [Fact]
+    public void ParseWarnAndError_HidesEntriesBeforeTheClearMarker()
+    {
+        // Marker between the WRN (10:00:01) and the ERR (10:00:02), both +02:00.
+        var clearedAt = new DateTimeOffset(2026, 7, 8, 10, 0, 1, 500, TimeSpan.FromHours(2));
+
+        IReadOnlyList<LogEntry> entries = RecentLogEntriesHandler.ParseWarnAndError(Sample, 100, clearedAt);
+
+        LogEntry entry = Assert.Single(entries);
+        Assert.Equal("ERR", entry.Level);
+    }
+
+    [Fact]
+    public void ParseWarnAndError_KeepsEntriesWithUnparseableTimestamps()
+    {
+        // An entry the marker cannot be compared against must stay visible.
+        string[] lines = ["not-a-timestamp [ERR] broken header line"]; // no header match → ignored entirely
+        IReadOnlyList<LogEntry> entries = RecentLogEntriesHandler.ParseWarnAndError(
+            lines, 100, DateTimeOffset.MaxValue);
+        Assert.Empty(entries); // no header, nothing parsed — nothing silently invented either
+
+        IReadOnlyList<LogEntry> all = RecentLogEntriesHandler.ParseWarnAndError(Sample, 100, DateTimeOffset.MaxValue);
+        Assert.Empty(all); // marker in the future hides everything parseable
+    }
 }

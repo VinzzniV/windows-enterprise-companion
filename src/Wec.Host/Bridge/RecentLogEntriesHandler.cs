@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
@@ -12,12 +13,16 @@ public sealed record RecentLogEntriesRequest(int? Limit);
 
 public sealed record LogEntry(string Timestamp, string Level, string Message);
 
-public sealed record RecentLogEntriesResponse(IReadOnlyList<LogEntry> Entries, string? Source);
+public sealed record RecentLogEntriesResponse(
+    IReadOnlyList<LogEntry> Entries,
+    string? Source,
+    DateTimeOffset? ClearedAtUtc);
 
 /// <summary>
-/// Reads the newest Serilog file and returns its warning/error/fatal entries,
-/// newest first — the "errors from scans and queries" feed for the Verwaltung
-/// area. Read-only; no credentials.
+/// Reads the recent Serilog files and returns their warning/error/fatal
+/// entries, newest first — the "errors from scans and queries" feed for the
+/// Verwaltung area. Entries before the clear marker (see
+/// <see cref="ClearRecentLogEntriesHandler"/>) are hidden. Read-only; no credentials.
 /// </summary>
 internal sealed partial class RecentLogEntriesHandler
     : IActionHandler<RecentLogEntriesRequest, RecentLogEntriesResponse>
@@ -25,6 +30,8 @@ internal sealed partial class RecentLogEntriesHandler
     private const int DefaultLimit = 200;
     private const int MaxLimit = 1000;
     private const int MaxContinuationLines = 40;
+    // ponytail: 7 daily files ≈ one week of history; raise if ops needs more.
+    private const int MaxLogFiles = 7;
 
     // Serilog outputTemplate: "yyyy-MM-dd HH:mm:ss.fff zzz [LVL] Source: message …"
     private static readonly Regex HeaderPattern = BuildHeaderPattern();
@@ -48,32 +55,44 @@ internal sealed partial class RecentLogEntriesHandler
         RecentLogEntriesRequest payload, CancellationToken cancellationToken)
     {
         int limit = Math.Clamp(payload.Limit ?? DefaultLimit, 1, MaxLimit);
-        string directory = Path.GetFullPath(Environment.ExpandEnvironmentVariables(_options.LogDirectory));
+        string directory = LogFiles.ResolveDirectory(_options);
         if (!Directory.Exists(directory))
         {
-            return Result.Success(new RecentLogEntriesResponse([], null));
+            return Result.Success(new RecentLogEntriesResponse([], null, null));
         }
 
-        FileInfo? newest = new DirectoryInfo(directory)
+        // Oldest of the kept files first so entries stay in chronological order.
+        List<FileInfo> files = [.. new DirectoryInfo(directory)
             .GetFiles("wec-*.log")
             .OrderByDescending(file => file.LastWriteTimeUtc)
-            .FirstOrDefault();
-        if (newest is null)
+            .Take(MaxLogFiles)
+            .OrderBy(file => file.LastWriteTimeUtc)];
+        if (files.Count == 0)
         {
-            return Result.Success(new RecentLogEntriesResponse([], null));
+            return Result.Success(new RecentLogEntriesResponse([], null, null));
         }
+
+        DateTimeOffset? clearedAt = LogFiles.ReadClearMarker(directory);
 
         try
         {
-            List<string> lines = await ReadSharedLinesAsync(newest.FullName, cancellationToken);
-            return Result.Success(new RecentLogEntriesResponse(
-                ParseWarnAndError(lines, limit), newest.Name));
+            var lines = new List<string>();
+            foreach (FileInfo file in files)
+            {
+                lines.AddRange(await ReadSharedLinesAsync(file.FullName, cancellationToken));
+            }
+
+            IReadOnlyList<LogEntry> entries = ParseWarnAndError(lines, limit, clearedAt);
+            string source = files.Count == 1
+                ? files[0].Name
+                : $"{files.Count} log files ({files[0].Name} … {files[^1].Name})";
+            return Result.Success(new RecentLogEntriesResponse(entries, source, clearedAt));
         }
         catch (IOException exception)
         {
-            _logger.LogWarning(exception, "Reading the log file {File} failed", newest.FullName);
+            _logger.LogWarning(exception, "Reading the log files in {Directory} failed", directory);
             return Result.Failure<RecentLogEntriesResponse>(new Error(
-                ErrorCode.InternalError, "The log file could not be read.") { Details = exception.Message });
+                ErrorCode.InternalError, "The log files could not be read.") { Details = exception.Message });
         }
     }
 
@@ -90,8 +109,12 @@ internal sealed partial class RecentLogEntriesHandler
         return lines;
     }
 
-    /// <summary>Groups multi-line entries, keeps warnings/errors/fatals, newest first, capped at <paramref name="limit"/>.</summary>
-    internal static IReadOnlyList<LogEntry> ParseWarnAndError(IReadOnlyList<string> lines, int limit)
+    /// <summary>
+    /// Groups multi-line entries, keeps warnings/errors/fatals after the clear
+    /// marker, newest first, capped at <paramref name="limit"/>.
+    /// </summary>
+    internal static IReadOnlyList<LogEntry> ParseWarnAndError(
+        IReadOnlyList<string> lines, int limit, DateTimeOffset? clearedAtUtc = null)
     {
         var kept = new List<LogEntry>();
         string? timestamp = null;
@@ -100,7 +123,7 @@ internal sealed partial class RecentLogEntriesHandler
 
         void Flush()
         {
-            if (level is not null && KeptLevels.Contains(level))
+            if (level is not null && KeptLevels.Contains(level) && IsAfterClearMarker(timestamp, clearedAtUtc))
             {
                 kept.Add(new LogEntry(timestamp ?? string.Empty, level, string.Join('\n', message).TrimEnd()));
             }
@@ -129,6 +152,71 @@ internal sealed partial class RecentLogEntriesHandler
         return kept.Count > limit ? kept.GetRange(0, limit) : kept;
     }
 
+    // Unparseable timestamps stay visible — hiding them would silently drop entries.
+    private static bool IsAfterClearMarker(string? timestamp, DateTimeOffset? clearedAtUtc) =>
+        clearedAtUtc is null
+        || timestamp is null
+        || !DateTimeOffset.TryParse(timestamp, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTimeOffset parsed)
+        || parsed > clearedAtUtc;
+
     [GeneratedRegex(@"^(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \S+) \[(?<lvl>[A-Z]{3})\] (?<msg>.*)$")]
     private static partial Regex BuildHeaderPattern();
+}
+
+public sealed record ClearRecentLogEntriesRequest;
+
+public sealed record ClearRecentLogEntriesResponse(DateTimeOffset ClearedAtUtc);
+
+/// <summary>
+/// "Clears" the error-log view by stamping a marker file — the log files
+/// themselves are never touched (Serilog holds the current one open, and the
+/// full history stays available on disk for diagnostics).
+/// </summary>
+internal sealed class ClearRecentLogEntriesHandler
+    : IActionHandler<ClearRecentLogEntriesRequest, ClearRecentLogEntriesResponse>
+{
+    private readonly LoggingOptions _options;
+
+    public ClearRecentLogEntriesHandler(IOptions<LoggingOptions> options)
+    {
+        _options = options.Value;
+    }
+
+    public string Module => "logs";
+
+    public string Action => "clearRecent";
+
+    public Task<Result<ClearRecentLogEntriesResponse>> HandleAsync(
+        ClearRecentLogEntriesRequest payload, CancellationToken cancellationToken)
+    {
+        string directory = LogFiles.ResolveDirectory(_options);
+        Directory.CreateDirectory(directory);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        File.WriteAllText(LogFiles.ClearMarkerPath(directory), now.ToString("O", CultureInfo.InvariantCulture));
+        return Task.FromResult(Result.Success(new ClearRecentLogEntriesResponse(now)));
+    }
+}
+
+internal static class LogFiles
+{
+    private const string ClearMarkerFileName = "errorlog-cleared.marker";
+
+    public static string ResolveDirectory(LoggingOptions options) =>
+        Path.GetFullPath(Environment.ExpandEnvironmentVariables(options.LogDirectory));
+
+    public static string ClearMarkerPath(string directory) => Path.Combine(directory, ClearMarkerFileName);
+
+    public static DateTimeOffset? ReadClearMarker(string directory)
+    {
+        string path = ClearMarkerPath(directory);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        return DateTimeOffset.TryParse(
+            File.ReadAllText(path).Trim(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTimeOffset marker)
+            ? marker
+            : null;
+    }
 }
