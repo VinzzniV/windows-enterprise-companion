@@ -6,6 +6,7 @@ import type {
   ListInventoryHostsResult,
   ListPrintServersResult,
   OpsiConnectionStatusResult,
+  PatchDashboardResult,
   PrintServerSnapshot,
 } from '../../shared/api-types';
 import type { MetricTone } from '../../shared/ui/SummaryMetric';
@@ -13,9 +14,11 @@ import { PageHeader } from '../../shared/ui/PageHeader';
 import { navIcons } from '../../app/navIcons';
 import {
   deriveInventoryTile,
+  derivePatchStatusChart,
   derivePatchTile,
   derivePrintTile,
   deriveSecurityTile,
+  type PatchChartSegment,
   type TileMetric,
 } from './dashboard';
 
@@ -74,6 +77,7 @@ export function DashboardPage() {
   const [security, setSecurity] = useState<TileMetric | null>(null);
   const [print, setPrint] = useState<TileMetric | null>(null);
   const [patch, setPatch] = useState<TileMetric | null>(null);
+  const [patchChart, setPatchChart] = useState<PatchChartSegment[] | null>(null);
 
   useEffect(() => {
     invoke<ListInventoryHostsResult>('inventory', 'listHosts', {})
@@ -100,7 +104,14 @@ export function DashboardPage() {
       .catch(() => setPrint(derivePrintTile([], [])));
 
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'getConnectionStatus', {})
-      .then((status) => setPatch(derivePatchTile(status)))
+      .then((status) => {
+        setPatch(derivePatchTile(status));
+        if (!status.connected) return;
+        // Only reachable with an active opsi session — chart the product states.
+        invoke<PatchDashboardResult>('patchmanagement', 'getDashboard', { depotFilter: null }, 120_000)
+          .then((dashboard) => setPatchChart(derivePatchStatusChart(dashboard.products)))
+          .catch(() => setPatchChart(null));
+      })
       .catch(() => setPatch(derivePatchTile(null)));
   }, []);
 
@@ -152,6 +163,49 @@ export function DashboardPage() {
           description="Executive HTML/JSON summary of this machine."
         />
       </div>
+
+      {patchChart && patchChart.length > 0 && <PatchStatusChart segments={patchChart} />}
     </div>
+  );
+}
+
+/** Stacked product-state bar for the connected opsi server — plain CSS, no chart lib. */
+function PatchStatusChart({ segments }: { segments: PatchChartSegment[] }) {
+  const total = segments.reduce((sum, segment) => sum + segment.count, 0);
+  return (
+    <NavLink
+      to="/patchmanagement"
+      aria-label="Patch status — open Patch Management"
+      className="group flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-700"
+    >
+      <div className="flex items-center gap-2.5 text-sm font-semibold text-slate-300 group-hover:text-slate-100">
+        <span className="text-accent-400">{navIcons.patchmanagement}</span>
+        Patch status
+        <span className="ml-auto text-xs font-normal text-slate-500">
+          {total} product{total === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="flex h-3 overflow-hidden rounded-full bg-slate-800" role="img" aria-label={
+        segments.map((segment) => `${segment.label}: ${segment.count}`).join(', ')
+      }>
+        {segments.map((segment) => (
+          <div
+            key={segment.label}
+            className={segment.colorClass}
+            style={{ width: `${(segment.count / total) * 100}%` }}
+            title={`${segment.label}: ${segment.count}`}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+        {segments.map((segment) => (
+          <span key={segment.label} className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${segment.colorClass}`} aria-hidden />
+            {segment.label}
+            <span className="tabular-nums text-slate-300">{segment.count}</span>
+          </span>
+        ))}
+      </div>
+    </NavLink>
   );
 }

@@ -74,6 +74,49 @@ function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+/** Which slice of a product's clients a count click drills into. */
+type ClientDrillFilter = 'installed' | 'UPDATE_AVAILABLE' | 'FAILED' | 'ROLLOUT_REQUESTED';
+
+const drillFilterLabels: Record<ClientDrillFilter, string> = {
+  installed: 'Installed',
+  UPDATE_AVAILABLE: 'Outdated',
+  FAILED: 'Failed',
+  ROLLOUT_REQUESTED: 'Pending',
+};
+
+function matchesDrillFilter(client: PatchClientState, filter: ClientDrillFilter): boolean {
+  return filter === 'installed'
+    ? client.installationStatus === 'installed'
+    : client.state === filter;
+}
+
+/** A count cell that opens the client drilldown when there is something behind it. */
+function DrillCount({
+  count,
+  className = '',
+  onDrill,
+  label,
+}: {
+  count: number;
+  className?: string;
+  onDrill: () => void;
+  label: string;
+}) {
+  if (count === 0) {
+    return <>{count}</>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onDrill}
+      title={`Show the ${label.toLowerCase()} clients`}
+      className={`cursor-pointer underline decoration-dotted underline-offset-2 hover:text-accent-300 ${className}`}
+    >
+      {count}
+    </button>
+  );
+}
+
 /** Preselects the configured default depot (matched by id or description). */
 export function resolveDefaultDepot(
   depots: { id: string; description: string | null }[],
@@ -119,6 +162,8 @@ export function PatchManagementPage() {
 
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedClients, setSelectedClients] = useState<ReadonlySet<string>>(new Set());
+  // Which slice of a product's clients the detail table shows (from a count click).
+  const [clientFilter, setClientFilter] = useState<ClientDrillFilter | null>(null);
 
   const [preview, setPreview] = useState<RolloutPreview | null>(null);
   const [previewError, setPreviewError] = useState<AsyncError>(null);
@@ -241,6 +286,19 @@ export function PatchManagementPage() {
   const selectProduct = useCallback(
     (productId: string) => {
       setSelectedProductId((previous) => (previous === productId ? null : productId));
+      setSelectedClients(new Set());
+      setClientFilter(null);
+      resetActionPanels();
+    },
+    [resetActionPanels],
+  );
+
+  // A count click opens the product detail already narrowed to that slice —
+  // "which clients are behind this number".
+  const drillIntoClients = useCallback(
+    (productId: string, filter: ClientDrillFilter) => {
+      setSelectedProductId(productId);
+      setClientFilter(filter);
       setSelectedClients(new Set());
       resetActionPanels();
     },
@@ -547,28 +605,52 @@ export function PatchManagementPage() {
                         row.availableVersion ?? `differs per depot (${row.depotVersions.length})`,
                     },
                     { header: 'Status', cell: (row: PatchProductRow) => <WorkflowBadge state={row.state} /> },
-                    { header: 'Installed', align: 'right', cell: (row: PatchProductRow) => row.installedClientCount },
+                    {
+                      header: 'Installed',
+                      align: 'right',
+                      cell: (row: PatchProductRow) => (
+                        <DrillCount
+                          count={row.installedClientCount}
+                          label="Installed"
+                          onDrill={() => drillIntoClients(row.productId, 'installed')}
+                        />
+                      ),
+                    },
                     {
                       header: 'Outdated',
                       align: 'right',
-                      cell: (row: PatchProductRow) =>
-                        row.outdatedClientCount > 0 ? (
-                          <span className="text-warn-400">{row.outdatedClientCount}</span>
-                        ) : (
-                          row.outdatedClientCount
-                        ),
+                      cell: (row: PatchProductRow) => (
+                        <DrillCount
+                          count={row.outdatedClientCount}
+                          className="text-warn-400"
+                          label="Outdated"
+                          onDrill={() => drillIntoClients(row.productId, 'UPDATE_AVAILABLE')}
+                        />
+                      ),
                     },
                     {
                       header: 'Failed',
                       align: 'right',
-                      cell: (row: PatchProductRow) =>
-                        row.failedClientCount > 0 ? (
-                          <span className="text-fail-400">{row.failedClientCount}</span>
-                        ) : (
-                          row.failedClientCount
-                        ),
+                      cell: (row: PatchProductRow) => (
+                        <DrillCount
+                          count={row.failedClientCount}
+                          className="text-fail-400"
+                          label="Failed"
+                          onDrill={() => drillIntoClients(row.productId, 'FAILED')}
+                        />
+                      ),
                     },
-                    { header: 'Pending', align: 'right', cell: (row: PatchProductRow) => row.pendingActionCount },
+                    {
+                      header: 'Pending',
+                      align: 'right',
+                      cell: (row: PatchProductRow) => (
+                        <DrillCount
+                          count={row.pendingActionCount}
+                          label="Pending"
+                          onDrill={() => drillIntoClients(row.productId, 'ROLLOUT_REQUESTED')}
+                        />
+                      ),
+                    },
                     {
                       header: 'Inventory matches',
                       align: 'right',
@@ -592,6 +674,16 @@ export function PatchManagementPage() {
                         .map((version) => `${version.depotId}: ${version.version}`)
                         .join(' · ')}
                     </div>
+
+                    {clientFilter && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-slate-400">Showing only:</span>
+                        <StatusBadge variant="info">{drillFilterLabels[clientFilter]}</StatusBadge>
+                        <Button variant="ghost" onClick={() => setClientFilter(null)}>
+                          Show all clients
+                        </Button>
+                      </div>
+                    )}
 
                     <DataTable
                       columns={[
@@ -624,7 +716,13 @@ export function PatchManagementPage() {
                           cell: (client: PatchClientState) => <WorkflowBadge state={client.state} />,
                         },
                       ]}
-                      rows={selectedProduct.clients}
+                      rows={
+                        clientFilter
+                          ? selectedProduct.clients.filter((client) =>
+                              matchesDrillFilter(client, clientFilter),
+                            )
+                          : selectedProduct.clients
+                      }
                       emptyMessage="opsi has no state for this product on the filtered clients."
                     />
 

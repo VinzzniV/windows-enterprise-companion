@@ -1,5 +1,6 @@
 import type {
   OpsiConnectionStatusResult,
+  PatchWorkflowState,
   PrintServerSnapshot,
   SecurityScanResult,
   StoredInventoryHost,
@@ -83,4 +84,34 @@ export function derivePatchTile(status: OpsiConnectionStatusResult | null): Tile
     tone: 'success',
     note: status.serverUrl ?? undefined,
   };
+}
+
+export interface PatchChartSegment {
+  label: string;
+  count: number;
+  colorClass: string;
+}
+
+/**
+ * Partition the opsi products by workflow state for the dashboard chart.
+ * Every product lands in exactly one bucket; empty buckets are dropped.
+ */
+export function derivePatchStatusChart(
+  products: readonly { state: PatchWorkflowState }[],
+): PatchChartSegment[] {
+  const buckets = { failed: 0, outdated: 0, inProgress: 0, upToDate: 0, noState: 0 };
+  for (const product of products) {
+    if (product.state === 'FAILED') buckets.failed += 1;
+    else if (product.state === 'UPDATE_AVAILABLE') buckets.outdated += 1;
+    else if (product.state === 'COMPLETED') buckets.upToDate += 1;
+    else if (product.state === 'DETECTED') buckets.noState += 1;
+    else buckets.inProgress += 1; // the prepared/approved/rollout states
+  }
+  return [
+    { label: 'Failed', count: buckets.failed, colorClass: 'bg-fail-500' },
+    { label: 'Update available', count: buckets.outdated, colorClass: 'bg-warn-500' },
+    { label: 'In progress', count: buckets.inProgress, colorClass: 'bg-info-500' },
+    { label: 'Up to date', count: buckets.upToDate, colorClass: 'bg-ok-500' },
+    { label: 'No client state', count: buckets.noState, colorClass: 'bg-slate-600' },
+  ].filter((segment) => segment.count > 0);
 }
