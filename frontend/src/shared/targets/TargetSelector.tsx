@@ -35,12 +35,29 @@ function credentialFields(selection: TargetSelection): Pick<TargetRequest, 'user
   };
 }
 
+// When admin is passed (global sign-in), it overrides the per-selection
+// credentials; undefined keeps the legacy selection-based credential fields.
+function credentialPatch(
+  selection: TargetSelection,
+  admin: CredentialValues | null | undefined,
+): Pick<TargetRequest, 'userName' | 'domain' | 'password'> {
+  if (admin === undefined) {
+    return credentialFields(selection);
+  }
+  return admin && admin.userName.trim() !== ''
+    ? { userName: admin.userName.trim(), domain: admin.domain.trim() || null, password: admin.password }
+    : {};
+}
+
 /** null = local machine with the current user (no target payload needed). */
-export function toTargetRequest(selection: TargetSelection): TargetRequest | null {
+export function toTargetRequest(
+  selection: TargetSelection,
+  admin?: CredentialValues | null,
+): TargetRequest | null {
   if (selection.mode !== 'remote' || selection.host.trim() === '') {
     return null;
   }
-  return { host: selection.host.trim(), ...credentialFields(selection) };
+  return { host: selection.host.trim(), ...credentialPatch(selection, admin) };
 }
 
 /** Case-insensitive identity of a target ('LOCAL' for the local machine). */
@@ -60,8 +77,12 @@ export function toHostList(selection: TargetSelection): string[] {
   ];
 }
 
-export function toTargetRequestForHost(selection: TargetSelection, host: string): TargetRequest {
-  return { host, ...credentialFields(selection) };
+export function toTargetRequestForHost(
+  selection: TargetSelection,
+  host: string,
+  admin?: CredentialValues | null,
+): TargetRequest {
+  return { host, ...credentialPatch(selection, admin) };
 }
 
 interface TargetSelectorProps {
@@ -69,6 +90,8 @@ interface TargetSelectorProps {
   onChange(selection: TargetSelection): void;
   disabled?: boolean;
   allowMultiple?: boolean;
+  /** Hide the per-target credential fields — the global admin sign-in is used instead. */
+  hideCredentials?: boolean;
 }
 
 export interface CredentialValues {
@@ -124,7 +147,7 @@ export function CredentialFields({
 
 const radioClass = 'accent-accent-500';
 
-export function TargetSelector({ selection, onChange, disabled, allowMultiple }: TargetSelectorProps) {
+export function TargetSelector({ selection, onChange, disabled, allowMultiple, hideCredentials }: TargetSelectorProps) {
   const set = (patch: Partial<TargetSelection>) => onChange({ ...selection, ...patch });
 
   const modes: { value: TargetSelection['mode']; label: string }[] = [
@@ -184,7 +207,7 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
         </>
       )}
 
-      {selection.mode !== 'local' && (
+      {selection.mode !== 'local' && !hideCredentials && (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-4">
             <label className="flex cursor-pointer items-center gap-1.5 text-sm">
@@ -219,6 +242,12 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple }:
             />
           )}
         </div>
+      )}
+
+      {selection.mode !== 'local' && hideCredentials && (
+        <p className="text-xs text-slate-500">
+          Runs as the signed-in admin (top right), or the current user when not signed in.
+        </p>
       )}
     </fieldset>
   );

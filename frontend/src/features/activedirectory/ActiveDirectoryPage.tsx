@@ -10,10 +10,10 @@ import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
 import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
-import { Checkbox } from '../../shared/ui/Checkbox';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
-import { CredentialFields } from '../../shared/targets/TargetSelector';
+import type { CredentialValues } from '../../shared/targets/TargetSelector';
+import { useTargets } from '../../shared/targets/TargetContext';
 import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
 
 /** What the admin should do next, per typed directory error. */
@@ -46,29 +46,26 @@ function adError(error: unknown): { message: string; hint?: string } {
 interface ConnectionFormState {
   domain: string;
   server: string;
-  useExplicitCredentials: boolean;
-  userName: string;
-  userDomain: string;
-  password: string;
 }
 
 const emptyConnectionForm: ConnectionFormState = {
   domain: '',
   server: '',
-  useExplicitCredentials: false,
-  userName: '',
-  userDomain: '',
-  password: '',
 };
 
-function toConnectionRequest(form: ConnectionFormState): DirectoryConnectionRequest | null {
+// The bind account is the global admin sign-in (top bar) — the admin's own
+// domain is the credential domain, distinct from the directory being analyzed.
+function toConnectionRequest(
+  form: ConnectionFormState,
+  admin: CredentialValues | null,
+): DirectoryConnectionRequest | null {
   const request: DirectoryConnectionRequest = {};
   if (form.domain.trim() !== '') request.domain = form.domain.trim();
   if (form.server.trim() !== '') request.server = form.server.trim();
-  if (form.useExplicitCredentials && form.userName.trim() !== '') {
-    request.userName = form.userName.trim();
-    request.userDomain = form.userDomain.trim() || null;
-    request.password = form.password;
+  if (admin && admin.userName.trim() !== '') {
+    request.userName = admin.userName.trim();
+    request.userDomain = admin.domain.trim() || null;
+    request.password = admin.password;
   }
   return Object.keys(request).length > 0 ? request : null;
 }
@@ -101,6 +98,7 @@ type TestBindState =
   | { kind: 'error'; message: string; hint?: string };
 
 export function ActiveDirectoryPage() {
+  const { adminCredentials } = useTargets();
   const [state, setState] = useState<OverviewState>({ kind: 'idle' });
   const [hygieneState, setHygieneState] = useState<HygieneState>({ kind: 'idle' });
   const [connectionForm, setConnectionForm] = useState<ConnectionFormState>(emptyConnectionForm);
@@ -111,36 +109,36 @@ export function ActiveDirectoryPage() {
     invoke<TestDirectoryConnectionResult>(
       'activedirectory',
       'testConnection',
-      { connection: toConnectionRequest(connectionForm) },
+      { connection: toConnectionRequest(connectionForm, adminCredentials) },
       120_000,
     )
       .then((result) => setTestBindState({ kind: 'ok', result }))
       .catch((error: unknown) => setTestBindState({ kind: 'error', ...adError(error) }));
-  }, [connectionForm]);
+  }, [connectionForm, adminCredentials]);
 
   const loadOverview = useCallback(() => {
     setState({ kind: 'loading' });
     invoke<AdOverviewResult>(
       'activedirectory',
       'getOverview',
-      { connection: toConnectionRequest(connectionForm) },
+      { connection: toConnectionRequest(connectionForm, adminCredentials) },
       120_000,
     )
       .then((overview) => setState({ kind: 'loaded', overview }))
       .catch((error: unknown) => setState({ kind: 'error', ...adError(error) }));
-  }, [connectionForm]);
+  }, [connectionForm, adminCredentials]);
 
   const loadHygiene = useCallback(() => {
     setHygieneState({ kind: 'loading' });
     invoke<AdHygieneResult>(
       'activedirectory',
       'getHygiene',
-      { connection: toConnectionRequest(connectionForm) },
+      { connection: toConnectionRequest(connectionForm, adminCredentials) },
       120_000,
     )
       .then((hygiene) => setHygieneState({ kind: 'loaded', hygiene }))
       .catch((error: unknown) => setHygieneState({ kind: 'error', ...adError(error) }));
-  }, [connectionForm]);
+  }, [connectionForm, adminCredentials]);
 
   const setForm = (patch: Partial<ConnectionFormState>) =>
     setConnectionForm((current) => ({ ...current, ...patch }));
@@ -167,8 +165,9 @@ export function ActiveDirectoryPage() {
           Directory connection
         </legend>
         <p className="text-xs text-slate-500">
-          Empty analyzes this machine's own domain as the current user. Enter a domain to analyze
-          a different directory, a DC to pin the connection, and credentials to run as another account.
+          Empty analyzes this machine's own domain. Enter a domain to analyze a different directory
+          and a DC to pin the connection. The bind runs as the signed-in admin (top right), or the
+          current user when not signed in.
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Input
@@ -190,56 +189,9 @@ export function ActiveDirectoryPage() {
           role="DomainController"
           label="Saved domain controllers"
           currentHost={connectionForm.server}
-          currentUserName={connectionForm.useExplicitCredentials ? connectionForm.userName : null}
-          onPick={(target) =>
-            setForm({
-              server: target.host,
-              ...(target.userName
-                ? { useExplicitCredentials: true, userName: target.userName }
-                : {}),
-            })
-          }
+          currentUserName={adminCredentials?.userName ?? null}
+          onPick={(target) => setForm({ server: target.host })}
         />
-        <Checkbox
-          label="Use explicit credentials"
-          checked={connectionForm.useExplicitCredentials}
-          onChange={(event) => setForm({ useExplicitCredentials: event.target.checked })}
-        />
-        {connectionForm.useExplicitCredentials && (
-          <>
-            <CredentialFields
-              values={{
-                userName: connectionForm.userName,
-                domain: connectionForm.userDomain,
-                password: connectionForm.password,
-              }}
-              onChange={(patch) =>
-                setForm({
-                  ...(patch.userName !== undefined && { userName: patch.userName }),
-                  ...(patch.domain !== undefined && { userDomain: patch.domain }),
-                  ...(patch.password !== undefined && { password: patch.password }),
-                })
-              }
-              domainPlaceholder="Credential domain (optional)"
-              domainAriaLabel="Credential domain"
-            />
-            <p className="text-xs text-slate-500">
-              The credential domain is the account's domain — not necessarily the directory being
-              analyzed. Accepted forms: <span className="font-mono">user@domain.tld</span>,{' '}
-              <span className="font-mono">DOMAIN\user</span>, or user + credential domain.
-            </p>
-            {connectionForm.userName.trim() !== '' &&
-              !connectionForm.userName.includes('@') &&
-              !connectionForm.userName.includes('\\') &&
-              connectionForm.userDomain.trim() === '' && (
-                <p className="text-xs text-warn-400">
-                  {connectionForm.domain.trim() !== ''
-                    ? `No credential domain set — "${connectionForm.domain.trim()}" (the directory domain) will be used.`
-                    : 'This user name has no domain. Enter it as user@domain.tld or DOMAIN\\user, or fill in the credential domain.'}
-                </p>
-              )}
-          </>
-        )}
         <div className="flex flex-wrap items-center gap-3">
           <Button onClick={testConnection} disabled={testBindState.kind === 'testing'}>
             {testBindState.kind === 'testing' ? 'Testing …' : 'Test connection'}

@@ -21,6 +21,7 @@ import {
   type TargetSelection,
 } from '../../shared/targets/TargetSelector';
 import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
+import { useTargetsOptional } from '../../shared/targets/TargetContext';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
 import { DataTable } from '../../shared/ui/DataTable';
@@ -183,6 +184,7 @@ interface ServerScanState {
 }
 
 export function PrintManagementPage() {
+  const adminCredentials = useTargetsOptional()?.adminCredentials ?? null;
   const [selection, setSelection] = useState<TargetSelection>(LOCAL_TARGET_SELECTION);
   const [snapshots, setSnapshots] = useState<Record<string, PrintServerSnapshot>>({});
   const [scanStates, setScanStates] = useState<Record<string, ServerScanState>>({});
@@ -232,8 +234,8 @@ export function PrintManagementPage() {
   const scan = useCallback(() => {
     const targets =
       selection.mode === 'multiple'
-        ? toHostList(selection).map((host) => toTargetRequestForHost(selection, host))
-        : [toTargetRequest(selection)];
+        ? toHostList(selection).map((host) => toTargetRequestForHost(selection, host, adminCredentials))
+        : [toTargetRequest(selection, adminCredentials)];
     if (selection.mode === 'remote' && targets[0] === null) {
       return;
     }
@@ -262,7 +264,7 @@ export function PrintManagementPage() {
     })
       .then(loadHints)
       .finally(() => setScanning(false));
-  }, [selection, maxParallelScans, loadHints]);
+  }, [selection, maxParallelScans, loadHints, adminCredentials]);
 
   const removeServer = useCallback((server: string) => {
     invoke('printmanagement', 'deleteServer', { server })
@@ -360,20 +362,18 @@ export function PrintManagementPage() {
         </Button>
       </PageHeader>
 
-      <TargetSelector selection={selection} onChange={setSelection} disabled={scanning} allowMultiple />
+      <TargetSelector selection={selection} onChange={setSelection} disabled={scanning} allowMultiple hideCredentials />
 
       <SavedTargetsBar
         role="PrintServer"
         label="Saved print servers"
         currentHost={selection.mode === 'remote' ? selection.host : ''}
-        currentUserName={selection.credentialMode === 'explicit' ? selection.userName : null}
+        currentUserName={adminCredentials?.userName ?? null}
         onPick={(target) =>
           setSelection((current) => ({
             ...current,
             mode: 'remote',
             host: target.host,
-            credentialMode: target.userName ? 'explicit' : 'currentUser',
-            userName: target.userName ?? '',
           }))
         }
       />
