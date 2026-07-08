@@ -16,6 +16,7 @@ import { ErrorBoundary } from '../shared/ui/ErrorBoundary';
 import { SplashIntro } from './SplashIntro';
 import { navIcons } from './navIcons';
 import { TargetProvider } from '../shared/targets/TargetContext';
+import { AdminSignIn } from '../shared/targets/AdminSignIn';
 
 interface NavItem {
   to: string;
@@ -74,8 +75,10 @@ function TopBar({ appInfo }: { appInfo: AppInfoResponse | null }) {
         <span className="mx-1.5 text-slate-700">/</span>
         <span className="font-medium text-slate-300">{sectionLabelFor(location.pathname)}</span>
       </div>
-      {appInfo && (
-        <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
+        <AdminSignIn />
+        {appInfo && (
+          <>
           <StatusBadge variant={appInfo.isElevated ? 'elevation' : 'neutral'}>
             {appInfo.isElevated ? 'Administrator' : 'Standard user'}
           </StatusBadge>
@@ -92,8 +95,9 @@ function TopBar({ appInfo }: { appInfo: AppInfoResponse | null }) {
               Restart as administrator
             </button>
           )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </header>
   );
 }

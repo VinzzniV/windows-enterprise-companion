@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
-import { CredentialFields, type CredentialValues } from '../../shared/targets/TargetSelector';
+import type { CredentialValues } from '../../shared/targets/TargetSelector';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Button } from '../../shared/ui/Button';
 import { Badge } from '../../shared/ui/Badge';
@@ -26,81 +26,19 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'reporting', label: 'Reporting' },
 ];
 
-const emptyCredentials: CredentialValues = { userName: '', domain: '', password: '' };
-
-/** Credential control for a remote client — sets session-only credentials (ADR 0007). */
-function ClientCredentialBar({ host }: { host: string }) {
-  const { credentialsFor, rememberCredentials, forgetCredentials } = useTargets();
-  const stored = credentialsFor(host);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<CredentialValues>(stored ?? emptyCredentials);
-
-  const displayUser = stored?.userName
-    ? `${stored.domain ? `${stored.domain}\\` : ''}${stored.userName}`
+/** Read-only reminder of which identity remote sections scan as (the global admin sign-in). */
+function ClientScanIdentity({ credentials }: { credentials: CredentialValues | undefined }) {
+  const displayUser = credentials?.userName
+    ? `${credentials.domain ? `${credentials.domain}\\` : ''}${credentials.userName}`
     : null;
-
-  if (editing) {
-    return (
-      <div className="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-          Credentials for {host} — kept in memory for this session only, never stored
-        </span>
-        <CredentialFields values={draft} onChange={(patch) => setDraft({ ...draft, ...patch })} />
-        <div className="flex gap-2">
-          <Button
-            variant="primary"
-            onClick={() => {
-              rememberCredentials(host, draft);
-              setEditing(false);
-            }}
-            disabled={draft.userName.trim() === ''}
-          >
-            Use these credentials
-          </Button>
-          <Button variant="ghost" onClick={() => setEditing(false)}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm">
       {displayUser ? (
-        <>
-          <Badge tone="accent">Scanning as {displayUser}</Badge>
-          <button
-            type="button"
-            className="text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
-            onClick={() => {
-              setDraft(stored ?? emptyCredentials);
-              setEditing(true);
-            }}
-          >
-            Change
-          </button>
-          <button
-            type="button"
-            className="text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
-            onClick={() => forgetCredentials(host)}
-          >
-            Use current user
-          </button>
-        </>
+        <Badge tone="accent">Scanning as {displayUser}</Badge>
       ) : (
         <>
           <Badge tone="neutral">Scanning as current user</Badge>
-          <button
-            type="button"
-            className="text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
-            onClick={() => {
-              setDraft(emptyCredentials);
-              setEditing(true);
-            }}
-          >
-            Use explicit credentials
-          </button>
+          <span className="text-xs text-slate-400">Sign in as admin (top right) to scan with the admin account.</span>
         </>
       )}
     </div>
@@ -177,7 +115,7 @@ export function ClientDetailPage() {
         </div>
       </PageHeader>
 
-      {!local && <ClientCredentialBar host={host} />}
+      {!local && <ClientScanIdentity credentials={credentials} />}
 
       <div role="tablist" aria-label="Client sections" className="flex flex-wrap gap-1 border-b border-slate-800">
         {SECTIONS.map((entry, index) => (

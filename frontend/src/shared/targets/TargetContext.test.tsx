@@ -31,13 +31,11 @@ function Consumer() {
       </ul>
       <span data-testid="cred">{t.credentialsFor('DESKTOP-1')?.userName ?? 'none'}</span>
       <button
-        onClick={() =>
-          t.rememberCredentials('desktop-1', { userName: 'admin', domain: 'CORP', password: 'x' })
-        }
+        onClick={() => t.signInAdmin({ userName: 'admin', domain: 'CORP', password: 'x' })}
       >
-        remember
+        signin
       </button>
-      <button onClick={() => t.forgetCredentials('DESKTOP-1')}>forget</button>
+      <button onClick={() => t.signOutAdmin()}>signout</button>
       <button onClick={() => void t.saveTarget({ label: 'DC1', host: 'dc1', role: 'DomainController' })}>
         save
       </button>
@@ -59,7 +57,7 @@ describe('TargetContext', () => {
     expect(screen.getByTestId('ready').textContent).toBe('true');
   });
 
-  it('holds per-host session credentials, keyed case-insensitively, and forgets them', async () => {
+  it('holds one global admin credential for every host and signs out', async () => {
     invokeMock.mockResolvedValue({ targets: [] });
     render(
       <TargetProvider>
@@ -69,9 +67,9 @@ describe('TargetContext', () => {
     await screen.findByTestId('ready');
 
     expect(screen.getByTestId('cred').textContent).toBe('none');
-    fireEvent.click(screen.getByText('remember')); // stored under 'desktop-1'
-    expect(screen.getByTestId('cred').textContent).toBe('admin'); // read via 'DESKTOP-1'
-    fireEvent.click(screen.getByText('forget'));
+    fireEvent.click(screen.getByText('signin'));
+    expect(screen.getByTestId('cred').textContent).toBe('admin'); // reused for any host
+    fireEvent.click(screen.getByText('signout'));
     expect(screen.getByTestId('cred').textContent).toBe('none');
   });
 

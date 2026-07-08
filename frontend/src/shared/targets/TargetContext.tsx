@@ -27,24 +27,29 @@ export interface TargetContextValue {
   saveTarget(input: SaveTargetInput): Promise<void>;
   deleteTarget(id: number): Promise<void>;
   /**
-   * Explicit credentials the user entered for a host this session, or undefined
-   * when the host should be scanned as the current user. Held in memory for the
-   * app session only — never persisted, never logged (ADR 0007, see ADR 0010);
-   * this is what lets a client be scanned repeatedly without re-typing.
+   * The one admin identity for this session, or null when acting as the current
+   * user. Entered once (top bar) and reused for every remote target — Windows
+   * scans, AD, print servers, the PowerShell session. Held in memory for the
+   * app session only: never persisted, never logged (ADR 0007, ADR 0011).
+   * opsi keeps its own login (a separate auth realm).
+   */
+  adminCredentials: CredentialValues | null;
+  signInAdmin(credentials: CredentialValues): void;
+  signOutAdmin(): void;
+  /**
+   * Convenience for scan targets: the session admin credentials for a remote
+   * host, or undefined to act as the current user. The host is accepted for
+   * call-site clarity but there is a single global identity.
    */
   credentialsFor(host: string): CredentialValues | undefined;
-  rememberCredentials(host: string, credentials: CredentialValues): void;
-  forgetCredentials(host: string): void;
 }
-
-const credentialKey = (host: string) => host.trim().toUpperCase();
 
 const TargetContext = createContext<TargetContextValue | null>(null);
 
 export function TargetProvider({ children }: { children: ReactNode }) {
   const [savedTargets, setSavedTargets] = useState<SavedTarget[]>([]);
   const [savedTargetsReady, setSavedTargetsReady] = useState(false);
-  const [credentials, setCredentials] = useState<Record<string, CredentialValues>>({});
+  const [adminCredentials, setAdminCredentials] = useState<CredentialValues | null>(null);
 
   const reloadSavedTargets = useCallback(async () => {
     try {
@@ -77,23 +82,16 @@ export function TargetProvider({ children }: { children: ReactNode }) {
     setSavedTargets(result.targets);
   }, []);
 
+  const signInAdmin = useCallback((credentials: CredentialValues) => {
+    setAdminCredentials(credentials.userName.trim() === '' ? null : credentials);
+  }, []);
+
+  const signOutAdmin = useCallback(() => setAdminCredentials(null), []);
+
   const credentialsFor = useCallback(
-    (host: string): CredentialValues | undefined => credentials[credentialKey(host)],
-    [credentials],
+    (_host: string): CredentialValues | undefined => adminCredentials ?? undefined,
+    [adminCredentials],
   );
-
-  const rememberCredentials = useCallback((host: string, value: CredentialValues) => {
-    setCredentials((current) => ({ ...current, [credentialKey(host)]: value }));
-  }, []);
-
-  const forgetCredentials = useCallback((host: string) => {
-    setCredentials((current) => {
-      if (!(credentialKey(host) in current)) return current;
-      const next = { ...current };
-      delete next[credentialKey(host)];
-      return next;
-    });
-  }, []);
 
   const value = useMemo<TargetContextValue>(
     () => ({
@@ -102,9 +100,10 @@ export function TargetProvider({ children }: { children: ReactNode }) {
       reloadSavedTargets,
       saveTarget,
       deleteTarget,
+      adminCredentials,
+      signInAdmin,
+      signOutAdmin,
       credentialsFor,
-      rememberCredentials,
-      forgetCredentials,
     }),
     [
       savedTargets,
@@ -112,9 +111,10 @@ export function TargetProvider({ children }: { children: ReactNode }) {
       reloadSavedTargets,
       saveTarget,
       deleteTarget,
+      adminCredentials,
+      signInAdmin,
+      signOutAdmin,
       credentialsFor,
-      rememberCredentials,
-      forgetCredentials,
     ],
   );
 
