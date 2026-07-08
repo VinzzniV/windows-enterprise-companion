@@ -4,6 +4,31 @@ Living document: check items off, reprioritize freely, delete what gets
 rejected. Ordering within a section is by value/effort. Milestone work
 (M6, M7) still follows the loop protocol: ADR + user decisions first.
 
+## Done 2026-07-08 — Global admin sign-in, one-click PowerShell, Verwaltung (ADR 0011)
+
+Client-centric follow-through, shipped slice by slice:
+- **Nav:** Clients moved under Fleet (below Dashboard); standalone
+  Inventory/Security/Diagnostics retired from nav+routing (they live in the
+  client detail); Clients list no longer flashes the scanned-only rows before
+  the AD list resolves.
+- **Global admin sign-in:** one admin identity entered once in the top bar,
+  reused for every remote target; per-page credential fields removed on the
+  client detail, AD and Print (opsi keeps its own login). Password in memory
+  only (ADR 0007/0011).
+- **Online status:** `connectivity/probeHosts` (ICMP ping + TCP 5985), a
+  "Check online" button probing only the visible rows, Online/WinRM badges.
+- **PowerShell session (ADR 0011):** `system/openPsSession` opens an interactive
+  Enter-PSSession in a new console, reusing the admin sign-in; password handed
+  over via a one-shot env var, never command line/disk/log. Buttons in the
+  Clients list and the client detail. The one deliberate, human-driven
+  execution path.
+- **Verwaltung area:** renamed from Multi-host; Settings (read-only config
+  surface) + Error log (`logs/recent` reads the newest Serilog file for
+  warnings/errors/fatals). Backend + frontend build and all tests green
+  (10 new host tests; frontend 88).
+
+Partially covers the P3 "Settings page" and "In-app log viewer" items below.
+
 ## Done 2026-07-08 — Per-client remote reporting (ADR 0010 follow-up)
 
 Reporting is no longer local-only. The report providers and

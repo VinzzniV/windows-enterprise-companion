@@ -47,6 +47,12 @@ and the ADRs in [docs/adr/](docs/adr/).
 | Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels); queues merged per physical device, search + site grouping, snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009). Client-installed printers are a separate CIM path shown in the client detail | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
 | Reporting | HTML/JSON executive summary per machine (local or a scanned remote client); reads already-captured data, never starts a scan | local + any scanned client |
 | Saved Targets | Persist frequently used servers/clients (host + role + user name, never a password) to pre-fill the pickers (ADR 0010) | local (SQLite) |
+| Clients | AD-sourced client workspace; on-demand per-client scans, compare, on-demand online status (ping + WinRM 5985), one-click PowerShell remoting session (ADR 0011) | remote clients over WinRM |
+| Verwaltung | App-wide settings (read-only surface) and an error log reading warnings/errors from the current log file | local |
+
+Admin credentials are entered once (top-bar sign-in) and reused for every
+remote target; the password lives in memory only, never persisted or logged
+(ADR 0007/0011). opsi keeps its own login.
 
 ## Prerequisites
 

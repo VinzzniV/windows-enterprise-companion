@@ -8,6 +8,8 @@ import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectory
 import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
 import { PrintManagementPage } from '../features/printmanagement/PrintManagementPage';
 import { ReportingPage } from '../features/reporting/ReportingPage';
+import { SettingsPage } from '../features/verwaltung/SettingsPage';
+import { ErrorLogPage } from '../features/verwaltung/ErrorLogPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
@@ -38,6 +40,13 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
       { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
       { to: '/reporting', label: 'Reporting', icon: navIcons.reporting },
+    ],
+  },
+  {
+    label: 'Verwaltung',
+    items: [
+      { to: '/settings', label: 'Settings', icon: navIcons.settings },
+      { to: '/logs', label: 'Error log', icon: navIcons.logs },
     ],
   },
 ];
@@ -159,6 +168,8 @@ function AppRoutes() {
           <Route path="/patchmanagement" element={<PatchManagementPage />} />
           <Route path="/printmanagement" element={<PrintManagementPage />} />
           <Route path="/reporting" element={<ReportingPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/logs" element={<ErrorLogPage />} />
         </Routes>
       </ErrorBoundary>
     </div>

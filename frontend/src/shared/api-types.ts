@@ -340,6 +340,19 @@ export interface DiagnosticRunResult {
   results: DiagnosticResult[];
 }
 
+/** Wec.Host.Bridge.LogEntry */
+export interface LogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+}
+
+/** Wec.Host.Bridge.RecentLogEntriesResponse */
+export interface RecentLogEntriesResult {
+  entries: LogEntry[];
+  source: string | null;
+}
+
 /** Wec.Host.Bridge.HostProbeResult — reachable = ICMP ping, manageable = TCP 5985 (WinRM) */
 export interface HostProbe {
   host: string;
