@@ -28,6 +28,17 @@ internal sealed class DefenderStatusCheck : ISecurityCheck
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
+        // A registered, active third-party antivirus (e.g. Kaspersky) is the real
+        // protection; Defender then drops to passive mode, which is expected. Report
+        // that product and skip the Defender-native checks instead of falsely
+        // flagging "Defender disabled".
+        ActiveSecurityProduct? thirdPartyAntivirus =
+            await SecurityCenterProducts.ActiveAntivirusAsync(_wmiQueryService, context, cancellationToken);
+        if (thirdPartyAntivirus is not null)
+        {
+            return [ThirdPartyAntivirusFinding(thirdPartyAntivirus, _clock.UtcNow)];
+        }
+
         Result<IReadOnlyList<WmiInstance>> status = await _wmiQueryService.QueryAsync(
             context,
             DefenderNamespace,
@@ -125,4 +136,22 @@ internal sealed class DefenderStatusCheck : ISecurityCheck
 
         return findings;
     }
+
+    private SecurityFinding ThirdPartyAntivirusFinding(
+        ActiveSecurityProduct product, DateTimeOffset capturedAtUtc) => new(
+        $"{CheckId}-THIRD-PARTY",
+        $"Antivirus protection provided by {product.DisplayName}",
+        "Windows Security Center reports an active third-party antivirus product. Microsoft Defender "
+            + "steps back into passive mode in this case, which is expected — the machine is protected.",
+        FindingSeverity.Info,
+        FindingCategory.MalwareProtection,
+        product.DisplayName,
+        new Dictionary<string, string>
+        {
+            ["antivirusProduct"] = product.DisplayName,
+            ["source"] = @"root\SecurityCenter2\AntiVirusProduct",
+        },
+        "No action needed. Verify the third-party antivirus is kept up to date and reporting healthy.",
+        RequiredPrivilege: null,
+        capturedAtUtc);
 }

@@ -59,6 +59,51 @@ public class DefenderStatusCheckTests
 
         Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
     }
+
+    [Fact]
+    public async Task ActiveThirdPartyAntivirus_SuppressesDefenderFindingWithInfo()
+    {
+        // SecurityCenter2 reports Kaspersky active; Defender is passive (disabled) — expected, not a finding.
+        _harness.SetUpWmiQuery("AntiVirusProduct", CheckTestHarness.Instance(
+            ("displayName", "Kaspersky Endpoint Security"), ("productState", 0x061100)));
+        _harness.SetUpWmiQuery("MSFT_MpComputerStatus", CheckTestHarness.Instance(
+            ("AntivirusEnabled", false), ("RealTimeProtectionEnabled", false)));
+
+        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+
+        SecurityFinding finding = Assert.Single(findings);
+        Assert.Equal(FindingSeverity.Info, finding.Severity);
+        Assert.Contains("Kaspersky", finding.Title, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DisabledThirdPartyAntivirus_DoesNotSuppressDefenderCheck()
+    {
+        // Kaspersky installed but off (productState scanner byte 0x00): fall through to Defender.
+        _harness.SetUpWmiQuery("AntiVirusProduct", CheckTestHarness.Instance(
+            ("displayName", "Kaspersky Endpoint Security"), ("productState", 0x060000)));
+        _harness.SetUpWmiQuery("MSFT_MpComputerStatus", CheckTestHarness.Instance(
+            ("AntivirusEnabled", false), ("RealTimeProtectionEnabled", false)));
+
+        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(FindingSeverity.High, Assert.Single(findings).Severity);
+    }
+}
+
+public class SecurityCenterProductsTests
+{
+    [Theory]
+    [InlineData(0x061100, true)]   // enabled + up to date (Kaspersky, real-time on)
+    [InlineData(0x061000, true)]   // enabled but signatures out of date
+    [InlineData(0x060000, false)]  // installed but off
+    [InlineData(0x060100, false)]  // snoozed (scanner byte 0x01, not 0x10)
+    public void IsEnabled_DecodesScannerByte(int productState, bool expected) =>
+        Assert.Equal(expected, SecurityCenterProducts.IsEnabled(productState));
+
+    [Fact]
+    public void IsEnabled_NullProductState_IsFalse() =>
+        Assert.False(SecurityCenterProducts.IsEnabled(null));
 }
 
 public class Smb1ProtocolCheckTests

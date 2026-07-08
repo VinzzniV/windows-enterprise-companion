@@ -36,6 +36,32 @@ public class FirewallProfilesCheckTests
     private static WmiInstance Profile(string name, object? enabled) =>
         new(new Dictionary<string, object?> { ["Name"] = name, ["Enabled"] = enabled });
 
+    private void SetUpQuery(string classNameFragment, params WmiInstance[] instances) =>
+        _wmiQueryService
+            .QueryAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Is<string>(query => query.Contains(classNameFragment, StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<WmiInstance>>(instances));
+
+    [Fact]
+    public async Task ActiveThirdPartyFirewall_SuppressesDisabledProfileFindingsWithInfo()
+    {
+        // SecurityCenter2 reports Kaspersky firewall active; Windows Firewall is off on purpose.
+        SetUpQuery("FirewallProduct", CheckTestHarness.Instance(
+            ("displayName", "Kaspersky Endpoint Security"), ("productState", 0x061100)));
+        SetUpQuery("MSFT_NetFirewallProfile", Profile("Domain", false), Profile("Public", false));
+
+        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+
+        SecurityFinding finding = Assert.Single(findings);
+        Assert.Equal(FindingSeverity.Info, finding.Severity);
+        Assert.Contains("Kaspersky", finding.Title, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AllProfilesEnabled_ProducesNoFindings()
     {

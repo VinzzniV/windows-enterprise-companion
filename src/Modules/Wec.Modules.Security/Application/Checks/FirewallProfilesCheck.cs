@@ -30,6 +30,16 @@ internal sealed partial class FirewallProfilesCheck : ISecurityCheck
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
+        // When a third-party firewall (e.g. Kaspersky) is registered and active, the
+        // Windows Firewall is routinely turned off on purpose. Report that product
+        // instead of falsely flagging "Windows Firewall disabled".
+        ActiveSecurityProduct? thirdPartyFirewall =
+            await SecurityCenterProducts.ActiveFirewallAsync(_wmiQueryService, context, cancellationToken);
+        if (thirdPartyFirewall is not null)
+        {
+            return [ThirdPartyFirewallFinding(thirdPartyFirewall, _clock.UtcNow)];
+        }
+
         Result<IReadOnlyList<WmiInstance>> profiles = await _wmiQueryService.QueryAsync(
             context,
             FirewallNamespace,
@@ -75,6 +85,26 @@ internal sealed partial class FirewallProfilesCheck : ISecurityCheck
         null => true,
         _ => profile.GetInteger("Enabled") != 0,
     };
+
+    private SecurityFinding ThirdPartyFirewallFinding(
+        ActiveSecurityProduct product, DateTimeOffset capturedAtUtc) => new(
+        FindingId: $"{CheckId}-THIRD-PARTY",
+        Title: $"Firewall protection provided by {product.DisplayName}",
+        Description:
+            "Windows Security Center reports an active third-party firewall product. The Windows Firewall "
+            + "is commonly disabled in this setup, which is expected — inbound traffic is filtered by the "
+            + "third-party product.",
+        Severity: FindingSeverity.Info,
+        Category: FindingCategory.Firewall,
+        AffectedResource: product.DisplayName,
+        Evidence: new Dictionary<string, string>
+        {
+            ["firewallProduct"] = product.DisplayName,
+            ["source"] = @"root\SecurityCenter2\FirewallProduct",
+        },
+        Recommendation: "No action needed. Verify the third-party firewall is enabled and reporting healthy.",
+        RequiredPrivilege: null,
+        CapturedAtUtc: capturedAtUtc);
 
     private SecurityFinding DisabledProfileFinding(string profileName, DateTimeOffset capturedAtUtc) => new(
         FindingId: $"{CheckId}-DISABLED",
