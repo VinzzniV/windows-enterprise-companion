@@ -93,10 +93,15 @@ internal sealed partial class ShellPowerShellSessionLauncher : IPowerShellSessio
             ? spec.UserName!.Trim()
             : $"{spec.Domain!.Trim()}\\{spec.UserName!.Trim()}";
 
+        // Build the SecureString from .NET types only — ConvertTo-SecureString
+        // needs the Microsoft.PowerShell.Security module, which does not always
+        // load in a freshly launched console. System.Security.SecureString and
+        // PSCredential are always available.
         return
             $"$ErrorActionPreference='Stop'; try {{ " +
             $"$u={SingleQuote(account)}; " +
-            $"$p=ConvertTo-SecureString $env:{PasswordEnvVar} -AsPlainText -Force; " +
+            "$p=New-Object System.Security.SecureString; " +
+            $"foreach($ch in $env:{PasswordEnvVar}.ToCharArray()){{ $p.AppendChar($ch) }} " +
             $"Remove-Item Env:{PasswordEnvVar} -ErrorAction SilentlyContinue; " +
             "$c=New-Object System.Management.Automation.PSCredential($u,$p); " +
             $"Enter-PSSession -ComputerName {safeHost} -Credential $c }} " +
