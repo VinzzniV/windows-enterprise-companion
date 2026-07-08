@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
 import type {
   AppInfoResponse,
@@ -10,17 +10,9 @@ import type {
   PrintServerDiff,
   PrintServerSnapshot,
   PrintSnapshotStamp,
+  TargetRequest,
 } from '../../shared/api-types';
 import { runWithConcurrencyLimit } from '../../shared/concurrency';
-import {
-  LOCAL_TARGET_SELECTION,
-  TargetSelector,
-  toHostList,
-  toTargetRequest,
-  toTargetRequestForHost,
-  type TargetSelection,
-} from '../../shared/targets/TargetSelector';
-import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
 import { useTargetsOptional } from '../../shared/targets/TargetContext';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
@@ -244,8 +236,10 @@ interface ServerScanState {
 const NOTIFICATION_CONCURRENCY = 16;
 
 export function PrintManagementPage() {
-  const adminCredentials = useTargetsOptional()?.adminCredentials ?? null;
-  const [selection, setSelection] = useState<TargetSelection>(LOCAL_TARGET_SELECTION);
+  const targets = useTargetsOptional();
+  const adminCredentials = targets?.adminCredentials ?? null;
+  const savedTargets = targets?.savedTargets ?? [];
+  const [newServer, setNewServer] = useState('');
   const [snapshots, setSnapshots] = useState<Record<string, PrintServerSnapshot>>({});
   const [scanStates, setScanStates] = useState<Record<string, ServerScanState>>({});
   const [scanning, setScanning] = useState(false);
@@ -296,57 +290,79 @@ export function PrintManagementPage() {
       .catch(() => {});
   }, [loadHints]);
 
-  const scan = useCallback(() => {
-    const targets =
-      selection.mode === 'multiple'
-        ? toHostList(selection).map((host) => toTargetRequestForHost(selection, host, adminCredentials))
-        : [toTargetRequest(selection, adminCredentials)];
-    if (selection.mode === 'remote' && targets[0] === null) {
-      return;
-    }
+  // Print servers are always remote; carry the session admin identity when set.
+  const toServerRequest = useCallback(
+    (host: string): TargetRequest =>
+      adminCredentials && adminCredentials.userName.trim() !== ''
+        ? {
+            host,
+            userName: adminCredentials.userName.trim(),
+            domain: adminCredentials.domain.trim() || null,
+            password: adminCredentials.password,
+          }
+        : { host },
+    [adminCredentials],
+  );
 
-    setScanning(true);
-    setExportMessage(null);
-    const keys = targets.map((target) => (target?.host ?? 'LOCAL').toUpperCase());
-    setScanStates((previous) => ({
-      ...previous,
-      ...Object.fromEntries(keys.map((key) => [key, { status: 'loading' } as ServerScanState])),
-    }));
+  const scanServers = useCallback(
+    (hosts: string[]) => {
+      if (hosts.length === 0) return;
+      setScanning(true);
+      setExportMessage(null);
+      setScanStates((previous) => ({
+        ...previous,
+        ...Object.fromEntries(hosts.map((host) => [host.toUpperCase(), { status: 'loading' } as ServerScanState])),
+      }));
 
-    runWithConcurrencyLimit(targets, maxParallelScans, async (target) => {
-      const key = (target?.host ?? 'LOCAL').toUpperCase();
-      try {
-        const snapshot = await invoke<PrintServerSnapshot>(
-          'printmanagement', 'scanServer', { target }, 300_000);
-        setSnapshots((previous) => ({ ...previous, [snapshot.server]: snapshot }));
-        setScanStates((previous) => ({ ...previous, [snapshot.server]: { status: 'done' } }));
-      } catch (error) {
-        setScanStates((previous) => ({
-          ...previous,
-          [key]: { status: 'error', error: describeError(error) },
-        }));
-      }
-    })
-      .then(loadHints)
-      .finally(() => setScanning(false));
-  }, [selection, maxParallelScans, loadHints, adminCredentials]);
-
-  const removeServer = useCallback((server: string) => {
-    invoke('printmanagement', 'deleteServer', { server })
-      .then(() => {
-        setSnapshots((previous) => {
-          const next = { ...previous };
-          delete next[server];
-          return next;
-        });
-        setScanStates((previous) => {
-          const next = { ...previous };
-          delete next[server];
-          return next;
-        });
+      void runWithConcurrencyLimit(hosts, maxParallelScans, async (host) => {
+        try {
+          const snapshot = await invoke<PrintServerSnapshot>(
+            'printmanagement', 'scanServer', { target: toServerRequest(host) }, 300_000);
+          setSnapshots((previous) => ({ ...previous, [snapshot.server]: snapshot }));
+          setScanStates((previous) => ({ ...previous, [snapshot.server]: { status: 'done' } }));
+        } catch (error) {
+          setScanStates((previous) => ({
+            ...previous,
+            [host.toUpperCase()]: { status: 'error', error: describeError(error) },
+          }));
+        }
       })
-      .catch(() => {});
-  }, []);
+        .then(loadHints)
+        .finally(() => setScanning(false));
+    },
+    [maxParallelScans, loadHints, toServerRequest],
+  );
+
+  // Add a print server: remembered as a saved target (stays until removed) and scanned once.
+  const addServer = useCallback(() => {
+    const host = newServer.trim();
+    if (host === '') return;
+    setNewServer('');
+    void targets?.saveTarget({ label: host, host, role: 'PrintServer' }).catch(() => {});
+    scanServers([host]);
+  }, [newServer, targets, scanServers]);
+
+  const removeServer = useCallback(
+    (server: string) => {
+      void invoke('printmanagement', 'deleteServer', { server }).catch(() => {});
+      const saved = savedTargets.find(
+        (target) => target.role === 'PrintServer' && target.host.toUpperCase() === server.toUpperCase());
+      if (saved) {
+        void targets?.deleteTarget(saved.id).catch(() => {});
+      }
+      setSnapshots((previous) => {
+        const next = { ...previous };
+        delete next[server];
+        return next;
+      });
+      setScanStates((previous) => {
+        const next = { ...previous };
+        delete next[server];
+        return next;
+      });
+    },
+    [savedTargets, targets],
+  );
 
   const exportCsv = useCallback(() => {
     setExportMessage(null);
@@ -412,6 +428,18 @@ export function PrintManagementPage() {
   }, [diffServer, diffBaselineId]);
 
   const servers = Object.keys(snapshots).sort();
+
+  // The managed print servers: saved ones (persisted) merged with any that have a
+  // stored snapshot. De-duplicated case-insensitively, saved display name preferred.
+  const managedServers = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const server of Object.keys(snapshots)) byKey.set(server.toUpperCase(), server);
+    for (const target of savedTargets) {
+      if (target.role === 'PrintServer') byKey.set(target.host.toUpperCase(), target.host);
+    }
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+  }, [snapshots, savedTargets]);
+
   const visibleSnapshots = servers
     .filter((server) => serverFilter === '' || server === serverFilter)
     .map((server) => snapshots[server]);
@@ -439,31 +467,85 @@ export function PrintManagementPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Print Management"
-        subtitle="Printer inventory from the print servers, enriched per device over SNMP — serials, locations, toner levels and the lease-swap history."
+        subtitle="Printer inventory from your saved print servers, enriched per device over SNMP — serials, locations, toner levels and the lease-swap history."
       >
-        <Button variant="primary" onClick={scan} disabled={scanning}>
-          {scanning ? 'Scanning…' : 'Scan'}
+        <Button
+          variant="primary"
+          onClick={() => scanServers(managedServers)}
+          disabled={scanning || managedServers.length === 0}
+        >
+          {scanning ? 'Scanning…' : 'Rescan all'}
         </Button>
         <Button onClick={exportCsv} disabled={printers.length === 0}>
           Export CSV
         </Button>
       </PageHeader>
 
-      <TargetSelector selection={selection} onChange={setSelection} disabled={scanning} allowMultiple hideCredentials />
+      <Card title="Print servers">
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-slate-400">
+            Add each print server once — they stay saved until you remove them. Scanning reads
+            the queues over WinRM and enriches each device over SNMP (as the signed-in admin).
+          </p>
+          <form
+            className="flex flex-wrap items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              addServer();
+            }}
+          >
+            <Input
+              type="text"
+              value={newServer}
+              onChange={(event) => setNewServer(event.target.value)}
+              placeholder="Print server hostname (e.g. pk-srvprint01)"
+              aria-label="Print server hostname"
+              className="w-80"
+            />
+            <Button type="submit" disabled={newServer.trim() === '' || scanning}>
+              Add &amp; scan
+            </Button>
+          </form>
 
-      <SavedTargetsBar
-        role="PrintServer"
-        label="Saved print servers"
-        currentHost={selection.mode === 'remote' ? selection.host : ''}
-        currentUserName={adminCredentials?.userName ?? null}
-        onPick={(target) =>
-          setSelection((current) => ({
-            ...current,
-            mode: 'remote',
-            host: target.host,
-          }))
-        }
-      />
+          {managedServers.length === 0 ? (
+            <p className="text-sm text-slate-500">No print servers yet — add one above.</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-slate-800/70 rounded border border-slate-800">
+              {managedServers.map((server) => {
+                const state = scanStates[server.toUpperCase()];
+                const snapshot = snapshots[server];
+                return (
+                  <li key={server} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                    <span className="font-medium text-slate-100">{server}</span>
+                    {state?.status === 'loading' && <StatusBadge variant="info">Scanning…</StatusBadge>}
+                    {state?.status === 'error' && (
+                      <span className="text-xs text-fail-400" title={state.error}>
+                        Scan failed
+                      </span>
+                    )}
+                    {snapshot ? (
+                      <span className="text-xs text-slate-500">
+                        {snapshot.printers.length} printer{snapshot.printers.length === 1 ? '' : 's'} · captured{' '}
+                        {formatTimestamp(snapshot.capturedAtUtc)}
+                      </span>
+                    ) : (
+                      !state && <span className="text-xs text-slate-500">not scanned yet</span>
+                    )}
+                    <div className="ml-auto flex items-center gap-2">
+                      <Button variant="ghost" onClick={() => scanServers([server])} disabled={scanning}>
+                        Rescan
+                      </Button>
+                      <Button variant="ghost" onClick={() => removeServer(server)}>
+                        Remove
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </Card>
 
       {scanning && <Spinner label="Scanning print servers" />}
       {exportMessage && <p className="text-sm text-slate-300">{exportMessage}</p>}
@@ -494,15 +576,10 @@ export function PrintManagementPage() {
                 ))}
               </Select>
             </label>
-            {serverFilter !== '' && (
-              <>
-                <span className="text-xs text-slate-500">
-                  Captured {formatTimestamp(snapshots[serverFilter].capturedAtUtc)}
-                </span>
-                <Button variant="ghost" onClick={() => removeServer(serverFilter)}>
-                  Remove stored server
-                </Button>
-              </>
+            {serverFilter !== '' && snapshots[serverFilter] && (
+              <span className="text-xs text-slate-500">
+                Captured {formatTimestamp(snapshots[serverFilter].capturedAtUtc)}
+              </span>
             )}
           </div>
 
@@ -745,7 +822,7 @@ export function PrintManagementPage() {
       {printers.length === 0 && !scanning && failedScans.length === 0 && (
         <EmptyState
           title="No printers captured yet"
-          message="Scan a print server (local machine, one remote server, or several — the AD picker finds them). Stored snapshots reappear here automatically."
+          message="Add a print server above and scan it. Saved servers and their snapshots reappear here automatically."
         />
       )}
     </div>
