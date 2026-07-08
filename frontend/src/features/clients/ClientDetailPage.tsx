@@ -150,19 +150,29 @@ export function ClientDetailPage() {
         ))}
       </div>
 
-      <div role="tabpanel" id={`clientpanel-${section}`} aria-labelledby={`clienttab-${section}`}>
-        {!appInfoResolved ? (
-          <Spinner label="Preparing client …" />
-        ) : (
-          <>
-            {section === 'inventory' && <InventorySection key={host} target={target} />}
-            {section === 'security' && <SecuritySection key={host} target={target} />}
-            {section === 'diagnostics' && <DiagnosticsSection key={host} target={target} />}
-            {section === 'printers' && <PrintersSection key={host} target={target} />}
-            {section === 'reporting' && <ReportingSection host={local ? null : host} />}
-          </>
-        )}
-      </div>
+      {!appInfoResolved ? (
+        <Spinner label="Preparing client …" />
+      ) : (
+        // All sections stay mounted; switching tabs only hides them, so an
+        // in-progress scan keeps running and its result is never discarded.
+        <>
+          <div role="tabpanel" id="clientpanel-inventory" aria-labelledby="clienttab-inventory" hidden={section !== 'inventory'}>
+            <InventorySection key={host} target={target} />
+          </div>
+          <div role="tabpanel" id="clientpanel-security" aria-labelledby="clienttab-security" hidden={section !== 'security'}>
+            <SecuritySection key={host} target={target} />
+          </div>
+          <div role="tabpanel" id="clientpanel-diagnostics" aria-labelledby="clienttab-diagnostics" hidden={section !== 'diagnostics'}>
+            <DiagnosticsSection key={host} target={target} />
+          </div>
+          <div role="tabpanel" id="clientpanel-printers" aria-labelledby="clienttab-printers" hidden={section !== 'printers'}>
+            <PrintersSection key={host} target={target} />
+          </div>
+          <div role="tabpanel" id="clientpanel-reporting" aria-labelledby="clienttab-reporting" hidden={section !== 'reporting'}>
+            <ReportingSection host={local ? null : host} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
