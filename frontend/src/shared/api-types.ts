@@ -340,6 +340,18 @@ export interface DiagnosticRunResult {
   results: DiagnosticResult[];
 }
 
+/** Wec.Host.Bridge.HostProbeResult — reachable = ICMP ping, manageable = TCP 5985 (WinRM) */
+export interface HostProbe {
+  host: string;
+  reachable: boolean;
+  manageable: boolean;
+}
+
+/** Wec.Host.Bridge.ProbeHostsResponse */
+export interface ProbeHostsResult {
+  results: HostProbe[];
+}
+
 /** Wec.Modules.Reporting.Application.ReportOverview */
 export interface ReportOverview {
   inventoryCapturedAtUtc: string | null;

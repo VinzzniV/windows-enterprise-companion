@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
 import type {
   AdComputerSearchResult,
+  HostProbe,
   ListInventoryHostsResult,
+  ProbeHostsResult,
   StoredInventoryHost,
 } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
@@ -31,9 +33,12 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function StatusCell({ client }: { client: ClientEntry }) {
+function StatusCell({ client, probe }: { client: ClientEntry; probe?: HostProbe }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {probe &&
+        (probe.reachable ? <Badge tone="ok">Online</Badge> : <Badge tone="neutral">Offline</Badge>)}
+      {probe?.manageable && <Badge tone="info">WinRM</Badge>}
       {client.scanned ? (
         <Badge tone="ok">Scanned</Badge>
       ) : (
@@ -64,6 +69,8 @@ export function ClientsPage() {
   const [search, setSearch] = useState('');
   const [groupMode, setGroupMode] = useState<GroupMode>('none');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [probes, setProbes] = useState<Record<string, HostProbe>>({});
+  const [probing, setProbing] = useState(false);
 
   const searchAd = useCallback((filter: string, disabled: boolean) => {
     setSearching(true);
@@ -105,6 +112,22 @@ export function ClientsPage() {
   const openClient = (client: ClientEntry) =>
     navigate(`/clients/${encodeURIComponent(client.host)}`);
 
+  // On-demand liveness for the visible/filtered rows only (never the full AD list).
+  const probeOnline = () => {
+    const hosts = filtered.map((client) => client.host);
+    if (hosts.length === 0) return;
+    setProbing(true);
+    invoke<ProbeHostsResult>('connectivity', 'probeHosts', { hosts }, 120_000)
+      .then((result) =>
+        setProbes((current) => ({
+          ...current,
+          ...Object.fromEntries(result.results.map((probe) => [probe.host.toUpperCase(), probe])),
+        })),
+      )
+      .catch(() => {})
+      .finally(() => setProbing(false));
+  };
+
   const toggleGroup = (label: string) =>
     setCollapsed((current) => {
       const next = new Set(current);
@@ -126,7 +149,10 @@ export function ClientsPage() {
       ),
     },
     { header: 'Operating system', cell: (client) => client.os ?? '—' },
-    { header: 'Status', cell: (client) => <StatusCell client={client} /> },
+    {
+      header: 'Status',
+      cell: (client) => <StatusCell client={client} probe={probes[client.host.toUpperCase()]} />,
+    },
   ];
 
   return (
@@ -135,6 +161,9 @@ export function ClientsPage() {
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => navigate('/clients/compare')}>
             Compare
+          </Button>
+          <Button variant="secondary" onClick={probeOnline} disabled={probing || filtered.length === 0}>
+            {probing ? 'Checking…' : 'Check online'}
           </Button>
           <Button variant="secondary" onClick={() => { searchAd(adFilter, includeDisabled); reloadScanned(); }} disabled={searching}>
             {searching ? 'Refreshing…' : 'Refresh'}
