@@ -13,16 +13,18 @@ import { clientKey, isLocalClient, toClientTarget } from './clients';
 import { InventorySection } from './sections/InventorySection';
 import { SecuritySection } from './sections/SecuritySection';
 import { DiagnosticsSection } from './sections/DiagnosticsSection';
+import { EventLogSection } from './sections/EventLogSection';
 import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
 import { openPsSession } from '../../shared/ps/openPsSession';
 
-type SectionKey = 'inventory' | 'security' | 'diagnostics' | 'printers' | 'reporting';
+type SectionKey = 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'inventory', label: 'Inventory' },
   { key: 'security', label: 'Security' },
   { key: 'diagnostics', label: 'Diagnostics' },
+  { key: 'events', label: 'Event logs' },
   { key: 'printers', label: 'Printers' },
   { key: 'reporting', label: 'Reporting' },
 ];
@@ -164,6 +166,9 @@ export function ClientDetailPage() {
           </div>
           <div role="tabpanel" id="clientpanel-diagnostics" aria-labelledby="clienttab-diagnostics" hidden={section !== 'diagnostics'}>
             <DiagnosticsSection key={host} target={target} />
+          </div>
+          <div role="tabpanel" id="clientpanel-events" aria-labelledby="clienttab-events" hidden={section !== 'events'}>
+            <EventLogSection key={host} target={target} />
           </div>
           <div role="tabpanel" id="clientpanel-printers" aria-labelledby="clienttab-printers" hidden={section !== 'printers'}>
             <PrintersSection key={host} target={target} />

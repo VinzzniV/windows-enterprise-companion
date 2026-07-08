@@ -28,7 +28,9 @@ public sealed class DiagnosticsModule : IModule
         services.AddScoped<IDiagnostic, DiskFreeSpaceDiagnostic>();
         services.AddScoped<IDiagnostic, RebootPendingDiagnostic>();
         services.AddScoped<IDiagnostic, WindowsUpdateRecencyDiagnostic>();
+        services.AddScoped<EventLogQueryService>();
         services.AddScoped<IActionHandler, RunDiagnosticsHandler>();
         services.AddScoped<IActionHandler, GetLatestDiagnosticsHandler>();
+        services.AddScoped<IActionHandler, QueryEventLogHandler>();
     }
 }

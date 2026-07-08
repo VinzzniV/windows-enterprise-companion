@@ -345,6 +345,23 @@ export interface LatestDiagnosticRunResult {
   run: DiagnosticRunResult | null;
 }
 
+/** Wec.Modules.Diagnostics.Application.RemoteEventLogEntry */
+export interface RemoteEventLogEntry {
+  timeGenerated: string | null;
+  level: string;
+  source: string;
+  eventCode: number;
+  message: string;
+}
+
+/** Wec.Modules.Diagnostics.Application.EventLogQueryResult */
+export interface EventLogQueryResult {
+  presetKey: string;
+  totalMatched: number;
+  truncated: boolean;
+  entries: RemoteEventLogEntry[];
+}
+
 /** Wec.Host.Bridge.LogEntry */
 export interface LogEntry {
   timestamp: string;
