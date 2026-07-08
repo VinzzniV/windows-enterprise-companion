@@ -340,6 +340,11 @@ export interface DiagnosticRunResult {
   results: DiagnosticResult[];
 }
 
+/** Wec.Modules.Diagnostics.Handlers.LatestDiagnosticRunResult */
+export interface LatestDiagnosticRunResult {
+  run: DiagnosticRunResult | null;
+}
+
 /** Wec.Host.Bridge.LogEntry */
 export interface LogEntry {
   timestamp: string;
@@ -736,6 +741,11 @@ export interface ClientPrinterScan {
   host: string;
   capturedAtUtc: string;
   printers: ClientPrinter[];
+}
+
+/** Wec.Modules.PrintManagement.Handlers.LatestClientPrinterScanResult */
+export interface LatestClientPrinterScanResult {
+  scan: ClientPrinterScan | null;
 }
 
 /** Wec.Modules.PrintManagement.Persistence.StoredPrintServer */

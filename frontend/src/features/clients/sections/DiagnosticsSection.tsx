@@ -1,21 +1,36 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
 import { errorText } from '../../../shared/bridge/errorText';
-import type { DiagnosticRunResult, TargetRequest } from '../../../shared/api-types';
+import type {
+  DiagnosticRunResult,
+  LatestDiagnosticRunResult,
+  TargetRequest,
+} from '../../../shared/api-types';
 import { CategorySections, RunSummary } from '../../diagnostics/DiagnosticsPage';
 import { Button } from '../../../shared/ui/Button';
 import { Spinner } from '../../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';
 
 type State =
+  | { kind: 'loading' }
   | { kind: 'idle' }
   | { kind: 'running' }
   | { kind: 'done'; run: DiagnosticRunResult }
   | { kind: 'error'; message: string };
 
-/** Diagnostics section of a client: results aren't persisted, so run on demand. */
+/** Diagnostics section of a client: last saved run on open, run again on demand. */
 export function DiagnosticsSection({ target }: { target: TargetRequest | null }) {
-  const [state, setState] = useState<State>({ kind: 'idle' });
+  const [state, setState] = useState<State>({ kind: 'loading' });
+
+  // Load the last saved run on open (no network scan)
+  useEffect(() => {
+    setState({ kind: 'loading' });
+    invoke<LatestDiagnosticRunResult>('diagnostics', 'getLatestDiagnostics', { target })
+      .then((result) =>
+        result.run ? setState({ kind: 'done', run: result.run }) : setState({ kind: 'idle' }),
+      )
+      .catch(() => setState({ kind: 'idle' }));
+  }, [target]);
 
   const run = useCallback(() => {
     setState({ kind: 'running' });
@@ -23,6 +38,10 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
       .then((result) => setState({ kind: 'done', run: result }))
       .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
   }, [target]);
+
+  if (state.kind === 'loading') {
+    return <Spinner label="Loading last diagnostics …" />;
+  }
 
   if (state.kind === 'running') {
     return <Spinner label="Running diagnostics …" />;
@@ -43,7 +62,7 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
     return (
       <EmptyState
         title="System diagnostics"
-        message="Network, DNS, domain, time, services, event logs and system checks. Connectivity probes always measure from the WEC machine and are skipped for remote targets. Results are a live snapshot, not persisted."
+        message="Network, DNS, domain, time, services, event logs and system checks. Connectivity probes always measure from the WEC machine and are skipped for remote targets. The result is saved and shown again next time."
         action={<Button variant="primary" onClick={run}>Run diagnostics</Button>}
       />
     );

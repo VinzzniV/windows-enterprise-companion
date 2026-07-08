@@ -14,10 +14,12 @@ public sealed class PrintManagementModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<IPrintSnapshotRepository, EfPrintSnapshotRepository>();
+        services.AddScoped<IClientPrinterScanRepository, EfClientPrinterScanRepository>();
         services.AddScoped<PrintServerScanService>();
         services.AddScoped<ClientPrinterScanService>();
         services.AddScoped<IActionHandler, ScanPrintServerHandler>();
         services.AddScoped<IActionHandler, ScanClientPrintersHandler>();
+        services.AddScoped<IActionHandler, GetLatestClientPrintersHandler>();
         services.AddScoped<IActionHandler, ListPrintServersHandler>();
         services.AddScoped<IActionHandler, GetLatestPrintSnapshotHandler>();
         services.AddScoped<IActionHandler, GetPrintHistoryHandler>();

@@ -1,7 +1,12 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
 import { errorText } from '../../../shared/bridge/errorText';
-import type { ClientPrinter, ClientPrinterScan, TargetRequest } from '../../../shared/api-types';
+import type {
+  ClientPrinter,
+  ClientPrinterScan,
+  LatestClientPrinterScanResult,
+  TargetRequest,
+} from '../../../shared/api-types';
 import { Button } from '../../../shared/ui/Button';
 import { Badge } from '../../../shared/ui/Badge';
 import { DataTable, type DataColumn } from '../../../shared/ui/DataTable';
@@ -9,6 +14,7 @@ import { Spinner } from '../../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';
 
 type State =
+  | { kind: 'loading' }
   | { kind: 'idle' }
   | { kind: 'running' }
   | { kind: 'done'; scan: ClientPrinterScan }
@@ -34,7 +40,17 @@ const columns: DataColumn<ClientPrinter>[] = [
 
 /** Printers installed on a client — the deliberate client-side counterpart to the print-server view. */
 export function PrintersSection({ target }: { target: TargetRequest | null }) {
-  const [state, setState] = useState<State>({ kind: 'idle' });
+  const [state, setState] = useState<State>({ kind: 'loading' });
+
+  // Load the last saved scan on open (no network scan)
+  useEffect(() => {
+    setState({ kind: 'loading' });
+    invoke<LatestClientPrinterScanResult>('printmanagement', 'getLatestClientPrinters', { target })
+      .then((result) =>
+        result.scan ? setState({ kind: 'done', scan: result.scan }) : setState({ kind: 'idle' }),
+      )
+      .catch(() => setState({ kind: 'idle' }));
+  }, [target]);
 
   const run = useCallback(() => {
     setState({ kind: 'running' });
@@ -42,6 +58,10 @@ export function PrintersSection({ target }: { target: TargetRequest | null }) {
       .then((scan) => setState({ kind: 'done', scan }))
       .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
   }, [target]);
+
+  if (state.kind === 'loading') {
+    return <Spinner label="Loading saved printers …" />;
+  }
 
   if (state.kind === 'running') {
     return <Spinner label="Reading installed printers …" />;
