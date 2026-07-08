@@ -31,9 +31,11 @@ migration (build alongside, then flip the default nav — no big-bang rewrite):
    (`searchComputers`), merged with already-scanned hosts and saved Client
    targets, and are **not** scanned until opened. A client detail
    (`/clients/:host`) runs Inventory / Security / Diagnostics / Printers on
-   demand and reuses the existing feature views. Reporting stays local-only
-   (link out) or is shown as NOT_RUN for remote clients — never a faked remote
-   report. Two clients can be compared (inventory + security diff).
+   demand and reuses the existing feature views. Reporting is available per
+   client: the executive summary reads whatever inventory/security data was
+   already captured for that host (local or remote) and never starts a scan —
+   no faked data, just an empty overview until the sections have been run. Two
+   clients can be compared (inventory + security diff).
 
 2. **Shared target/credential context.** A React `TargetProvider` holds the
    loaded saved targets and, per host, the explicit credentials entered this

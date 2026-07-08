@@ -14,11 +14,13 @@ internal sealed class InventoryReportDataProvider : IInventoryReportDataProvider
         _repository = repository;
     }
 
-    public async Task<InventoryReportData?> GetLatestAsync(CancellationToken cancellationToken)
+    public async Task<InventoryReportData?> GetLatestAsync(string? host, CancellationToken cancellationToken)
     {
-        // The executive summary reports on the machine WEC runs on
-        CachedHardwareSnapshot? cached = await _repository.GetLatestAsync(
-            Wec.Core.Targets.ScanTarget.Local.CacheKey, cancellationToken);
+        // null host = the machine WEC runs on; otherwise the scanned remote client's snapshot
+        string cacheKey = host is null
+            ? Wec.Core.Targets.ScanTarget.Local.CacheKey
+            : Wec.Core.Targets.ScanTarget.Remote(host).CacheKey;
+        CachedHardwareSnapshot? cached = await _repository.GetLatestAsync(cacheKey, cancellationToken);
         if (cached is null)
         {
             return null;

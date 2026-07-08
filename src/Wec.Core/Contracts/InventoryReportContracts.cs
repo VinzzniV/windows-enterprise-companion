@@ -18,5 +18,6 @@ public sealed record InventoryReportData(
 /// <summary>Implemented by the Inventory module; consumed via Core only (ADR 0004).</summary>
 public interface IInventoryReportDataProvider
 {
-    Task<InventoryReportData?> GetLatestAsync(CancellationToken cancellationToken);
+    /// <param name="host">null = the local machine; otherwise the scanned remote host.</param>
+    Task<InventoryReportData?> GetLatestAsync(string? host, CancellationToken cancellationToken);
 }

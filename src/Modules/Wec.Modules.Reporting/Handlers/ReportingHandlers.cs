@@ -4,7 +4,8 @@ using Wec.Modules.Reporting.Application;
 
 namespace Wec.Modules.Reporting.Handlers;
 
-public sealed record GetReportOverviewRequest;
+/// <param name="Host">null = the local machine; otherwise the scanned remote client.</param>
+public sealed record GetReportOverviewRequest(string? Host = null);
 
 internal sealed class GetReportOverviewHandler : IActionHandler<GetReportOverviewRequest, ReportOverview>
 {
@@ -22,10 +23,10 @@ internal sealed class GetReportOverviewHandler : IActionHandler<GetReportOvervie
     public Task<Result<ReportOverview>> HandleAsync(
         GetReportOverviewRequest payload,
         CancellationToken cancellationToken) =>
-        _reportExportService.GetOverviewAsync(cancellationToken);
+        _reportExportService.GetOverviewAsync(payload.Host, cancellationToken);
 }
 
-public sealed record ExportHtmlReportRequest(bool OpenAfterExport = false);
+public sealed record ExportHtmlReportRequest(bool OpenAfterExport = false, string? Host = null);
 
 internal sealed class ExportHtmlReportHandler : IActionHandler<ExportHtmlReportRequest, ReportExportResult>
 {
@@ -43,10 +44,10 @@ internal sealed class ExportHtmlReportHandler : IActionHandler<ExportHtmlReportR
     public Task<Result<ReportExportResult>> HandleAsync(
         ExportHtmlReportRequest payload,
         CancellationToken cancellationToken) =>
-        _reportExportService.ExportHtmlAsync(payload.OpenAfterExport, cancellationToken);
+        _reportExportService.ExportHtmlAsync(payload.Host, payload.OpenAfterExport, cancellationToken);
 }
 
-public sealed record ExportJsonReportRequest(bool OpenAfterExport = false);
+public sealed record ExportJsonReportRequest(bool OpenAfterExport = false, string? Host = null);
 
 internal sealed class ExportJsonReportHandler : IActionHandler<ExportJsonReportRequest, ReportExportResult>
 {
@@ -64,5 +65,5 @@ internal sealed class ExportJsonReportHandler : IActionHandler<ExportJsonReportR
     public Task<Result<ReportExportResult>> HandleAsync(
         ExportJsonReportRequest payload,
         CancellationToken cancellationToken) =>
-        _reportExportService.ExportJsonAsync(payload.OpenAfterExport, cancellationToken);
+        _reportExportService.ExportJsonAsync(payload.Host, payload.OpenAfterExport, cancellationToken);
 }

@@ -45,7 +45,7 @@ and the ADRs in [docs/adr/](docs/adr/).
 | Active Directory | Domain overview + hygiene checks over LDAP; test bind; computer search that feeds the multi-host scan pickers | own or explicitly named domain/DC |
 | Patch Management | Semi-automatic opsi workflow hub (ADR 0008): dashboard, inventory comparison, mandatory rollout preview with confirmation, audit log; session-only credentials | opsi server over JSON-RPC (HTTPS :4447) |
 | Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels); queues merged per physical device, search + site grouping, snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009). Client-installed printers are a separate CIM path shown in the client detail | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
-| Reporting | HTML/JSON executive summary of the local machine | local |
+| Reporting | HTML/JSON executive summary per machine (local or a scanned remote client); reads already-captured data, never starts a scan | local + any scanned client |
 | Saved Targets | Persist frequently used servers/clients (host + role + user name, never a password) to pre-fill the pickers (ADR 0010) | local (SQLite) |
 
 ## Prerequisites
@@ -141,10 +141,11 @@ as access denied (the error text says so).
 
 ## Current limitations
 
-- The executive-summary report covers the local machine only; diagnostics
-  connectivity probes (gateway, DNS, DC reachability, time sync, event logs)
-  always measure from the machine WEC runs on and are visibly skipped for
-  remote targets.
+- The executive-summary report is per machine and reads only data already
+  captured for that host (there is no multi-host aggregate report yet).
+  Diagnostics connectivity probes (gateway, DNS, DC reachability, time sync,
+  event logs) always measure from the machine WEC runs on and are visibly
+  skipped for remote targets.
 - Remote software inventory reads the uninstall keys through WMI StdRegProv —
   it needs an account with remote registry read rights and takes noticeably
   longer than a local read (one WinRM round trip per registry value).

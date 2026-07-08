@@ -4,6 +4,19 @@ Living document: check items off, reprioritize freely, delete what gets
 rejected. Ordering within a section is by value/effort. Milestone work
 (M6, M7) still follows the loop protocol: ADR + user decisions first.
 
+## Done 2026-07-08 — Per-client remote reporting (ADR 0010 follow-up)
+
+Reporting is no longer local-only. The report providers and
+`ReportExportService` take an optional `host`; null = local, otherwise the
+scanned client's `ScanTarget.CacheKey`. The report reads whatever
+inventory/security data was already captured for that host (no live scan, no
+faked data — empty overview until the sections ran). Shared `ReportingSection`
+component drives both the Fleet **Reporting** page (`host=null`) and the client
+detail's Reporting section (`host=<client>`); the "not available for remote
+clients" card is gone. Backend + frontend build and all tests green (2 new
+backend tests, existing frontend/backend tests updated for the `host` param).
+Still open: a multi-host *aggregate* report (below, under Remote analysis).
+
 ## Done 2026-07-06 — Client-centric IA + Saved Targets + Print overhaul (ADR 0010)
 
 Approved plan "Voller Umbau", shipped slice by slice (Strangler, not big-bang):

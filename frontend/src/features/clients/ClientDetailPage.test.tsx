@@ -42,6 +42,14 @@ describe('ClientDetailPage', () => {
         return Promise.reject(new Error('no cached snapshot'));
       }
       if (module === 'security' && action === 'getLatestScan') return Promise.resolve({ scan: null });
+      if (module === 'reporting' && action === 'getOverview') {
+        return Promise.resolve({
+          inventoryCapturedAtUtc: null,
+          securityScanCompletedAtUtc: null,
+          securityScanStatus: null,
+          securityFindingCount: null,
+        });
+      }
       return Promise.resolve({ targets: [] });
     });
   });
@@ -59,6 +67,8 @@ describe('ClientDetailPage', () => {
     expect(await screen.findByText('Run diagnostics')).toBeDefined();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Reporting' }));
-    expect(await screen.findByText(/executive summary report is generated for the local machine only/i)).toBeDefined();
+    // Remote reporting now works: the section reports on the scanned host by name
+    expect(await screen.findByText('Included data — PC1.corp.local')).toBeDefined();
+    expect(await screen.findByRole('button', { name: 'Export HTML' })).toBeDefined();
   });
 });

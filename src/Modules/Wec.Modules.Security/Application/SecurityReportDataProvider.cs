@@ -14,11 +14,13 @@ internal sealed class SecurityReportDataProvider : ISecurityReportDataProvider
         _repository = repository;
     }
 
-    public async Task<SecurityReportData?> GetLatestScanAsync(CancellationToken cancellationToken)
+    public async Task<SecurityReportData?> GetLatestScanAsync(string? host, CancellationToken cancellationToken)
     {
-        // The executive summary reports on the machine WEC runs on
-        SecurityScanResult? scan = await _repository.GetLatestScanAsync(
-            Wec.Core.Targets.ScanTarget.Local.CacheKey, cancellationToken);
+        // null host = the machine WEC runs on; otherwise the scanned remote client's scan
+        string cacheKey = host is null
+            ? Wec.Core.Targets.ScanTarget.Local.CacheKey
+            : Wec.Core.Targets.ScanTarget.Remote(host).CacheKey;
+        SecurityScanResult? scan = await _repository.GetLatestScanAsync(cacheKey, cancellationToken);
         if (scan is null)
         {
             return null;

@@ -7,7 +7,6 @@ import { CredentialFields, type CredentialValues } from '../../shared/targets/Ta
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Button } from '../../shared/ui/Button';
 import { Badge } from '../../shared/ui/Badge';
-import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
 import { EmptyState } from '../../shared/ui/States';
 import { clientKey, isLocalClient, toClientTarget } from './clients';
@@ -15,6 +14,7 @@ import { InventorySection } from './sections/InventorySection';
 import { SecuritySection } from './sections/SecuritySection';
 import { DiagnosticsSection } from './sections/DiagnosticsSection';
 import { PrintersSection } from './sections/PrintersSection';
+import { ReportingSection } from '../reporting/ReportingSection';
 
 type SectionKey = 'inventory' | 'security' | 'diagnostics' | 'printers' | 'reporting';
 
@@ -211,25 +211,7 @@ export function ClientDetailPage() {
             {section === 'security' && <SecuritySection key={host} target={target} />}
             {section === 'diagnostics' && <DiagnosticsSection key={host} target={target} />}
             {section === 'printers' && <PrintersSection key={host} target={target} />}
-            {section === 'reporting' &&
-              (local ? (
-                <EmptyState
-                  title="Executive report"
-                  message="The executive summary report covers this local machine. It opens in the Reporting view."
-                  action={
-                    <Button variant="primary" onClick={() => navigate('/reporting')}>
-                      Open Reporting
-                    </Button>
-                  }
-                />
-              ) : (
-                <Card title="Reporting — not available for remote clients">
-                  <p className="text-sm text-slate-400">
-                    The executive summary report is generated for the local machine only (NOT_RUN for
-                    remote targets). Remote reporting is a planned follow-up.
-                  </p>
-                </Card>
-              ))}
+            {section === 'reporting' && <ReportingSection host={local ? null : host} />}
           </>
         )}
       </div>

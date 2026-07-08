@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.Reporting.Application;
 
@@ -46,10 +47,10 @@ internal sealed partial class ReportExportService
         _logger = logger;
     }
 
-    public async Task<Result<ReportOverview>> GetOverviewAsync(CancellationToken cancellationToken)
+    public async Task<Result<ReportOverview>> GetOverviewAsync(string? host, CancellationToken cancellationToken)
     {
-        InventoryReportData? inventory = await _inventoryProvider.GetLatestAsync(cancellationToken);
-        SecurityReportData? scan = await _securityProvider.GetLatestScanAsync(cancellationToken);
+        InventoryReportData? inventory = await _inventoryProvider.GetLatestAsync(host, cancellationToken);
+        SecurityReportData? scan = await _securityProvider.GetLatestScanAsync(host, cancellationToken);
 
         return Result.Success(new ReportOverview(
             inventory?.CapturedAtUtc,
@@ -58,19 +59,23 @@ internal sealed partial class ReportExportService
             scan?.Findings.Count));
     }
 
-    public Task<Result<ReportExportResult>> ExportHtmlAsync(bool openAfterExport, CancellationToken cancellationToken) =>
+    public Task<Result<ReportExportResult>> ExportHtmlAsync(
+        string? host, bool openAfterExport, CancellationToken cancellationToken) =>
         ExportAsync(
             ExecutiveSummaryHtmlGenerator.Generate,
             "html",
             "HTML report (*.html)|*.html|All files (*.*)|*.*",
+            host,
             openAfterExport,
             cancellationToken);
 
-    public Task<Result<ReportExportResult>> ExportJsonAsync(bool openAfterExport, CancellationToken cancellationToken) =>
+    public Task<Result<ReportExportResult>> ExportJsonAsync(
+        string? host, bool openAfterExport, CancellationToken cancellationToken) =>
         ExportAsync(
             context => JsonSerializer.Serialize(context, JsonExportOptions),
             "json",
             "JSON report (*.json)|*.json|All files (*.*)|*.*",
+            host,
             openAfterExport,
             cancellationToken);
 
@@ -78,11 +83,12 @@ internal sealed partial class ReportExportService
         Func<ExecutiveSummaryContext, string> renderContent,
         string fileExtension,
         string dialogFilter,
+        string? host,
         bool openAfterExport,
         CancellationToken cancellationToken)
     {
-        InventoryReportData? inventory = await _inventoryProvider.GetLatestAsync(cancellationToken);
-        SecurityReportData? scan = await _securityProvider.GetLatestScanAsync(cancellationToken);
+        InventoryReportData? inventory = await _inventoryProvider.GetLatestAsync(host, cancellationToken);
+        SecurityReportData? scan = await _securityProvider.GetLatestScanAsync(host, cancellationToken);
 
         if (inventory is null && scan is null)
         {
@@ -90,9 +96,11 @@ internal sealed partial class ReportExportService
                 "There is nothing to export yet — capture a hardware snapshot or run a security scan first."));
         }
 
+        // null host = the local machine; otherwise the report is about the scanned client
+        string subjectName = host is null ? Environment.MachineName : ScanTarget.Remote(host).DisplayName;
         DateTimeOffset generatedAtUtc = _clock.UtcNow;
         string content = renderContent(new ExecutiveSummaryContext(
-            Environment.MachineName,
+            subjectName,
             ResolveAppVersion(),
             generatedAtUtc,
             inventory,
@@ -100,7 +108,7 @@ internal sealed partial class ReportExportService
 
         string suggestedFileName = string.Create(
             CultureInfo.InvariantCulture,
-            $"wec-report-{Environment.MachineName.ToLowerInvariant()}-{generatedAtUtc:yyyyMMdd-HHmm}.{fileExtension}");
+            $"wec-report-{subjectName.ToLowerInvariant()}-{generatedAtUtc:yyyyMMdd-HHmm}.{fileExtension}");
         string? targetPath = _saveFileDialog.PromptForSavePath(suggestedFileName, dialogFilter);
 
         if (targetPath is null)

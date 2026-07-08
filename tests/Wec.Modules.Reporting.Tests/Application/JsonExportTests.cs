@@ -38,13 +38,13 @@ public sealed class JsonExportTests : IDisposable
     [Fact]
     public async Task JsonExport_WritesParseableDocumentWithTheSameDataSet()
     {
-        _inventoryProvider.GetLatestAsync(Arg.Any<CancellationToken>()).Returns(new InventoryReportData(
+        _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new InventoryReportData(
             Now.AddMinutes(-30),
             new CpuReportData("Test CPU", 8, 16, 4000),
             [new MemoryBankReportData("RAM Corp", "R-1", 17179869184, 4800)],
             [new DiskReportData("SSD", 1000204886016, "SCSI")],
             new OperatingSystemReportData("Windows 11 Pro", "10.0", "26200", "64-Bit")));
-        _securityProvider.GetLatestScanAsync(Arg.Any<CancellationToken>()).Returns(new SecurityReportData(
+        _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new SecurityReportData(
             Now.AddMinutes(-10),
             "Completed",
             [new SecurityFindingReportData(
@@ -53,7 +53,7 @@ public sealed class JsonExportTests : IDisposable
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(_exportPath);
 
         Result<ReportExportResult> result = await CreateService().ExportJsonAsync(
-            openAfterExport: false, CancellationToken.None);
+            host: null, openAfterExport: false, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(_exportPath, result.Value.FilePath);
@@ -68,12 +68,12 @@ public sealed class JsonExportTests : IDisposable
     [Fact]
     public async Task JsonExport_RendersMissingDataAsNullInsteadOfOmitting()
     {
-        _inventoryProvider.GetLatestAsync(Arg.Any<CancellationToken>()).Returns((InventoryReportData?)null);
-        _securityProvider.GetLatestScanAsync(Arg.Any<CancellationToken>()).Returns(new SecurityReportData(
+        _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns((InventoryReportData?)null);
+        _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new SecurityReportData(
             Now, "Completed", []));
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(_exportPath);
 
-        await CreateService().ExportJsonAsync(openAfterExport: false, CancellationToken.None);
+        await CreateService().ExportJsonAsync(host: null, openAfterExport: false, CancellationToken.None);
 
         using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(_exportPath));
         Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("inventory").ValueKind);
@@ -82,12 +82,12 @@ public sealed class JsonExportTests : IDisposable
     [Fact]
     public async Task JsonExport_SuggestsJsonFileName()
     {
-        _inventoryProvider.GetLatestAsync(Arg.Any<CancellationToken>()).Returns((InventoryReportData?)null);
-        _securityProvider.GetLatestScanAsync(Arg.Any<CancellationToken>()).Returns(new SecurityReportData(
+        _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns((InventoryReportData?)null);
+        _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new SecurityReportData(
             Now, "Completed", []));
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns((string?)null);
 
-        await CreateService().ExportJsonAsync(openAfterExport: false, CancellationToken.None);
+        await CreateService().ExportJsonAsync(host: null, openAfterExport: false, CancellationToken.None);
 
         _saveFileDialog.Received(1).PromptForSavePath(
             Arg.Is<string>(name => name.EndsWith(".json", StringComparison.Ordinal)),

@@ -348,9 +348,15 @@ export interface ReportOverview {
   securityFindingCount: number | null;
 }
 
-/** Wec.Modules.Reporting.Handlers.ExportHtmlReportRequest / ExportJsonReportRequest */
+/** Wec.Modules.Reporting.Handlers.GetReportOverviewRequest — host null/omitted = local machine */
+export interface ReportOverviewRequest {
+  host?: string | null;
+}
+
+/** Wec.Modules.Reporting.Handlers.ExportHtmlReportRequest / ExportJsonReportRequest — host null/omitted = local machine */
 export interface ExportReportRequest {
   openAfterExport?: boolean;
+  host?: string | null;
 }
 
 /** Wec.Modules.Reporting.Application.ReportExportResult */

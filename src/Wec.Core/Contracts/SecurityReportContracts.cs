@@ -19,5 +19,6 @@ public sealed record SecurityReportData(
 /// <summary>Implemented by the Security module; consumed via Core only (ADR 0004).</summary>
 public interface ISecurityReportDataProvider
 {
-    Task<SecurityReportData?> GetLatestScanAsync(CancellationToken cancellationToken);
+    /// <param name="host">null = the local machine; otherwise the scanned remote host.</param>
+    Task<SecurityReportData?> GetLatestScanAsync(string? host, CancellationToken cancellationToken);
 }

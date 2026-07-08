@@ -38,7 +38,7 @@ describe('ReportingPage', () => {
     expect(invokeMock).toHaveBeenCalledWith(
       'reporting',
       'exportHtml',
-      { openAfterExport: true },
+      { openAfterExport: true, host: null },
       expect.any(Number),
     );
   });

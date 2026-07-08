@@ -37,7 +37,7 @@ public sealed class ReportExportServiceTests : IDisposable
 
     private void SetUpData(bool inventory = true, bool scan = true)
     {
-        _inventoryProvider.GetLatestAsync(Arg.Any<CancellationToken>()).Returns(inventory
+        _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(inventory
             ? new InventoryReportData(
                 Now,
                 new CpuReportData("CPU", 8, 16, 4000),
@@ -45,7 +45,7 @@ public sealed class ReportExportServiceTests : IDisposable
                 [],
                 new OperatingSystemReportData("Windows 11", "10.0", "26200", "64-Bit"))
             : null);
-        _securityProvider.GetLatestScanAsync(Arg.Any<CancellationToken>()).Returns(scan
+        _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(scan
             ? new SecurityReportData(Now, "Completed", [])
             : null);
     }
@@ -57,7 +57,7 @@ public sealed class ReportExportServiceTests : IDisposable
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(_exportPath);
 
         Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
-            openAfterExport: false, CancellationToken.None);
+            host: null, openAfterExport: false, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.False(result.Value.Cancelled);
@@ -73,7 +73,7 @@ public sealed class ReportExportServiceTests : IDisposable
         SetUpData();
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(_exportPath);
 
-        await CreateService().ExportHtmlAsync(openAfterExport: true, CancellationToken.None);
+        await CreateService().ExportHtmlAsync(host: null, openAfterExport: true, CancellationToken.None);
 
         _shellLauncher.Received(1).TryOpenPath(_exportPath);
     }
@@ -85,7 +85,7 @@ public sealed class ReportExportServiceTests : IDisposable
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns((string?)null);
 
         Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
-            openAfterExport: true, CancellationToken.None);
+            host: null, openAfterExport: true, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.True(result.Value.Cancelled);
@@ -99,7 +99,7 @@ public sealed class ReportExportServiceTests : IDisposable
         SetUpData(inventory: false, scan: false);
 
         Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
-            openAfterExport: false, CancellationToken.None);
+            host: null, openAfterExport: false, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.NotFound, result.Error!.Code);
@@ -114,7 +114,7 @@ public sealed class ReportExportServiceTests : IDisposable
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(invalidPath);
 
         Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
-            openAfterExport: false, CancellationToken.None);
+            host: null, openAfterExport: false, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.FileWriteFailed, result.Error!.Code);
@@ -125,11 +125,36 @@ public sealed class ReportExportServiceTests : IDisposable
     {
         SetUpData(inventory: true, scan: false);
 
-        Result<ReportOverview> overview = await CreateService().GetOverviewAsync(CancellationToken.None);
+        Result<ReportOverview> overview = await CreateService().GetOverviewAsync(host: null, CancellationToken.None);
 
         Assert.True(overview.IsSuccess);
         Assert.Equal(Now, overview.Value.InventoryCapturedAtUtc);
         Assert.Null(overview.Value.SecurityScanCompletedAtUtc);
+    }
+
+    [Fact]
+    public async Task Overview_ForRemoteHost_ForwardsHostToProviders()
+    {
+        SetUpData();
+
+        await CreateService().GetOverviewAsync(host: "PC-42.contoso.local", CancellationToken.None);
+
+        await _inventoryProvider.Received(1).GetLatestAsync("PC-42.contoso.local", Arg.Any<CancellationToken>());
+        await _securityProvider.Received(1).GetLatestScanAsync("PC-42.contoso.local", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Export_ForRemoteHost_NamesTheReportAfterThatHost()
+    {
+        SetUpData();
+        string? suggestedName = null;
+        _saveFileDialog.PromptForSavePath(Arg.Do<string>(name => suggestedName = name), Arg.Any<string>())
+            .Returns(_exportPath);
+
+        await CreateService().ExportHtmlAsync(host: "PC-42", openAfterExport: false, CancellationToken.None);
+
+        Assert.NotNull(suggestedName);
+        Assert.Contains("pc-42", suggestedName, StringComparison.Ordinal);
     }
 
     public void Dispose()
