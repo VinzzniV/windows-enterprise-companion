@@ -8,7 +8,8 @@ public sealed record AdComputer(
     string Name,
     string? DnsHostName,
     string? OperatingSystem,
-    bool Enabled);
+    bool Enabled,
+    string? Description = null);
 
 public sealed record AdComputerSearchResult(
     bool DomainJoined,
@@ -60,7 +61,7 @@ internal sealed class ComputerSearchService
                 context.Value.DomainName!,
                 context.Value.DefaultNamingContext!,
                 AdFilters.ComputersByName(nameFilter, includeDisabled),
-                ["name", "dNSHostName", "operatingSystem", "userAccountControl"],
+                ["name", "dNSHostName", "operatingSystem", "userAccountControl", "description"],
                 DirectorySearchScope.Subtree,
                 _options.PageSize,
                 _options.SearchTimeout,
@@ -77,7 +78,8 @@ internal sealed class ComputerSearchService
                 entry.GetFirstValue("name") ?? entry.DistinguishedName,
                 entry.GetFirstValue("dNSHostName"),
                 entry.GetFirstValue("operatingSystem"),
-                Enabled: ((entry.GetLong("userAccountControl") ?? 0) & AdFilters.UacAccountDisabled) == 0))
+                Enabled: ((entry.GetLong("userAccountControl") ?? 0) & AdFilters.UacAccountDisabled) == 0,
+                entry.GetFirstValue("description")))
             .OrderBy(computer => computer.Name, StringComparer.OrdinalIgnoreCase)];
 
         bool truncated = computers.Count > _options.ComputerSearchLimit;

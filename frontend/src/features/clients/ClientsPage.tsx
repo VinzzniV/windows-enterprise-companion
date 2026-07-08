@@ -146,6 +146,9 @@ export function ClientsPage() {
           {client.host !== client.name && (
             <span className="font-mono text-xs text-slate-500">{client.host}</span>
           )}
+          {client.description && (
+            <span className="text-xs text-slate-400">{client.description}</span>
+          )}
         </div>
       ),
     },

@@ -14,6 +14,7 @@ const ad = (over: Partial<AdComputer>): AdComputer => ({
   dnsHostName: null,
   operatingSystem: null,
   enabled: true,
+  description: null,
   ...over,
 });
 

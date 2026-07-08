@@ -671,6 +671,7 @@ export interface AdComputer {
   dnsHostName: string | null;
   operatingSystem: string | null;
   enabled: boolean;
+  description: string | null;
 }
 
 /** Wec.Modules.ActiveDirectory.Application.AdComputerSearchResult */

@@ -10,6 +10,8 @@ export interface ClientEntry {
   /** Short display name. */
   name: string;
   os: string | null;
+  /** AD description (free-text note maintained by the admins). */
+  description: string | null;
   /** AD enabled flag (true when the source doesn't know). */
   enabled: boolean;
   /** Has a stored inventory snapshot. */
@@ -54,6 +56,7 @@ export function buildClientList(
       key: clientKey(host),
       name: computer.name,
       os: computer.operatingSystem,
+      description: computer.description,
       enabled: computer.enabled,
       scanned: false,
       capturedAtUtc: null,
@@ -74,6 +77,7 @@ export function buildClientList(
         key,
         name: stored.host,
         os: null,
+        description: null,
         enabled: true,
         scanned: true,
         capturedAtUtc: stored.capturedAtUtc,
@@ -94,6 +98,7 @@ export function buildClientList(
         key,
         name: target.label.trim() || target.host,
         os: null,
+        description: null,
         enabled: true,
         scanned: false,
         capturedAtUtc: null,
