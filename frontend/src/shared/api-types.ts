@@ -750,6 +750,25 @@ export interface PrintServerSnapshot {
   printers: PrinterEntry[];
 }
 
+/** Wec.Modules.PrintManagement.Domain.NotificationCheckStatus */
+export type NotificationCheckStatus = 'OK' | 'WARNING' | 'NOT_CHECKED';
+
+/** Wec.Modules.PrintManagement.Domain.NotificationRule */
+export interface NotificationRule {
+  id: string;
+  title: string;
+  passed: boolean;
+  detail: string;
+}
+
+/** Wec.Modules.PrintManagement.Domain.PrinterNotificationCheck */
+export interface PrinterNotificationCheck {
+  host: string;
+  status: NotificationCheckStatus;
+  rules: NotificationRule[];
+  error: string | null;
+}
+
 /** Wec.Modules.PrintManagement.Domain.ClientPrinter */
 export interface ClientPrinter {
   name: string;

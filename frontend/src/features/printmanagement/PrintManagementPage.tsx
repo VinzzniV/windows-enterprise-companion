@@ -39,9 +39,11 @@ import {
   groupPrinters,
   hasLowToner,
   mergePrinters,
+  siteOf,
   type MergedPrinter,
   type PrinterGroupMode,
 } from './printers';
+import type { PrinterNotificationCheck } from '../../shared/api-types';
 
 function describeError(error: unknown): string {
   if (error instanceof BridgeInvokeError) {
@@ -67,14 +69,35 @@ function PrinterStatus({ printer }: { printer: MergedPrinter }) {
   return <span className="text-slate-500">—</span>;
 }
 
+/** Notification-config check result for one device (MPS provider alerting). */
+function NotificationBadge({ check }: { check?: PrinterNotificationCheck }) {
+  if (!check) {
+    return <span className="text-slate-600">—</span>;
+  }
+  if (check.status === 'OK') {
+    return <StatusBadge variant="success">Configured</StatusBadge>;
+  }
+  if (check.status === 'NOT_CHECKED') {
+    return (
+      <span title={check.error ?? 'Not checked'}>
+        <StatusBadge variant="neutral">Not checked</StatusBadge>
+      </span>
+    );
+  }
+  const failed = check.rules.filter((rule) => !rule.passed).length;
+  return <StatusBadge variant="error">{failed} issue{failed === 1 ? '' : 's'}</StatusBadge>;
+}
+
 /** One physical device as a single compact row; expands to its queues and full toner. */
 function PrinterRow({
   printer,
+  notification,
   expanded,
   onToggle,
   onOpenWebUi,
 }: {
   printer: MergedPrinter;
+  notification?: PrinterNotificationCheck;
   expanded: boolean;
   onToggle: () => void;
   onOpenWebUi: (address: string) => void;
@@ -114,6 +137,9 @@ function PrinterRow({
         <td className="px-3 py-1.5 align-top">
           <TonerBar supplies={printer.supplies} />
         </td>
+        <td className="px-3 py-1.5 align-top">
+          <NotificationBadge check={notification} />
+        </td>
         <td className="px-3 py-1.5 align-top font-mono text-[13px] tabular-nums">
           {printer.deviceAddress ? (
             <button
@@ -134,7 +160,26 @@ function PrinterRow({
       </tr>
       {expanded && (
         <tr className="border-t border-slate-800/40 bg-slate-950/40">
-          <td colSpan={7} className="px-3 py-2">
+          <td colSpan={8} className="px-3 py-2">
+            {notification && notification.status !== 'NOT_CHECKED' && (
+              <div className="mb-3">
+                <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Service-provider notification
+                </h4>
+                <ul className="flex flex-col gap-0.5 text-sm">
+                  {notification.rules.map((rule) => (
+                    <li key={rule.id} className={rule.passed ? 'text-slate-300' : 'text-fail-300'}>
+                      {rule.passed ? '✓' : '✗'} {rule.title} — <span className="text-slate-400">{rule.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {notification?.status === 'NOT_CHECKED' && (
+              <p className="mb-3 text-sm text-slate-400">
+                Notification config not checked: {notification.error ?? 'device not reachable or not a Command Center RX.'}
+              </p>
+            )}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div>
                 <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Queues</h4>
@@ -198,6 +243,11 @@ export function PrintManagementPage() {
   const [search, setSearch] = useState('');
   const [groupMode, setGroupMode] = useState<PrinterGroupMode>('none');
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  // Notification-config check results keyed by device address (upper-cased).
+  const [notifications, setNotifications] = useState<Record<string, PrinterNotificationCheck>>({});
+  const [notifChecking, setNotifChecking] = useState(false);
+  // CCRX admin password, session-only (never persisted). Blank = factory Admin/Admin.
+  const [ccrxPassword, setCcrxPassword] = useState('');
   const [hints, setHints] = useState<PrintHint[]>([]);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [maxParallelScans, setMaxParallelScans] = useState(4);
@@ -301,6 +351,30 @@ export function PrintManagementPage() {
   const openWebUi = useCallback((address: string) => {
     invoke('printmanagement', 'openDeviceWebUi', { address }).catch(() => {});
   }, []);
+
+  // Check the notification config of every visible device that has an IP.
+  const checkNotifications = useCallback(
+    (devices: readonly MergedPrinter[]) => {
+      const targets = devices.filter((printer) => printer.deviceAddress);
+      if (targets.length === 0) return;
+      setNotifChecking(true);
+      void runWithConcurrencyLimit(targets, maxParallelScans, async (printer) => {
+        const host = printer.deviceAddress!;
+        try {
+          const check = await invoke<PrinterNotificationCheck>(
+            'printmanagement',
+            'checkNotificationConfig',
+            { host, siteCode: siteOf(printer.name), password: ccrxPassword || null },
+            60_000,
+          );
+          setNotifications((previous) => ({ ...previous, [host.toUpperCase()]: check }));
+        } catch {
+          // A hard failure just leaves the device without a result badge.
+        }
+      }).finally(() => setNotifChecking(false));
+    },
+    [maxParallelScans, ccrxPassword],
+  );
 
   const loadDiffHistory = useCallback((server: string) => {
     setDiffServer(server);
@@ -484,6 +558,24 @@ export function PrintManagementPage() {
                   {filteredPrinters.length} of {printers.length} device
                   {printers.length === 1 ? '' : 's'}
                 </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <Input
+                    type="password"
+                    value={ccrxPassword}
+                    onChange={(event) => setCcrxPassword(event.target.value)}
+                    placeholder="CCRX admin pw (optional)"
+                    aria-label="Command Center RX admin password"
+                    autoComplete="off"
+                    className="w-52"
+                  />
+                  <Button
+                    onClick={() => checkNotifications(filteredPrinters)}
+                    disabled={notifChecking || filteredPrinters.every((printer) => !printer.deviceAddress)}
+                    title="Check whether these printers notify the service provider (SMTP + low-toner event report)"
+                  >
+                    {notifChecking ? 'Checking…' : 'Check notifications'}
+                  </Button>
+                </div>
               </div>
 
               {filteredPrinters.length === 0 ? (
@@ -503,7 +595,7 @@ export function PrintManagementPage() {
                       <table className="w-full border-collapse text-left text-sm">
                         <thead>
                           <tr>
-                            {['Printer', 'Model', 'Serial', 'Location', 'Status', 'Toner', 'IP / web UI'].map(
+                            {['Printer', 'Model', 'Serial', 'Location', 'Status', 'Toner', 'Notify', 'IP / web UI'].map(
                               (header) => (
                                 <th
                                   key={header}
@@ -520,6 +612,11 @@ export function PrintManagementPage() {
                             <PrinterRow
                               key={printer.key}
                               printer={printer}
+                              notification={
+                                printer.deviceAddress
+                                  ? notifications[printer.deviceAddress.toUpperCase()]
+                                  : undefined
+                              }
                               expanded={expanded.has(printer.key)}
                               onToggle={() => toggleExpanded(printer.key)}
                               onOpenWebUi={openWebUi}
