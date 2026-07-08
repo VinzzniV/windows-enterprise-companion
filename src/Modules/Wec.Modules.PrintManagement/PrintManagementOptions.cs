@@ -21,4 +21,18 @@ public sealed class PrintManagementOptions
     /// <summary>Supplies at or below this percentage count as low (evaluated at capture time).</summary>
     [Range(1, 99)]
     public int LowTonerThresholdPercent { get; set; } = 15;
+
+    /// <summary>
+    /// Expected SMTP server the printers must send through, for the notification
+    /// check. Supports a <c>{site}</c> token replaced by the device's site code
+    /// (e.g. <c>{site}-srvmail.kauth.local</c>). Null/empty = only require a
+    /// non-empty server, don't enforce a specific host.
+    /// </summary>
+    public string? ExpectedSmtpServer { get; set; }
+
+    /// <summary>
+    /// Expected recipient of the low-toner event report (the external service
+    /// provider). Null/empty = only require some recipient, don't enforce which.
+    /// </summary>
+    public string? ExpectedEventRecipient { get; set; }
 }

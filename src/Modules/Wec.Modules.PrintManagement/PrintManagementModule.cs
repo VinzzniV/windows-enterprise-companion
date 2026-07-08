@@ -17,6 +17,7 @@ public sealed class PrintManagementModule : IModule
         services.AddScoped<IClientPrinterScanRepository, EfClientPrinterScanRepository>();
         services.AddScoped<PrintServerScanService>();
         services.AddScoped<ClientPrinterScanService>();
+        services.AddScoped<NotificationConfigService>();
         services.AddScoped<IActionHandler, ScanPrintServerHandler>();
         services.AddScoped<IActionHandler, ScanClientPrintersHandler>();
         services.AddScoped<IActionHandler, GetLatestClientPrintersHandler>();
@@ -28,5 +29,6 @@ public sealed class PrintManagementModule : IModule
         services.AddScoped<IActionHandler, GetPrintHintsHandler>();
         services.AddScoped<IActionHandler, ExportPrintCsvHandler>();
         services.AddScoped<IActionHandler, OpenDeviceWebUiHandler>();
+        services.AddScoped<IActionHandler, CheckNotificationConfigHandler>();
     }
 }
