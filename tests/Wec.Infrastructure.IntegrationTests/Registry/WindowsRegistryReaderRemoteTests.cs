@@ -32,6 +32,19 @@ public sealed class WindowsRegistryReaderRemoteTests
     }
 
     [Fact]
+    public async Task RemoteStringValue_IsDecodedAsString()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u)); // not a DWORD
+        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 0u), ("sValue", "NT5DS"));
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.Equal("NT5DS", Assert.IsType<string>(result.Value));
+    }
+
+    [Fact]
     public async Task RemoteMultiStringValue_IsDecodedAsStringArray()
     {
         var wmi = new FakeWmiQueryService();

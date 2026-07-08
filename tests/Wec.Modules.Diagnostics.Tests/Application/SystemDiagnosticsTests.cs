@@ -111,13 +111,22 @@ public class TimeSynchronizationDiagnosticTests
 
     private void SetUpConfiguration(string? syncType, string serviceState = "Running", string startMode = "Manual")
     {
-        _registryReader.ReadLocalMachineValue(Arg.Any<string>(), "Type")
-            .Returns(Result.Success<object?>(syncType));
-        _registryReader.ReadLocalMachineValue(Arg.Any<string>(), "NtpServer")
-            .Returns(Result.Success<object?>("time.windows.com,0x9"));
+        SetUpRegistryValue("Type", syncType);
+        SetUpRegistryValue("NtpServer", "time.windows.com,0x9");
         _wmiQueryService.SetUpWmiQuery("Win32_Service", SystemTestSetup.Instance(
             ("Name", "W32Time"), ("State", serviceState), ("StartMode", startMode)));
     }
+
+    private void SetUpRegistryValue(string valueName, object? value) =>
+        _registryReader
+            .ReadLocalMachineValueAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                valueName,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(value));
 
     [Fact]
     public async Task NoSyncConfigured_ProducesWarning()
@@ -153,12 +162,34 @@ public class TimeSynchronizationDiagnosticTests
     [Fact]
     public async Task RegistryAccessDenied_ProducesNotRunWithRequiredPrivilege()
     {
-        _registryReader.ReadLocalMachineValue(Arg.Any<string>(), "Type")
+        _registryReader
+            .ReadLocalMachineValueAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                "Type",
+                Arg.Any<CancellationToken>())
             .Returns(Result.Failure<object?>(Error.AccessDenied("denied", PrivilegeLevel.Administrator)));
 
         DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.NotRun, result.Status);
         Assert.Equal(PrivilegeLevel.Administrator, result.RequiredPrivilege);
+    }
+
+    [Fact]
+    public async Task RemoteTarget_EvaluatesViaRemoteRegistryAndWmi()
+    {
+        // No LocalPerspective skip anymore: time sync is real machine state read remotely.
+        SetUpConfiguration("NoSync");
+        var remote = new DiagnosticContext(
+            Wec.Core.Targets.ScanTarget.Remote("pc-1.contoso.local"),
+            Wec.Core.Targets.ScanCredentials.CurrentUser,
+            Wec.Core.Targets.ConnectionOptions.Default);
+
+        DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(remote, CancellationToken.None));
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+        Assert.DoesNotContain("only", result.Title, StringComparison.OrdinalIgnoreCase);
     }
 }
 

@@ -27,14 +27,8 @@ internal sealed class TimeSynchronizationDiagnostic : IDiagnostic
 
     public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {
-        if (!context.Target.IsLocal)
-        {
-            return [DiagnosticResults.LocalPerspective(
-                DiagnosticId, "Time synchronization", DiagnosticCategory.TimeSynchronization,
-                "Windows Time service", context.Target.DisplayName, _clock.UtcNow)];
-        }
-
-        Result<object?> syncType = _registryReader.ReadLocalMachineValue(W32TimeParametersKey, "Type");
+        Result<object?> syncType = await _registryReader.ReadLocalMachineValueAsync(
+            context.Target, context.Credentials, context.Connection, W32TimeParametersKey, "Type", cancellationToken);
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 
         if (syncType.IsFailure)
@@ -53,10 +47,12 @@ internal sealed class TimeSynchronizationDiagnostic : IDiagnostic
         }
 
         string configuredType = syncType.Value as string ?? "(missing)";
-        string ntpServer = _registryReader
-            .ReadLocalMachineValue(W32TimeParametersKey, "NtpServer").Value as string ?? "(not set)";
+        Result<object?> ntpServerValue = await _registryReader.ReadLocalMachineValueAsync(
+            context.Target, context.Credentials, context.Connection, W32TimeParametersKey, "NtpServer", cancellationToken);
+        string ntpServer = (ntpServerValue.IsSuccess ? ntpServerValue.Value as string : null) ?? "(not set)";
 
         Result<IReadOnlyList<WmiInstance>> service = await _wmiQueryService.QueryAsync(
+            context,
             CimV2Namespace,
             "SELECT Name, State, StartMode FROM Win32_Service WHERE Name = 'W32Time'",
             cancellationToken);

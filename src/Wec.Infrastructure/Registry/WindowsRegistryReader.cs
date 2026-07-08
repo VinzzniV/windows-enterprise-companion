@@ -94,6 +94,9 @@ public sealed class WindowsRegistryReader : IRegistryReader
             ["sValueName"] = valueName,
         };
 
+        // Probe REG_DWORD, then REG_SZ, then REG_MULTI_SZ — the value kinds the checks
+        // read. Each returns success with a non-zero StdRegProv ReturnValue when the
+        // value is a different kind, so the next probe is tried.
         Result<WmiInstance> dword = await _wmiQueryService.InvokeMethodAsync(
             target, credentials, connection, StdRegProvNamespace, StdRegProvClass, "GetDWORDValue", inputs, cancellationToken);
         if (dword.IsFailure)
@@ -105,6 +108,14 @@ public sealed class WindowsRegistryReader : IRegistryReader
         {
             // Registry DWORDs are 32-bit; return int so callers match the native reader's type.
             return Result.Success<object?>(unchecked((int)dwordValue));
+        }
+
+        Result<WmiInstance> stringValue = await _wmiQueryService.InvokeMethodAsync(
+            target, credentials, connection, StdRegProvNamespace, StdRegProvClass, "GetStringValue", inputs, cancellationToken);
+        if (stringValue.IsSuccess && Succeeded(stringValue.Value)
+            && stringValue.Value.GetRawValue("sValue") is string singleString)
+        {
+            return Result.Success<object?>(singleString);
         }
 
         Result<WmiInstance> multiString = await _wmiQueryService.InvokeMethodAsync(
