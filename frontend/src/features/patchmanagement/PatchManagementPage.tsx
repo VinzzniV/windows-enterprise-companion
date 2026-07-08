@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
 import type {
   AuditLogResult,
@@ -22,6 +22,7 @@ import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
+import { useTargetsOptional } from '../../shared/targets/TargetContext';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
 import { Spinner } from '../../shared/ui/Spinner';
@@ -144,12 +145,14 @@ interface ConnectFormState {
 type AsyncError = { message: string; hint?: string } | null;
 
 export function PatchManagementPage() {
+  const targets = useTargetsOptional();
   const [status, setStatus] = useState<OpsiConnectionStatusResult | null>(null);
   const [form, setForm] = useState<ConnectFormState>({
     server: '',
     userName: '',
     password: '',
-    trustServerCertificate: false,
+    // opsi ships a self-signed CA — trusting it is the normal case, so default it on.
+    trustServerCertificate: true,
   });
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<AsyncError>(null);
@@ -234,6 +237,25 @@ export function PatchManagementPage() {
     }
   }, [dashboard, depotResolved, status, depotFilter, loadDashboard]);
 
+  // Prefill server + user from the newest saved opsi server so a restart only
+  // needs the password (which is never persisted, ADR 0008). Runs once, and only
+  // while disconnected, so it never clobbers what the user is typing.
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    if (prefilledRef.current || status?.connected || !targets?.savedTargetsReady) {
+      return;
+    }
+    const saved = targets.savedTargets.filter((target) => target.role === 'OpsiServer').at(-1);
+    if (saved) {
+      prefilledRef.current = true;
+      setForm((previous) => ({
+        ...previous,
+        server: previous.server || saved.host,
+        userName: previous.userName || saved.userName || '',
+      }));
+    }
+  }, [targets?.savedTargets, targets?.savedTargetsReady, status?.connected, targets]);
+
   const resetActionPanels = useCallback(() => {
     setPreview(null);
     setPreviewError(null);
@@ -248,6 +270,20 @@ export function PatchManagementPage() {
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'connect', form, 120_000)
       .then((result) => {
         setStatus(result);
+        // Remember the server + user (never the password) so the next launch is
+        // one field away from connected — like a saved print server.
+        const host = form.server.trim();
+        const alreadySaved = targets?.savedTargets.some(
+          (target) => target.role === 'OpsiServer' && target.host.toUpperCase() === host.toUpperCase(),
+        );
+        if (targets && host !== '' && !alreadySaved) {
+          void targets.saveTarget({
+            label: host,
+            host,
+            role: 'OpsiServer',
+            userName: form.userName.trim() || null,
+          });
+        }
         // The password has done its job; keep it out of React state from here on
         setForm((previous) => ({ ...previous, password: '' }));
         setDepotResolved(false);
@@ -259,7 +295,7 @@ export function PatchManagementPage() {
       })
       .catch((error: unknown) => setConnectionError(opsiError(error)))
       .finally(() => setConnecting(false));
-  }, [form, loadDashboard, loadMappings, loadAudit, resetActionPanels]);
+  }, [form, targets, loadDashboard, loadMappings, loadAudit, resetActionPanels]);
 
   const disconnect = useCallback(() => {
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'disconnect', {})

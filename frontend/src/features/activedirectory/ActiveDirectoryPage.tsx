@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
 import type {
   AdHygieneResult,
@@ -132,7 +132,7 @@ type TestBindState =
   | { kind: 'error'; message: string; hint?: string };
 
 export function ActiveDirectoryPage() {
-  const { adminCredentials } = useTargets();
+  const { adminCredentials, savedTargets, saveTarget, savedTargetsReady } = useTargets();
   const [state, setState] = useState<OverviewState>({ kind: 'idle' });
   const [hygieneState, setHygieneState] = useState<HygieneState>({ kind: 'idle' });
   const [connectionForm, setConnectionForm] = useState<ConnectionFormState>(emptyConnectionForm);
@@ -158,9 +158,25 @@ export function ActiveDirectoryPage() {
       { connection: toConnectionRequest(connectionForm, adminCredentials) },
       120_000,
     )
-      .then((overview) => setState({ kind: 'loaded', overview }))
+      .then((overview) => {
+        setState({ kind: 'loaded', overview });
+        // Remember a pinned DC so it prefills next launch — like a saved print server.
+        const host = connectionForm.server.trim();
+        const alreadySaved = savedTargets.some(
+          (target) =>
+            target.role === 'DomainController' && target.host.toUpperCase() === host.toUpperCase(),
+        );
+        if (host !== '' && !alreadySaved) {
+          void saveTarget({
+            label: host,
+            host,
+            role: 'DomainController',
+            userName: adminCredentials?.userName ?? null,
+          });
+        }
+      })
       .catch((error: unknown) => setState({ kind: 'error', ...adError(error) }));
-  }, [connectionForm, adminCredentials]);
+  }, [connectionForm, adminCredentials, savedTargets, saveTarget]);
 
   const loadHygiene = useCallback(() => {
     setHygieneState({ kind: 'loading' });
@@ -176,6 +192,22 @@ export function ActiveDirectoryPage() {
 
   const setForm = (patch: Partial<ConnectionFormState>) =>
     setConnectionForm((current) => ({ ...current, ...patch }));
+
+  // On open: prefill a saved DC and analyze the local domain straight away, so the
+  // page always shows a directory dashboard instead of an empty state. The local
+  // bind runs as the current/admin user — no password needed. Runs once.
+  const initialisedRef = useRef(false);
+  useEffect(() => {
+    if (initialisedRef.current || !savedTargetsReady) {
+      return;
+    }
+    initialisedRef.current = true;
+    const savedDc = savedTargets.filter((target) => target.role === 'DomainController').at(-1);
+    if (savedDc) {
+      setForm({ server: savedDc.host });
+    }
+    loadOverview();
+  }, [savedTargetsReady, savedTargets, loadOverview]);
 
   const overview = state.kind === 'loaded' ? state.overview : null;
   const hygiene = hygieneState.kind === 'loaded' ? hygieneState.hygiene : null;
