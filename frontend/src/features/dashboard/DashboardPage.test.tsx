@@ -58,15 +58,15 @@ describe('DashboardPage', () => {
     );
 
     // Tiles for every module are present with links into them
-    expect(screen.getByText('Inventory')).toBeDefined();
+    expect(screen.getByText('Clients')).toBeDefined();
     expect(screen.getByText('Active Directory')).toBeDefined();
     // Derived metrics from stored data
     expect(await screen.findByText('1 host')).toBeDefined();
     expect(await screen.findByText('1 critical/high')).toBeDefined();
     expect(await screen.findByText('Not connected')).toBeDefined();
 
-    const inventoryLink = screen.getByText('Inventory').closest('a');
-    expect(inventoryLink?.getAttribute('href')).toBe('/inventory');
+    const clientsLink = screen.getByText('Clients').closest('a');
+    expect(clientsLink?.getAttribute('href')).toBe('/clients');
   });
 
   it('degrades to empty tiles when the bridge is unavailable', async () => {

@@ -112,17 +112,17 @@ export function DashboardPage() {
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <ModuleTile
-          to="/inventory"
-          icon={navIcons.inventory}
-          title="Inventory"
-          description="Hardware and installed software per host."
+          to="/clients"
+          icon={navIcons.clients}
+          title="Clients"
+          description="Per-host inventory, security and diagnostics — scanned on demand."
           metric={inventory ?? undefined}
         />
         <ModuleTile
-          to="/security"
+          to="/clients"
           icon={navIcons.security}
           title="Security"
-          description="Read-only security posture checks."
+          description="Read-only security posture from the last per-client scan."
           metric={security ?? undefined}
         />
         <ModuleTile
@@ -138,12 +138,6 @@ export function DashboardPage() {
           title="Patch Management"
           description="opsi patch workflow and rollout."
           metric={patch ?? undefined}
-        />
-        <ModuleTile
-          to="/diagnostics"
-          icon={navIcons.diagnostics}
-          title="Diagnostics"
-          description="Network, domain and system troubleshooting. Results are not stored — run a check to see live status."
         />
         <ModuleTile
           to="/activedirectory"

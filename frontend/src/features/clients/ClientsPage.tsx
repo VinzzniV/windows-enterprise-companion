@@ -213,7 +213,9 @@ export function ClientsPage() {
         />
       )}
 
-      {searching && clients.length === 0 ? (
+      {adResult === null && adError === null ? (
+        // Wait for the first AD search before drawing the table, so the view does
+        // not flash the scanned-only rows (fast) and then swap to the full AD list.
         <Spinner label="Loading clients from Active Directory …" />
       ) : filtered.length === 0 ? (
         <EmptyState

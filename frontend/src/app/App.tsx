@@ -4,9 +4,6 @@ import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { ClientsPage } from '../features/clients/ClientsPage';
 import { ClientDetailPage } from '../features/clients/ClientDetailPage';
 import { ComparePage } from '../features/clients/ComparePage';
-import { HardwareInfoPage } from '../features/inventory/HardwareInfoPage';
-import { SecurityPage } from '../features/security/SecurityPage';
-import { DiagnosticsPage } from '../features/diagnostics/DiagnosticsPage';
 import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
 import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
 import { PrintManagementPage } from '../features/printmanagement/PrintManagementPage';
@@ -26,32 +23,25 @@ interface NavItem {
   icon: ReactNode;
 }
 
-// Clients is the primary workspace; everything else is fleet- or global-scoped.
+// Clients is the day-to-day workspace and sits right under the Dashboard.
+// Per-host Inventory/Security/Diagnostics now live inside a client's detail, so
+// they no longer appear as standalone nav entries. Verwaltung holds app-wide
+// settings and the error log.
 const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Fleet',
     items: [
       { to: '/', label: 'Dashboard', icon: navIcons.dashboard },
+      { to: '/clients', label: 'Clients', icon: navIcons.clients },
       { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
       { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
       { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
-    ],
-  },
-  {
-    // The standalone pages remain as batch runners for scanning many hosts at once.
-    label: 'Multi-host',
-    items: [
-      { to: '/inventory', label: 'Inventory', icon: navIcons.inventory },
-      { to: '/security', label: 'Security', icon: navIcons.security },
-      { to: '/diagnostics', label: 'Diagnostics', icon: navIcons.diagnostics },
       { to: '/reporting', label: 'Reporting', icon: navIcons.reporting },
     ],
   },
 ];
 
-const clientsNav: NavItem = { to: '/clients', label: 'Clients', icon: navIcons.clients };
-
-const allNavItems = [clientsNav, ...navGroups.flatMap((group) => group.items)];
+const allNavItems = navGroups.flatMap((group) => group.items);
 
 function sectionLabelFor(pathname: string): string {
   if (pathname === '/') {
@@ -161,9 +151,6 @@ function AppRoutes() {
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/clients/compare" element={<ComparePage />} />
           <Route path="/clients/:host" element={<ClientDetailPage />} />
-          <Route path="/inventory" element={<HardwareInfoPage />} />
-          <Route path="/security" element={<SecurityPage />} />
-          <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
           <Route path="/patchmanagement" element={<PatchManagementPage />} />
           <Route path="/printmanagement" element={<PrintManagementPage />} />
@@ -190,10 +177,6 @@ export function App() {
             </h1>
           </div>
           <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-2">
-            <NavLink to={clientsNav.to} className={navLinkClass}>
-              {clientsNav.icon}
-              {clientsNav.label}
-            </NavLink>
             {navGroups.map((group) => (
               <div key={group.label} className="flex flex-col gap-1">
                 <span className="px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
