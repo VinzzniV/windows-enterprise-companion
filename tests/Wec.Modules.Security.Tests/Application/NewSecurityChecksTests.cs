@@ -1,6 +1,7 @@
 using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.Security.Application.Checks;
 using Wec.Modules.Security.Domain;
 using MsOptions = Microsoft.Extensions.Options.Options;
@@ -127,12 +128,15 @@ public class UacCheckTests
     }
 
     [Fact]
-    public async Task RemoteTarget_ProducesLocalOnlyFinding()
+    public async Task RemoteTarget_EvaluatesViaRemoteRegistry()
     {
+        // The remote read goes through StdRegProv; the check no longer skips remote targets.
+        _harness.SetUpRegistryValue("EnableLUA", 0);
+
         SecurityFinding finding = Assert.Single(
             await CreateCheck().EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
-        Assert.EndsWith("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
-        Assert.Equal("UnsupportedRemoteOperation", finding.Evidence["errorCode"]);
+        Assert.Equal(FindingSeverity.High, finding.Severity);
+        Assert.DoesNotContain("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
     }
 }
 
@@ -191,16 +195,11 @@ public class RebootPendingCheckTests
 
     private RebootPendingCheck CreateCheck() => new(_harness.RegistryReader, _harness.Clock);
 
-    private void SetUpSubKeys(string parentFragment, params string[] subKeys) =>
-        _harness.RegistryReader
-            .ReadLocalMachineSubKeyNames(Arg.Is<string>(path => path.Contains(parentFragment, StringComparison.Ordinal)))
-            .Returns(Result.Success<IReadOnlyList<string>>(subKeys));
-
     [Fact]
     public async Task NoSignals_ProducesNoFindings()
     {
-        SetUpSubKeys("Component Based Servicing");
-        SetUpSubKeys("Auto Update");
+        _harness.SetUpSubKeys("Component Based Servicing");
+        _harness.SetUpSubKeys("Auto Update");
         _harness.SetUpRegistryValue("PendingFileRenameOperations", null);
 
         Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
@@ -209,8 +208,8 @@ public class RebootPendingCheckTests
     [Fact]
     public async Task CbsAndFileRenameSignals_ProduceOneInfoFindingListingBoth()
     {
-        SetUpSubKeys("Component Based Servicing", "RebootPending");
-        SetUpSubKeys("Auto Update");
+        _harness.SetUpSubKeys("Component Based Servicing", "RebootPending");
+        _harness.SetUpSubKeys("Auto Update");
         _harness.SetUpRegistryValue("PendingFileRenameOperations", new[] { @"\??\C:\old", "" });
 
         SecurityFinding finding = Assert.Single(
@@ -221,11 +220,16 @@ public class RebootPendingCheckTests
     }
 
     [Fact]
-    public async Task RemoteTarget_ProducesLocalOnlyFinding()
+    public async Task RemoteTarget_EvaluatesViaRemoteRegistry()
     {
+        _harness.SetUpSubKeys("Component Based Servicing", "RebootPending");
+        _harness.SetUpSubKeys("Auto Update");
+        _harness.SetUpRegistryValue("PendingFileRenameOperations", null);
+
         SecurityFinding finding = Assert.Single(
             await CreateCheck().EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
-        Assert.EndsWith("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
+        Assert.Equal(FindingSeverity.Info, finding.Severity);
+        Assert.DoesNotContain("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
     }
 }
 
@@ -286,26 +290,36 @@ public class RemoteRegistryChecksTests
     private readonly CheckTestHarness _harness = new();
 
     [Fact]
-    public async Task RdpCheckOnRemoteTarget_ProducesLocalOnlyFindingWithoutRegistryAccess()
+    public async Task RdpCheckOnRemoteTarget_ReadsRegistryViaStdRegProv()
     {
+        _harness.SetUpRegistryValue("fDenyTSConnections", 0);
         var check = new RdpAccessCheck(_harness.RegistryReader, _harness.Clock);
 
         SecurityFinding finding = Assert.Single(
             await check.EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
 
-        Assert.EndsWith("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
-        _harness.RegistryReader.DidNotReceive().ReadLocalMachineValue(Arg.Any<string>(), Arg.Any<string>());
+        Assert.Equal(FindingSeverity.Medium, finding.Severity);
+        Assert.DoesNotContain("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
+        await _harness.RegistryReader.Received().ReadLocalMachineValueAsync(
+            Arg.Is<ScanTarget>(target => !target.IsLocal),
+            Arg.Any<ScanCredentials>(),
+            Arg.Any<ConnectionOptions>(),
+            Arg.Any<string>(),
+            "fDenyTSConnections",
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task SecureBootCheckOnRemoteTarget_ProducesLocalOnlyFinding()
+    public async Task SecureBootCheckOnRemoteTarget_ReadsRegistryViaStdRegProv()
     {
+        _harness.SetUpRegistryValue("UEFISecureBootEnabled", 0);
         var check = new SecureBootCheck(_harness.RegistryReader, _harness.Clock);
 
         SecurityFinding finding = Assert.Single(
             await check.EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
 
-        Assert.EndsWith("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
+        Assert.Equal(FindingSeverity.Medium, finding.Severity);
+        Assert.DoesNotContain("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
     }
 }
 

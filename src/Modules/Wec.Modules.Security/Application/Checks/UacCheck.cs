@@ -19,40 +19,30 @@ internal sealed class UacCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-UAC";
 
-    public Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 
-        if (!context.Target.IsLocal)
-        {
-            return Task.FromResult<IReadOnlyList<SecurityFinding>>([CheckFindings.LocalOnly(
-                CheckId,
-                "UAC state was not checked on the remote target",
-                FindingCategory.Accounts,
-                "User Account Control",
-                context.Target.DisplayName,
-                capturedAtUtc)]);
-        }
-
-        Result<object?> enableLua = _registryReader.ReadLocalMachineValue(PoliciesSystemKey, "EnableLUA");
+        Result<object?> enableLua = await _registryReader.ReadLocalMachineValueAsync(
+            context.Target, context.Credentials, context.Connection, PoliciesSystemKey, "EnableLUA", cancellationToken);
         if (enableLua.IsFailure)
         {
-            return Task.FromResult<IReadOnlyList<SecurityFinding>>([CheckFindings.NotRun(
+            return [CheckFindings.NotRun(
                 CheckId,
                 "UAC state could not be determined",
                 FindingCategory.Accounts,
                 "User Account Control",
                 "Verify registry read permissions and retry the scan.",
                 enableLua.Error!,
-                capturedAtUtc)]);
+                capturedAtUtc)];
         }
 
         // Missing value = Windows default (UAC on) — no finding
         if (enableLua.Value is int enabled && enabled == 0)
         {
-            return Task.FromResult<IReadOnlyList<SecurityFinding>>([new SecurityFinding(
+            return [new SecurityFinding(
                 $"{CheckId}-DISABLED",
                 "User Account Control is disabled",
                 "EnableLUA is 0: every process started by an administrator account runs with full "
@@ -68,14 +58,14 @@ internal sealed class UacCheck : ISecurityCheck
                 "Re-enable UAC (EnableLUA = 1) and reboot. Software that 'requires' disabled UAC "
                     + "should be treated as a legacy exception and isolated.",
                 RequiredPrivilege: null,
-                capturedAtUtc)]);
+                capturedAtUtc)];
         }
 
-        Result<object?> consentBehavior =
-            _registryReader.ReadLocalMachineValue(PoliciesSystemKey, "ConsentPromptBehaviorAdmin");
+        Result<object?> consentBehavior = await _registryReader.ReadLocalMachineValueAsync(
+            context.Target, context.Credentials, context.Connection, PoliciesSystemKey, "ConsentPromptBehaviorAdmin", cancellationToken);
         if (consentBehavior.IsSuccess && consentBehavior.Value is int behavior && behavior == 0)
         {
-            return Task.FromResult<IReadOnlyList<SecurityFinding>>([new SecurityFinding(
+            return [new SecurityFinding(
                 $"{CheckId}-SILENT-ELEVATION",
                 "UAC elevates administrators without prompting",
                 "ConsentPromptBehaviorAdmin is 0: elevation happens silently. Malware running in an "
@@ -91,9 +81,9 @@ internal sealed class UacCheck : ISecurityCheck
                 "Set ConsentPromptBehaviorAdmin to prompt for consent on the secure desktop "
                     + "(value 2 or the Windows default 5).",
                 RequiredPrivilege: null,
-                capturedAtUtc)]);
+                capturedAtUtc)];
         }
 
-        return Task.FromResult<IReadOnlyList<SecurityFinding>>([]);
+        return [];
     }
 }

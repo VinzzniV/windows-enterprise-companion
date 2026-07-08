@@ -20,43 +20,33 @@ internal sealed class SecureBootCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-SECUREBOOT";
 
-    public Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
         DateTimeOffset capturedAtUtc = _clock.UtcNow;
 
-        if (!context.Target.IsLocal)
-        {
-            return Task.FromResult<IReadOnlyList<SecurityFinding>>([CheckFindings.LocalOnly(
-                CheckId,
-                "Secure Boot state was not checked on the remote target",
-                FindingCategory.PlatformIntegrity,
-                "Secure Boot",
-                context.Target.DisplayName,
-                capturedAtUtc)]);
-        }
-
-        Result<object?> state = _registryReader.ReadLocalMachineValue(SecureBootStateKey, SecureBootEnabledValue);
+        Result<object?> state = await _registryReader.ReadLocalMachineValueAsync(
+            context.Target, context.Credentials, context.Connection, SecureBootStateKey, SecureBootEnabledValue, cancellationToken);
 
         if (state.IsFailure)
         {
-            return Task.FromResult<IReadOnlyList<SecurityFinding>>([CheckFindings.NotRun(
+            return [CheckFindings.NotRun(
                 CheckId,
                 "Secure Boot state could not be determined",
                 FindingCategory.PlatformIntegrity,
                 "Secure Boot",
                 "Verify registry read permissions and retry the scan.",
                 state.Error!,
-                capturedAtUtc)]);
+                capturedAtUtc)];
         }
 
-        return Task.FromResult<IReadOnlyList<SecurityFinding>>(state.Value switch
+        return state.Value switch
         {
             int enabled when enabled == 1 => [],
             int => [DisabledFinding(capturedAtUtc)],
             _ => [NotAvailableFinding(capturedAtUtc)],
-        });
+        };
     }
 
     private SecurityFinding DisabledFinding(DateTimeOffset capturedAtUtc) => new(

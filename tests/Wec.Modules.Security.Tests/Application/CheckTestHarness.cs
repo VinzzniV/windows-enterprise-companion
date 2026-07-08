@@ -53,8 +53,24 @@ internal sealed class CheckTestHarness
 
     public void SetUpRegistryValue(string valueName, object? value) =>
         RegistryReader
-            .ReadLocalMachineValue(Arg.Any<string>(), valueName)
+            .ReadLocalMachineValueAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                valueName,
+                Arg.Any<CancellationToken>())
             .Returns(Result.Success(value));
+
+    public void SetUpSubKeys(string parentFragment, params string[] subKeys) =>
+        RegistryReader
+            .ReadLocalMachineSubKeyNamesAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Is<string>(path => path.Contains(parentFragment, StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<string>>(subKeys));
 
     public static WmiInstance Instance(params (string Name, object? Value)[] properties) =>
         new(properties.ToDictionary(property => property.Name, property => property.Value));
