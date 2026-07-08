@@ -198,6 +198,8 @@ internal static partial class Program
         builder.Services.AddSingleton<IClock, SystemClock>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();
         builder.Services.AddSingleton<IActionHandler, ProbeHostsHandler>();
+        builder.Services.AddSingleton<IPowerShellSessionLauncher, ShellPowerShellSessionLauncher>();
+        builder.Services.AddSingleton<IActionHandler, OpenPsSessionHandler>();
         builder.Services.AddSingleton<IActionHandler, GetAppInfoHandler>();
         builder.Services.AddSingleton<IActionHandler, OpenLogsFolderHandler>();
         builder.Services.AddSingleton<IElevatedProcessLauncher, ShellElevatedProcessLauncher>();

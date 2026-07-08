@@ -9,6 +9,7 @@ import type {
   StoredInventoryHost,
 } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
+import { openPsSession } from '../../shared/ps/openPsSession';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Toolbar } from '../../shared/ui/Toolbar';
 import { Input } from '../../shared/ui/Input';
@@ -57,7 +58,7 @@ function StatusCell({ client, probe }: { client: ClientEntry; probe?: HostProbe 
 
 export function ClientsPage() {
   const navigate = useNavigate();
-  const { savedTargets } = useTargets();
+  const { savedTargets, adminCredentials } = useTargets();
 
   const [adResult, setAdResult] = useState<AdComputerSearchResult | null>(null);
   const [scannedHosts, setScannedHosts] = useState<StoredInventoryHost[]>([]);
@@ -152,6 +153,23 @@ export function ClientsPage() {
     {
       header: 'Status',
       cell: (client) => <StatusCell client={client} probe={probes[client.host.toUpperCase()]} />,
+    },
+    {
+      header: 'Actions',
+      align: 'right',
+      cell: (client) => (
+        <Button
+          variant="ghost"
+          onClick={(event) => {
+            // Row click opens the client; keep the PS action to itself.
+            event.stopPropagation();
+            void openPsSession(client.host, adminCredentials).catch(() => {});
+          }}
+          title={`Open a PowerShell session to ${client.host}`}
+        >
+          PowerShell
+        </Button>
+      ),
     },
   ];
 

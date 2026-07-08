@@ -15,6 +15,7 @@ import { SecuritySection } from './sections/SecuritySection';
 import { DiagnosticsSection } from './sections/DiagnosticsSection';
 import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
+import { openPsSession } from '../../shared/ps/openPsSession';
 
 type SectionKey = 'inventory' | 'security' | 'diagnostics' | 'printers' | 'reporting';
 
@@ -98,6 +99,15 @@ export function ClientDetailPage() {
           <Button variant="ghost" onClick={() => navigate('/clients')}>
             ← All clients
           </Button>
+          {!local && (
+            <Button
+              variant="secondary"
+              onClick={() => void openPsSession(host, credentials ?? null).catch(() => {})}
+              title={`Open a PowerShell session to ${host}`}
+            >
+              PowerShell
+            </Button>
+          )}
           {savedEntry ? (
             <Button variant="secondary" onClick={() => void deleteTarget(savedEntry.id)}>
               Unsave client
