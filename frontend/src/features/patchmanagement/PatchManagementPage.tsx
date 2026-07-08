@@ -580,6 +580,13 @@ export function PatchManagementPage() {
                 />
               </div>
 
+              <div
+                className={
+                  selectedProduct
+                    ? 'grid items-start gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]'
+                    : ''
+                }
+              >
               <Card title="opsi products">
                 <DataTable
                   columns={[
@@ -663,8 +670,14 @@ export function PatchManagementPage() {
               </Card>
 
               {selectedProduct && (
+                <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
                 <Card title={`Product detail — ${selectedProduct.productId}`}>
                   <div className="flex flex-col gap-4">
+                    <div className="-mt-1 flex justify-end">
+                      <Button variant="ghost" onClick={() => selectProduct(selectedProduct.productId)}>
+                        Collapse
+                      </Button>
+                    </div>
                     {selectedProduct.lastError && (
                       <p className="text-sm text-fail-400">{selectedProduct.lastError}</p>
                     )}
@@ -820,7 +833,9 @@ export function PatchManagementPage() {
                     )}
                   </div>
                 </Card>
+                </div>
               )}
+              </div>
 
               <Card title="Inventory software without opsi mapping">
                 <div className="flex flex-col gap-3">
