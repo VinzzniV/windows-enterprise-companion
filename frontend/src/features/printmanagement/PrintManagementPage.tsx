@@ -36,10 +36,11 @@ import { SummaryMetric } from '../../shared/ui/SummaryMetric';
 import { TonerBar } from './TonerBar';
 import {
   filterPrinters,
-  groupBySite,
+  groupPrinters,
   hasLowToner,
   mergePrinters,
   type MergedPrinter,
+  type PrinterGroupMode,
 } from './printers';
 
 function describeError(error: unknown): string {
@@ -137,18 +138,22 @@ function PrinterRow({
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div>
                 <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Queues</h4>
-                <ul className="flex flex-col gap-1 text-sm">
+                <ul className="flex flex-col gap-1.5 text-sm">
                   {printer.queues.map((queue) => (
-                    <li key={`${queue.server}-${queue.queueName}`} className="text-slate-300">
+                    <li key={`${queue.server}-${queue.queueName}`} className="flex flex-col text-slate-300">
                       <span className="font-mono text-xs text-slate-400">
                         \\{queue.server}\{queue.shareName ?? queue.queueName}
                       </span>
-                      {queue.driverName && (
-                        <span className="ml-2 text-xs text-slate-500">
-                          {queue.driverName}
-                          {queue.driverVersion ? ` (${queue.driverVersion})` : ''}
-                        </span>
-                      )}
+                      <span className="text-xs text-slate-500">
+                        Port: <span className="font-mono">{queue.portName ?? '—'}</span>
+                        {queue.driverName && (
+                          <>
+                            {' · Driver: '}
+                            {queue.driverName}
+                            {queue.driverVersion ? ` (${queue.driverVersion})` : ''}
+                          </>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -191,7 +196,7 @@ export function PrintManagementPage() {
   const [scanning, setScanning] = useState(false);
   const [serverFilter, setServerFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [groupByLocation, setGroupByLocation] = useState(false);
+  const [groupMode, setGroupMode] = useState<PrinterGroupMode>('none');
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [hints, setHints] = useState<PrintHint[]>([]);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -331,9 +336,7 @@ export function PrintManagementPage() {
   const printers = mergePrinters(serverEntries);
   const queueCount = printers.reduce((sum, printer) => sum + printer.queues.length, 0);
   const filteredPrinters = filterPrinters(printers, search);
-  const printerGroups = groupByLocation
-    ? groupBySite(filteredPrinters)
-    : [{ site: '', printers: filteredPrinters }];
+  const printerGroups = groupPrinters(filteredPrinters, groupMode);
 
   const deviceCount = printers.filter((printer) => printer.deviceAddress !== null).length;
   const lowTonerCount = printers.filter((printer) => hasLowToner(printer.supplies)).length;
@@ -462,14 +465,20 @@ export function PrintManagementPage() {
                   aria-label="Search printers"
                   className="w-72"
                 />
-                <label className="flex cursor-pointer items-center gap-1.5 text-sm text-slate-400">
-                  <input
-                    type="checkbox"
-                    className="accent-accent-500"
-                    checked={groupByLocation}
-                    onChange={(event) => setGroupByLocation(event.target.checked)}
-                  />
-                  Group by location
+                <label className="flex items-center gap-2 text-sm text-slate-400">
+                  Group by
+                  <Select
+                    fullWidth={false}
+                    value={groupMode}
+                    onChange={(event) => setGroupMode(event.target.value as PrinterGroupMode)}
+                    aria-label="Group printers by"
+                  >
+                    <option value="none">None</option>
+                    <option value="site">Location</option>
+                    <option value="status">Status</option>
+                    <option value="server">Print server</option>
+                    <option value="model">Model</option>
+                  </Select>
                 </label>
                 <span className="text-xs text-slate-500">
                   {filteredPrinters.length} of {printers.length} device
@@ -481,10 +490,10 @@ export function PrintManagementPage() {
                 <p className="text-sm text-slate-400">No printers match the search.</p>
               ) : (
                 printerGroups.map((group) => (
-                  <div key={group.site || 'all'} className="flex flex-col gap-1">
-                    {group.site !== '' && (
+                  <div key={group.label || 'all'} className="flex flex-col gap-1">
+                    {group.label !== '' && (
                       <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        {group.site}
+                        {group.label}
                         <span className="ml-2 font-normal normal-case tracking-normal text-slate-600">
                           {group.printers.length} device{group.printers.length === 1 ? '' : 's'}
                         </span>

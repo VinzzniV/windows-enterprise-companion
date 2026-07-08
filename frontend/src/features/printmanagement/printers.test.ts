@@ -3,7 +3,7 @@ import type { PrinterEntry } from '../../shared/api-types';
 import {
   baseQueueName,
   filterPrinters,
-  groupBySite,
+  groupPrinters,
   lowestTonerPercent,
   mergePrinters,
   siteOf,
@@ -98,10 +98,11 @@ describe('mergePrinters', () => {
   });
 });
 
-describe('filterPrinters / groupBySite', () => {
+describe('filterPrinters / groupPrinters', () => {
   const merged = mergePrinters([
     { server: 'PRSRV', entry: withDevice({ queueName: 'KF-NETPRT001', location: 'EG' }, { serialNumber: 'VCF123', model: 'UTAX' }) },
     { server: 'PRSRV', entry: withDevice({ queueName: 'PK-NETPRT002' }, { serialNumber: 'ZZ9', model: 'Kyocera' }) },
+    { server: 'OTHERSRV', entry: entry({ queueName: 'PK-NETPRT004', deviceError: { code: 'CONNECTION_TIMEOUT', message: 'no answer' } }) },
   ]);
   it('filters across name, serial, model and location', () => {
     expect(filterPrinters(merged, 'vcf').map((p) => p.name)).toEqual(['KF-NETPRT001']);
@@ -109,7 +110,18 @@ describe('filterPrinters / groupBySite', () => {
     expect(filterPrinters(merged, 'eg').map((p) => p.name)).toEqual(['KF-NETPRT001']);
   });
   it('groups by site code', () => {
-    expect(groupBySite(merged).map((g) => g.site)).toEqual(['KF', 'PK']);
+    expect(groupPrinters(merged, 'site').map((g) => g.label)).toEqual(['KF', 'PK']);
+  });
+  it('groups by model, server and status with honest unknown labels', () => {
+    expect(groupPrinters(merged, 'model').map((g) => g.label)).toEqual(['Kyocera', 'Unknown model', 'UTAX']);
+    expect(groupPrinters(merged, 'server').map((g) => g.label)).toEqual(['OTHERSRV', 'PRSRV']);
+    expect(groupPrinters(merged, 'status').map((g) => g.label)).toEqual(['Not answering', 'Unknown']);
+  });
+  it("'none' keeps a single flat group", () => {
+    const flat = groupPrinters(merged, 'none');
+    expect(flat).toHaveLength(1);
+    expect(flat[0].label).toBe('');
+    expect(flat[0].printers).toHaveLength(3);
   });
 });
 

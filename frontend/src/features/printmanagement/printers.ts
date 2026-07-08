@@ -24,6 +24,7 @@ export interface QueueRef {
   shareName: string | null;
   driverName: string | null;
   driverVersion: string | null;
+  portName: string | null;
 }
 
 /** One physical device, aggregating the queues that point at it. */
@@ -93,6 +94,7 @@ export function mergePrinters(entries: readonly ServerEntry[]): MergedPrinter[] 
         shareName: item.entry.shareName,
         driverName: item.entry.driverName,
         driverVersion: item.entry.driverVersion,
+        portName: item.entry.portName,
       })),
       model: device?.model ?? null,
       serialNumber: device?.serialNumber ?? null,
@@ -122,21 +124,47 @@ export function filterPrinters(printers: readonly MergedPrinter[], term: string)
   );
 }
 
-export interface PrinterSiteGroup {
-  site: string;
+export interface PrinterGroup {
+  label: string;
   printers: MergedPrinter[];
 }
 
-export function groupBySite(printers: readonly MergedPrinter[]): PrinterSiteGroup[] {
+export type PrinterGroupMode = 'none' | 'site' | 'status' | 'server' | 'model';
+
+function groupLabel(printer: MergedPrinter, mode: PrinterGroupMode): string {
+  switch (mode) {
+    case 'site':
+      return printer.site;
+    case 'status':
+      return printer.deviceError ? 'Not answering' : printer.status ?? 'Unknown';
+    case 'server':
+      // A device merged across servers forms its own combined group — rare and honest.
+      return printer.servers.join(' + ');
+    case 'model':
+      return printer.model ?? 'Unknown model';
+    default:
+      return '';
+  }
+}
+
+/** Group (and thereby sort) the printers by the chosen dimension; 'none' keeps one flat group. */
+export function groupPrinters(
+  printers: readonly MergedPrinter[],
+  mode: PrinterGroupMode,
+): PrinterGroup[] {
+  if (mode === 'none') {
+    return [{ label: '', printers: [...printers] }];
+  }
   const groups = new Map<string, MergedPrinter[]>();
   for (const printer of printers) {
-    const bucket = groups.get(printer.site);
+    const label = groupLabel(printer, mode);
+    const bucket = groups.get(label);
     if (bucket) bucket.push(printer);
-    else groups.set(printer.site, [printer]);
+    else groups.set(label, [printer]);
   }
   return [...groups.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([site, grouped]) => ({ site, printers: grouped }));
+    .map(([label, grouped]) => ({ label, printers: grouped }));
 }
 
 /** Lowest toner percent across supplies, or null when none report a level. */
