@@ -193,9 +193,8 @@ export function ActiveDirectoryPage() {
   const setForm = (patch: Partial<ConnectionFormState>) =>
     setConnectionForm((current) => ({ ...current, ...patch }));
 
-  // On open: prefill a saved DC and analyze the local domain straight away, so the
-  // page always shows a directory dashboard instead of an empty state. The local
-  // bind runs as the current/admin user — no password needed. Runs once.
+  // On open: prefill a saved DC so the user only has to hit Analyze. The analysis
+  // itself stays manual — the bind needs the admin sign-in first. Runs once.
   const initialisedRef = useRef(false);
   useEffect(() => {
     if (initialisedRef.current || !savedTargetsReady) {
@@ -206,8 +205,7 @@ export function ActiveDirectoryPage() {
     if (savedDc) {
       setForm({ server: savedDc.host });
     }
-    loadOverview();
-  }, [savedTargetsReady, savedTargets, loadOverview]);
+  }, [savedTargetsReady, savedTargets]);
 
   const overview = state.kind === 'loaded' ? state.overview : null;
   const hygiene = hygieneState.kind === 'loaded' ? hygieneState.hygiene : null;
