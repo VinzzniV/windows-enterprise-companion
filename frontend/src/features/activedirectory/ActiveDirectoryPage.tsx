@@ -7,6 +7,7 @@ import type {
   TestDirectoryConnectionResult,
 } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
+import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 import { Spinner } from '../../shared/ui/Spinner';
 import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
@@ -88,6 +89,39 @@ function OverviewStat({ label, value }: { label: string; value: number }) {
       <div className="text-2xl font-semibold tabular-nums">{value.toLocaleString()}</div>
       <div className="text-xs text-slate-400">{label}</div>
     </div>
+  );
+}
+
+/**
+ * One result category, summarized to a single row (title + count badge);
+ * the details only render when the row is expanded. Native <details> keeps
+ * this free of open/close state.
+ */
+function ResultCategory({
+  title,
+  count,
+  tone,
+  summary,
+  children,
+}: {
+  title: string;
+  count: number;
+  tone: BadgeTone;
+  summary?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group rounded-lg border border-slate-800 bg-slate-900/40">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm [&::-webkit-details-marker]:hidden">
+        <span className="text-slate-500 transition-transform group-open:rotate-90" aria-hidden>
+          ▸
+        </span>
+        <span className="font-medium text-slate-100">{title}</span>
+        <Badge tone={tone}>{count.toLocaleString()}</Badge>
+        {summary && <span className="text-xs text-slate-400">{summary}</span>}
+      </summary>
+      <div className="border-t border-slate-800 px-4 py-3">{children}</div>
+    </details>
   );
 }
 
@@ -255,7 +289,11 @@ export function ActiveDirectoryPage() {
             <OverviewStat label="Computers" value={overview.computerCount} />
           </div>
 
-          <Card title={`Domain controllers (${overview.domainControllers.length})`}>
+          <ResultCategory
+            title="Domain controllers"
+            count={overview.domainControllers.length}
+            tone={overview.domainControllers.length > 0 ? 'info' : 'warn'}
+          >
             {overview.domainControllers.length === 0 ? (
               <p className="text-sm text-slate-400">
                 No domain controllers were readable with the current credentials.
@@ -270,7 +308,7 @@ export function ActiveDirectoryPage() {
                 ))}
               </ul>
             )}
-          </Card>
+          </ResultCategory>
         </section>
       )}
 
@@ -293,7 +331,12 @@ export function ActiveDirectoryPage() {
           <h2 className="border-b border-slate-800 pb-1 text-sm font-medium uppercase tracking-wide text-slate-400">
             Hygiene
           </h2>
-          <Card title={`Privileged groups (${hygiene.privilegedGroups.length})`}>
+          <ResultCategory
+            title="Privileged groups"
+            count={hygiene.privilegedGroups.length}
+            tone="info"
+            summary={`${hygiene.privilegedGroups.reduce((sum, group) => sum + group.directMemberCount, 0)} direct members in total`}
+          >
             <ul className="flex flex-col gap-3 text-sm">
               {hygiene.privilegedGroups.map((group) => (
                 <li key={group.distinguishedName} className="flex flex-col gap-0.5">
@@ -316,10 +359,15 @@ export function ActiveDirectoryPage() {
                 </li>
               ))}
             </ul>
-          </Card>
+          </ResultCategory>
 
           {hygiene.rules.map((rule) => (
-            <Card key={rule.ruleId} title={`${rule.title} — ${rule.matchCount}`}>
+            <ResultCategory
+              key={rule.ruleId}
+              title={rule.title}
+              count={rule.matchCount}
+              tone={rule.matchCount > 0 ? 'warn' : 'ok'}
+            >
               <div className="flex flex-col gap-2 text-sm">
                 <p className="text-slate-400">{rule.recommendation}</p>
                 {rule.examples.length > 0 && (
@@ -342,7 +390,7 @@ export function ActiveDirectoryPage() {
                   </p>
                 )}
               </div>
-            </Card>
+            </ResultCategory>
           ))}
         </section>
       )}
