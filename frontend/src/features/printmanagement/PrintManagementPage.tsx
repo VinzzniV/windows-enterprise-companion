@@ -191,6 +191,12 @@ function PrinterRow({
                       </span>
                       <span className="text-xs text-slate-500">
                         Port: <span className="font-mono">{queue.portName ?? '—'}</span>
+                        {queue.portAddress && queue.portAddress !== queue.portName && (
+                          <>
+                            {' → '}
+                            <span className="font-mono text-slate-400">{queue.portAddress}</span>
+                          </>
+                        )}
                         {queue.driverName && (
                           <>
                             {' · Driver: '}
@@ -232,6 +238,10 @@ interface ServerScanState {
   status: 'loading' | 'done' | 'error';
   error?: string;
 }
+
+// The notification check is lightweight HTTPS (no SNMP), so run many at once
+// instead of throttling to the scan limit — the whole fleet resolves fast.
+const NOTIFICATION_CONCURRENCY = 16;
 
 export function PrintManagementPage() {
   const adminCredentials = useTargetsOptional()?.adminCredentials ?? null;
@@ -358,7 +368,7 @@ export function PrintManagementPage() {
       const targets = devices.filter((printer) => printer.deviceAddress);
       if (targets.length === 0) return;
       setNotifChecking(true);
-      void runWithConcurrencyLimit(targets, maxParallelScans, async (printer) => {
+      void runWithConcurrencyLimit(targets, NOTIFICATION_CONCURRENCY, async (printer) => {
         const host = printer.deviceAddress!;
         try {
           const check = await invoke<PrinterNotificationCheck>(
@@ -373,7 +383,7 @@ export function PrintManagementPage() {
         }
       }).finally(() => setNotifChecking(false));
     },
-    [maxParallelScans, ccrxPassword],
+    [ccrxPassword],
   );
 
   const loadDiffHistory = useCallback((server: string) => {

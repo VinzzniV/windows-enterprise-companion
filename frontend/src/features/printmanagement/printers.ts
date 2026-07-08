@@ -25,6 +25,8 @@ export interface QueueRef {
   driverName: string | null;
   driverVersion: string | null;
   portName: string | null;
+  /** Host address the port points at (IP or hostname), from the print server. */
+  portAddress: string | null;
 }
 
 /** One physical device, aggregating the queues that point at it. */
@@ -95,6 +97,7 @@ export function mergePrinters(entries: readonly ServerEntry[]): MergedPrinter[] 
         driverName: item.entry.driverName,
         driverVersion: item.entry.driverVersion,
         portName: item.entry.portName,
+        portAddress: item.entry.deviceAddress,
       })),
       model: device?.model ?? null,
       serialNumber: device?.serialNumber ?? null,
