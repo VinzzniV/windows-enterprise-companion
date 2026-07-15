@@ -23,6 +23,17 @@ import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
 import { useTargetsOptional } from '../../shared/targets/TargetContext';
+import { loadView, saveView } from '../../shared/viewCache';
+
+/** What survives an app restart for this page — never the password (ADR 0008). */
+interface CachedPatchView {
+  server: string;
+  userName: string;
+  depotFilter: string;
+  dashboard: PatchDashboardResult | null;
+}
+
+const patchViewKey = 'patchmanagement';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
 import { Spinner } from '../../shared/ui/Spinner';
@@ -146,21 +157,26 @@ type AsyncError = { message: string; hint?: string } | null;
 
 export function PatchManagementPage() {
   const targets = useTargetsOptional();
+  // The stored view *is* the initial state — a restart opens on the last dashboard
+  // and the server/user it came from. The password is never cached (ADR 0008).
+  const cached = useRef(loadView<CachedPatchView>(patchViewKey)).current;
   const [status, setStatus] = useState<OpsiConnectionStatusResult | null>(null);
-  const [form, setForm] = useState<ConnectFormState>({
-    server: '',
-    userName: '',
+  const [form, setForm] = useState<ConnectFormState>(() => ({
+    server: cached?.server ?? '',
+    userName: cached?.userName ?? '',
     password: '',
     // opsi ships a self-signed CA — trusting it is the normal case, so default it on.
     trustServerCertificate: true,
-  });
+  }));
   const [connecting, setConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<AsyncError>(null);
 
-  const [dashboard, setDashboard] = useState<PatchDashboardResult | null>(null);
+  const [dashboard, setDashboard] = useState<PatchDashboardResult | null>(
+    () => cached?.dashboard ?? null,
+  );
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<AsyncError>(null);
-  const [depotFilter, setDepotFilter] = useState<string>('');
+  const [depotFilter, setDepotFilter] = useState<string>(() => cached?.depotFilter ?? '');
   const [depotResolved, setDepotResolved] = useState(false);
 
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -212,21 +228,24 @@ export function PatchManagementPage() {
   }, []);
 
   useEffect(() => {
+    // Mappings and audit come from the local database — they need no opsi session,
+    // so they load even when the cached dashboard is all we can show.
+    loadMappings();
+    loadAudit();
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'getConnectionStatus', {})
       .then((result) => {
         setStatus(result);
         if (result.connected) {
           loadDashboard('');
-          loadMappings();
-          loadAudit();
         }
       })
       .catch(() => setStatus(null));
   }, [loadDashboard, loadMappings, loadAudit]);
 
-  // Preselect the configured default depot once the first dashboard names the depots
+  // Preselect the configured default depot once the first dashboard names the depots.
+  // Only while connected — a restored cached dashboard must not trigger an opsi call.
   useEffect(() => {
-    if (dashboard === null || depotResolved || status === null) {
+    if (dashboard === null || depotResolved || status === null || !status.connected) {
       return;
     }
     setDepotResolved(true);
@@ -237,24 +256,34 @@ export function PatchManagementPage() {
     }
   }, [dashboard, depotResolved, status, depotFilter, loadDashboard]);
 
-  // Prefill server + user from the newest saved opsi server so a restart only
-  // needs the password (which is never persisted, ADR 0008). Runs once, and only
-  // while disconnected, so it never clobbers what the user is typing.
+  // Nothing cached yet: fall back to the newest saved opsi server, so a restart only
+  // ever needs the password back.
   const prefilledRef = useRef(false);
   useEffect(() => {
-    if (prefilledRef.current || status?.connected || !targets?.savedTargetsReady) {
+    if (prefilledRef.current || !targets?.savedTargetsReady || cached !== null) {
       return;
     }
+    prefilledRef.current = true;
     const saved = targets.savedTargets.filter((target) => target.role === 'OpsiServer').at(-1);
     if (saved) {
-      prefilledRef.current = true;
       setForm((previous) => ({
         ...previous,
-        server: previous.server || saved.host,
-        userName: previous.userName || saved.userName || '',
+        server: saved.host,
+        userName: saved.userName ?? '',
       }));
     }
-  }, [targets?.savedTargets, targets?.savedTargetsReady, status?.connected, targets]);
+  }, [targets?.savedTargets, targets?.savedTargetsReady, targets, cached]);
+
+  // Remember the dashboard and the server/user behind it. Only these fields — the
+  // password is deliberately not part of the cached shape.
+  useEffect(() => {
+    saveView<CachedPatchView>(patchViewKey, {
+      server: form.server,
+      userName: form.userName,
+      depotFilter,
+      dashboard,
+    });
+  }, [form.server, form.userName, depotFilter, dashboard]);
 
   const resetActionPanels = useCallback(() => {
     setPreview(null);
@@ -434,12 +463,17 @@ export function PatchManagementPage() {
       })
         .then((result) => {
           setMappings(result.mappings);
-          loadDashboard(depotFilter);
+          // Mapping is a local-database edit and works offline; only a live session
+          // can refresh the dashboard, and refreshing without one would drop the
+          // restored view on the floor.
+          if (status?.connected) {
+            loadDashboard(depotFilter);
+          }
           loadAudit();
         })
         .catch((error: unknown) => setMappingError(opsiError(error)));
     },
-    [depotFilter, loadDashboard, loadAudit],
+    [depotFilter, status?.connected, loadDashboard, loadAudit],
   );
 
   const deleteMapping = useCallback(
@@ -447,15 +481,19 @@ export function PatchManagementPage() {
       invoke<MappingsResult>('patchmanagement', 'deleteMapping', { softwareName })
         .then((result) => {
           setMappings(result.mappings);
-          loadDashboard(depotFilter);
+          if (status?.connected) {
+            loadDashboard(depotFilter);
+          }
           loadAudit();
         })
         .catch((error: unknown) => setMappingError(opsiError(error)));
     },
-    [depotFilter, loadDashboard, loadAudit],
+    [depotFilter, status?.connected, loadDashboard, loadAudit],
   );
 
   const connected = status?.connected === true;
+  // A restored dashboard with no live session: readable, but nothing may act on it.
+  const stale = !connected && dashboard !== null;
   const selectedProduct =
     dashboard?.products.find((product) => product.productId === selectedProductId) ?? null;
 
@@ -551,14 +589,22 @@ export function PatchManagementPage() {
         </Card>
       )}
 
-      {connected && (
+      {(connected || dashboard !== null) && (
         <>
+          {stale && (
+            <p className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-300">
+              Stored view from{' '}
+              {dashboard ? formatTimestamp(dashboard.generatedAtUtc) : 'the last session'} — not
+              connected to opsi. Connect above to refresh it or to act on a product.
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-slate-300">
               <span className="text-slate-400">Location / depot</span>
               <Select
                 fullWidth={false}
                 value={depotFilter}
+                disabled={!connected}
                 onChange={(event) => changeDepotFilter(event.target.value)}
               >
                 <option value="">All depots</option>
@@ -569,7 +615,7 @@ export function PatchManagementPage() {
                 ))}
               </Select>
             </label>
-            <Button onClick={() => loadDashboard(depotFilter)} disabled={dashboardLoading}>
+            <Button onClick={() => loadDashboard(depotFilter)} disabled={dashboardLoading || !connected}>
               Refresh
             </Button>
             {dashboardLoading && <Spinner label="Loading the patch dashboard" />}
@@ -790,15 +836,24 @@ export function PatchManagementPage() {
                     )}
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <Button variant="primary" onClick={() => loadPreview(selectedProduct)}>
+                      <Button
+                        variant="primary"
+                        disabled={!connected}
+                        onClick={() => loadPreview(selectedProduct)}
+                      >
                         Preview rollout
                         {selectedClients.size > 0
                           ? ` (${selectedClients.size} selected)`
                           : ' (outdated & failed clients)'}
                       </Button>
-                      <Button onClick={() => planPackages(selectedProduct)}>
+                      <Button disabled={!connected} onClick={() => planPackages(selectedProduct)}>
                         Prepare packages (plan)
                       </Button>
+                      {stale && (
+                        <span className="text-xs text-slate-500">
+                          Connect to opsi to preview or request a rollout.
+                        </span>
+                      )}
                     </div>
 
                     {previewError && (
@@ -997,7 +1052,7 @@ export function PatchManagementPage() {
         </>
       )}
 
-      {!connected && status !== null && (
+      {!connected && status !== null && dashboard === null && (
         <EmptyState
           title="No opsi connection"
           message="Connect to an opsi server above to see products, affected clients and rollout state. Nothing is changed on the server without an explicit, confirmed action."

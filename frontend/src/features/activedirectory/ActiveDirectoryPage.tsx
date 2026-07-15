@@ -16,6 +16,16 @@ import { EmptyState, ErrorState } from '../../shared/ui/States';
 import type { CredentialValues } from '../../shared/targets/TargetSelector';
 import { useTargets } from '../../shared/targets/TargetContext';
 import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
+import { loadView, saveView } from '../../shared/viewCache';
+
+/** What survives an app restart for this page — never the password. */
+interface CachedAdView {
+  form: ConnectionFormState;
+  overview: AdOverviewResult | null;
+  hygiene: AdHygieneResult | null;
+}
+
+const adViewKey = 'activedirectory';
 
 /** What the admin should do next, per typed directory error. */
 const adErrorHints: Record<string, string> = {
@@ -133,9 +143,18 @@ type TestBindState =
 
 export function ActiveDirectoryPage() {
   const { adminCredentials, savedTargets, saveTarget, savedTargetsReady } = useTargets();
-  const [state, setState] = useState<OverviewState>({ kind: 'idle' });
-  const [hygieneState, setHygieneState] = useState<HygieneState>({ kind: 'idle' });
-  const [connectionForm, setConnectionForm] = useState<ConnectionFormState>(emptyConnectionForm);
+  // The stored view *is* the initial state — a restart opens on the last analysis
+  // and the connection it used, with no flash of an empty form.
+  const cached = useRef(loadView<CachedAdView>(adViewKey)).current;
+  const [state, setState] = useState<OverviewState>(() =>
+    cached?.overview ? { kind: 'loaded', overview: cached.overview } : { kind: 'idle' },
+  );
+  const [hygieneState, setHygieneState] = useState<HygieneState>(() =>
+    cached?.hygiene ? { kind: 'loaded', hygiene: cached.hygiene } : { kind: 'idle' },
+  );
+  const [connectionForm, setConnectionForm] = useState<ConnectionFormState>(
+    () => cached?.form ?? emptyConnectionForm,
+  );
   const [testBindState, setTestBindState] = useState<TestBindState>({ kind: 'idle' });
 
   const testConnection = useCallback(() => {
@@ -193,19 +212,28 @@ export function ActiveDirectoryPage() {
   const setForm = (patch: Partial<ConnectionFormState>) =>
     setConnectionForm((current) => ({ ...current, ...patch }));
 
-  // On open: prefill a saved DC so the user only has to hit Analyze. The analysis
-  // itself stays manual — the bind needs the admin sign-in first. Runs once.
-  const initialisedRef = useRef(false);
+  // Nothing cached yet: fall back to the newest saved DC so the user only has to hit
+  // Analyze. The analysis itself stays manual — the bind needs the admin sign-in.
+  const prefilledRef = useRef(false);
   useEffect(() => {
-    if (initialisedRef.current || !savedTargetsReady) {
+    if (prefilledRef.current || !savedTargetsReady || cached !== null) {
       return;
     }
-    initialisedRef.current = true;
+    prefilledRef.current = true;
     const savedDc = savedTargets.filter((target) => target.role === 'DomainController').at(-1);
     if (savedDc) {
       setForm({ server: savedDc.host });
     }
-  }, [savedTargetsReady, savedTargets]);
+  }, [savedTargetsReady, savedTargets, cached]);
+
+  // Remember the form and the last successful results.
+  useEffect(() => {
+    saveView<CachedAdView>(adViewKey, {
+      form: connectionForm,
+      overview: state.kind === 'loaded' ? state.overview : null,
+      hygiene: hygieneState.kind === 'loaded' ? hygieneState.hygiene : null,
+    });
+  }, [connectionForm, state, hygieneState]);
 
   const overview = state.kind === 'loaded' ? state.overview : null;
   const hygiene = hygieneState.kind === 'loaded' ? hygieneState.hygiene : null;

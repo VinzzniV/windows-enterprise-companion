@@ -167,6 +167,49 @@ describe('resolveDefaultDepot', () => {
 describe('PatchManagementPage', () => {
   beforeEach(() => {
     invokeMock.mockReset();
+    localStorage.clear();
+  });
+
+  it('restores the cached dashboard while disconnected and keeps it read-only', async () => {
+    localStorage.setItem(
+      'wec.view.patchmanagement',
+      JSON.stringify({
+        server: 'opsi.kauth.local',
+        userName: 'admin',
+        depotFilter: '',
+        dashboard,
+      }),
+    );
+    invokeMock.mockImplementation((_module: string, action: string) =>
+      action === 'getConnectionStatus'
+        ? Promise.resolve(disconnectedStatus)
+        : Promise.resolve({ mappings: [], entries: [] }),
+    );
+
+    render(<PatchManagementPage />);
+
+    // The stored products are on screen even though there is no opsi session …
+    expect(await screen.findByText('Mozilla Firefox')).toBeDefined();
+    expect(screen.getByText(/Stored view from/)).toBeDefined();
+    // … and nothing may act on them or silently re-query opsi.
+    expect(screen.getByRole('button', { name: 'Refresh' }).hasAttribute('disabled')).toBe(true);
+    expect(dashboardCalls()).toEqual([]);
+    // The server/user come back so only the password is missing
+    expect((screen.getByLabelText('opsi server') as HTMLInputElement).value).toBe('opsi.kauth.local');
+  });
+
+  it('never writes the password into the cached view', async () => {
+    invokeMock.mockImplementation((_module: string, action: string) =>
+      action === 'getConnectionStatus'
+        ? Promise.resolve(disconnectedStatus)
+        : Promise.resolve({ mappings: [], entries: [] }),
+    );
+
+    render(<PatchManagementPage />);
+    await userEvent.type(await screen.findByLabelText('Password'), 'hunter2');
+
+    await waitFor(() => expect(localStorage.getItem('wec.view.patchmanagement')).not.toBeNull());
+    expect(localStorage.getItem('wec.view.patchmanagement')).not.toContain('hunter2');
   });
 
   it('shows the connection form with the session-only credential note when disconnected', async () => {
