@@ -7,6 +7,7 @@ using Wec.Modules.PatchManagement.Persistence;
 using Wec.Modules.PrintManagement.Persistence;
 using Wec.Modules.Security.Persistence;
 using Wec.Modules.Targets.Persistence;
+using Wec.Modules.VulnerabilityManagement.Persistence;
 
 namespace Wec.Infrastructure.IntegrationTests.Persistence;
 
@@ -32,6 +33,7 @@ internal static class IntegrationDbContextFactory
                 typeof(SavedTargetRecord).Assembly,
                 typeof(DiagnosticRunRecord).Assembly,
                 typeof(EmployeeRecord).Assembly,
+                typeof(NessusStateRecord).Assembly,
             ]));
     }
 }

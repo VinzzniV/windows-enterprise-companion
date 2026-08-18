@@ -10,6 +10,10 @@ import type {
   OpsiSettingsValue,
   ServiceCredentialStatus,
   ServiceCredentialStatuses,
+  NessusSettingsResult,
+  NessusSettingsValue,
+  NessusCredentialStatus,
+  NessusCertificateResult,
 } from '../../shared/api-types';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Card } from '../../shared/ui/Card';
@@ -43,6 +47,14 @@ export function SettingsPage() {
   const [credentialStatuses, setCredentialStatuses] = useState<ServiceCredentialStatuses | null>(null);
   const [opsiBusy, setOpsiBusy] = useState(false);
   const [opsiError, setOpsiError] = useState<string | null>(null);
+  const [nessus, setNessus] = useState<NessusSettingsValue | null>(null);
+  const [nessusCredential, setNessusCredential] = useState<NessusCredentialStatus | null>(null);
+  const [nessusAccessKey, setNessusAccessKey] = useState('');
+  const [nessusSecretKey, setNessusSecretKey] = useState('');
+  const [nessusBusy, setNessusBusy] = useState(false);
+  const [nessusError, setNessusError] = useState<string | null>(null);
+  const [editingNessusCredential, setEditingNessusCredential] = useState(false);
+  const [nessusCertificate, setNessusCertificate] = useState<NessusCertificateResult | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -51,14 +63,18 @@ export function SettingsPage() {
       invoke<OpsiSettingsResult>('system', 'getOpsiSettings'),
       invoke<OpsiConnectionStatusResult>('patchmanagement', 'getConnectionStatus'),
       invoke<ServiceCredentialStatuses>('system', 'getServiceCredentialStatuses'),
+      invoke<NessusSettingsResult>('system', 'getNessusSettings'),
+      invoke<NessusCredentialStatus>('vulnerabilitymanagement', 'getCredentialStatus', {}),
     ])
-      .then(([info, settings, opsiSettings, connection, credentials]) => {
+      .then(([info, settings, opsiSettings, connection, credentials, nessusSettings, nessusStatus]) => {
         setAppInfo(info);
         setItLifecycle(settings.settings);
         setOpsi(opsiSettings.settings);
         setOpsiStatus(connection);
         setOpsiError(connection.connectionError ?? null);
         setCredentialStatuses(credentials);
+        setNessus(nessusSettings.settings);
+        setNessusCredential(nessusStatus);
         if (credentials.kaspersky.saved) {
           setKasperskyDraft((current) => ({ ...current, userName: credentials.kaspersky.userName ?? '', domain: credentials.kaspersky.domain ?? '' }));
         }
@@ -161,6 +177,49 @@ export function SettingsPage() {
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'disconnect', {})
       .then((status) => { setOpsiStatus(status); environment?.invalidate(); })
       .catch((caught: unknown) => setOpsiError(errorText(caught))).finally(() => setOpsiBusy(false));
+  };
+
+  const saveNessusSettings = () => {
+    if (!nessus) return;
+    setNessusBusy(true); setNessusError(null);
+    invoke<NessusSettingsResult>('system', 'saveNessusSettings', { settings: nessus })
+      .then((result) => { setNessus(result.settings); setRestartRequired(result.restartRequired); })
+      .catch((caught: unknown) => setNessusError(errorText(caught))).finally(() => setNessusBusy(false));
+  };
+
+  const saveNessusCredential = () => {
+    if (!nessus) return;
+    setNessusBusy(true); setNessusError(null);
+    invoke<NessusCredentialStatus>('vulnerabilitymanagement', 'saveCredential', {
+      accessKey: nessusAccessKey,
+      secretKey: nessusSecretKey,
+      serverUrl: nessus.serverUrl,
+      requestTimeoutSeconds: nessus.requestTimeoutSeconds,
+      trustedCertificateThumbprint: nessus.trustedCertificateThumbprint,
+    }, 120_000)
+      .then((status) => { setNessusCredential(status); setEditingNessusCredential(false); setNessusAccessKey(''); setNessusSecretKey(''); environment?.invalidate(); })
+      .catch((caught: unknown) => setNessusError(errorText(caught))).finally(() => setNessusBusy(false));
+  };
+
+  const readNessusCertificate = () => {
+    if (!nessus) return;
+    setNessusBusy(true); setNessusError(null); setNessusCertificate(null);
+    invoke<NessusCertificateResult>('vulnerabilitymanagement', 'getCertificate', {
+      serverUrl: nessus.serverUrl,
+      requestTimeoutSeconds: Math.min(nessus.requestTimeoutSeconds, 30),
+    }, 35_000)
+      .then((certificate) => {
+        setNessusCertificate(certificate);
+        setNessus({ ...nessus, trustedCertificateThumbprint: certificate.sha256Fingerprint });
+      })
+      .catch((caught: unknown) => setNessusError(errorText(caught))).finally(() => setNessusBusy(false));
+  };
+
+  const deleteNessusCredential = () => {
+    setNessusBusy(true); setNessusError(null);
+    invoke<NessusCredentialStatus>('vulnerabilitymanagement', 'deleteCredential', {})
+      .then((status) => { setNessusCredential(status); environment?.invalidate(); })
+      .catch((caught: unknown) => setNessusError(errorText(caught))).finally(() => setNessusBusy(false));
   };
 
   return (
@@ -370,6 +429,31 @@ export function SettingsPage() {
         </Card>
       )}
 
+      {nessus && (
+        <Card title="Nessus / Vulnerability Management">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Field label="Nessus HTTPS URL" hint="Local Nessus Professional/Expert; default port 8834.">{(id) => <Input id={id} value={nessus.serverUrl} onChange={(event) => setNessus({ ...nessus, serverUrl: event.target.value })} placeholder="https://nessus.example.local:8834" />}</Field>
+            <Field label="Timeout (seconds)">{(id) => <Input id={id} type="number" min={1} max={600} value={nessus.requestTimeoutSeconds} onChange={(event) => setNessus({ ...nessus, requestTimeoutSeconds: Number(event.target.value) })} />}</Field>
+            <Field label="Cache TTL (minutes)">{(id) => <Input id={id} type="number" min={1} max={1440} value={nessus.cacheTtlMinutes} onChange={(event) => setNessus({ ...nessus, cacheTtlMinutes: Number(event.target.value) })} />}</Field>
+            <Field label="Certificate fingerprint" hint="Optional SHA-1/SHA-256 pin for a private certificate.">{(id) => <Input id={id} className="font-mono" value={nessus.trustedCertificateThumbprint} onChange={(event) => setNessus({ ...nessus, trustedCertificateThumbprint: event.target.value })} />}</Field>
+            <Field label="Backfill (days)">{(id) => <Input id={id} type="number" min={0} max={365} value={nessus.backfillDays} onChange={(event) => setNessus({ ...nessus, backfillDays: Number(event.target.value) })} />}</Field>
+            <Field label="Retention (days)">{(id) => <Input id={id} type="number" min={7} max={3650} value={nessus.retentionDays} onChange={(event) => setNessus({ ...nessus, retentionDays: Number(event.target.value) })} />}</Field>
+            <Field label="Stale warning (days)">{(id) => <Input id={id} type="number" min={1} value={nessus.staleWarningDays} onChange={(event) => setNessus({ ...nessus, staleWarningDays: Number(event.target.value) })} />}</Field>
+            <Field label="Stale critical (days)">{(id) => <Input id={id} type="number" min={1} value={nessus.staleCriticalDays} onChange={(event) => setNessus({ ...nessus, staleCriticalDays: Number(event.target.value) })} />}</Field>
+            <Field label="Excluded scan IDs" hint="Comma-separated numeric Nessus scan IDs.">{(id) => <Input id={id} value={nessus.excludedScanIds.join(', ')} onChange={(event) => setNessus({ ...nessus, excludedScanIds: event.target.value.split(',').map(Number).filter((x) => Number.isInteger(x) && x > 0) })} />}</Field>
+            <Field label="Missing-Nessus OU exclusions" hint="Comma-separated text patterns.">{(id) => <Input id={id} value={nessus.missingNessusExcludedOuPatterns.join(', ')} onChange={(event) => setNessus({ ...nessus, missingNessusExcludedOuPatterns: event.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} />}</Field>
+            <Field label="Missing-Nessus host exclusions" hint="Comma-separated host patterns.">{(id) => <Input id={id} value={nessus.missingNessusExcludedHostPatterns.join(', ')} onChange={(event) => setNessus({ ...nessus, missingNessusExcludedHostPatterns: event.target.value.split(',').map((x) => x.trim()).filter(Boolean) })} />}</Field>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3"><Button variant="primary" onClick={saveNessusSettings} disabled={nessusBusy}>{nessusBusy ? 'Saving…' : 'Save Nessus settings'}</Button><Button variant="secondary" onClick={readNessusCertificate} disabled={nessusBusy || !nessus.serverUrl}>{nessusBusy ? 'Reading…' : 'Read HTTPS certificate fingerprint'}</Button></div>
+          {nessusCertificate && <div className="mt-3 rounded border border-amber-700/60 bg-amber-950/20 px-3 py-2 text-xs text-slate-300"><p>Certificate received from the configured server. Verify it before saving.</p><p className="mt-1 break-all font-mono">SHA-256: {nessusCertificate.sha256Fingerprint}</p><p className="mt-1">{nessusCertificate.subject} · valid until {new Date(nessusCertificate.validToUtc).toLocaleDateString()}</p></div>}
+          <div className="mt-5 rounded-md border border-slate-700 bg-slate-900/40 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-slate-200">Nessus API keys</h3>
+            {nessusCredential?.saved && !editingNessusCredential ? <div className="flex flex-wrap items-center gap-3"><p className="text-sm text-slate-300">Access Key and Secret Key are stored securely in Windows Credential Manager.</p><Button variant="secondary" onClick={() => setEditingNessusCredential(true)} disabled={nessusBusy}>Replace API keys</Button><Button variant="secondary" onClick={deleteNessusCredential} disabled={nessusBusy}>Remove API keys</Button></div> : <><div className="grid gap-3 sm:grid-cols-2"><Input type="password" value={nessusAccessKey} onChange={(event) => setNessusAccessKey(event.target.value)} placeholder="Access Key" autoComplete="off" /><Input type="password" value={nessusSecretKey} onChange={(event) => setNessusSecretKey(event.target.value)} placeholder="Secret Key" autoComplete="off" /></div><div className="mt-3 flex items-center gap-3"><Button variant="secondary" onClick={saveNessusCredential} disabled={nessusBusy || !nessusAccessKey || !nessusSecretKey}>{nessusBusy ? 'Testing…' : 'Test connection and save keys'}</Button>{nessusCredential?.saved && <Button variant="secondary" onClick={() => setEditingNessusCredential(false)}>Cancel</Button>}<p className="text-xs text-slate-400">Neither key is written to usersettings.json, logs, local storage or bridge responses.</p></div></>}
+          </div>
+          {nessusError && <div className="mt-3"><ErrorState title="Nessus settings or connection failed" message={nessusError} /></div>}
+        </Card>
+      )}
+
       {opsi && (
         <Card title="opsi / Patch Management">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -404,7 +488,7 @@ export function SettingsPage() {
         <p className="text-sm text-slate-400">
           User-configurable operating parameters belong on this page. Future modules should add their settings here.
           Deployment defaults remain in <span className="font-mono text-slate-300">appsettings.json</span>; saved values are
-          merged into <span className="font-mono text-slate-300">%APPDATA%\Wec\usersettings.json</span>. KSC and opsi passwords
+          merged into <span className="font-mono text-slate-300">%APPDATA%\Wec\usersettings.json</span>. KSC, opsi and Nessus secrets
           can be stored in the current Windows user's Credential Manager; the normal admin sign-in remains session-only.
         </p>
       </Card>

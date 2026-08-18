@@ -791,7 +791,7 @@ export interface AdComputer {
   lastLogonDate?: string | null;
 }
 
-export type HygieneStatus = 'HEALTHY' | 'WARNING' | 'CLEANUP_CANDIDATE' | 'INCOMPLETE';
+export type HygieneStatus = 'HEALTHY' | 'WARNING' | 'CLEANUP_CANDIDATE' | 'INCOMPLETE' | 'CRITICAL';
 
 export type HygieneFindingCode =
   | 'MISSING_KASPERSKY'
@@ -802,7 +802,11 @@ export type HygieneFindingCode =
   | 'OUTDATED_KES'
   | 'MISSING_OPSI'
   | 'ORPHAN_OPSI'
-  | 'STALE_OPSI';
+  | 'STALE_OPSI'
+  | 'MISSING_NESSUS'
+  | 'STALE_NESSUS'
+  | 'NESSUS_CRITICAL_VULNERABILITIES'
+  | 'NESSUS_HIGH_VULNERABILITIES';
 
 export type HygieneFindingSeverity = 'WARNING' | 'CRITICAL';
 
@@ -840,7 +844,21 @@ export interface OpsiDeviceData {
   clientAgentVersion: string | null;
 }
 
-export type InventorySourceAvailability = 'AVAILABLE' | 'NOT_CONNECTED' | 'UNAVAILABLE' | 'TRUNCATED';
+export interface NessusDeviceData {
+  exists: boolean;
+  assetId: string | null;
+  ipAddress: string | null;
+  lastCompletedScanUtc: string | null;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+  ports: number[];
+  scanSources: string[];
+}
+
+export type InventorySourceAvailability = 'AVAILABLE' | 'NOT_CONNECTED' | 'UNAVAILABLE' | 'TRUNCATED' | 'PARTIAL';
 
 export interface InventorySourceState {
   availability: InventorySourceAvailability;
@@ -851,6 +869,7 @@ export interface EnvironmentSourceStates {
   activeDirectory: InventorySourceState;
   kaspersky: InventorySourceState;
   opsi: InventorySourceState;
+  nessus: InventorySourceState;
 }
 
 export interface HygieneAssessment {
@@ -864,6 +883,7 @@ export interface HygieneDevice {
   activeDirectory: AdDeviceData;
   kaspersky: KasperskyDeviceData;
   opsi: OpsiDeviceData;
+  nessus: NessusDeviceData;
   assessment: HygieneAssessment;
 }
 
@@ -872,6 +892,7 @@ export interface HygieneSummary {
   adComputers: number;
   kasperskyComputers: number;
   opsiComputers: number;
+  nessusComputers: number;
   healthy: number;
   problems: number;
   incomplete: number;
@@ -881,7 +902,30 @@ export interface HygieneSummary {
   missingOpsi: number;
   orphanOpsi: number;
   outdated: number;
+  missingNessus: number;
+  staleNessus: number;
+  nessusCritical: number;
+  nessusHigh: number;
 }
+
+export type NessusSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type NessusSyncPhase = 'IDLE' | 'DISCOVERING_SCANS' | 'IMPORTING_CURRENT_RUNS' | 'PUBLISHING_CURRENT_INVENTORY' | 'IMPORTING_HISTORY' | 'COMPLETED' | 'FAILED';
+export type TrendVerdict = 'INSUFFICIENT_DATA' | 'BETTER' | 'WORSE' | 'STABLE';
+export interface NessusSyncStatus { phase: NessusSyncPhase; running: boolean; startedAtUtc: string | null; lastSuccessfulSyncUtc: string | null; error: string | null; completedScans: number; totalScans: number; historySupported: boolean; serverVersion: string | null; }
+export interface VulnerabilityOverview { sync: NessusSyncStatus; includedScans: number; excludedScans: number; assets: number; matchedAssets: number; unmatchedAssets: number; criticalAssets: number; highAssets: number; criticalInstances: number; highInstances: number; staleScans: number; }
+export interface NessusAsset { assetKey: string; displayName: string; hostName: string | null; fqdn: string | null; ipAddress: string | null; assetId: string | null; lastScanUtc: string; critical: number; high: number; medium: number; low: number; info: number; ports: number[]; scanSources: string[]; }
+export interface VulnerabilityAssetRow { asset: NessusAsset; matched: boolean; }
+export interface VulnerabilityFindingRow { pluginId: number; name: string; severity: NessusSeverity; cves: string[]; affectedAssets: number; instances: number; }
+export interface NessusFinding { assetKey: string; pluginId: number; port: number; protocol: string; severity: NessusSeverity; name: string; cves: string[]; synopsis: string | null; solution: string | null; lastObservedUtc: string; scanSources: string[]; }
+export interface VulnerabilityFindingDetails { pluginId: number; name: string; severity: NessusSeverity; cves: string[]; synopsis: string | null; solution: string | null; instances: NessusFinding[]; }
+export interface NessusScan { id: number; name: string; excluded: boolean; status: string | null; latestCompletedHistoryId: number | null; latestCompletedUtc: string | null; error: string | null; }
+export interface PageResult<T> { items: T[]; total: number; page: number; pageSize: number; }
+export interface TrendPoint { dayUtc: string; critical: number; high: number; medium: number; low: number; info: number; assets: number; }
+export interface VulnerabilityTrend { verdict: TrendVerdict; points: TrendPoint[]; commonAssets: number; newAssets: number; removedAssets: number; }
+export interface NessusSettingsValue { serverUrl: string; requestTimeoutSeconds: number; trustedCertificateThumbprint: string; cacheTtlMinutes: number; backfillDays: number; retentionDays: number; staleWarningDays: number; staleCriticalDays: number; excludedScanIds: number[]; missingNessusExcludedOuPatterns: string[]; missingNessusExcludedHostPatterns: string[]; }
+export interface NessusSettingsResult { settings: NessusSettingsValue; restartRequired: boolean; }
+export interface NessusCredentialStatus { saved: boolean; }
+export interface NessusCertificateResult { sha256Fingerprint: string; subject: string; validFromUtc: string; validToUtc: string; }
 
 export interface ItHygieneResult {
   assessedAtUtc: string;

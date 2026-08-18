@@ -59,6 +59,12 @@ export const navIcons: Record<string, ReactNode> = {
       <path d="M7 11h3l1.5-3 2 6 1.5-3h2M9 21h6M12 18v3" />
     </svg>
   ),
+  vulnerabilities: (
+    <svg {...iconProps}>
+      <path d="M12 3l8 4v5c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V7z" />
+      <path d="M12 8v5M12 17h.01" />
+    </svg>
+  ),
   patchmanagement: (
     <svg {...iconProps}>
       <path d="M21 8l-9-5-9 5v8l9 5 9-5z" />

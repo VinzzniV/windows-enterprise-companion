@@ -21,12 +21,14 @@ const result: ItHygieneResult = {
     activeDirectory: { availability: 'AVAILABLE', error: null },
     kaspersky: { availability: 'AVAILABLE', error: null },
     opsi: { availability: 'AVAILABLE', error: null },
+    nessus: { availability: 'AVAILABLE', error: null },
   },
   summary: {
     total: 2,
     adComputers: 2,
     kasperskyComputers: 1,
     opsiComputers: 0,
+    nessusComputers: 1,
     healthy: 1,
     problems: 1,
     incomplete: 0,
@@ -36,6 +38,10 @@ const result: ItHygieneResult = {
     missingOpsi: 0,
     orphanOpsi: 0,
     outdated: 0,
+    missingNessus: 0,
+    staleNessus: 0,
+    nessusCritical: 0,
+    nessusHigh: 0,
   },
   devices: [
     {
@@ -59,6 +65,7 @@ const result: ItHygieneResult = {
         administrationGroup: 'Workstations',
       },
       opsi: { exists: false, clientId: null, description: null, depotId: null, lastSeen: null, clientAgentVersion: null },
+      nessus: { exists: true, assetId: '1', ipAddress: '10.0.0.1', lastCompletedScanUtc: '2026-08-16T12:00:00Z', critical: 0, high: 0, medium: 0, low: 0, info: 0, ports: [], scanSources: ['Clients'] },
       assessment: { status: 'HEALTHY', findings: [] },
     },
     {
@@ -82,6 +89,7 @@ const result: ItHygieneResult = {
         administrationGroup: null,
       },
       opsi: { exists: false, clientId: null, description: null, depotId: null, lastSeen: null, clientAgentVersion: null },
+      nessus: { exists: false, assetId: null, ipAddress: null, lastCompletedScanUtc: null, critical: 0, high: 0, medium: 0, low: 0, info: 0, ports: [], scanSources: [] },
       assessment: {
         status: 'WARNING',
         findings: [

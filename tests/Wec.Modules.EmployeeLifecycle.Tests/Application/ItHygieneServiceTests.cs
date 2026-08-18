@@ -171,6 +171,53 @@ public sealed class ItHygieneServiceTests
     }
 
     [Fact]
+    public void NessusAssessment_RequiresEnabledWindowsServersAndClients()
+    {
+        var nessus = new NessusComputerInventory([], NessusInventoryAvailability.Available, Now);
+        var sources = new EnvironmentSourceStates(Available, Available, Available, Available);
+        IReadOnlyList<HygieneDevice> devices = ItHygieneService.CorrelateAndAssess(
+            [Ad("CLIENT", operatingSystem: "Windows 11 Pro"), Ad("SERVER", operatingSystem: "Windows Server 2025"), Ad("LINUX", operatingSystem: "Ubuntu")],
+            [], [], nessus, sources, Now, Options);
+
+        AssertFinding(devices, "CLIENT", HygieneFindingCode.MissingNessus);
+        AssertFinding(devices, "SERVER", HygieneFindingCode.MissingNessus);
+        Assert.DoesNotContain(devices.Single(x => x.ComputerName == "LINUX").Assessment.Findings,
+            x => x.Code == HygieneFindingCode.MissingNessus);
+    }
+
+    [Fact]
+    public void NessusAssessment_SuppressesMissingForPartialDataAndConfiguredExclusions()
+    {
+        var partial = new NessusComputerInventory([], NessusInventoryAvailability.Partial, Now, "one scan failed");
+        var partialSources = new EnvironmentSourceStates(Available, Available, Available,
+            new InventorySourceState(InventorySourceAvailability.Partial));
+        HygieneDevice incomplete = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("CLIENT", operatingSystem: "Windows 11")], [Ksc("CLIENT")], [Opsi("CLIENT")], partial, partialSources, Now, Options));
+        Assert.Equal(HygieneStatus.Incomplete, incomplete.Assessment.Status);
+        Assert.DoesNotContain(incomplete.Assessment.Findings, x => x.Code == HygieneFindingCode.MissingNessus);
+
+        var excluded = new NessusComputerInventory([], NessusInventoryAvailability.Available, Now,
+            MissingExcludedHostPatterns: ["CLIENT"]);
+        HygieneDevice ignored = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("CLIENT", operatingSystem: "Windows 11")], [Ksc("CLIENT")], [Opsi("CLIENT")], excluded,
+            new EnvironmentSourceStates(Available, Available, Available, Available), Now, Options));
+        Assert.DoesNotContain(ignored.Assessment.Findings, x => x.Code == HygieneFindingCode.MissingNessus);
+    }
+
+    [Fact]
+    public void NessusAssessment_UsesCriticalStatusWithoutCleanupCandidate()
+    {
+        var inventory = new NessusComputerInventory(
+            [new NessusComputerInventoryItem("CLIENT", "asset", "10.0.0.1", Now.AddDays(-1), 2, 4, 1, 0, 0, [443], ["Clients"])],
+            NessusInventoryAvailability.Available, Now);
+        HygieneDevice device = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("CLIENT", operatingSystem: "Windows 11")], [], [], inventory,
+            new EnvironmentSourceStates(Available, Available, Available, Available), Now, Options));
+        Assert.Equal(HygieneStatus.Critical, device.Assessment.Status);
+        AssertFinding([device], "CLIENT", HygieneFindingCode.NessusCriticalVulnerabilities);
+    }
+
+    [Fact]
     public async Task LoadAsync_KeepsAvailableSourcesWhenKasperskyFails()
     {
         var service = new ItHygieneService(
@@ -179,6 +226,7 @@ public sealed class ItHygieneServiceTests
             new KasperskyProvider(Result.Failure<KasperskyInventory>(new Error(
                 ErrorCode.ServiceUnavailable, "KSC unavailable"))),
             new OpsiProvider(Result.Success(new OpsiComputerInventory([Opsi("PC001")]))),
+            new NessusProvider(),
             new CredentialStore(),
             new TestClock(),
             Microsoft.Extensions.Options.Options.Create(Options));
@@ -210,6 +258,7 @@ public sealed class ItHygieneServiceTests
                 true, "example.test", [Ad("PC001", operatingSystem: "Windows 11 Pro")], false))),
             new ThrowingKasperskyProvider(),
             new OpsiProvider(Result.Success(new OpsiComputerInventory([Opsi("PC001")]))),
+            new NessusProvider(),
             new CredentialStore(),
             new TestClock(),
             Microsoft.Extensions.Options.Options.Create(Options));
@@ -236,6 +285,7 @@ public sealed class ItHygieneServiceTests
                 true, "example.test", [Ad("PC001")], false))),
             kaspersky,
             new OpsiProvider(Result.Success(new OpsiComputerInventory([]))),
+            new NessusProvider(),
             credentials,
             new TestClock(),
             Microsoft.Extensions.Options.Options.Create(Options));
@@ -341,6 +391,15 @@ public sealed class ItHygieneServiceTests
         public Task<Result<OpsiComputerInventory>> LoadAsync(
             int limit,
             CancellationToken cancellationToken) => Task.FromResult(result);
+    }
+
+    private sealed class NessusProvider : INessusComputerInventoryProvider
+    {
+        public Task<Result<NessusComputerInventory>> LoadAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success(new NessusComputerInventory(
+                [new NessusComputerInventoryItem("PC001", "asset-1", "10.0.0.1", Now.AddDays(-1), 0, 0, 0, 0, 0, [], ["Clients"])],
+                NessusInventoryAvailability.Available,
+                Now)));
     }
 
     private sealed class TestClock : IClock

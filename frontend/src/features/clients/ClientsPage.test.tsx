@@ -20,14 +20,16 @@ const environment: ItHygieneResult = {
     activeDirectory: { availability: 'AVAILABLE', error: null },
     kaspersky: { availability: 'AVAILABLE', error: null },
     opsi: { availability: 'AVAILABLE', error: null },
+    nessus: { availability: 'AVAILABLE', error: null },
   },
-  summary: { total: 2, adComputers: 2, kasperskyComputers: 1, opsiComputers: 1, healthy: 2, problems: 0, incomplete: 0, stale: 0, missingKaspersky: 0, orphanKaspersky: 0, missingOpsi: 0, orphanOpsi: 0, outdated: 0 },
+  summary: { total: 2, adComputers: 2, kasperskyComputers: 1, opsiComputers: 1, nessusComputers: 1, healthy: 2, problems: 0, incomplete: 0, stale: 0, missingKaspersky: 0, orphanKaspersky: 0, missingOpsi: 0, orphanOpsi: 0, outdated: 0, missingNessus: 0, staleNessus: 0, nessusCritical: 0, nessusHigh: 0 },
   devices: [
     {
       computerName: 'DISABLED-PC', hostName: 'disabled-pc.corp.local',
       activeDirectory: { exists: true, enabled: false, dnsHostName: 'disabled-pc.corp.local', operatingSystem: 'Windows 11 Pro', description: null, distinguishedName: 'CN=DISABLED-PC,DC=corp,DC=local', organizationalUnit: 'DC=corp,DC=local', lastLogonDate: null },
       kaspersky: { exists: false, lastSeen: null, agentVersion: null, kesVersion: null, administrationGroup: null },
       opsi: { exists: false, clientId: null, description: null, depotId: null, lastSeen: null, clientAgentVersion: null },
+      nessus: { exists: false, assetId: null, ipAddress: null, lastCompletedScanUtc: null, critical: 0, high: 0, medium: 0, low: 0, info: 0, ports: [], scanSources: [] },
       assessment: { status: 'HEALTHY', findings: [] },
     },
     {
@@ -35,6 +37,7 @@ const environment: ItHygieneResult = {
       activeDirectory: { exists: true, enabled: true, dnsHostName: 'pc01.corp.local', operatingSystem: 'Windows 11 Pro', description: null, distinguishedName: 'CN=PC01,DC=corp,DC=local', organizationalUnit: 'DC=corp,DC=local', lastLogonDate: null },
       kaspersky: { exists: true, lastSeen: null, agentVersion: '16.0', kesVersion: '21.25', administrationGroup: 'Clients' },
       opsi: { exists: true, clientId: 'pc01.corp.local', description: null, depotId: 'depot01', lastSeen: null, clientAgentVersion: '4.3.8' },
+      nessus: { exists: true, assetId: 'asset-1', ipAddress: '10.0.0.1', lastCompletedScanUtc: '2026-08-18T05:00:00Z', critical: 0, high: 0, medium: 1, low: 2, info: 0, ports: [443], scanSources: ['Clients'] },
       assessment: { status: 'HEALTHY', findings: [] },
     },
   ],
@@ -72,7 +75,7 @@ describe('ClientsPage', () => {
     expect(await screen.findByText('DISABLED-PC')).toBeTruthy();
     expect(screen.getByText('PC01')).toBeTruthy();
     expect(screen.getByText('SCAN-ONLY')).toBeTruthy();
-    for (const heading of ['Device', 'AD', 'Kaspersky', 'opsi', 'Overall']) {
+    for (const heading of ['Device', 'AD', 'Kaspersky', 'opsi', 'Nessus', 'Overall']) {
       expect(screen.getByRole('columnheader', { name: heading })).toBeTruthy();
     }
     expect(screen.getByText('Disabled')).toBeTruthy();

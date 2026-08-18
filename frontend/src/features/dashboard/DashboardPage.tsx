@@ -8,6 +8,8 @@ import type {
   OpsiConnectionStatusResult,
   PatchDashboardResult,
   PrintServerSnapshot,
+  VulnerabilityOverview,
+  VulnerabilityTrend,
 } from '../../shared/api-types';
 import type { MetricTone } from '../../shared/ui/SummaryMetric';
 import { PageHeader } from '../../shared/ui/PageHeader';
@@ -78,6 +80,7 @@ export function DashboardPage() {
   const [print, setPrint] = useState<TileMetric | null>(null);
   const [patch, setPatch] = useState<TileMetric | null>(null);
   const [patchChart, setPatchChart] = useState<PatchChartSegment[] | null>(null);
+  const [vulnerabilities, setVulnerabilities] = useState<TileMetric | null>(null);
 
   useEffect(() => {
     invoke<ListInventoryHostsResult>('inventory', 'listHosts', {})
@@ -113,6 +116,15 @@ export function DashboardPage() {
           .catch(() => setPatchChart(null));
       })
       .catch(() => setPatch(derivePatchTile(null)));
+
+    Promise.all([
+      invoke<VulnerabilityOverview>('vulnerabilitymanagement', 'getOverview', { knownHosts: [] }),
+      invoke<VulnerabilityTrend>('vulnerabilitymanagement', 'getTrend', { days: 30 }),
+    ]).then(([overview, trend]) => setVulnerabilities({
+      value: String(overview.criticalAssets),
+      tone: overview.criticalAssets ? 'danger' : 'success',
+      note: `${overview.highAssets} high · ${trend.verdict === 'BETTER' ? '↓' : trend.verdict === 'WORSE' ? '↑' : '→'} ${trend.verdict.replace('_', ' ').toLowerCase()}`,
+    })).catch(() => setVulnerabilities({ value: '—', tone: 'neutral', note: 'Nessus not configured' }));
   }, []);
 
   return (
@@ -122,6 +134,13 @@ export function DashboardPage() {
         subtitle="At a glance across the modules — from the last stored scan of each. Open a module to run a fresh one."
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <ModuleTile
+          to="/vulnerabilities"
+          icon={navIcons.vulnerabilities}
+          title="Vulnerabilities"
+          description="Deduplicated Nessus findings and security trend."
+          metric={vulnerabilities ?? undefined}
+        />
         <ModuleTile
           to="/clients"
           icon={navIcons.clients}

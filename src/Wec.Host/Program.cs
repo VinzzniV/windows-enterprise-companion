@@ -38,6 +38,7 @@ using Wec.Modules.PrintManagement;
 using Wec.Modules.Reporting;
 using Wec.Modules.Security;
 using Wec.Modules.Targets;
+using Wec.Modules.VulnerabilityManagement;
 
 using HostFactory = Microsoft.Extensions.Hosting.Host;
 
@@ -174,6 +175,14 @@ internal static partial class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        builder.Services
+            .AddOptions<VulnerabilityManagementOptions>()
+            .Bind(builder.Configuration.GetSection(VulnerabilityManagementOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(options => options.StaleCriticalDays > options.StaleWarningDays,
+                "The Nessus critical stale threshold must be greater than the warning threshold.")
+            .ValidateOnStart();
+
         IModule[] modules =
         [
             new InventoryModule(),
@@ -186,6 +195,7 @@ internal static partial class Program
             new NetworkScanModule(),
             new TargetsModule(),
             new EmployeeLifecycleModule(),
+            new VulnerabilityManagementModule(),
         ];
         foreach (IModule module in modules)
         {
@@ -237,6 +247,8 @@ internal static partial class Program
         builder.Services.AddSingleton<IActionHandler, SaveItLifecycleSettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, GetOpsiSettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, SaveOpsiSettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, GetNessusSettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, SaveNessusSettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, GetServiceCredentialStatusesHandler>();
         builder.Services.AddSingleton<IActionHandler, SaveServiceCredentialHandler>();
         builder.Services.AddSingleton<IActionHandler, DeleteServiceCredentialHandler>();

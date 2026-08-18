@@ -12,6 +12,7 @@ public enum HygieneStatus
     Warning,
     CleanupCandidate,
     Incomplete,
+    Critical,
 }
 
 public enum HygieneFindingCode
@@ -25,6 +26,10 @@ public enum HygieneFindingCode
     MissingOpsi,
     OrphanOpsi,
     StaleOpsi,
+    MissingNessus,
+    StaleNessus,
+    NessusCriticalVulnerabilities,
+    NessusHighVulnerabilities,
 }
 
 public enum HygieneFindingSeverity
@@ -63,12 +68,26 @@ public sealed record OpsiDeviceData(
     DateTimeOffset? LastSeen,
     string? ClientAgentVersion);
 
+public sealed record NessusDeviceData(
+    bool Exists,
+    string? AssetId,
+    string? IpAddress,
+    DateTimeOffset? LastCompletedScanUtc,
+    int Critical,
+    int High,
+    int Medium,
+    int Low,
+    int Info,
+    IReadOnlyList<int> Ports,
+    IReadOnlyList<string> ScanSources);
+
 public enum InventorySourceAvailability
 {
     Available = 0,
     NotConnected,
     Unavailable,
     Truncated,
+    Partial,
 }
 
 public sealed record InventorySourceState(
@@ -78,7 +97,13 @@ public sealed record InventorySourceState(
 public sealed record EnvironmentSourceStates(
     InventorySourceState ActiveDirectory,
     InventorySourceState Kaspersky,
-    InventorySourceState Opsi);
+    InventorySourceState Opsi,
+    InventorySourceState Nessus)
+{
+    public EnvironmentSourceStates(InventorySourceState activeDirectory, InventorySourceState kaspersky, InventorySourceState opsi)
+        : this(activeDirectory, kaspersky, opsi,
+            new InventorySourceState(InventorySourceAvailability.NotConnected, "Nessus is not configured.")) { }
+}
 
 public sealed record HygieneAssessment(
     HygieneStatus Status,
@@ -90,6 +115,7 @@ public sealed record HygieneDevice(
     AdDeviceData ActiveDirectory,
     KasperskyDeviceData Kaspersky,
     OpsiDeviceData Opsi,
+    NessusDeviceData Nessus,
     HygieneAssessment Assessment);
 
 public sealed record HygieneSummary(
@@ -97,6 +123,7 @@ public sealed record HygieneSummary(
     int AdComputers,
     int KasperskyComputers,
     int OpsiComputers,
+    int NessusComputers,
     int Healthy,
     int Problems,
     int Incomplete,
@@ -105,7 +132,11 @@ public sealed record HygieneSummary(
     int OrphanKaspersky,
     int MissingOpsi,
     int OrphanOpsi,
-    int Outdated);
+    int Outdated,
+    int MissingNessus,
+    int StaleNessus,
+    int NessusCritical,
+    int NessusHigh);
 
 public sealed record ItHygieneResult(
     DateTimeOffset AssessedAtUtc,
@@ -137,6 +168,7 @@ internal sealed class ItHygieneService
     private readonly IAdComputerInventoryProvider _activeDirectory;
     private readonly IKasperskyInventoryReader _kaspersky;
     private readonly IOpsiComputerInventoryProvider _opsi;
+    private readonly INessusComputerInventoryProvider _nessus;
     private readonly IServiceCredentialStore _credentials;
     private readonly IClock _clock;
     private readonly ItLifecycleOptions _options;
@@ -145,6 +177,7 @@ internal sealed class ItHygieneService
         IAdComputerInventoryProvider activeDirectory,
         IKasperskyInventoryReader kaspersky,
         IOpsiComputerInventoryProvider opsi,
+        INessusComputerInventoryProvider nessus,
         IServiceCredentialStore credentials,
         IClock clock,
         IOptions<ItLifecycleOptions> options)
@@ -152,6 +185,7 @@ internal sealed class ItHygieneService
         _activeDirectory = activeDirectory;
         _kaspersky = kaspersky;
         _opsi = opsi;
+        _nessus = nessus;
         _credentials = credentials;
         _clock = clock;
         _options = options.Value;
@@ -185,22 +219,29 @@ internal sealed class ItHygieneService
                 () => _opsi.LoadAsync(_options.InventoryLimit, cancellationToken),
                 "opsi",
                 cancellationToken);
-        await Task.WhenAll(adTask, kscTask, opsiTask);
+        Task<Result<NessusComputerInventory>> nessusTask = LoadSourceAsync(
+            () => _nessus.LoadAsync(cancellationToken),
+            "Nessus",
+            cancellationToken);
+        await Task.WhenAll(adTask, kscTask, opsiTask, nessusTask);
 
         Result<AdComputerInventory> ad = await adTask;
         Result<KasperskyInventory> ksc = await kscTask;
         Result<OpsiComputerInventory> opsi = await opsiTask;
+        Result<NessusComputerInventory> nessus = await nessusTask;
 
         InventorySourceState adState = AdState(ad);
         InventorySourceState kscState = SourceState(ksc, notConnectedOnInvalidRequest: true);
         InventorySourceState opsiState = SourceState(opsi, notConnectedOnInvalidRequest: true);
-        var sources = new EnvironmentSourceStates(adState, kscState, opsiState);
+        InventorySourceState nessusState = NessusState(nessus);
+        var sources = new EnvironmentSourceStates(adState, kscState, opsiState, nessusState);
 
         DateTimeOffset now = _clock.UtcNow;
         IReadOnlyList<HygieneDevice> devices = CorrelateAndAssess(
             ad.IsSuccess ? ad.Value.Computers : [],
             ksc.IsSuccess ? ksc.Value.Computers : [],
             opsi.IsSuccess ? opsi.Value.Computers : [],
+            nessus.IsSuccess ? nessus.Value : new NessusComputerInventory([], NessusInventoryAvailability.Unavailable, null),
             sources,
             now,
             _options);
@@ -211,6 +252,22 @@ internal sealed class ItHygieneService
             sources,
             Summarize(devices),
             devices));
+    }
+
+    private static InventorySourceState NessusState(Result<NessusComputerInventory> result)
+    {
+        if (result.IsFailure)
+        {
+            return new InventorySourceState(InventorySourceAvailability.Unavailable, ErrorText(result.Error!));
+        }
+
+        return new InventorySourceState(result.Value.Availability switch
+        {
+            NessusInventoryAvailability.Available => InventorySourceAvailability.Available,
+            NessusInventoryAvailability.Partial => InventorySourceAvailability.Partial,
+            NessusInventoryAvailability.NotConnected => InventorySourceAvailability.NotConnected,
+            _ => InventorySourceAvailability.Unavailable,
+        }, result.Value.Error);
     }
 
     private Result<KasperskyInventoryConnection?> KasperskyInput(KasperskyInventoryConnection? input)
@@ -309,6 +366,18 @@ internal sealed class ItHygieneService
         EnvironmentSourceStates sources,
         DateTimeOffset now,
         ItLifecycleOptions options)
+        => CorrelateAndAssess(adComputers, kasperskyComputers, opsiComputers,
+            new NessusComputerInventory([], NessusInventoryAvailability.NotConnected, null), sources, now, options, false);
+
+    internal static IReadOnlyList<HygieneDevice> CorrelateAndAssess(
+        IReadOnlyList<AdComputerInventoryItem> adComputers,
+        IReadOnlyList<KasperskyComputer> kasperskyComputers,
+        IReadOnlyList<OpsiComputerInventoryItem> opsiComputers,
+        NessusComputerInventory nessusInventory,
+        EnvironmentSourceStates sources,
+        DateTimeOffset now,
+        ItLifecycleOptions options,
+        bool assessNessus = true)
     {
         Dictionary<string, AdComputerInventoryItem> adByName = adComputers
             .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
@@ -321,6 +390,10 @@ internal sealed class ItHygieneService
                 group => group.Key,
                 group => group.OrderByDescending(computer => computer.LastSeen).First(),
                 StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, NessusComputerInventoryItem> nessusByName = nessusInventory.Computers
+            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Key.Length > 0)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(computer => computer.LastCompletedScanUtc).First(), StringComparer.OrdinalIgnoreCase);
         Dictionary<string, OpsiComputerInventoryItem> opsiByName = opsiComputers
             .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Key.Length > 0)
@@ -338,12 +411,15 @@ internal sealed class ItHygieneService
                 adByName.TryGetValue(name, out AdComputerInventoryItem? ad);
                 kscByName.TryGetValue(name, out KasperskyComputer? ksc);
                 opsiByName.TryGetValue(name, out OpsiComputerInventoryItem? opsi);
-                List<HygieneFinding> findings = Assess(ad, ksc, opsi, sources, now, options);
-                HygieneStatus status = findings.Any(finding => finding.Severity == HygieneFindingSeverity.Critical)
+                nessusByName.TryGetValue(name, out NessusComputerInventoryItem? nessus);
+                List<HygieneFinding> findings = Assess(ad, ksc, opsi, nessus, nessusInventory, sources, now, options, assessNessus);
+                HygieneStatus status = findings.Any(finding => finding.Code == HygieneFindingCode.NessusCriticalVulnerabilities)
+                    ? HygieneStatus.Critical
+                    : findings.Any(finding => finding.Severity == HygieneFindingSeverity.Critical)
                     ? HygieneStatus.CleanupCandidate
                     : findings.Count > 0
                         ? HygieneStatus.Warning
-                        : SourcesComplete(sources)
+                        : SourcesComplete(sources, assessNessus)
                             ? HygieneStatus.Healthy
                             : HygieneStatus.Incomplete;
 
@@ -377,15 +453,28 @@ internal sealed class ItHygieneService
                         opsi?.DepotId,
                         opsi?.LastSeen,
                         opsi?.ClientAgentVersion),
+                    new NessusDeviceData(
+                        nessus is not null,
+                        nessus?.AssetId,
+                        nessus?.IpAddress,
+                        nessus?.LastCompletedScanUtc,
+                        nessus?.Critical ?? 0,
+                        nessus?.High ?? 0,
+                        nessus?.Medium ?? 0,
+                        nessus?.Low ?? 0,
+                        nessus?.Info ?? 0,
+                        nessus?.Ports ?? [],
+                        nessus?.ScanSources ?? []),
                     new HygieneAssessment(status, findings));
             })
             .ToList();
     }
 
-    private static bool SourcesComplete(EnvironmentSourceStates sources) =>
+    private static bool SourcesComplete(EnvironmentSourceStates sources, bool requireNessus) =>
         sources.ActiveDirectory.Availability == InventorySourceAvailability.Available
         && sources.Kaspersky.Availability == InventorySourceAvailability.Available
-        && sources.Opsi.Availability == InventorySourceAvailability.Available;
+        && sources.Opsi.Availability == InventorySourceAvailability.Available
+        && (!requireNessus || sources.Nessus.Availability == InventorySourceAvailability.Available);
 
     internal static string NormalizeComputerName(string? computerName)
     {
@@ -425,9 +514,12 @@ internal sealed class ItHygieneService
         AdComputerInventoryItem? ad,
         KasperskyComputer? ksc,
         OpsiComputerInventoryItem? opsi,
+        NessusComputerInventoryItem? nessus,
+        NessusComputerInventory nessusInventory,
         EnvironmentSourceStates sources,
         DateTimeOffset now,
-        ItLifecycleOptions options)
+        ItLifecycleOptions options,
+        bool assessNessus)
     {
         var findings = new List<HygieneFinding>();
         bool canCompareKaspersky = CanCompare(sources.ActiveDirectory, sources.Kaspersky);
@@ -502,6 +594,47 @@ internal sealed class ItHygieneService
                 $"KES {ksc.KesVersion} is below target {options.TargetKesVersion}."));
         }
 
+        if (assessNessus && sources.Nessus.Availability == InventorySourceAvailability.Available)
+        {
+            if (ad is { Enabled: true }
+                && IsWindows(ad.OperatingSystem)
+                && nessus is null
+                && !MatchesAny(ad.ComputerName, nessusInventory.MissingExcludedHostPatterns)
+                && !MatchesAny(ad.DistinguishedName, nessusInventory.MissingExcludedOuPatterns))
+            {
+                findings.Add(new HygieneFinding(
+                    HygieneFindingCode.MissingNessus,
+                    HygieneFindingSeverity.Warning,
+                    "Enabled Windows computer in Active Directory, but no matching Nessus asset was found."));
+            }
+
+            if (nessus is not null)
+            {
+                AddStaleFinding(
+                    findings,
+                    HygieneFindingCode.StaleNessus,
+                    "Nessus last completed scan",
+                    nessus.LastCompletedScanUtc,
+                    now,
+                    nessusInventory.StaleWarningDays,
+                    nessusInventory.StaleCriticalDays);
+                if (nessus.Critical > 0)
+                {
+                    findings.Add(new HygieneFinding(
+                        HygieneFindingCode.NessusCriticalVulnerabilities,
+                        HygieneFindingSeverity.Critical,
+                        $"Nessus reports {nessus.Critical} critical finding instance(s)."));
+                }
+                else if (nessus.High > 0)
+                {
+                    findings.Add(new HygieneFinding(
+                        HygieneFindingCode.NessusHighVulnerabilities,
+                        HygieneFindingSeverity.Warning,
+                        $"Nessus reports {nessus.High} high finding instance(s)."));
+                }
+            }
+        }
+
         return findings;
     }
 
@@ -514,6 +647,16 @@ internal sealed class ItHygieneService
         && operatingSystem.Contains("Windows", StringComparison.OrdinalIgnoreCase)
         && !operatingSystem.Contains("Server", StringComparison.OrdinalIgnoreCase);
 
+    internal static bool IsWindows(string? operatingSystem) =>
+        !string.IsNullOrWhiteSpace(operatingSystem)
+        && operatingSystem.Contains("Windows", StringComparison.OrdinalIgnoreCase);
+
+    private static bool MatchesAny(string? value, IReadOnlyList<string>? patterns) =>
+        !string.IsNullOrWhiteSpace(value)
+        && (patterns ?? []).Any(pattern =>
+            !string.IsNullOrWhiteSpace(pattern)
+            && value.Contains(pattern.Trim().Trim('*'), StringComparison.OrdinalIgnoreCase));
+
     private static void AddStaleFinding(
         List<HygieneFinding> findings,
         HygieneFindingCode code,
@@ -521,6 +664,17 @@ internal sealed class ItHygieneService
         DateTimeOffset? timestamp,
         DateTimeOffset now,
         ItLifecycleOptions options)
+        => AddStaleFinding(
+            findings, code, label, timestamp, now, options.StaleWarningDays, options.StaleCriticalDays);
+
+    private static void AddStaleFinding(
+        List<HygieneFinding> findings,
+        HygieneFindingCode code,
+        string label,
+        DateTimeOffset? timestamp,
+        DateTimeOffset now,
+        int warningDays,
+        int criticalDays)
     {
         if (timestamp is null)
         {
@@ -528,19 +682,19 @@ internal sealed class ItHygieneService
         }
 
         double ageDays = Math.Max(0, (now - timestamp.Value).TotalDays);
-        if (ageDays > options.StaleCriticalDays)
+        if (ageDays > criticalDays)
         {
             findings.Add(new HygieneFinding(
                 code,
                 HygieneFindingSeverity.Critical,
-                $"{label} was {Math.Floor(ageDays)} days ago (cleanup threshold: {options.StaleCriticalDays} days)."));
+                $"{label} was {Math.Floor(ageDays)} days ago (cleanup threshold: {criticalDays} days)."));
         }
-        else if (ageDays > options.StaleWarningDays)
+        else if (ageDays > warningDays)
         {
             findings.Add(new HygieneFinding(
                 code,
                 HygieneFindingSeverity.Warning,
-                $"{label} was {Math.Floor(ageDays)} days ago (warning threshold: {options.StaleWarningDays} days)."));
+                $"{label} was {Math.Floor(ageDays)} days ago (warning threshold: {warningDays} days)."));
         }
     }
 
@@ -552,24 +706,30 @@ internal sealed class ItHygieneService
         int healthy = devices.Count(device => device.Assessment.Status == HygieneStatus.Healthy);
         int incomplete = devices.Count(device => device.Assessment.Status == HygieneStatus.Incomplete);
         int problems = devices.Count(device => device.Assessment.Status is
-            HygieneStatus.Warning or HygieneStatus.CleanupCandidate);
+            HygieneStatus.Warning or HygieneStatus.CleanupCandidate or HygieneStatus.Critical);
         return new HygieneSummary(
             devices.Count,
             devices.Count(device => device.ActiveDirectory.Exists),
             devices.Count(device => device.Kaspersky.Exists),
             devices.Count(device => device.Opsi.Exists),
+            devices.Count(device => device.Nessus.Exists),
             healthy,
             problems,
             incomplete,
             devices.Count(device => Has(device,
                 HygieneFindingCode.StaleAd,
                 HygieneFindingCode.StaleKaspersky,
-                HygieneFindingCode.StaleOpsi)),
+                HygieneFindingCode.StaleOpsi,
+                HygieneFindingCode.StaleNessus)),
             devices.Count(device => Has(device, HygieneFindingCode.MissingKaspersky)),
             devices.Count(device => Has(device, HygieneFindingCode.OrphanKaspersky)),
             devices.Count(device => Has(device, HygieneFindingCode.MissingOpsi)),
             devices.Count(device => Has(device, HygieneFindingCode.OrphanOpsi)),
-            devices.Count(device => Has(device, HygieneFindingCode.OutdatedAgent, HygieneFindingCode.OutdatedKes)));
+            devices.Count(device => Has(device, HygieneFindingCode.OutdatedAgent, HygieneFindingCode.OutdatedKes)),
+            devices.Count(device => Has(device, HygieneFindingCode.MissingNessus)),
+            devices.Count(device => Has(device, HygieneFindingCode.StaleNessus)),
+            devices.Count(device => Has(device, HygieneFindingCode.NessusCriticalVulnerabilities)),
+            devices.Count(device => Has(device, HygieneFindingCode.NessusHighVulnerabilities)));
     }
 
     private Result<AdComputerInventoryQuery> BuildAdQuery(DirectoryInventoryConnection? input)

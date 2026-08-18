@@ -34,6 +34,13 @@ const opsiSettings = {
   trustServerCertificate: true,
 };
 
+const nessusSettings = {
+  serverUrl: 'https://172.20.200.75:8834', requestTimeoutSeconds: 120,
+  trustedCertificateThumbprint: '', cacheTtlMinutes: 15, backfillDays: 90,
+  retentionDays: 365, staleWarningDays: 14, staleCriticalDays: 30,
+  excludedScanIds: [], missingNessusExcludedOuPatterns: [], missingNessusExcludedHostPatterns: [],
+};
+
 beforeEach(() => {
   invokeMock.mockReset();
   invokeMock.mockImplementation((_module: string, action: string) => {
@@ -56,6 +63,14 @@ beforeEach(() => {
     if (action === 'getOpsiSettings') {
       return Promise.resolve({ settings: opsiSettings, restartRequired: false });
     }
+    if (action === 'getNessusSettings') {
+      return Promise.resolve({ settings: nessusSettings, restartRequired: false });
+    }
+    if (action === 'getCredentialStatus') return Promise.resolve({ saved: false });
+    if (action === 'getCertificate') return Promise.resolve({
+      sha256Fingerprint: 'A'.repeat(64), subject: 'CN=nessus',
+      validFromUtc: '2026-01-01T00:00:00Z', validToUtc: '2027-01-01T00:00:00Z',
+    });
     if (action === 'saveOpsiSettings') {
       return Promise.resolve({ settings: opsiSettings, restartRequired: true });
     }
@@ -155,5 +170,17 @@ describe('SettingsPage', () => {
       rememberCredential: true,
     });
     expect(screen.queryByLabelText('opsi password')).toBeNull();
+  });
+
+  it('reads the Nessus certificate fingerprint from the currently entered server', async () => {
+    renderSettings();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Read HTTPS certificate fingerprint' }));
+
+    expect(invokeMock).toHaveBeenCalledWith('vulnerabilitymanagement', 'getCertificate', {
+      serverUrl: 'https://172.20.200.75:8834', requestTimeoutSeconds: 30,
+    }, 35_000);
+    expect(await screen.findByText(`SHA-256: ${'A'.repeat(64)}`)).toBeTruthy();
+    expect((screen.getByLabelText('Certificate fingerprint') as HTMLInputElement).value).toBe('A'.repeat(64));
   });
 });

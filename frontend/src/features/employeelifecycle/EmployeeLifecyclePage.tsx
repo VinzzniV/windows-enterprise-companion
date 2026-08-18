@@ -15,12 +15,14 @@ import { SummaryMetric } from '../../shared/ui/SummaryMetric';
 
 type HygieneFilter = 'ALL' | 'HEALTHY' | 'PROBLEMS' | 'INCOMPLETE'
   | 'MISSING_KASPERSKY' | 'ORPHAN_KASPERSKY' | 'MISSING_OPSI' | 'ORPHAN_OPSI'
-  | 'STALE' | 'OUTDATED';
+  | 'STALE' | 'OUTDATED'
+  | 'MISSING_NESSUS' | 'STALE_NESSUS' | 'NESSUS_CRITICAL' | 'NESSUS_HIGH';
 
 const filterLabels: Record<HygieneFilter, string> = {
   ALL: 'All devices', HEALTHY: 'Healthy', PROBLEMS: 'Problems', INCOMPLETE: 'Incomplete data',
   MISSING_KASPERSKY: 'Missing Kaspersky', ORPHAN_KASPERSKY: 'Orphan Kaspersky',
   MISSING_OPSI: 'Missing opsi', ORPHAN_OPSI: 'Orphan opsi', STALE: 'Stale', OUTDATED: 'Outdated',
+  MISSING_NESSUS: 'Missing Nessus', STALE_NESSUS: 'Stale Nessus', NESSUS_CRITICAL: 'Nessus Critical', NESSUS_HIGH: 'Nessus High',
 };
 
 export const findingLabels: Record<HygieneFindingCode, string> = {
@@ -28,15 +30,17 @@ export const findingLabels: Record<HygieneFindingCode, string> = {
   STALE_AD: 'Stale AD', STALE_KASPERSKY: 'Stale Kaspersky',
   OUTDATED_AGENT: 'Outdated Agent', OUTDATED_KES: 'Outdated KES',
   MISSING_OPSI: 'Missing opsi', ORPHAN_OPSI: 'Orphan opsi', STALE_OPSI: 'Stale opsi',
+  MISSING_NESSUS: 'Missing Nessus', STALE_NESSUS: 'Stale Nessus',
+  NESSUS_CRITICAL_VULNERABILITIES: 'Critical vulnerabilities', NESSUS_HIGH_VULNERABILITIES: 'High vulnerabilities',
 };
 
 const statusLabels: Record<HygieneStatus, string> = {
-  HEALTHY: 'Healthy', WARNING: 'Warning', CLEANUP_CANDIDATE: 'Cleanup candidate', INCOMPLETE: 'Incomplete',
+  HEALTHY: 'Healthy', WARNING: 'Warning', CLEANUP_CANDIDATE: 'Cleanup candidate', INCOMPLETE: 'Incomplete', CRITICAL: 'Critical',
 };
 
 export function statusTone(status: HygieneStatus): BadgeTone {
   if (status === 'HEALTHY') return 'ok';
-  if (status === 'CLEANUP_CANDIDATE') return 'fail';
+  if (status === 'CLEANUP_CANDIDATE' || status === 'CRITICAL') return 'fail';
   if (status === 'INCOMPLETE') return 'neutral';
   return 'warn';
 }
@@ -57,15 +61,17 @@ function findingStatus(device: HygieneDevice, codes: HygieneFindingCode[], label
 function matchesFilter(device: HygieneDevice, filter: HygieneFilter): boolean {
   if (filter === 'ALL') return true;
   if (filter === 'HEALTHY') return device.assessment.status === 'HEALTHY';
-  if (filter === 'PROBLEMS') return device.assessment.status === 'WARNING' || device.assessment.status === 'CLEANUP_CANDIDATE';
+  if (filter === 'PROBLEMS') return ['WARNING', 'CLEANUP_CANDIDATE', 'CRITICAL'].includes(device.assessment.status);
   if (filter === 'INCOMPLETE') return device.assessment.status === 'INCOMPLETE';
-  if (filter === 'STALE') return hasFinding(device, ['STALE_AD', 'STALE_KASPERSKY', 'STALE_OPSI']);
+  if (filter === 'STALE') return hasFinding(device, ['STALE_AD', 'STALE_KASPERSKY', 'STALE_OPSI', 'STALE_NESSUS']);
   if (filter === 'OUTDATED') return hasFinding(device, ['OUTDATED_AGENT', 'OUTDATED_KES']);
+  if (filter === 'NESSUS_CRITICAL') return hasFinding(device, ['NESSUS_CRITICAL_VULNERABILITIES']);
+  if (filter === 'NESSUS_HIGH') return hasFinding(device, ['NESSUS_HIGH_VULNERABILITIES']);
   return hasFinding(device, [filter]);
 }
 
 function sourceLabel(state: InventorySourceState): string {
-  return ({ AVAILABLE: 'Available', NOT_CONNECTED: 'Not connected', UNAVAILABLE: 'Unavailable', TRUNCATED: 'Truncated' })[state.availability];
+  return ({ AVAILABLE: 'Available', NOT_CONNECTED: 'Not connected', UNAVAILABLE: 'Unavailable', TRUNCATED: 'Truncated', PARTIAL: 'Partial' })[state.availability];
 }
 
 function SourceAvailability({ name, state }: { name: string; state: InventorySourceState }) {
@@ -73,7 +79,7 @@ function SourceAvailability({ name, state }: { name: string; state: InventorySou
   return <span title={state.error ?? undefined}><Badge tone={tone}>{name}: {sourceLabel(state)}</Badge></span>;
 }
 
-type DeviceSource = 'ad' | 'kaspersky' | 'opsi';
+type DeviceSource = 'ad' | 'kaspersky' | 'opsi' | 'nessus';
 
 function SourceStatusBadge({ device, state, source }: { device: HygieneDevice; state: InventorySourceState; source: DeviceSource }) {
   if (state.availability !== 'AVAILABLE') return <Badge tone="neutral">{sourceLabel(state)}</Badge>;
@@ -93,8 +99,15 @@ function SourceStatusBadge({ device, state, source }: { device: HygieneDevice; s
     );
     return <Badge tone={status.tone}>{status.label}</Badge>;
   }
-  if (!device.opsi.exists) return <Badge tone={hasFinding(device, ['MISSING_OPSI']) ? 'warn' : 'neutral'}>{hasFinding(device, ['MISSING_OPSI']) ? 'Missing' : 'N/A'}</Badge>;
-  const status = findingStatus(device, ['STALE_OPSI'], 'Stale');
+  if (source === 'opsi') {
+    if (!device.opsi.exists) return <Badge tone={hasFinding(device, ['MISSING_OPSI']) ? 'warn' : 'neutral'}>{hasFinding(device, ['MISSING_OPSI']) ? 'Missing' : 'N/A'}</Badge>;
+    const status = findingStatus(device, ['STALE_OPSI'], 'Stale');
+    return <Badge tone={status.tone}>{status.label}</Badge>;
+  }
+  if (!device.nessus.exists) return <Badge tone={hasFinding(device, ['MISSING_NESSUS']) ? 'warn' : 'neutral'}>{hasFinding(device, ['MISSING_NESSUS']) ? 'Missing' : 'N/A'}</Badge>;
+  if (hasFinding(device, ['NESSUS_CRITICAL_VULNERABILITIES'])) return <Badge tone="fail">Critical</Badge>;
+  if (hasFinding(device, ['NESSUS_HIGH_VULNERABILITIES'])) return <Badge tone="warn">High</Badge>;
+  const status = findingStatus(device, ['STALE_NESSUS'], 'Stale');
   return <Badge tone={status.tone}>{status.label}</Badge>;
 }
 
@@ -113,6 +126,7 @@ export function EmployeeLifecyclePage() {
       if (!query) return true;
       return [device.computerName, device.hostName, device.activeDirectory.operatingSystem,
         device.activeDirectory.organizationalUnit, device.kaspersky.administrationGroup, device.opsi.depotId,
+        device.nessus.ipAddress, ...device.nessus.scanSources,
         ...device.assessment.findings.flatMap((finding) => [findingLabels[finding.code], finding.message])]
         .filter(Boolean).some((value) => value!.toLocaleLowerCase().includes(query));
     });
@@ -124,11 +138,12 @@ export function EmployeeLifecyclePage() {
     { header: 'AD', cell: (row) => <SourceStatusBadge device={row} state={result.sources.activeDirectory} source="ad" /> },
     { header: 'Kaspersky', cell: (row) => <SourceStatusBadge device={row} state={result.sources.kaspersky} source="kaspersky" /> },
     { header: 'opsi', cell: (row) => <SourceStatusBadge device={row} state={result.sources.opsi} source="opsi" /> },
+    { header: 'Nessus', cell: (row) => <SourceStatusBadge device={row} state={result.sources.nessus} source="nessus" /> },
     { header: 'Overall', cell: (row) => <Badge tone={statusTone(row.assessment.status)}>{statusLabels[row.assessment.status]}</Badge> },
   ] : [];
 
   return <div className="flex flex-col gap-4">
-    <PageHeader title="IT Lifecycle" subtitle="Environment health across Active Directory, Kaspersky and opsi — read-only.">
+    <PageHeader title="IT Lifecycle" subtitle="Environment health across Active Directory, Kaspersky, opsi and Nessus — read-only.">
       <Button variant="primary" onClick={() => void environment.refresh()} disabled={environment.loading}>{environment.loading ? 'Loading…' : 'Refresh'}</Button>
     </PageHeader>
     {environment.error && <ErrorState title="Environment data could not be loaded" message={environment.error} />}
@@ -138,6 +153,7 @@ export function EmployeeLifecyclePage() {
         <SourceAvailability name="AD" state={result.sources.activeDirectory} />
         <SourceAvailability name="Kaspersky" state={result.sources.kaspersky} />
         <SourceAvailability name="opsi" state={result.sources.opsi} />
+        <SourceAvailability name="Nessus" state={result.sources.nessus} />
       </div>
       <div className="flex flex-wrap gap-3">
         <SummaryMetric label="Devices total" value={result.summary.total} />
@@ -148,6 +164,9 @@ export function EmployeeLifecyclePage() {
         <SummaryMetric label="Missing Kaspersky" value={result.summary.missingKaspersky} tone={result.summary.missingKaspersky ? 'warning' : 'success'} />
         <SummaryMetric label="Missing opsi" value={result.summary.missingOpsi} tone={result.summary.missingOpsi ? 'warning' : 'success'} />
         <SummaryMetric label="Outdated" value={result.summary.outdated} tone={result.summary.outdated ? 'warning' : 'success'} />
+        <SummaryMetric label="Missing Nessus" value={result.summary.missingNessus} tone={result.summary.missingNessus ? 'warning' : 'success'} />
+        <SummaryMetric label="Nessus Critical" value={result.summary.nessusCritical} tone={result.summary.nessusCritical ? 'danger' : 'success'} />
+        <SummaryMetric label="Nessus High" value={result.summary.nessusHigh} tone={result.summary.nessusHigh ? 'warning' : 'success'} />
       </div>
       <Card title={`Devices (${filtered.length} of ${result.devices.length})`}>
         <div className="mb-3 flex flex-wrap gap-3">

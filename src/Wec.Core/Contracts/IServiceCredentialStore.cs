@@ -6,6 +6,7 @@ public enum ServiceCredentialKind
 {
     Kaspersky = 0,
     Opsi,
+    Nessus,
 }
 
 public sealed record StoredServiceCredential(
@@ -13,8 +14,7 @@ public sealed record StoredServiceCredential(
     string? Domain,
     string Password)
 {
-    public override string ToString() =>
-        $"StoredServiceCredential {{ UserName = {UserName}, Domain = {Domain} }}";
+    public override string ToString() => "StoredServiceCredential { Protected }";
 }
 
 /// <summary>User-bound secure storage for service accounts. Admin scan credentials are out of scope.</summary>

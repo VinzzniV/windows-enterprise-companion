@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Wec.Core.Messaging;
 using Wec.Core.Results;
 using Wec.Modules.EmployeeLifecycle;
+using Wec.Modules.VulnerabilityManagement;
 
 namespace Wec.Host.Bridge;
 
@@ -261,6 +262,16 @@ internal sealed class UserSettingsStore
         {
             return SettingsWriteFailure(exception);
         }
+    }
+
+    public async Task<Result<bool>> SaveVulnerabilityManagementAsync(VulnerabilityManagementOptions options,CancellationToken cancellationToken)
+    {
+        try
+        {
+            JsonObject root=await ReadRootAsync(cancellationToken);JsonObject wec=GetOrCreateObject(root,"Wec");wec["VulnerabilityManagement"]=JsonSerializer.SerializeToNode(options,JsonOptions);await WriteRootAsync(root,cancellationToken);return Result.Success(true);
+        }
+        catch(JsonException exception){return InvalidSettingsFile(exception);}
+        catch(Exception exception) when(exception is IOException or UnauthorizedAccessException){return SettingsWriteFailure(exception);}
     }
 
     private async Task WriteRootAsync(JsonObject root, CancellationToken cancellationToken)

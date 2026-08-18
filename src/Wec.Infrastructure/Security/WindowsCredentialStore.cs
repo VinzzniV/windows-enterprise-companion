@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Wec.Core.Contracts;
 using Wec.Core.Results;
 
@@ -30,11 +31,26 @@ public sealed class WindowsCredentialStore : IServiceCredentialStore
         {
             NativeCredential native = Marshal.PtrToStructure<NativeCredential>(credentialPointer);
             string identity = native.UserName ?? string.Empty;
-            string password = native.CredentialBlob == nint.Zero || native.CredentialBlobSize == 0
+            string blob = native.CredentialBlob == nint.Zero || native.CredentialBlobSize == 0
                 ? string.Empty
                 : Marshal.PtrToStringUni(native.CredentialBlob, checked((int)native.CredentialBlobSize / 2)) ?? string.Empty;
+            if (kind == ServiceCredentialKind.Nessus)
+            {
+                NessusCredentialPayload? payload;
+                try
+                {
+                    payload = JsonSerializer.Deserialize<NessusCredentialPayload>(blob);
+                }
+                catch (JsonException)
+                {
+                    payload = null;
+                }
+                return payload is null
+                    ? Result.Failure<StoredServiceCredential?>(new Error(ErrorCode.InvalidRequest, "The saved Nessus API keys are invalid."))
+                    : Result.Success<StoredServiceCredential?>(new StoredServiceCredential(payload.AccessKey, null, payload.SecretKey));
+            }
             (string userName, string? domain) = SplitIdentity(identity);
-            return Result.Success<StoredServiceCredential?>(new StoredServiceCredential(userName, domain, password));
+            return Result.Success<StoredServiceCredential?>(new StoredServiceCredential(userName, domain, blob));
         }
         finally
         {
@@ -51,7 +67,10 @@ public sealed class WindowsCredentialStore : IServiceCredentialStore
                 "A user name and password are required before the service credential can be saved."));
         }
 
-        byte[] passwordBytes = Encoding.Unicode.GetBytes(credential.Password);
+        string protectedPayload = kind == ServiceCredentialKind.Nessus
+            ? JsonSerializer.Serialize(new NessusCredentialPayload(credential.UserName, credential.Password))
+            : credential.Password;
+        byte[] passwordBytes = Encoding.Unicode.GetBytes(protectedPayload);
         if (passwordBytes.Length > MaxCredentialBlobBytes)
         {
             return Result.Failure<bool>(new Error(
@@ -70,7 +89,8 @@ public sealed class WindowsCredentialStore : IServiceCredentialStore
                 CredentialBlobSize = checked((uint)passwordBytes.Length),
                 CredentialBlob = passwordPointer,
                 Persist = CredentialPersistLocalMachine,
-                UserName = JoinIdentity(credential),
+                // Nessus keeps both API keys inside the protected credential blob.
+                UserName = kind == ServiceCredentialKind.Nessus ? "Nessus API keys" : JoinIdentity(credential),
             };
             return CredWrite(ref native, 0)
                 ? Result.Success(true)
@@ -111,6 +131,8 @@ public sealed class WindowsCredentialStore : IServiceCredentialStore
     }
 
     private static string Target(ServiceCredentialKind kind) => $"{TargetPrefix}{kind}";
+
+    private sealed record NessusCredentialPayload(string AccessKey, string SecretKey);
 
     private static Result<T> Failure<T>(string message, int nativeError) =>
         Result.Failure<T>(new Error(ErrorCode.FileWriteFailed, message)

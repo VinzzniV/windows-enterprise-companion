@@ -16,7 +16,7 @@ import { Spinner } from '../../shared/ui/Spinner';
 import { buildClientList, filterClients, groupClients, type ClientEntry, type GroupMode } from './clients';
 
 type ClientStatusFilter = 'ALL' | 'HEALTHY' | 'PROBLEMS' | 'INCOMPLETE' | 'UNMANAGED';
-type ClientSourceFilter = 'ALL' | 'AD' | 'KASPERSKY' | 'OPSI' | 'SCANNED' | 'SAVED';
+type ClientSourceFilter = 'ALL' | 'AD' | 'KASPERSKY' | 'OPSI' | 'NESSUS' | 'SCANNED' | 'SAVED';
 
 function hasFinding(device: HygieneDevice, codes: HygieneFindingCode[]) {
   return device.assessment.findings.some((finding) => codes.includes(finding.code));
@@ -32,10 +32,10 @@ function findingStatus(device: HygieneDevice, codes: HygieneFindingCode[], label
 }
 
 function availabilityLabel(state: InventorySourceState) {
-  return ({ AVAILABLE: 'Available', NOT_CONNECTED: 'Not connected', UNAVAILABLE: 'Unavailable', TRUNCATED: 'Truncated' })[state.availability];
+  return ({ AVAILABLE: 'Available', NOT_CONNECTED: 'Not connected', UNAVAILABLE: 'Unavailable', TRUNCATED: 'Truncated', PARTIAL: 'Partial' })[state.availability];
 }
 
-function SourceBadge({ client, state, source }: { client: ClientEntry; state: InventorySourceState; source: 'ad' | 'ksc' | 'opsi' }) {
+function SourceBadge({ client, state, source }: { client: ClientEntry; state: InventorySourceState; source: 'ad' | 'ksc' | 'opsi' | 'nessus' }) {
   const device = client.environment;
   if (!device) return <Badge tone="neutral">Not inventoried</Badge>;
   if (state.availability !== 'AVAILABLE') return <Badge tone="neutral">{availabilityLabel(state)}</Badge>;
@@ -55,8 +55,15 @@ function SourceBadge({ client, state, source }: { client: ClientEntry; state: In
     );
     return <Badge tone={status.tone}>{status.label}</Badge>;
   }
-  if (!device.opsi.exists) return <Badge tone={hasFinding(device, ['MISSING_OPSI']) ? 'warn' : 'neutral'}>{hasFinding(device, ['MISSING_OPSI']) ? 'Missing' : 'N/A'}</Badge>;
-  const status = findingStatus(device, ['STALE_OPSI'], 'Stale');
+  if (source === 'opsi') {
+    if (!device.opsi.exists) return <Badge tone={hasFinding(device, ['MISSING_OPSI']) ? 'warn' : 'neutral'}>{hasFinding(device, ['MISSING_OPSI']) ? 'Missing' : 'N/A'}</Badge>;
+    const status = findingStatus(device, ['STALE_OPSI'], 'Stale');
+    return <Badge tone={status.tone}>{status.label}</Badge>;
+  }
+  if (!device.nessus.exists) return <Badge tone={hasFinding(device, ['MISSING_NESSUS']) ? 'warn' : 'neutral'}>{hasFinding(device, ['MISSING_NESSUS']) ? 'Missing' : 'N/A'}</Badge>;
+  if (hasFinding(device, ['NESSUS_CRITICAL_VULNERABILITIES'])) return <Badge tone="fail">Critical</Badge>;
+  if (hasFinding(device, ['NESSUS_HIGH_VULNERABILITIES'])) return <Badge tone="warn">High</Badge>;
+  const status = findingStatus(device, ['STALE_NESSUS'], 'Stale');
   return <Badge tone={status.tone}>{status.label}</Badge>;
 }
 
@@ -65,6 +72,7 @@ function overall(client: ClientEntry): { label: string; tone: BadgeTone } {
   if (!status) return { label: 'Unmanaged', tone: 'neutral' };
   if (status === 'HEALTHY') return { label: 'Healthy', tone: 'ok' };
   if (status === 'CLEANUP_CANDIDATE') return { label: 'Cleanup candidate', tone: 'fail' };
+  if (status === 'CRITICAL') return { label: 'Critical', tone: 'fail' };
   if (status === 'INCOMPLETE') return { label: 'Incomplete', tone: 'neutral' };
   return { label: 'Warning', tone: 'warn' };
 }
@@ -74,7 +82,7 @@ function matchesStatus(client: ClientEntry, filter: ClientStatusFilter) {
   if (!client.environment) return filter === 'UNMANAGED';
   if (filter === 'HEALTHY') return client.environment.assessment.status === 'HEALTHY';
   if (filter === 'INCOMPLETE') return client.environment.assessment.status === 'INCOMPLETE';
-  if (filter === 'PROBLEMS') return ['WARNING', 'CLEANUP_CANDIDATE'].includes(client.environment.assessment.status);
+  if (filter === 'PROBLEMS') return ['WARNING', 'CLEANUP_CANDIDATE', 'CRITICAL'].includes(client.environment.assessment.status);
   return false;
 }
 
@@ -84,7 +92,8 @@ function matchesSource(client: ClientEntry, filter: ClientSourceFilter) {
   if (filter === 'SAVED') return client.saved;
   if (filter === 'AD') return client.environment?.activeDirectory.exists === true;
   if (filter === 'KASPERSKY') return client.environment?.kaspersky.exists === true;
-  return client.environment?.opsi.exists === true;
+  if (filter === 'OPSI') return client.environment?.opsi.exists === true;
+  return client.environment?.nessus.exists === true;
 }
 
 export function ClientsPage() {
@@ -128,6 +137,7 @@ export function ClientsPage() {
     { header: 'AD', cell: (client) => <SourceBadge client={client} state={environment.result?.sources.activeDirectory ?? { availability: 'NOT_CONNECTED', error: null }} source="ad" /> },
     { header: 'Kaspersky', cell: (client) => <SourceBadge client={client} state={environment.result?.sources.kaspersky ?? { availability: 'NOT_CONNECTED', error: null }} source="ksc" /> },
     { header: 'opsi', cell: (client) => <SourceBadge client={client} state={environment.result?.sources.opsi ?? { availability: 'NOT_CONNECTED', error: null }} source="opsi" /> },
+    { header: 'Nessus', cell: (client) => <SourceBadge client={client} state={environment.result?.sources.nessus ?? { availability: 'NOT_CONNECTED', error: null }} source="nessus" /> },
     { header: 'Overall', cell: (client) => { const value = overall(client); return <Badge tone={value.tone}>{value.label}</Badge>; } },
   ];
 
@@ -135,7 +145,7 @@ export function ClientsPage() {
     onRowClick={(client) => navigate(`/clients/${encodeURIComponent(client.host)}`)} stickyHeader emptyMessage="No clients." />;
 
   return <div className="flex flex-col gap-4">
-    <PageHeader title="Clients" subtitle="Central device inventory across AD, Kaspersky, opsi and WEC scans">
+    <PageHeader title="Clients" subtitle="Central device inventory across AD, Kaspersky, opsi, Nessus and WEC scans">
       <div className="flex gap-2"><Button variant="secondary" onClick={() => navigate('/clients/compare')}>Compare</Button>
         <Button variant="secondary" onClick={probeOnline} disabled={probing || !filtered.length}>{probing ? 'Checking…' : 'Check online'}</Button>
         <Button variant="secondary" onClick={() => { void environment.refresh(); reloadScanned(); }} disabled={environment.loading}>{environment.loading ? 'Refreshing…' : 'Refresh'}</Button></div>
@@ -145,7 +155,7 @@ export function ClientsPage() {
         <option value="ALL">All statuses</option><option value="HEALTHY">Healthy</option><option value="PROBLEMS">Problems</option><option value="INCOMPLETE">Incomplete</option><option value="UNMANAGED">Unmanaged</option>
       </Select>
       <Select fullWidth={false} value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as ClientSourceFilter)} aria-label="Filter clients by source">
-        <option value="ALL">All sources</option><option value="AD">Active Directory</option><option value="KASPERSKY">Kaspersky</option><option value="OPSI">opsi</option><option value="SCANNED">Scanned</option><option value="SAVED">Saved</option>
+        <option value="ALL">All sources</option><option value="AD">Active Directory</option><option value="KASPERSKY">Kaspersky</option><option value="OPSI">opsi</option><option value="NESSUS">Nessus</option><option value="SCANNED">Scanned</option><option value="SAVED">Saved</option>
       </Select>
       <Select fullWidth={false} value={groupMode} onChange={(event) => setGroupMode(event.target.value as GroupMode)} aria-label="Group clients by">
         <option value="none">No grouping</option><option value="os">Group by OS</option><option value="site">Group by site</option>

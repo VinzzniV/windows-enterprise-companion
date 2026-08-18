@@ -6,6 +6,7 @@ import { ClientDetailPage } from '../features/clients/ClientDetailPage';
 import { ComparePage } from '../features/clients/ComparePage';
 import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
 import { EmployeeLifecyclePage } from '../features/employeelifecycle/EmployeeLifecyclePage';
+import { VulnerabilitiesPage } from '../features/vulnerabilities/VulnerabilitiesPage';
 import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
 import { PrintManagementPage } from '../features/printmanagement/PrintManagementPage';
 import { NetworkScanPage } from '../features/networkscan/NetworkScanPage';
@@ -41,6 +42,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { to: '/clients', label: 'Clients', icon: navIcons.clients },
       { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
       { to: '/employeelifecycle', label: 'IT Lifecycle', icon: navIcons.employeelifecycle },
+      { to: '/vulnerabilities', label: 'Vulnerabilities', icon: navIcons.vulnerabilities },
       { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
       { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
       { to: '/networkscan', label: 'Netzwerkscan', icon: navIcons.networkscan },
@@ -171,6 +173,7 @@ function AppRoutes() {
           <Route path="/clients/:host" element={<ClientDetailPage />} />
           <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
           <Route path="/employeelifecycle" element={<EmployeeLifecyclePage />} />
+          <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
           <Route path="/patchmanagement" element={<PatchManagementPage />} />
           <Route path="/printmanagement" element={<PrintManagementPage />} />
           <Route path="/networkscan" element={<NetworkScanPage />} />
