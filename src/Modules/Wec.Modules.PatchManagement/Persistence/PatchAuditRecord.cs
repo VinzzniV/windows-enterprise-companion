@@ -26,6 +26,10 @@ public sealed class PatchAuditRecord
     public string Result { get; set; } = string.Empty;
 
     public string? ErrorMessage { get; set; }
+
+    public string? OldVersion { get; set; }
+
+    public string? NewVersion { get; set; }
 }
 
 public sealed class PatchAuditRecordConfiguration : IEntityTypeConfiguration<PatchAuditRecord>
@@ -50,6 +54,8 @@ public sealed class PatchAuditRecordConfiguration : IEntityTypeConfiguration<Pat
         builder.Property(record => record.PreviewJson).HasColumnName("preview_json");
         builder.Property(record => record.Result).HasColumnName("result").IsRequired();
         builder.Property(record => record.ErrorMessage).HasColumnName("error_message");
+        builder.Property(record => record.OldVersion).HasColumnName("old_version");
+        builder.Property(record => record.NewVersion).HasColumnName("new_version");
         builder.HasIndex(record => record.TimestampUtc);
     }
 }

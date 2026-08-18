@@ -547,6 +547,7 @@ export interface OpsiConnectionStatusResult {
   userName: string | null;
   opsiVersion: string | null;
   defaultDepotFilter: string;
+  connectionError?: string | null;
 }
 
 /** Wec.Modules.PatchManagement.Application.PatchDepotSummary */
@@ -594,7 +595,15 @@ export interface PatchProductRow {
   productId: string;
   name: string | null;
   availableVersion: string | null;
+  referenceVersion: string | null;
+  manufacturerVersion: string | null;
+  manufacturerCheckStatus: 'NOT_CONFIGURED' | 'NOT_CHECKED' | 'SUCCESS' | 'FAILED';
+  manufacturerCheckedAtUtc: string | null;
+  manufacturerCheckError: string | null;
+  manufacturerUpdateAvailable: boolean;
   depotVersions: PatchDepotVersion[];
+  missingDepotIds: string[];
+  packageStatus: PatchPackageStatus;
   state: PatchWorkflowState;
   installedClientCount: number;
   outdatedClientCount: number;
@@ -606,12 +615,23 @@ export interface PatchProductRow {
   inventoryDetections: InventoryDetection[];
 }
 
+export type PatchPackageStatus =
+  | 'CURRENT'
+  | 'UPDATE_AVAILABLE'
+  | 'DEPOT_DEVIATION'
+  | 'MISSING_ON_DEPOT'
+  | 'CHECK_FAILED'
+  | 'DEPLOYMENT_PENDING';
+
 /** Wec.Modules.PatchManagement.Application.PatchDashboardSummary */
 export interface PatchDashboardSummary {
   productCount: number;
   productsWithUpdates: number;
+  productsWithDepotDeviation: number;
+  productsMissingOnDepots: number;
   productsWithFailures: number;
   pendingRolloutCount: number;
+  outdatedClientCount: number;
   clientCount: number;
   depotCount: number;
   unmappedSoftwareCount: number;
@@ -654,8 +674,78 @@ export interface RolloutRequestOutcome {
 
 /** Wec.Modules.PatchManagement.Application.PreparePackagesPlan */
 export interface PreparePackagesPlan {
-  command: string;
+  productId: string;
+  stage: 'TEST' | 'DEPOT_SYNC';
+  mode: 'REPOSITORY' | 'CUSTOM_BUILD' | 'CUSTOM_PROMOTION';
+  artifactVersion: string | null;
+  targets: PackageUpdateTarget[];
   note: string;
+  confirmationText: string;
+  generatedAtUtc: string;
+}
+
+export interface PackageUpdateTarget {
+  depotId: string;
+  host: string;
+  currentVersion: string | null;
+  command: string;
+}
+
+export interface PackageUpdateTargetOutcome {
+  depotId: string;
+  success: boolean;
+  exitCode: number | null;
+  oldVersion: string | null;
+  newVersion: string | null;
+  error: string | null;
+}
+
+export interface PackageUpdateOutcome {
+  productId: string;
+  stage: 'TEST' | 'DEPOT_SYNC';
+  succeededTargetCount: number;
+  failedTargetCount: number;
+  targets: PackageUpdateTargetOutcome[];
+}
+
+export interface PackageWorkflowStatus {
+  productId: string;
+  testDepotId: string | null;
+  testedVersion: string | null;
+  testUpdateSucceededAtUtc: string | null;
+  pilotApprovedAtUtc: string | null;
+  pilotApproved: boolean;
+  lastSynchronizationResult: string | null;
+  lastSynchronizationAtUtc: string | null;
+  lastError: string | null;
+}
+
+export interface ProductVersionSource {
+  productId: string;
+  sourceUrl: string;
+  versionPattern: string;
+  enabled: boolean;
+  latestVersion: string | null;
+  lastCheckedUtc: string | null;
+  checkStatus: 'NOT_CHECKED' | 'SUCCESS' | 'FAILED';
+  lastError: string | null;
+}
+
+export interface VersionSourcesResult {
+  sources: ProductVersionSource[];
+}
+
+export interface VersionCheckOutcome {
+  productId: string;
+  previousVersion: string | null;
+  latestVersion: string | null;
+  status: 'SUCCESS' | 'FAILED';
+  checkedAtUtc: string;
+  error: string | null;
+}
+
+export interface VersionCheckResult {
+  outcomes: VersionCheckOutcome[];
 }
 
 /** Wec.Modules.PatchManagement.Persistence.ProductMapping */
@@ -681,6 +771,8 @@ export interface PatchAuditEntry {
   previewJson: string | null;
   result: string;
   errorMessage: string | null;
+  oldVersion: string | null;
+  newVersion: string | null;
 }
 
 /** Wec.Modules.PatchManagement.Handlers.AuditLogResult */
@@ -695,6 +787,154 @@ export interface AdComputer {
   operatingSystem: string | null;
   enabled: boolean;
   description: string | null;
+  distinguishedName?: string | null;
+  lastLogonDate?: string | null;
+}
+
+export type HygieneStatus = 'HEALTHY' | 'WARNING' | 'CLEANUP_CANDIDATE' | 'INCOMPLETE';
+
+export type HygieneFindingCode =
+  | 'MISSING_KASPERSKY'
+  | 'ORPHAN_KASPERSKY'
+  | 'STALE_AD'
+  | 'STALE_KASPERSKY'
+  | 'OUTDATED_AGENT'
+  | 'OUTDATED_KES'
+  | 'MISSING_OPSI'
+  | 'ORPHAN_OPSI'
+  | 'STALE_OPSI';
+
+export type HygieneFindingSeverity = 'WARNING' | 'CRITICAL';
+
+export interface HygieneFinding {
+  code: HygieneFindingCode;
+  severity: HygieneFindingSeverity;
+  message: string;
+}
+
+export interface AdDeviceData {
+  exists: boolean;
+  enabled: boolean | null;
+  dnsHostName: string | null;
+  operatingSystem: string | null;
+  description: string | null;
+  distinguishedName: string | null;
+  organizationalUnit: string | null;
+  lastLogonDate: string | null;
+}
+
+export interface KasperskyDeviceData {
+  exists: boolean;
+  lastSeen: string | null;
+  agentVersion: string | null;
+  kesVersion: string | null;
+  administrationGroup: string | null;
+}
+
+export interface OpsiDeviceData {
+  exists: boolean;
+  clientId: string | null;
+  description: string | null;
+  depotId: string | null;
+  lastSeen: string | null;
+  clientAgentVersion: string | null;
+}
+
+export type InventorySourceAvailability = 'AVAILABLE' | 'NOT_CONNECTED' | 'UNAVAILABLE' | 'TRUNCATED';
+
+export interface InventorySourceState {
+  availability: InventorySourceAvailability;
+  error: string | null;
+}
+
+export interface EnvironmentSourceStates {
+  activeDirectory: InventorySourceState;
+  kaspersky: InventorySourceState;
+  opsi: InventorySourceState;
+}
+
+export interface HygieneAssessment {
+  status: HygieneStatus;
+  findings: HygieneFinding[];
+}
+
+export interface HygieneDevice {
+  computerName: string;
+  hostName: string;
+  activeDirectory: AdDeviceData;
+  kaspersky: KasperskyDeviceData;
+  opsi: OpsiDeviceData;
+  assessment: HygieneAssessment;
+}
+
+export interface HygieneSummary {
+  total: number;
+  adComputers: number;
+  kasperskyComputers: number;
+  opsiComputers: number;
+  healthy: number;
+  problems: number;
+  incomplete: number;
+  stale: number;
+  missingKaspersky: number;
+  orphanKaspersky: number;
+  missingOpsi: number;
+  orphanOpsi: number;
+  outdated: number;
+}
+
+export interface ItHygieneResult {
+  assessedAtUtc: string;
+  domainName: string | null;
+  sources: EnvironmentSourceStates;
+  summary: HygieneSummary;
+  devices: HygieneDevice[];
+}
+
+export interface KasperskySettingsValue {
+  server: string;
+  port: number;
+  requestTimeoutSeconds: number;
+  trustedCertificateThumbprint: string;
+  excludedAdministrationGroups: string[];
+}
+
+export interface ItLifecycleSettingsValue {
+  inventoryLimit: number;
+  staleWarningDays: number;
+  staleCriticalDays: number;
+  targetAgentVersion: string;
+  targetKesVersion: string;
+  kaspersky: KasperskySettingsValue;
+}
+
+export interface ItLifecycleSettingsResult {
+  settings: ItLifecycleSettingsValue;
+  restartRequired: boolean;
+}
+
+export interface OpsiSettingsValue {
+  server: string;
+  port: number;
+  requestTimeoutSeconds: number;
+  defaultDepotFilter: string;
+  trustServerCertificate: boolean;
+}
+
+export interface OpsiSettingsResult {
+  settings: OpsiSettingsValue;
+  restartRequired: boolean;
+}
+
+export interface ServiceCredentialStatus {
+  saved: boolean;
+  userName: string | null;
+  domain: string | null;
+}
+
+export interface ServiceCredentialStatuses {
+  kaspersky: ServiceCredentialStatus;
+  opsi: ServiceCredentialStatus;
 }
 
 /** Wec.Modules.ActiveDirectory.Application.AdComputerSearchResult */
@@ -737,10 +977,25 @@ export interface PrinterEntry {
   driverVersion: string | null;
   portName: string | null;
   deviceAddress: string | null;
+  deviceIp: string | null;
   location: string | null;
   comment: string | null;
   device: PrinterDevice | null;
   deviceError: DeviceQueryError | null;
+  /** Set when `device` was carried over from an earlier scan: capture time of that scan. */
+  deviceDataFromUtc?: string | null;
+}
+
+/** Wec.Modules.PrintManagement.Domain.UnusedPort */
+export interface UnusedPort {
+  name: string;
+  hostAddress: string | null;
+}
+
+/** Wec.Modules.PrintManagement.Domain.UnusedDriver */
+export interface UnusedDriver {
+  name: string;
+  version: string | null;
 }
 
 /** Wec.Modules.PrintManagement.Domain.PrintServerSnapshot */
@@ -748,6 +1003,27 @@ export interface PrintServerSnapshot {
   server: string;
   capturedAtUtc: string;
   printers: PrinterEntry[];
+  unusedPorts?: UnusedPort[];
+  unusedDrivers?: UnusedDriver[];
+}
+
+/** Wec.Core.Printing.PortRemovalResult */
+export interface PortRemovalResult {
+  name: string;
+  removed: boolean;
+  error: string | null;
+}
+
+/** Wec.Modules.PrintManagement.Handlers.DeleteUnusedPortsRequest */
+export interface DeleteUnusedPortsRequest {
+  target: TargetRequest;
+  portNames: string[];
+  confirmed: boolean;
+}
+
+/** Wec.Modules.PrintManagement.Handlers.DeleteUnusedPortsResult */
+export interface DeleteUnusedPortsResult {
+  results: PortRemovalResult[];
 }
 
 /** Wec.Modules.PrintManagement.Domain.NotificationCheckStatus */
@@ -853,6 +1129,25 @@ export interface PrintHintsResult {
   hints: PrintHint[];
 }
 
+/** Wec.Modules.PrintManagement.Handlers.NetworkPolicyResult */
+export interface NetworkPolicyResult {
+  printerSubnets: string[];
+  legacySubnets: string[];
+  dhcpServer: string | null;
+}
+
+/** Wec.Modules.PrintManagement.Application.DhcpReservationInfo */
+export interface DhcpReservationInfo {
+  ip: string;
+  mac: string | null;
+  name: string | null;
+}
+
+/** Wec.Modules.PrintManagement.Application.DhcpCheckResult */
+export interface DhcpCheckResult {
+  reserved: DhcpReservationInfo[];
+}
+
 /** Wec.Modules.PrintManagement.Handlers.ExportPrintCsvResult */
 export interface ExportPrintCsvResult {
   cancelled: boolean;
@@ -863,4 +1158,213 @@ export interface ExportPrintCsvResult {
 export interface OpenDeviceWebUiResult {
   opened: boolean;
   url: string;
+}
+
+/** Wec.Modules.NetworkScan.Domain.DeviceKind (SCREAMING_SNAKE on the wire) */
+export type DeviceKind = 'UNKNOWN' | 'PRINTER' | 'COMPUTER' | 'NETWORK_DEVICE';
+
+/** Wec.Modules.NetworkScan.Domain.NetworkHostRow — isUp=false means a reserved-but-dead IP (stale reservation) */
+export interface NetworkHostRow {
+  ip: string;
+  hostname: string | null;
+  isUp: boolean;
+  kind: DeviceKind;
+  openPorts: number[];
+  macAddress: string | null;
+  macVendor: string | null;
+  hasReservation: boolean;
+  reservationName: string | null;
+}
+
+/** Wec.Modules.NetworkScan.Domain.NetworkScanResult */
+export interface NetworkScanResult {
+  target: string;
+  portsScanned: boolean;
+  dhcpChecked: boolean;
+  hosts: NetworkHostRow[];
+}
+
+/** Wec.Modules.NetworkScan.Handlers.ScanNetworkRequest — dhcp optional; set its host to reconcile reservations */
+export interface ScanNetworkRequest {
+  target: string;
+  scanPorts: boolean;
+  dhcp?: TargetRequest | null;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Domain.EmployeeStatus (SCREAMING_SNAKE on the wire) */
+export type EmployeeStatus = 'PLANNED' | 'ONBOARDING' | 'ACTIVE' | 'CHANGING' | 'OFFBOARDING' | 'DISABLED';
+
+/** Wec.Modules.EmployeeLifecycle.Domain.CaseType */
+export type LifecycleCaseType = 'ONBOARDING' | 'OFFBOARDING' | 'CHANGE';
+
+/** Wec.Modules.EmployeeLifecycle.Domain.CaseStatus */
+export type LifecycleCaseStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+
+/** Wec.Modules.EmployeeLifecycle.Domain.LifecycleTaskStatus */
+export type LifecycleTaskStatus = 'OPEN' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE' | 'SKIPPED';
+
+/** Wec.Modules.EmployeeLifecycle.Domain.TaskArea */
+export type LifecycleTaskArea = 'GENERAL' | 'ACCOUNT' | 'HARDWARE' | 'SOFTWARE' | 'PERMISSIONS' | 'MAILBOX';
+
+/** Wec.Modules.EmployeeLifecycle.Application.EmployeeSummary — dates are yyyy-MM-dd */
+export interface EmployeeSummary {
+  id: number;
+  firstName: string;
+  lastName: string;
+  employeeNumber: string | null;
+  department: string | null;
+  title: string | null;
+  samAccountName: string | null;
+  status: EmployeeStatus;
+  entryDate: string | null;
+  exitDate: string | null;
+  activeCaseId: number | null;
+  activeCaseType: LifecycleCaseType | null;
+  openTaskCount: number;
+  overdueTaskCount: number;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.EmployeeDetails */
+export interface EmployeeDetails {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  employeeNumber: string | null;
+  department: string | null;
+  title: string | null;
+  manager: string | null;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  distinguishedName: string | null;
+  status: EmployeeStatus;
+  entryDate: string | null;
+  exitDate: string | null;
+  notes: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.TaskDetails */
+export interface LifecycleTask {
+  id: number;
+  caseId: number;
+  title: string;
+  area: LifecycleTaskArea;
+  status: LifecycleTaskStatus;
+  dueDate: string | null;
+  assignee: string | null;
+  notes: string;
+  sortOrder: number;
+  isOverdue: boolean;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.CaseDetails */
+export interface LifecycleCase {
+  id: number;
+  employeeId: number;
+  type: LifecycleCaseType;
+  status: LifecycleCaseStatus;
+  effectiveDate: string | null;
+  note: string | null;
+  cancelReason: string | null;
+  createdUtc: string;
+  closedUtc: string | null;
+  tasks: LifecycleTask[];
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.LifecycleAuditEntry */
+export interface LifecycleAuditEntry {
+  id: number;
+  timestampUtc: string;
+  userName: string;
+  employeeId: number;
+  caseId: number | null;
+  taskId: number | null;
+  eventType: string;
+  oldValue: string | null;
+  newValue: string | null;
+  detail: string | null;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.EmployeeInput — payload of createEmployee */
+export interface EmployeeInput {
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  employeeNumber?: string | null;
+  department?: string | null;
+  title?: string | null;
+  manager?: string | null;
+  samAccountName?: string | null;
+  userPrincipalName?: string | null;
+  distinguishedName?: string | null;
+  entryDate?: string | null;
+  notes?: string | null;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.EmployeeListResult */
+export interface EmployeeListResult {
+  employees: EmployeeSummary[];
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.EmployeeDetailsResult */
+export interface EmployeeDetailsResult {
+  employee: EmployeeDetails;
+  cases: LifecycleCase[];
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.CaseResult */
+export interface LifecycleCaseResult {
+  case: LifecycleCase;
+  employee: EmployeeDetails;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.TaskResult */
+export interface LifecycleTaskResult {
+  task: LifecycleTask;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.AuditListResult */
+export interface LifecycleAuditListResult {
+  entries: LifecycleAuditEntry[];
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.DepartmentInfo */
+export interface LifecycleDepartment {
+  id: number;
+  name: string;
+  managerName: string | null;
+  ouDistinguishedName: string | null;
+}
+
+/** Wec.Modules.EmployeeLifecycle.Application.DepartmentListResult */
+export interface LifecycleDepartmentListResult {
+  departments: LifecycleDepartment[];
+}
+
+/** Wec.Modules.ActiveDirectory.Application.AdUser — groups are memberOf CNs */
+export interface AdUser {
+  name: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  enabled: boolean;
+  distinguishedName: string;
+  groups: string[];
+}
+
+/** Wec.Modules.ActiveDirectory.Application.AdUserSearchResult */
+export interface AdUserSearchResult {
+  domainJoined: boolean;
+  domainName: string | null;
+  baseDistinguishedName: string | null;
+  users: AdUser[];
+  truncated: boolean;
+}
+
+/** Wec.Modules.ActiveDirectory.Handlers.SearchAdUsersRequest */
+export interface SearchAdUsersRequest {
+  baseDistinguishedName?: string | null;
+  includeDisabled?: boolean;
+  connection?: DirectoryConnectionRequest | null;
 }

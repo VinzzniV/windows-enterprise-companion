@@ -5,8 +5,10 @@ import { ClientsPage } from '../features/clients/ClientsPage';
 import { ClientDetailPage } from '../features/clients/ClientDetailPage';
 import { ComparePage } from '../features/clients/ComparePage';
 import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
+import { EmployeeLifecyclePage } from '../features/employeelifecycle/EmployeeLifecyclePage';
 import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
 import { PrintManagementPage } from '../features/printmanagement/PrintManagementPage';
+import { NetworkScanPage } from '../features/networkscan/NetworkScanPage';
 import { ReportingPage } from '../features/reporting/ReportingPage';
 import { SettingsPage } from '../features/verwaltung/SettingsPage';
 import { ErrorLogPage } from '../features/verwaltung/ErrorLogPage';
@@ -18,6 +20,7 @@ import { ErrorBoundary } from '../shared/ui/ErrorBoundary';
 import { SplashIntro } from './SplashIntro';
 import { navIcons } from './navIcons';
 import { TargetProvider } from '../shared/targets/TargetContext';
+import { EnvironmentProvider } from '../shared/environment/EnvironmentContext';
 import { AdminSignIn } from '../shared/targets/AdminSignIn';
 
 interface NavItem {
@@ -37,8 +40,10 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { to: '/', label: 'Dashboard', icon: navIcons.dashboard },
       { to: '/clients', label: 'Clients', icon: navIcons.clients },
       { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
+      { to: '/employeelifecycle', label: 'IT Lifecycle', icon: navIcons.employeelifecycle },
       { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
       { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
+      { to: '/networkscan', label: 'Netzwerkscan', icon: navIcons.networkscan },
       { to: '/reporting', label: 'Reporting', icon: navIcons.reporting },
     ],
   },
@@ -165,8 +170,10 @@ function AppRoutes() {
           <Route path="/clients/compare" element={<ComparePage />} />
           <Route path="/clients/:host" element={<ClientDetailPage />} />
           <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
+          <Route path="/employeelifecycle" element={<EmployeeLifecyclePage />} />
           <Route path="/patchmanagement" element={<PatchManagementPage />} />
           <Route path="/printmanagement" element={<PrintManagementPage />} />
+          <Route path="/networkscan" element={<NetworkScanPage />} />
           <Route path="/reporting" element={<ReportingPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/logs" element={<ErrorLogPage />} />
@@ -183,6 +190,7 @@ export function App() {
   return (
     <HashRouter>
       <TargetProvider>
+      <EnvironmentProvider>
       <div className="flex h-screen bg-slate-950 text-slate-100">
         <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900">
           <div className="flex items-center gap-2.5 border-b border-slate-800 px-4 py-4">
@@ -218,6 +226,7 @@ export function App() {
         </main>
       </div>
       {!introDone && <SplashIntro onDone={() => setIntroDone(true)} />}
+      </EnvironmentProvider>
       </TargetProvider>
     </HashRouter>
   );

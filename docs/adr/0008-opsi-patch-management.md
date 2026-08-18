@@ -69,8 +69,8 @@ Constraints carried over from the existing architecture:
    entry**. There is no other write. `opsi-package-updater`
    (download/prepare packages) cannot run over JSON-RPC; in this MVP the
    "prepare packages" action produces the exact server command as a planned
-   action (audited), and executing it stays a documented follow-up (SSH
-   channel, own dependency decision).
+   action (audited). ADR 0015 subsequently adds the gated OpenSSH execution
+   channel for repository-backed package updates and depot synchronization.
 5. **Workflow states** are a module enum covering the full intended
    lifecycle: `Detected`, `UpdateAvailable`, `DownloadNeeded`,
    `PackagePrepared`, `Uploaded`, `ReadyForPilot`, `Approved`,
@@ -104,16 +104,16 @@ Constraints carried over from the existing architecture:
 - The module ends WEC's strictly read-only era in one narrow, auditable
   place; ADR 0002 (no elevation) and ADR 0007 (WMI/LDAP credential handling)
   are untouched.
-- opsi JSON-RPC coverage means the dashboard works with zero new NuGet
-  dependencies; the SSH/`opsi-package-updater` execution path is consciously
-  deferred and documented in the UI instead of silently missing.
+- opsi JSON-RPC remains the primary data channel. The package execution path
+  deferred here is implemented by ADR 0015 using the Windows OpenSSH client,
+  without a new NuGet dependency.
 - Session credentials in memory are a deliberate, bounded relaxation of
   ADR 0007's per-request rule; the bridge still never sends passwords back
   to the WebView.
 - The mapping table is the long-term join point for vulnerability data
   (Nessus): a later source can attach CVE/criticality per opsi productId
   without touching the dashboard shape.
-- Depot names double as locations (opsi has no separate location concept);
-  the default depot filter is an option
-  (`Wec:PatchManagement:DefaultDepotFilter`, default `Denkingen` in
-  `appsettings.json`, overridable per user like every other tunable).
+- Depot names double as locations (opsi has no separate location concept).
+  `Wec:PatchManagement:DefaultDepotFilter` can preselect one depot, but its
+  default is empty so the central dashboard compares all depots. The previous
+  `Denkingen` default was removed with the cross-depot dashboard revision.

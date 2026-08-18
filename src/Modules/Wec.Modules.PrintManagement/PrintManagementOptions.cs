@@ -35,4 +35,25 @@ public sealed class PrintManagementOptions
     /// provider). Null/empty = only require some recipient, don't enforce which.
     /// </summary>
     public string? ExpectedEventRecipient { get; set; }
+
+    /// <summary>Subnets (CIDR) printers are allowed to live in — anything else is flagged.</summary>
+    public IReadOnlyList<string> PrinterSubnets { get; set; } =
+        ["172.20.20.0/24", "172.21.18.0/24", "172.21.20.0/24"];
+
+    /// <summary>Old/decommissioned subnets whose printers should be migrated to <see cref="PrinterSubnets"/>.</summary>
+    public IReadOnlyList<string> LegacyPrinterSubnets { get; set; } = ["192.168.20.0/24"];
+
+    /// <summary>
+    /// Software pseudo-printers that must not appear in the inventory. Matched
+    /// case-insensitively against the start of the queue name and the driver name,
+    /// so version suffixes ("… Writer v4") are covered too.
+    /// </summary>
+    public IReadOnlyList<string> IgnoredQueues { get; set; } =
+        ["Microsoft Print to PDF", "Microsoft XPS Document Writer", "PDFCreator"];
+
+    /// <summary>DHCP server queried for reservations (host name or IP). Null/empty = ask per check.</summary>
+    public string? DhcpServer { get; set; }
+
+    /// <summary>How long a single DHCP reservation query may run before it is cancelled.</summary>
+    public TimeSpan DhcpQueryTimeout { get; set; } = TimeSpan.FromSeconds(30);
 }

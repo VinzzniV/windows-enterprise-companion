@@ -36,6 +36,10 @@ export interface TargetContextValue {
   adminCredentials: CredentialValues | null;
   signInAdmin(credentials: CredentialValues): void;
   signOutAdmin(): void;
+  /** Separate KSC session override. Settings can independently save the account in Windows Credential Manager. */
+  kasperskyCredentials: CredentialValues | null;
+  signInKaspersky(credentials: CredentialValues): void;
+  signOutKaspersky(): void;
   /**
    * Convenience for scan targets: the session admin credentials for a remote
    * host, or undefined to act as the current user. The host is accepted for
@@ -50,6 +54,7 @@ export function TargetProvider({ children }: { children: ReactNode }) {
   const [savedTargets, setSavedTargets] = useState<SavedTarget[]>([]);
   const [savedTargetsReady, setSavedTargetsReady] = useState(false);
   const [adminCredentials, setAdminCredentials] = useState<CredentialValues | null>(null);
+  const [kasperskyCredentials, setKasperskyCredentials] = useState<CredentialValues | null>(null);
 
   const reloadSavedTargets = useCallback(async () => {
     try {
@@ -88,6 +93,12 @@ export function TargetProvider({ children }: { children: ReactNode }) {
 
   const signOutAdmin = useCallback(() => setAdminCredentials(null), []);
 
+  const signInKaspersky = useCallback((credentials: CredentialValues) => {
+    setKasperskyCredentials(credentials.userName.trim() === '' ? null : credentials);
+  }, []);
+
+  const signOutKaspersky = useCallback(() => setKasperskyCredentials(null), []);
+
   const credentialsFor = useCallback(
     (_host: string): CredentialValues | undefined => adminCredentials ?? undefined,
     [adminCredentials],
@@ -103,6 +114,9 @@ export function TargetProvider({ children }: { children: ReactNode }) {
       adminCredentials,
       signInAdmin,
       signOutAdmin,
+      kasperskyCredentials,
+      signInKaspersky,
+      signOutKaspersky,
       credentialsFor,
     }),
     [
@@ -114,6 +128,9 @@ export function TargetProvider({ children }: { children: ReactNode }) {
       adminCredentials,
       signInAdmin,
       signOutAdmin,
+      kasperskyCredentials,
+      signInKaspersky,
+      signOutKaspersky,
       credentialsFor,
     ],
   );

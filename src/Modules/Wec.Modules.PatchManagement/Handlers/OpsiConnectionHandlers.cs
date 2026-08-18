@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Wec.Core.Contracts;
 using Wec.Core.Messaging;
 using Wec.Core.Opsi;
 using Wec.Core.Results;
@@ -9,8 +10,10 @@ namespace Wec.Modules.PatchManagement.Handlers;
 public sealed record OpsiConnectRequest(
     string Server,
     string UserName,
-    string Password,
-    bool TrustServerCertificate);
+    string? Password,
+    bool TrustServerCertificate,
+    bool UseStoredCredential = false,
+    bool RememberCredential = false);
 
 /// <summary>The bridge never carries the password back (ADR 0008).</summary>
 public sealed record OpsiConnectionStatusResult(
@@ -18,21 +21,25 @@ public sealed record OpsiConnectionStatusResult(
     string? ServerUrl,
     string? UserName,
     string? OpsiVersion,
-    string DefaultDepotFilter);
+    string DefaultDepotFilter,
+    string? ConnectionError = null);
 
 internal sealed class ConnectOpsiHandler : IActionHandler<OpsiConnectRequest, OpsiConnectionStatusResult>
 {
     private readonly IOpsiClient _opsiClient;
     private readonly OpsiSessionState _sessionState;
     private readonly PatchManagementOptions _options;
+    private readonly IServiceCredentialStore _credentials;
 
     public ConnectOpsiHandler(
         IOpsiClient opsiClient,
         OpsiSessionState sessionState,
+        IServiceCredentialStore credentials,
         IOptions<PatchManagementOptions> options)
     {
         _opsiClient = opsiClient;
         _sessionState = sessionState;
+        _credentials = credentials;
         _options = options.Value;
     }
 
@@ -43,7 +50,25 @@ internal sealed class ConnectOpsiHandler : IActionHandler<OpsiConnectRequest, Op
     public async Task<Result<OpsiConnectionStatusResult>> HandleAsync(
         OpsiConnectRequest payload, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(payload.UserName) || string.IsNullOrEmpty(payload.Password))
+        string userName = payload.UserName;
+        string? password = payload.Password;
+        if (payload.UseStoredCredential)
+        {
+            Result<StoredServiceCredential?> stored = _credentials.Read(ServiceCredentialKind.Opsi);
+            if (stored.IsFailure)
+            {
+                return Result.Failure<OpsiConnectionStatusResult>(stored.Error!);
+            }
+            if (stored.Value is null)
+            {
+                return Result.Failure<OpsiConnectionStatusResult>(new Error(
+                    ErrorCode.InvalidRequest, "No saved opsi credential is available."));
+            }
+            userName = stored.Value.UserName;
+            password = stored.Value.Password;
+        }
+
+        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrEmpty(password))
         {
             return Result.Failure<OpsiConnectionStatusResult>(new Error(
                 ErrorCode.InvalidRequest, "opsi user name and password are required."));
@@ -57,8 +82,8 @@ internal sealed class ConnectOpsiHandler : IActionHandler<OpsiConnectRequest, Op
 
         var connection = new OpsiConnection(
             serviceUrl.Value,
-            payload.UserName.Trim(),
-            payload.Password,
+            userName.Trim(),
+            password,
             payload.TrustServerCertificate,
             _options.OpsiRequestTimeout);
 
@@ -68,6 +93,17 @@ internal sealed class ConnectOpsiHandler : IActionHandler<OpsiConnectRequest, Op
         {
             // A failed test never replaces a working session
             return Result.Failure<OpsiConnectionStatusResult>(serverInfo.Error!);
+        }
+
+        if (payload.RememberCredential)
+        {
+            Result<bool> saved = _credentials.Save(
+                ServiceCredentialKind.Opsi,
+                new StoredServiceCredential(userName.Trim(), null, password));
+            if (saved.IsFailure)
+            {
+                return Result.Failure<OpsiConnectionStatusResult>(saved.Error!);
+            }
         }
 
         _sessionState.Set(new OpsiSession(connection, serverInfo.Value));
@@ -119,11 +155,15 @@ internal sealed class GetOpsiConnectionStatusHandler
 {
     private readonly OpsiSessionState _sessionState;
     private readonly PatchManagementOptions _options;
+    private readonly OpsiSessionConnector _connector;
 
     public GetOpsiConnectionStatusHandler(
-        OpsiSessionState sessionState, IOptions<PatchManagementOptions> options)
+        OpsiSessionState sessionState,
+        OpsiSessionConnector connector,
+        IOptions<PatchManagementOptions> options)
     {
         _sessionState = sessionState;
+        _connector = connector;
         _options = options.Value;
     }
 
@@ -131,7 +171,15 @@ internal sealed class GetOpsiConnectionStatusHandler
 
     public string Action => "getConnectionStatus";
 
-    public Task<Result<OpsiConnectionStatusResult>> HandleAsync(
-        OpsiConnectionStatusRequest payload, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Success(ConnectOpsiHandler.StatusOf(_sessionState, _options)));
+    public async Task<Result<OpsiConnectionStatusResult>> HandleAsync(
+        OpsiConnectionStatusRequest payload, CancellationToken cancellationToken)
+    {
+        Result<OpsiSession?> connected = await _connector.EnsureConnectedAsync(cancellationToken);
+        return connected.IsFailure
+            ? Result.Success(ConnectOpsiHandler.StatusOf(_sessionState, _options) with
+            {
+                ConnectionError = connected.Error!.Message,
+            })
+            : Result.Success(ConnectOpsiHandler.StatusOf(_sessionState, _options));
+    }
 }

@@ -14,8 +14,11 @@ public sealed record PatchDashboardResult(
 public sealed record PatchDashboardSummary(
     int ProductCount,
     int ProductsWithUpdates,
+    int ProductsWithDepotDeviation,
+    int ProductsMissingOnDepots,
     int ProductsWithFailures,
     int PendingRolloutCount,
+    int OutdatedClientCount,
     int ClientCount,
     int DepotCount,
     int UnmappedSoftwareCount);
@@ -26,7 +29,15 @@ public sealed record PatchProductRow(
     string ProductId,
     string? Name,
     string? AvailableVersion,
+    string? ReferenceVersion,
+    string? ManufacturerVersion,
+    string ManufacturerCheckStatus,
+    DateTimeOffset? ManufacturerCheckedAtUtc,
+    string? ManufacturerCheckError,
+    bool ManufacturerUpdateAvailable,
     IReadOnlyList<PatchDepotVersion> DepotVersions,
+    IReadOnlyList<string> MissingDepotIds,
+    PatchPackageStatus PackageStatus,
     PatchWorkflowState State,
     int InstalledClientCount,
     int OutdatedClientCount,
@@ -38,6 +49,16 @@ public sealed record PatchProductRow(
     IReadOnlyList<InventoryDetection> InventoryDetections);
 
 public sealed record PatchDepotVersion(string DepotId, string Version);
+
+public enum PatchPackageStatus
+{
+    Current = 0,
+    UpdateAvailable,
+    DepotDeviation,
+    MissingOnDepot,
+    CheckFailed,
+    DeploymentPending,
+}
 
 public sealed record PatchClientState(
     string ClientId,

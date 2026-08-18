@@ -25,6 +25,8 @@ public sealed class EfPatchAuditRepository : IPatchAuditRepository
             PreviewJson = entry.PreviewJson,
             Result = entry.Result,
             ErrorMessage = entry.ErrorMessage,
+            OldVersion = entry.OldVersion,
+            NewVersion = entry.NewVersion,
         });
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -47,7 +49,36 @@ public sealed class EfPatchAuditRepository : IPatchAuditRepository
             DeserializeTargets(record.TargetClientsJson),
             record.PreviewJson,
             record.Result,
-            record.ErrorMessage))];
+            record.ErrorMessage,
+            record.OldVersion,
+            record.NewVersion))];
+    }
+
+    public async Task<PatchAuditEntry?> FindLatestAsync(
+        string productId,
+        string action,
+        CancellationToken cancellationToken)
+    {
+        PatchAuditRecord? record = await _dbContext.Set<PatchAuditRecord>()
+            .Where(entry => entry.ProductId == productId && entry.Action == action)
+            .OrderByDescending(entry => entry.TimestampUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return record is null
+            ? null
+            : new PatchAuditEntry(
+                record.Id,
+                record.TimestampUtc,
+                record.UserName,
+                record.Action,
+                record.ProductId,
+                record.DepotId,
+                DeserializeTargets(record.TargetClientsJson),
+                record.PreviewJson,
+                record.Result,
+                record.ErrorMessage,
+                record.OldVersion,
+                record.NewVersion);
     }
 
     private static List<string> DeserializeTargets(string json)

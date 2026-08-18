@@ -90,6 +90,7 @@ describe('dashboard tile derivation', () => {
             driverVersion: null,
             portName: null,
             deviceAddress: '10.0.0.1',
+            deviceIp: '10.0.0.1',
             location: null,
             comment: null,
             device: {

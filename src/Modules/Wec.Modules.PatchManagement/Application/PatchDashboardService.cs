@@ -4,6 +4,7 @@ using Wec.Core.Opsi;
 using Wec.Core.Results;
 using Wec.Modules.PatchManagement.Domain;
 using Wec.Modules.PatchManagement.Persistence;
+using Microsoft.Extensions.Options;
 
 namespace Wec.Modules.PatchManagement.Application;
 
@@ -11,31 +12,51 @@ public sealed class PatchDashboardService
 {
     private readonly IOpsiClient _opsiClient;
     private readonly OpsiSessionState _sessionState;
+    private readonly OpsiSessionConnector _sessionConnector;
     private readonly IInstalledSoftwareInventoryProvider _softwareInventory;
     private readonly IPatchMappingRepository _mappingRepository;
+    private readonly IProductVersionSourceRepository _versionSourceRepository;
+    private readonly ManufacturerVersionService _manufacturerVersionService;
+    private readonly IPatchAuditRepository _auditRepository;
     private readonly IClock _clock;
+    private readonly PatchManagementOptions _options;
 
     public PatchDashboardService(
         IOpsiClient opsiClient,
         OpsiSessionState sessionState,
+        OpsiSessionConnector sessionConnector,
         IInstalledSoftwareInventoryProvider softwareInventory,
         IPatchMappingRepository mappingRepository,
-        IClock clock)
+        IProductVersionSourceRepository versionSourceRepository,
+        ManufacturerVersionService manufacturerVersionService,
+        IPatchAuditRepository auditRepository,
+        IClock clock,
+        IOptions<PatchManagementOptions> options)
     {
         _opsiClient = opsiClient;
         _sessionState = sessionState;
+        _sessionConnector = sessionConnector;
         _softwareInventory = softwareInventory;
         _mappingRepository = mappingRepository;
+        _versionSourceRepository = versionSourceRepository;
+        _manufacturerVersionService = manufacturerVersionService;
+        _auditRepository = auditRepository;
         _clock = clock;
+        _options = options.Value;
     }
 
     internal static Error NotConnected { get; } = new(
         ErrorCode.InvalidRequest,
-        "Not connected to an opsi server. Test the connection first — credentials are kept for this session only.");
+        "Not connected to an opsi server. Save the opsi server and account under Settings.");
 
     public async Task<Result<PatchDashboardResult>> GetDashboardAsync(
         string? depotFilter, CancellationToken cancellationToken)
     {
+        Result<OpsiSession?> ensured = await _sessionConnector.EnsureConnectedAsync(cancellationToken);
+        if (ensured.IsFailure)
+        {
+            return Result.Failure<PatchDashboardResult>(ensured.Error!);
+        }
         if (_sessionState.Current is not { } session)
         {
             return Result.Failure<PatchDashboardResult>(NotConnected);
@@ -80,6 +101,11 @@ public sealed class PatchDashboardService
         IReadOnlyList<HostInstalledSoftwareData> inventoryHosts =
             await _softwareInventory.GetAllHostsAsync(cancellationToken);
         IReadOnlyList<ProductMapping> mappings = await _mappingRepository.ListAsync(cancellationToken);
+        await _manufacturerVersionService.CheckAsync(productIds: null, force: false, cancellationToken);
+        IReadOnlyList<ProductVersionSource> versionSources =
+            await _versionSourceRepository.ListAsync(cancellationToken);
+        IReadOnlyList<PatchAuditEntry> auditEntries =
+            await _auditRepository.ListAsync(_options.AuditHistoryLimit, cancellationToken);
 
         return Result.Success(Compose(
             connection.ServiceUrl.ToString(),
@@ -91,7 +117,9 @@ public sealed class PatchDashboardService
             productStates.Value,
             inventoryHosts,
             mappings,
-            _clock.UtcNow));
+            _clock.UtcNow,
+            versionSources,
+            auditEntries));
     }
 
     /// <summary>Pure composition — everything above is fetch, everything here is logic.</summary>
@@ -105,7 +133,9 @@ public sealed class PatchDashboardService
         IReadOnlyList<OpsiProductOnClient> productStates,
         IReadOnlyList<HostInstalledSoftwareData> inventoryHosts,
         IReadOnlyList<ProductMapping> mappings,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        IReadOnlyList<ProductVersionSource>? versionSources = null,
+        IReadOnlyList<PatchAuditEntry>? auditEntries = null)
     {
         string? defaultDepotId = depots.FirstOrDefault(depot => depot.IsConfigServer)?.Id;
         var depotByClient = clients.ToDictionary(
@@ -120,6 +150,10 @@ public sealed class PatchDashboardService
             : [.. clients];
         var filteredClientIds = new HashSet<string>(
             filteredClients.Select(client => client.Id), StringComparer.OrdinalIgnoreCase);
+
+        string[] relevantDepotIds = hasFilter
+            ? [depotFilter!]
+            : [.. depots.Select(depot => depot.Id)];
 
         // productId → per-depot versions; the filter narrows which depots count
         var versionsByProduct = productsOnDepots
@@ -151,15 +185,48 @@ public sealed class PatchDashboardService
                 StringComparer.OrdinalIgnoreCase);
         var mappedSoftwareNames = new HashSet<string>(
             mappings.Select(mapping => mapping.SoftwareName), StringComparer.OrdinalIgnoreCase);
+        var versionSourceByProduct = (versionSources ?? [])
+            .ToDictionary(source => source.ProductId, StringComparer.OrdinalIgnoreCase);
+        var latestPackageOperationsByProduct = (auditEntries ?? [])
+            .Where(entry => entry.ProductId is not null
+                && entry.Action is PatchActionService.TestPackageUpdateAction
+                    or PatchActionService.DepotSynchronizationAction)
+            .GroupBy(entry => entry.ProductId!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .GroupBy(entry => (entry.Action, entry.DepotId))
+                    .Select(operation => operation
+                        .OrderByDescending(entry => entry.TimestampUtc)
+                        .ThenByDescending(entry => entry.Id)
+                        .First())
+                    .ToList(),
+                StringComparer.OrdinalIgnoreCase);
 
         var productRows = new List<PatchProductRow>();
-        foreach (OpsiProduct product in products
-            .Where(product => versionsByProduct.ContainsKey(product.Id))
-            .OrderBy(product => product.Id, StringComparer.OrdinalIgnoreCase))
+        foreach (IGrouping<string, OpsiProduct> productGroup in products
+            .GroupBy(product => product.Id, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
         {
-            List<PatchDepotVersion> depotVersions = versionsByProduct[product.Id];
+            OpsiProduct product = productGroup.First();
+            List<PatchDepotVersion> depotVersions = versionsByProduct.GetValueOrDefault(product.Id) ?? [];
             List<string> distinctVersions = [.. depotVersions.Select(version => version.Version).Distinct()];
             string? availableVersion = distinctVersions.Count == 1 ? distinctVersions[0] : null;
+            string? referenceVersion = SelectReferenceVersion(distinctVersions);
+            ProductVersionSource? versionSource = versionSourceByProduct.GetValueOrDefault(product.Id);
+            PatchAuditEntry? latestPackageFailure = latestPackageOperationsByProduct
+                .GetValueOrDefault(product.Id)?
+                .Where(entry => entry.Result == "FAILED")
+                .OrderByDescending(entry => entry.TimestampUtc)
+                .ThenByDescending(entry => entry.Id)
+                .FirstOrDefault();
+            bool manufacturerUpdateAvailable = referenceVersion is not null
+                && versionSource?.LatestVersion is not null
+                && NaturalVersionComparer.Instance.Compare(referenceVersion, versionSource.LatestVersion) < 0;
+            string[] missingDepotIds = [.. relevantDepotIds
+                .Where(depotId => !depotVersions.Any(version => string.Equals(
+                    version.DepotId, depotId, StringComparison.OrdinalIgnoreCase)))
+                .Order(StringComparer.OrdinalIgnoreCase)];
 
             var clientStates = new List<PatchClientState>();
             foreach (OpsiProductOnClient state in statesByProduct.GetValueOrDefault(product.Id) ?? [])
@@ -190,6 +257,15 @@ public sealed class PatchDashboardService
             int outdatedCount = clientStates.Count(state => state.State == PatchWorkflowState.UpdateAvailable);
             int failedCount = clientStates.Count(state => state.State == PatchWorkflowState.Failed);
             int pendingCount = clientStates.Count(state => state.State == PatchWorkflowState.RolloutRequested);
+            PatchPackageStatus packageStatus = DerivePackageStatus(
+                missingDepotIds.Length,
+                distinctVersions.Count,
+                outdatedCount,
+                failedCount,
+                pendingCount,
+                manufacturerUpdateAvailable,
+                versionSource?.CheckStatus == "FAILED",
+                latestPackageFailure is not null);
 
             List<string> productMappings = mappingsByProduct.GetValueOrDefault(product.Id) ?? [];
             List<InventoryDetection> detections = [.. inventoryHosts
@@ -202,7 +278,15 @@ public sealed class PatchDashboardService
                 product.Id,
                 product.Name,
                 availableVersion,
+                referenceVersion,
+                versionSource?.LatestVersion,
+                versionSource?.CheckStatus ?? "NOT_CONFIGURED",
+                versionSource?.LastCheckedUtc,
+                versionSource?.LastError,
+                manufacturerUpdateAvailable,
                 depotVersions,
+                missingDepotIds,
+                packageStatus,
                 DeriveProductState(clientStates),
                 installedCount,
                 outdatedCount,
@@ -210,7 +294,7 @@ public sealed class PatchDashboardService
                 pendingCount,
                 failedCount > 0
                     ? $"Last action failed on {failedCount} client(s) — see the client list."
-                    : null,
+                    : latestPackageFailure?.ErrorMessage ?? versionSource?.LastError,
                 clientStates,
                 productMappings,
                 detections));
@@ -244,9 +328,12 @@ public sealed class PatchDashboardService
             nowUtc,
             new PatchDashboardSummary(
                 productRows.Count,
-                productRows.Count(row => row.OutdatedClientCount > 0),
-                productRows.Count(row => row.FailedClientCount > 0),
+                productRows.Count(row => row.OutdatedClientCount > 0 || row.ManufacturerUpdateAvailable),
+                productRows.Count(row => row.DepotVersions.Select(version => version.Version).Distinct().Count() > 1),
+                productRows.Count(row => row.MissingDepotIds.Count > 0),
+                productRows.Count(row => row.PackageStatus == PatchPackageStatus.CheckFailed),
                 productRows.Sum(row => row.PendingActionCount),
+                productRows.Sum(row => row.OutdatedClientCount),
                 filteredClients.Count,
                 depots.Count,
                 unmapped.Count),
@@ -298,6 +385,70 @@ public sealed class PatchDashboardService
         return clientStates.Any(state => state.State == PatchWorkflowState.Completed)
             ? PatchWorkflowState.Completed
             : PatchWorkflowState.Detected;
+    }
+
+    internal static PatchPackageStatus DerivePackageStatus(
+        int missingDepotCount,
+        int distinctDepotVersionCount,
+        int outdatedClientCount,
+        int failedClientCount,
+        int pendingActionCount,
+        bool manufacturerUpdateAvailable = false,
+        bool manufacturerCheckFailed = false,
+        bool packageOperationFailed = false)
+    {
+        if (failedClientCount > 0 || manufacturerCheckFailed || packageOperationFailed)
+        {
+            return PatchPackageStatus.CheckFailed;
+        }
+
+        if (missingDepotCount > 0)
+        {
+            return PatchPackageStatus.MissingOnDepot;
+        }
+
+        if (distinctDepotVersionCount > 1)
+        {
+            return PatchPackageStatus.DepotDeviation;
+        }
+
+        if (pendingActionCount > 0)
+        {
+            return PatchPackageStatus.DeploymentPending;
+        }
+
+        return outdatedClientCount > 0 || manufacturerUpdateAvailable
+            ? PatchPackageStatus.UpdateAvailable
+            : PatchPackageStatus.Current;
+    }
+
+    private static string? SelectReferenceVersion(IReadOnlyList<string> versions) =>
+        versions.OrderByDescending(version => version, NaturalVersionComparer.Instance).FirstOrDefault();
+
+    private sealed class NaturalVersionComparer : IComparer<string>
+    {
+        public static NaturalVersionComparer Instance { get; } = new();
+
+        public int Compare(string? left, string? right)
+        {
+            string[] leftParts = (left ?? string.Empty).Split(['.', '-', '_']);
+            string[] rightParts = (right ?? string.Empty).Split(['.', '-', '_']);
+            for (int index = 0; index < Math.Max(leftParts.Length, rightParts.Length); index++)
+            {
+                string leftPart = index < leftParts.Length ? leftParts[index] : "0";
+                string rightPart = index < rightParts.Length ? rightParts[index] : "0";
+                int comparison = long.TryParse(leftPart, out long leftNumber)
+                    && long.TryParse(rightPart, out long rightNumber)
+                        ? leftNumber.CompareTo(rightNumber)
+                        : StringComparer.OrdinalIgnoreCase.Compare(leftPart, rightPart);
+                if (comparison != 0)
+                {
+                    return comparison;
+                }
+            }
+
+            return 0;
+        }
     }
 
     // Suggestions only on exact name matches — a wrong automatic match on

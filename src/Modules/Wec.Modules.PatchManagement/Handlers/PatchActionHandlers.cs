@@ -53,7 +53,10 @@ internal sealed class RequestRolloutHandler : IActionHandler<RequestRolloutReque
             payload.ProductId, payload.ClientIds, payload.DepotFilter, payload.Confirmed, cancellationToken);
 }
 
-public sealed record PreparePackagesRequest(IReadOnlyList<string> ProductIds);
+public sealed record PreparePackagesRequest(
+    string ProductId,
+    string Stage,
+    IReadOnlyList<string> DepotIds);
 
 internal sealed class PreparePackagesHandler : IActionHandler<PreparePackagesRequest, PreparePackagesPlan>
 {
@@ -70,5 +73,83 @@ internal sealed class PreparePackagesHandler : IActionHandler<PreparePackagesReq
 
     public Task<Result<PreparePackagesPlan>> HandleAsync(
         PreparePackagesRequest payload, CancellationToken cancellationToken) =>
-        _actionService.PlanPackageUpdateAsync(payload.ProductIds ?? [], cancellationToken);
+        _actionService.BuildPackageUpdatePreviewAsync(
+            payload.ProductId,
+            payload.Stage,
+            payload.DepotIds ?? [],
+            cancellationToken);
+}
+
+public sealed record ExecutePackageUpdateRequest(
+    string ProductId,
+    string Stage,
+    IReadOnlyList<string> DepotIds,
+    bool Confirmed = false);
+
+internal sealed class ExecutePackageUpdateHandler : IActionHandler<ExecutePackageUpdateRequest, PackageUpdateOutcome>
+{
+    private readonly PatchActionService _actionService;
+
+    public ExecutePackageUpdateHandler(PatchActionService actionService)
+    {
+        _actionService = actionService;
+    }
+
+    public string Module => "patchmanagement";
+
+    public string Action => "executePackageUpdate";
+
+    public Task<Result<PackageUpdateOutcome>> HandleAsync(
+        ExecutePackageUpdateRequest payload,
+        CancellationToken cancellationToken) =>
+        _actionService.ExecutePackageUpdateAsync(
+            payload.ProductId,
+            payload.Stage,
+            payload.DepotIds ?? [],
+            payload.Confirmed,
+            cancellationToken);
+}
+
+public sealed record ApprovePackagePilotRequest(string ProductId, bool Confirmed = false);
+
+internal sealed class ApprovePackagePilotHandler : IActionHandler<ApprovePackagePilotRequest, PackageWorkflowStatus>
+{
+    private readonly PatchActionService _actionService;
+
+    public ApprovePackagePilotHandler(PatchActionService actionService)
+    {
+        _actionService = actionService;
+    }
+
+    public string Module => "patchmanagement";
+
+    public string Action => "approvePackagePilot";
+
+    public Task<Result<PackageWorkflowStatus>> HandleAsync(
+        ApprovePackagePilotRequest payload,
+        CancellationToken cancellationToken) =>
+        _actionService.ApprovePackagePilotAsync(payload.ProductId, payload.Confirmed, cancellationToken);
+}
+
+public sealed record GetPackageWorkflowStatusRequest(string ProductId);
+
+internal sealed class GetPackageWorkflowStatusHandler
+    : IActionHandler<GetPackageWorkflowStatusRequest, PackageWorkflowStatus>
+{
+    private readonly PatchActionService _actionService;
+
+    public GetPackageWorkflowStatusHandler(PatchActionService actionService)
+    {
+        _actionService = actionService;
+    }
+
+    public string Module => "patchmanagement";
+
+    public string Action => "getPackageWorkflowStatus";
+
+    public async Task<Result<PackageWorkflowStatus>> HandleAsync(
+        GetPackageWorkflowStatusRequest payload,
+        CancellationToken cancellationToken) =>
+        Result.Success(await _actionService.GetPackageWorkflowStatusAsync(
+            payload.ProductId, cancellationToken));
 }

@@ -27,6 +27,12 @@ public interface IOpsiClient
     Task<Result<IReadOnlyList<OpsiProductOnClient>>> GetProductStatesAsync(
         OpsiConnection connection, CancellationToken cancellationToken);
 
+    /// <summary>Reads only one product's client states to keep inventory payloads small.</summary>
+    Task<Result<IReadOnlyList<OpsiProductOnClient>>> GetProductStatesAsync(
+        OpsiConnection connection,
+        string productId,
+        CancellationToken cancellationToken);
+
     /// <summary>
     /// Sets <c>actionRequest = "setup"</c> on the given clients for one
     /// product — the only write, callers must have confirmed and audited it

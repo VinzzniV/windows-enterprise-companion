@@ -159,10 +159,28 @@ public sealed partial class JsonRpcOpsiClient : IOpsiClient, IDisposable
 
     public Task<Result<IReadOnlyList<OpsiProductOnClient>>> GetProductStatesAsync(
         OpsiConnection connection, CancellationToken cancellationToken) =>
+        GetProductStatesCoreAsync(connection, productId: null, cancellationToken);
+
+    public Task<Result<IReadOnlyList<OpsiProductOnClient>>> GetProductStatesAsync(
+        OpsiConnection connection,
+        string productId,
+        CancellationToken cancellationToken) =>
+        GetProductStatesCoreAsync(connection, string.IsNullOrWhiteSpace(productId) ? null : productId.Trim(), cancellationToken);
+
+    private Task<Result<IReadOnlyList<OpsiProductOnClient>>> GetProductStatesCoreAsync(
+        OpsiConnection connection,
+        string? productId,
+        CancellationToken cancellationToken) =>
         QueryObjectsAsync(
             connection,
             "productOnClient_getObjects",
-            new Dictionary<string, object?> { ["productType"] = LocalbootProductType },
+            productId is null
+                ? new Dictionary<string, object?> { ["productType"] = LocalbootProductType }
+                : new Dictionary<string, object?>
+                {
+                    ["productType"] = LocalbootProductType,
+                    ["productId"] = productId,
+                },
             element => GetString(element, "productId") is { } productId && GetString(element, "clientId") is { } clientId
                 ? new OpsiProductOnClient(
                     productId,

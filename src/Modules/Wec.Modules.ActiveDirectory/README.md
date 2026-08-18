@@ -15,6 +15,7 @@ operation.
 | `activedirectory/getHygiene` | `{ connection?: DirectoryConnectionRequest }` | `AdHygieneResult` — privileged groups + hygiene rules (inactive users/computers, password-never-expires, disabled-but-privileged) |
 | `activedirectory/testConnection` | `{ connection?: DirectoryConnectionRequest }` | `TestDirectoryConnectionResult` — the RootDSE bind every analysis starts with; a passing test means overview/hygiene can connect |
 | `activedirectory/searchComputers` | `{ nameFilter?, includeDisabled?, connection? }` | `AdComputerSearchResult` — the Get-ADComputer-with-filter equivalent; feeds the multi-host pickers on the Inventory/Security/Diagnostics pages. Substring match by default, user-typed `*` wildcards pass through; enabled computers only unless `includeDisabled` |
+| `activedirectory/searchUsers` | `{ baseDistinguishedName?, includeDisabled?, connection? }` | `AdUserSearchResult` — user listing scoped to an OU (base DN) or the whole domain, including group memberships as plain CNs. Used by the Employee Lifecycle feature to show which accounts exist in a department OU. Truncates at `UserSearchLimit` |
 
 `DirectoryConnectionRequest` = `{ domain?, server?, userName?, userDomain?,
 password? }`. Empty analyzes this machine's own domain as the current user.

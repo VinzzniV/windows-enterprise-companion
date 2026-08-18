@@ -14,15 +14,18 @@ internal sealed class ScanPrintServerHandler : IActionHandler<ScanPrintServerReq
 {
     private readonly PrintServerScanService _scanService;
     private readonly IPrintSnapshotRepository _repository;
+    private readonly LastKnownDevices _lastKnownDevices;
     private readonly PrintManagementOptions _options;
 
     public ScanPrintServerHandler(
         PrintServerScanService scanService,
         IPrintSnapshotRepository repository,
+        LastKnownDevices lastKnownDevices,
         IOptions<PrintManagementOptions> options)
     {
         _scanService = scanService;
         _repository = repository;
+        _lastKnownDevices = lastKnownDevices;
         _options = options.Value;
     }
 
@@ -42,11 +45,13 @@ internal sealed class ScanPrintServerHandler : IActionHandler<ScanPrintServerReq
 
         Result<PrintServerSnapshot> snapshot = await _scanService.CaptureAsync(
             target.ToScanTarget(), credentials.Value, cancellationToken);
-        if (snapshot.IsSuccess)
+        if (snapshot.IsFailure)
         {
-            await _repository.SaveAsync(snapshot.Value, _options.HistoryLimit, cancellationToken);
+            return snapshot;
         }
 
-        return snapshot;
+        // Store the measurement, hand out the enriched view
+        await _repository.SaveAsync(snapshot.Value, _options.HistoryLimit, cancellationToken);
+        return Result.Success(await _lastKnownDevices.FillAsync(snapshot.Value, cancellationToken));
     }
 }

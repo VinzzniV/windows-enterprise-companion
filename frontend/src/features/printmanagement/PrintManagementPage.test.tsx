@@ -22,6 +22,7 @@ const snapshotDenkingen: PrintServerSnapshot = {
       driverVersion: '8.1.0.0',
       portName: 'IP_10.1.1.20',
       deviceAddress: '10.1.1.20',
+      deviceIp: '10.1.1.20',
       location: 'EG Flur',
       comment: null,
       device: {
@@ -45,6 +46,7 @@ const snapshotDenkingen: PrintServerSnapshot = {
       driverVersion: '8.1.0.0',
       portName: 'IP_10.1.1.21',
       deviceAddress: '10.1.1.21',
+      deviceIp: '10.1.1.21',
       location: null,
       comment: null,
       device: null,
@@ -64,6 +66,7 @@ const snapshotOther: PrintServerSnapshot = {
       driverVersion: null,
       portName: null,
       deviceAddress: null,
+      deviceIp: null,
       location: 'RW',
       comment: null,
       device: null,
@@ -108,6 +111,14 @@ function mockBridge() {
         return Promise.resolve({
           hints: [{ category: 'Default SNMP community', message: 'community is public' }],
         });
+      case 'getNetworkPolicy':
+        return Promise.resolve({
+          printerSubnets: ['172.20.20.0/24'],
+          legacySubnets: ['10.1.1.0/24'],
+          dhcpServer: 'dc01',
+        });
+      case 'checkDhcp':
+        return Promise.resolve({ reserved: [{ ip: '10.1.1.20', mac: '00-11-22', name: 'PR-EG' }] });
       case 'getHistory':
         return Promise.resolve({
           snapshots: [
@@ -145,6 +156,33 @@ describe('PrintManagementPage', () => {
     expect(screen.getByText('8% low')).toBeDefined();
     // Consistency hint surfaced
     expect(screen.getByText(/Consistency hints/)).toBeDefined();
+  });
+
+  it('shows the device location as truth and flags the print server mismatch', async () => {
+    mockBridge();
+
+    render(<PrintManagementPage />);
+    await screen.findByText('Denkingen-EG');
+
+    // SNMP sysLocation ('Denkingen') is the truth, not the print server label ('EG Flur')
+    expect(screen.getByText('Denkingen')).toBeDefined();
+    expect(screen.getByText(/Printserver: EG Flur/)).toBeDefined();
+  });
+
+  it('classifies the subnet and checks DHCP reservations on demand', async () => {
+    mockBridge();
+
+    render(<PrintManagementPage />);
+    await screen.findByText('Denkingen-EG');
+
+    // 10.1.1.x is configured as a legacy subnet → flagged for migration
+    expect((await screen.findAllByText('Alt-Netz')).length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole('button', { name: /DHCP-Reservierungen prüfen/ }));
+
+    // 10.1.1.20 is reserved, 10.1.1.21 is not
+    expect(await screen.findByText('Reserviert')).toBeDefined();
+    expect(screen.getByText('Keine Reservierung')).toBeDefined();
   });
 
   it('filters the table by print server', async () => {
@@ -198,16 +236,27 @@ describe('PrintManagementPage', () => {
     expect(screen.getByText(/1 device\(s\) without a readable serial/)).toBeDefined();
   });
 
-  it('exports the CSV and reports the target path', async () => {
+  it('exports the picked columns as one row per device', async () => {
     mockBridge();
 
     render(<PrintManagementPage />);
     await screen.findByText('Denkingen-EG');
 
     await userEvent.click(screen.getByRole('button', { name: 'Export CSV' }));
+    // Model is on by default, Queues is not — flip both
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Model' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Queues' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Exportieren' }));
 
     await waitFor(() =>
       expect(screen.getByText(/Exported to C:\\temp\\printers.csv/)).toBeDefined());
-    expect(invokeMock.mock.calls.some((call) => call[1] === 'exportCsv')).toBe(true);
+    const call = invokeMock.mock.calls.find((call) => call[1] === 'exportCsv');
+    expect(call).toBeDefined();
+    const csv = (call![2] as { csv: string }).csv;
+    const lines = csv.split('\r\n');
+    expect(lines[0]).toBe('Printer;SerialNumber;Location;IPAddress;Status;Queues');
+    // One row per physical device (3 queues across both servers = 3 devices here)
+    expect(lines).toHaveLength(4);
+    expect(lines[1]).toBe('Denkingen-EG;VCF1234567;Denkingen;10.1.1.20;Idle;Denkingen-EG');
   });
 });

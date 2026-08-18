@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wec.Infrastructure.Persistence;
 using Wec.Modules.Diagnostics.Persistence;
+using Wec.Modules.EmployeeLifecycle.Persistence;
 using Wec.Modules.Inventory.Persistence;
 using Wec.Modules.PatchManagement.Persistence;
 using Wec.Modules.PrintManagement.Persistence;
@@ -30,6 +31,7 @@ internal static class IntegrationDbContextFactory
                 typeof(PrintSnapshotRecord).Assembly,
                 typeof(SavedTargetRecord).Assembly,
                 typeof(DiagnosticRunRecord).Assembly,
+                typeof(EmployeeRecord).Assembly,
             ]));
     }
 }

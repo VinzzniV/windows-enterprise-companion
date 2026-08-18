@@ -10,7 +10,9 @@ public sealed record PatchAuditEntry(
     IReadOnlyList<string> TargetClients,
     string? PreviewJson,
     string Result,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    string? OldVersion = null,
+    string? NewVersion = null);
 
 public interface IPatchAuditRepository
 {
@@ -18,4 +20,9 @@ public interface IPatchAuditRepository
 
     /// <summary>Newest first.</summary>
     Task<IReadOnlyList<PatchAuditEntry>> ListAsync(int limit, CancellationToken cancellationToken);
+
+    Task<PatchAuditEntry?> FindLatestAsync(
+        string productId,
+        string action,
+        CancellationToken cancellationToken);
 }

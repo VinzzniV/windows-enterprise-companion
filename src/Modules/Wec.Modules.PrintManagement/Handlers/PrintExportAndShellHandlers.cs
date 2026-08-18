@@ -1,33 +1,33 @@
 using System.Globalization;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Wec.Core.Abstractions;
 using Wec.Core.Messaging;
 using Wec.Core.Results;
-using Wec.Modules.PrintManagement.Application;
-using Wec.Modules.PrintManagement.Domain;
-using Wec.Modules.PrintManagement.Persistence;
 
 namespace Wec.Modules.PrintManagement.Handlers;
 
-public sealed record ExportPrintCsvRequest(IReadOnlyList<string>? Servers = null);
+/// <summary>
+/// The CSV itself is composed in the UI — it exports exactly the merged devices
+/// and columns on screen, so the de-duplication rules live in one place instead
+/// of being re-implemented server-side. The handler only owns the file dialog.
+/// </summary>
+public sealed record ExportPrintCsvRequest(string Csv);
 
 public sealed record ExportPrintCsvResult(bool Cancelled, string? FilePath);
 
-internal sealed partial class ExportPrintCsvHandler
+internal sealed class ExportPrintCsvHandler
     : IActionHandler<ExportPrintCsvRequest, ExportPrintCsvResult>
 {
-    private readonly IPrintSnapshotRepository _repository;
     private readonly ISaveFileDialogService _saveFileDialog;
     private readonly IClock _clock;
     private readonly ILogger<ExportPrintCsvHandler> _logger;
 
     public ExportPrintCsvHandler(
-        IPrintSnapshotRepository repository,
         ISaveFileDialogService saveFileDialog,
         IClock clock,
         ILogger<ExportPrintCsvHandler> logger)
     {
-        _repository = repository;
         _saveFileDialog = saveFileDialog;
         _clock = clock;
         _logger = logger;
@@ -40,32 +40,14 @@ internal sealed partial class ExportPrintCsvHandler
     public async Task<Result<ExportPrintCsvResult>> HandleAsync(
         ExportPrintCsvRequest payload, CancellationToken cancellationToken)
     {
-        var requested = payload.Servers is { Count: > 0 }
-            ? new HashSet<string>(payload.Servers.Select(server => server.ToUpperInvariant()))
-            : null;
-        var snapshots = new List<PrintServerSnapshot>();
-        foreach (StoredPrintServer server in await _repository.ListServersAsync(cancellationToken))
+        if (string.IsNullOrWhiteSpace(payload.Csv))
         {
-            if (requested is not null && !requested.Contains(server.Server))
-            {
-                continue;
-            }
-
-            if (await _repository.GetLatestAsync(server.Server, cancellationToken) is { } snapshot)
-            {
-                snapshots.Add(snapshot);
-            }
-        }
-
-        if (snapshots.Count == 0)
-        {
-            return Result.Failure<ExportPrintCsvResult>(Error.NotFound(
-                "No stored printer snapshots to export — scan a print server first."));
+            return Result.Failure<ExportPrintCsvResult>(new Error(
+                ErrorCode.InvalidRequest, "Nothing to export."));
         }
 
         string suggestedFileName = string.Create(
-            CultureInfo.InvariantCulture,
-            $"wec-printers-{_clock.UtcNow:yyyyMMdd-HHmm}.csv");
+            CultureInfo.InvariantCulture, $"wec-printers-{_clock.UtcNow:yyyyMMdd-HHmm}.csv");
         string? targetPath = _saveFileDialog.PromptForSavePath(
             suggestedFileName, "CSV files (*.csv)|*.csv|All files (*.*)|*.*");
         if (targetPath is null)
@@ -75,8 +57,10 @@ internal sealed partial class ExportPrintCsvHandler
 
         try
         {
+            // BOM: Excel otherwise reads the file as ANSI and mangles umlauts.
             await File.WriteAllTextAsync(
-                targetPath, PrintCsvExport.BuildCsv(snapshots), cancellationToken);
+                targetPath, payload.Csv, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true),
+                cancellationToken);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

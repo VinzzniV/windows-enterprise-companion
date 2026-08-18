@@ -53,6 +53,12 @@ export const navIcons: Record<string, ReactNode> = {
       <path d="M10.5 8.5L6.5 15.5M13.5 8.5l4 7M8 18h8" />
     </svg>
   ),
+  employeelifecycle: (
+    <svg {...iconProps}>
+      <rect x="3" y="4" width="18" height="14" rx="2" />
+      <path d="M7 11h3l1.5-3 2 6 1.5-3h2M9 21h6M12 18v3" />
+    </svg>
+  ),
   patchmanagement: (
     <svg {...iconProps}>
       <path d="M21 8l-9-5-9 5v8l9 5 9-5z" />
@@ -64,6 +70,13 @@ export const navIcons: Record<string, ReactNode> = {
     <svg {...iconProps}>
       <path d="M7 8V4h10v4M7 16H4v-8h16v8h-3" />
       <path d="M7 13h10v7H7z" />
+    </svg>
+  ),
+  networkscan: (
+    <svg {...iconProps}>
+      <path d="M12 20a8 8 0 1 0-8-8" />
+      <path d="M12 16a4 4 0 0 0-4-4" />
+      <circle cx="12" cy="12" r="1" />
     </svg>
   ),
   reporting: (

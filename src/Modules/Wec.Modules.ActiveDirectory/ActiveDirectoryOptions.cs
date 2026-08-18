@@ -21,4 +21,8 @@ public sealed class ActiveDirectoryOptions
     /// <summary>Upper bound for the computer search behind the multi-host scan pickers.</summary>
     [Range(1, 10_000)]
     public int ComputerSearchLimit { get; set; } = 500;
+
+    /// <summary>Upper bound for the OU-scoped user listing (Employee Lifecycle AD view).</summary>
+    [Range(1, 10_000)]
+    public int UserSearchLimit { get; set; } = 500;
 }

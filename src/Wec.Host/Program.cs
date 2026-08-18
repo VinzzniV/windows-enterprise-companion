@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Wec.Core.Abstractions;
+using Wec.Core.Contracts;
 using Wec.Core.Messaging;
 using Wec.Core.Privileges;
 using Wec.Host.Bridge;
@@ -23,10 +24,15 @@ using Wec.Infrastructure.Time;
 using Wec.Infrastructure.Wmi;
 using Wec.Infrastructure.EventLog;
 using Wec.Infrastructure.Network;
+using Wec.Infrastructure.SoftwareUpdates;
+using Wec.Infrastructure.Security;
+using Wec.Infrastructure.RemoteExecution;
 using Wec.Infrastructure.Directory;
 using Wec.Modules.ActiveDirectory;
 using Wec.Modules.Diagnostics;
+using Wec.Modules.EmployeeLifecycle;
 using Wec.Modules.Inventory;
+using Wec.Modules.NetworkScan;
 using Wec.Modules.PatchManagement;
 using Wec.Modules.PrintManagement;
 using Wec.Modules.Reporting;
@@ -83,6 +89,7 @@ internal static partial class Program
             "Wec",
             "usersettings.json");
         builder.Configuration.AddJsonFile(userSettingsPath, optional: true, reloadOnChange: false);
+        builder.Services.AddSingleton(new UserSettingsStore(userSettingsPath));
 
         builder.Services
             .AddOptions<LoggingOptions>()
@@ -155,6 +162,18 @@ internal static partial class Program
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        builder.Services
+            .AddOptions<NetworkScanOptions>()
+            .Bind(builder.Configuration.GetSection(NetworkScanOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        builder.Services
+            .AddOptions<ItLifecycleOptions>()
+            .Bind(builder.Configuration.GetSection(ItLifecycleOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         IModule[] modules =
         [
             new InventoryModule(),
@@ -164,7 +183,9 @@ internal static partial class Program
             new ActiveDirectoryModule(),
             new PatchManagementModule(),
             new PrintManagementModule(),
+            new NetworkScanModule(),
             new TargetsModule(),
+            new EmployeeLifecycleModule(),
         ];
         foreach (IModule module in modules)
         {
@@ -184,8 +205,14 @@ internal static partial class Program
 
         builder.Services.AddSingleton<IWmiQueryService, CimWmiQueryService>();
         builder.Services.AddSingleton<Wec.Core.Opsi.IOpsiClient, Wec.Infrastructure.Opsi.JsonRpcOpsiClient>();
+        builder.Services.AddSingleton<Wec.Core.SoftwareUpdates.IVendorVersionClient, HttpVendorVersionClient>();
+        builder.Services.AddSingleton<Wec.Core.RemoteExecution.IRemoteCommandExecutor, OpenSshRemoteCommandExecutor>();
+        builder.Services.AddSingleton<Wec.Core.RemoteExecution.IRemoteArtifactStager, Wec.Infrastructure.RemoteExecution.HttpOpenSshArtifactStager>();
         builder.Services.AddSingleton<Wec.Core.Snmp.ISnmpReader, Wec.Infrastructure.Snmp.SnmpV2cReader>();
         builder.Services.AddSingleton<Wec.Core.Ccrx.ICcrxClient, Wec.Infrastructure.Ccrx.CcrxHttpClient>();
+        builder.Services.AddSingleton<Wec.Core.Dhcp.IDhcpReader, Wec.Infrastructure.Dhcp.PowerShellDhcpReader>();
+        builder.Services.AddSingleton<Wec.Core.Printing.IPrinterPortRemover, Wec.Infrastructure.Printing.PowerShellPrinterPortRemover>();
+        builder.Services.AddSingleton<Wec.Core.Network.INetworkScanner, Wec.Infrastructure.Network.NmapScanner>();
         builder.Services.AddSingleton<IRegistryReader, WindowsRegistryReader>();
         builder.Services.AddSingleton<ILocalAccountPolicyReader, Wec.Infrastructure.Accounts.SamAccountPolicyReader>();
         builder.Services.AddSingleton<INetworkInfoProvider, SystemNetworkInfoProvider>();
@@ -197,6 +224,7 @@ internal static partial class Program
         builder.Services.AddSingleton<ISaveFileDialogService, WinFormsSaveFileDialogService>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
+        builder.Services.AddSingleton<IServiceCredentialStore, WindowsCredentialStore>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();
         builder.Services.AddSingleton<IActionHandler, ProbeHostsHandler>();
         builder.Services.AddSingleton<IPowerShellSessionLauncher, ShellPowerShellSessionLauncher>();
@@ -205,6 +233,13 @@ internal static partial class Program
         builder.Services.AddSingleton<IActionHandler, ClearRecentLogEntriesHandler>();
         builder.Services.AddSingleton<IActionHandler, GetAppInfoHandler>();
         builder.Services.AddSingleton<IActionHandler, OpenLogsFolderHandler>();
+        builder.Services.AddSingleton<IActionHandler, GetItLifecycleSettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, SaveItLifecycleSettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, GetOpsiSettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, SaveOpsiSettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, GetServiceCredentialStatusesHandler>();
+        builder.Services.AddSingleton<IActionHandler, SaveServiceCredentialHandler>();
+        builder.Services.AddSingleton<IActionHandler, DeleteServiceCredentialHandler>();
         builder.Services.AddSingleton<IElevatedProcessLauncher, ShellElevatedProcessLauncher>();
         builder.Services.AddSingleton<IAppShutdown, MainWindowShutdown>();
         builder.Services.AddSingleton<IActionHandler, RestartElevatedHandler>();

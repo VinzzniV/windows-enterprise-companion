@@ -1,322 +1,160 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
-import type {
-  AdComputerSearchResult,
-  HostProbe,
-  ListInventoryHostsResult,
-  ProbeHostsResult,
-  StoredInventoryHost,
-} from '../../shared/api-types';
+import { invoke } from '../../shared/bridge/bridgeClient';
+import type { HostProbe, HygieneDevice, HygieneFindingCode, InventorySourceState, ListInventoryHostsResult, ProbeHostsResult, StoredInventoryHost } from '../../shared/api-types';
+import { useEnvironment } from '../../shared/environment/EnvironmentContext';
 import { useTargets } from '../../shared/targets/TargetContext';
-import { openPsSession } from '../../shared/ps/openPsSession';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Toolbar } from '../../shared/ui/Toolbar';
 import { Input } from '../../shared/ui/Input';
 import { Select } from '../../shared/ui/Select';
 import { Button } from '../../shared/ui/Button';
-import { Badge } from '../../shared/ui/Badge';
+import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 import { DataTable, type DataColumn } from '../../shared/ui/DataTable';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
 import { Spinner } from '../../shared/ui/Spinner';
-import {
-  buildClientList,
-  filterClients,
-  groupClients,
-  type ClientEntry,
-  type GroupMode,
-} from './clients';
+import { buildClientList, filterClients, groupClients, type ClientEntry, type GroupMode } from './clients';
 
-function errorText(error: unknown): string {
-  if (error instanceof BridgeInvokeError) {
-    return `${error.error.code}: ${error.error.message}`;
-  }
-  return error instanceof Error ? error.message : String(error);
+type ClientStatusFilter = 'ALL' | 'HEALTHY' | 'PROBLEMS' | 'INCOMPLETE' | 'UNMANAGED';
+type ClientSourceFilter = 'ALL' | 'AD' | 'KASPERSKY' | 'OPSI' | 'SCANNED' | 'SAVED';
+
+function hasFinding(device: HygieneDevice, codes: HygieneFindingCode[]) {
+  return device.assessment.findings.some((finding) => codes.includes(finding.code));
 }
 
-function StatusCell({ client, probe }: { client: ClientEntry; probe?: HostProbe }) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {probe &&
-        (probe.reachable ? <Badge tone="ok">Online</Badge> : <Badge tone="neutral">Offline</Badge>)}
-      {probe?.manageable && <Badge tone="info">WinRM</Badge>}
-      {client.scanned ? (
-        <Badge tone="ok">Scanned</Badge>
-      ) : (
-        <Badge tone="neutral">Not scanned</Badge>
-      )}
-      {client.saved && <Badge tone="accent">Saved</Badge>}
-      {!client.enabled && <Badge tone="warn">Disabled</Badge>}
-      {client.scanned && client.capturedAtUtc && (
-        <span className="text-xs text-slate-500">
-          {new Date(client.capturedAtUtc).toLocaleString()}
-        </span>
-      )}
-    </div>
-  );
+function findingStatus(device: HygieneDevice, codes: HygieneFindingCode[], label: string): { label: string; tone: BadgeTone } {
+  const findings = device.assessment.findings.filter((finding) => codes.includes(finding.code));
+  if (!findings.length) return { label: 'OK', tone: 'ok' };
+  return {
+    label,
+    tone: findings.some((finding) => finding.severity === 'CRITICAL') ? 'fail' : 'warn',
+  };
+}
+
+function availabilityLabel(state: InventorySourceState) {
+  return ({ AVAILABLE: 'Available', NOT_CONNECTED: 'Not connected', UNAVAILABLE: 'Unavailable', TRUNCATED: 'Truncated' })[state.availability];
+}
+
+function SourceBadge({ client, state, source }: { client: ClientEntry; state: InventorySourceState; source: 'ad' | 'ksc' | 'opsi' }) {
+  const device = client.environment;
+  if (!device) return <Badge tone="neutral">Not inventoried</Badge>;
+  if (state.availability !== 'AVAILABLE') return <Badge tone="neutral">{availabilityLabel(state)}</Badge>;
+  if (source === 'ad') {
+    if (!device.activeDirectory.exists) return <Badge tone={hasFinding(device, ['ORPHAN_KASPERSKY', 'ORPHAN_OPSI']) ? 'warn' : 'neutral'}>{hasFinding(device, ['ORPHAN_KASPERSKY', 'ORPHAN_OPSI']) ? 'Missing' : 'N/A'}</Badge>;
+    if (!device.activeDirectory.enabled) return <Badge tone="neutral">Disabled</Badge>;
+    const status = findingStatus(device, ['STALE_AD'], 'Stale');
+    return <Badge tone={status.tone}>{status.label}</Badge>;
+  }
+  if (source === 'ksc') {
+    if (!device.kaspersky.exists) return <Badge tone={hasFinding(device, ['MISSING_KASPERSKY']) ? 'warn' : 'neutral'}>{hasFinding(device, ['MISSING_KASPERSKY']) ? 'Missing' : 'N/A'}</Badge>;
+    const stale = hasFinding(device, ['STALE_KASPERSKY']);
+    const status = findingStatus(
+      device,
+      ['STALE_KASPERSKY', 'OUTDATED_AGENT', 'OUTDATED_KES'],
+      stale ? 'Stale' : 'Outdated',
+    );
+    return <Badge tone={status.tone}>{status.label}</Badge>;
+  }
+  if (!device.opsi.exists) return <Badge tone={hasFinding(device, ['MISSING_OPSI']) ? 'warn' : 'neutral'}>{hasFinding(device, ['MISSING_OPSI']) ? 'Missing' : 'N/A'}</Badge>;
+  const status = findingStatus(device, ['STALE_OPSI'], 'Stale');
+  return <Badge tone={status.tone}>{status.label}</Badge>;
+}
+
+function overall(client: ClientEntry): { label: string; tone: BadgeTone } {
+  const status = client.environment?.assessment.status;
+  if (!status) return { label: 'Unmanaged', tone: 'neutral' };
+  if (status === 'HEALTHY') return { label: 'Healthy', tone: 'ok' };
+  if (status === 'CLEANUP_CANDIDATE') return { label: 'Cleanup candidate', tone: 'fail' };
+  if (status === 'INCOMPLETE') return { label: 'Incomplete', tone: 'neutral' };
+  return { label: 'Warning', tone: 'warn' };
+}
+
+function matchesStatus(client: ClientEntry, filter: ClientStatusFilter) {
+  if (filter === 'ALL') return true;
+  if (!client.environment) return filter === 'UNMANAGED';
+  if (filter === 'HEALTHY') return client.environment.assessment.status === 'HEALTHY';
+  if (filter === 'INCOMPLETE') return client.environment.assessment.status === 'INCOMPLETE';
+  if (filter === 'PROBLEMS') return ['WARNING', 'CLEANUP_CANDIDATE'].includes(client.environment.assessment.status);
+  return false;
+}
+
+function matchesSource(client: ClientEntry, filter: ClientSourceFilter) {
+  if (filter === 'ALL') return true;
+  if (filter === 'SCANNED') return client.scanned;
+  if (filter === 'SAVED') return client.saved;
+  if (filter === 'AD') return client.environment?.activeDirectory.exists === true;
+  if (filter === 'KASPERSKY') return client.environment?.kaspersky.exists === true;
+  return client.environment?.opsi.exists === true;
 }
 
 export function ClientsPage() {
   const navigate = useNavigate();
-  const { savedTargets, adminCredentials } = useTargets();
-
-  const [adResult, setAdResult] = useState<AdComputerSearchResult | null>(null);
+  const { savedTargets } = useTargets();
+  const environment = useEnvironment();
   const [scannedHosts, setScannedHosts] = useState<StoredInventoryHost[]>([]);
-  const [adFilter, setAdFilter] = useState('');
-  const [includeDisabled, setIncludeDisabled] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [adError, setAdError] = useState<string | null>(null);
-
   const [search, setSearch] = useState('');
   const [groupMode, setGroupMode] = useState<GroupMode>('none');
+  const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('ALL');
+  const [sourceFilter, setSourceFilter] = useState<ClientSourceFilter>('ALL');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [probes, setProbes] = useState<Record<string, HostProbe>>({});
   const [probing, setProbing] = useState(false);
 
-  const searchAd = useCallback((filter: string, disabled: boolean) => {
-    setSearching(true);
-    setAdError(null);
-    invoke<AdComputerSearchResult>(
-      'activedirectory',
-      'searchComputers',
-      { nameFilter: filter.trim() || null, includeDisabled: disabled },
-      120_000,
-    )
-      .then(setAdResult)
-      .catch((error: unknown) => setAdError(errorText(error)))
-      .finally(() => setSearching(false));
-  }, []);
+  const reloadScanned = useCallback(() => invoke<ListInventoryHostsResult>('inventory', 'listHosts')
+    .then((value) => setScannedHosts(value.hosts)).catch(() => setScannedHosts([])), []);
+  useEffect(() => { void environment.ensureLoaded(); reloadScanned(); }, [environment.ensureLoaded, reloadScanned]);
 
-  const reloadScanned = useCallback(() => {
-    invoke<ListInventoryHostsResult>('inventory', 'listHosts')
-      .then((result) => setScannedHosts(result.hosts))
-      .catch(() => setScannedHosts([]));
-  }, []);
-
-  useEffect(() => {
-    searchAd('', false);
-    reloadScanned();
-  }, [searchAd, reloadScanned]);
-
-  const savedClients = useMemo(
-    () => savedTargets.filter((target) => target.role === 'Client'),
-    [savedTargets],
-  );
-  const clients = useMemo(
-    () => buildClientList(adResult?.computers ?? [], scannedHosts, savedClients),
-    [adResult, scannedHosts, savedClients],
-  );
-  const filtered = useMemo(() => filterClients(clients, search), [clients, search]);
+  const savedClients = useMemo(() => savedTargets.filter((target) => target.role === 'Client'), [savedTargets]);
+  const clients = useMemo(() => buildClientList(environment.result?.devices ?? [], scannedHosts, savedClients), [environment.result, scannedHosts, savedClients]);
+  const filtered = useMemo(() => filterClients(clients, search)
+    .filter((client) => matchesStatus(client, statusFilter) && matchesSource(client, sourceFilter)),
+  [clients, search, sourceFilter, statusFilter]);
   const groups = useMemo(() => groupClients(filtered, groupMode), [filtered, groupMode]);
-  const scannedCount = filtered.filter((client) => client.scanned).length;
 
-  const openClient = (client: ClientEntry) =>
-    navigate(`/clients/${encodeURIComponent(client.host)}`);
-
-  // On-demand liveness for the visible/filtered rows only (never the full AD list).
   const probeOnline = () => {
     const hosts = filtered.map((client) => client.host);
-    if (hosts.length === 0) return;
+    if (!hosts.length) return;
     setProbing(true);
     invoke<ProbeHostsResult>('connectivity', 'probeHosts', { hosts }, 120_000)
-      .then((result) =>
-        setProbes((current) => ({
-          ...current,
-          ...Object.fromEntries(result.results.map((probe) => [probe.host.toUpperCase(), probe])),
-        })),
-      )
-      .catch(() => {})
-      .finally(() => setProbing(false));
+      .then((value) => setProbes((current) => ({ ...current, ...Object.fromEntries(value.results.map((probe) => [probe.host.toUpperCase(), probe])) })))
+      .catch(() => {}).finally(() => setProbing(false));
   };
 
-  const toggleGroup = (label: string) =>
-    setCollapsed((current) => {
-      const next = new Set(current);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
-    });
-
   const columns: DataColumn<ClientEntry>[] = [
-    {
-      header: 'Client',
-      cell: (client) => (
-        <div className="flex flex-col">
-          <span className="font-medium text-slate-100">{client.name}</span>
-          {client.host !== client.name && (
-            <span className="font-mono text-xs text-slate-500">{client.host}</span>
-          )}
-          {client.description && (
-            <span className="text-xs text-slate-400">{client.description}</span>
-          )}
-        </div>
-      ),
-    },
-    { header: 'Operating system', cell: (client) => client.os ?? '—' },
-    {
-      header: 'Status',
-      cell: (client) => <StatusCell client={client} probe={probes[client.host.toUpperCase()]} />,
-    },
-    {
-      header: 'Actions',
-      align: 'right',
-      cell: (client) => (
-        <Button
-          variant="ghost"
-          onClick={(event) => {
-            // Row click opens the client; keep the PS action to itself.
-            event.stopPropagation();
-            void openPsSession(client.host, adminCredentials).catch(() => {});
-          }}
-          title={`Open a PowerShell session to ${client.host}`}
-        >
-          PowerShell
-        </Button>
-      ),
-    },
+    { header: 'Device', cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
+      {client.os && <span className="text-xs text-slate-500">{client.os}</span>}
+      <div className="flex flex-wrap gap-1">{probes[client.host.toUpperCase()] && <Badge tone={probes[client.host.toUpperCase()].reachable ? 'ok' : 'neutral'}>{probes[client.host.toUpperCase()].reachable ? 'Online' : 'Offline'}</Badge>}
+        {client.scanned && <Badge tone="info">Scanned</Badge>}{client.saved && <Badge tone="accent">Saved</Badge>}</div></div>, sortValue: (client) => client.name },
+    { header: 'AD', cell: (client) => <SourceBadge client={client} state={environment.result?.sources.activeDirectory ?? { availability: 'NOT_CONNECTED', error: null }} source="ad" /> },
+    { header: 'Kaspersky', cell: (client) => <SourceBadge client={client} state={environment.result?.sources.kaspersky ?? { availability: 'NOT_CONNECTED', error: null }} source="ksc" /> },
+    { header: 'opsi', cell: (client) => <SourceBadge client={client} state={environment.result?.sources.opsi ?? { availability: 'NOT_CONNECTED', error: null }} source="opsi" /> },
+    { header: 'Overall', cell: (client) => { const value = overall(client); return <Badge tone={value.tone}>{value.label}</Badge>; } },
   ];
 
-  return (
-    <div className="flex flex-col gap-4">
-      <PageHeader title="Clients" subtitle="Pick a client to scan it on demand — nothing runs until you open it">
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={() => navigate('/clients/compare')}>
-            Compare
-          </Button>
-          <Button variant="secondary" onClick={probeOnline} disabled={probing || filtered.length === 0}>
-            {probing ? 'Checking…' : 'Check online'}
-          </Button>
-          <Button variant="secondary" onClick={() => { searchAd(adFilter, includeDisabled); reloadScanned(); }} disabled={searching}>
-            {searching ? 'Refreshing…' : 'Refresh'}
-          </Button>
-        </div>
-      </PageHeader>
+  const table = (rows: ClientEntry[]) => <DataTable columns={columns} rows={rows} getRowKey={(client) => client.key}
+    onRowClick={(client) => navigate(`/clients/${encodeURIComponent(client.host)}`)} stickyHeader emptyMessage="No clients." />;
 
-      <Toolbar
-        actions={
-          <>
-            <Input
-              type="text"
-              value={adFilter}
-              onChange={(event) => setAdFilter(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  searchAd(adFilter, includeDisabled);
-                }
-              }}
-              placeholder="AD name filter (empty = all)"
-              aria-label="Active Directory name filter"
-              disabled={searching}
-              className="w-56"
-            />
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400">
-              <input
-                type="checkbox"
-                className="accent-accent-500"
-                checked={includeDisabled}
-                onChange={(event) => setIncludeDisabled(event.target.checked)}
-                disabled={searching}
-              />
-              Include disabled
-            </label>
-            <Button variant="secondary" onClick={() => searchAd(adFilter, includeDisabled)} disabled={searching}>
-              Search AD
-            </Button>
-          </>
-        }
-      >
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Filter clients by name, host or OS"
-          aria-label="Filter clients"
-          className="w-64"
-        />
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          Group by
-          <Select
-            fullWidth={false}
-            value={groupMode}
-            onChange={(event) => setGroupMode(event.target.value as GroupMode)}
-            aria-label="Group clients by"
-          >
-            <option value="none">None</option>
-            <option value="os">Operating system</option>
-            <option value="site">Site</option>
-          </Select>
-        </label>
-      </Toolbar>
-
-      <p className="text-sm text-slate-400">
-        {filtered.length} client{filtered.length === 1 ? '' : 's'} · {scannedCount} scanned
-        {adResult?.domainJoined === false && ' · not domain-joined (showing scanned and saved only)'}
-        {adResult?.truncated && ' · AD list truncated, refine the filter'}
-      </p>
-
-      {adError && (
-        <ErrorState
-          title="Active Directory search failed"
-          message={adError}
-          hint="Clients already scanned or saved are still listed below."
-        />
-      )}
-
-      {adResult === null && adError === null ? (
-        // Wait for the first AD search before drawing the table, so the view does
-        // not flash the scanned-only rows (fast) and then swap to the full AD list.
-        <Spinner label="Loading clients from Active Directory …" />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          title="No clients"
-          message="No clients matched. Search Active Directory, adjust the filter, or scan a host to add it here."
-        />
-      ) : groupMode === 'none' ? (
-        <DataTable
-          columns={columns}
-          rows={filtered}
-          emptyMessage="No clients."
-          getRowKey={(client) => client.key}
-          onRowClick={openClient}
-          stickyHeader
-        />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {groups.map((group) => {
-            const isCollapsed = collapsed.has(group.label);
-            return (
-              <div key={group.label} className="rounded-lg border border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.label)}
-                  aria-expanded={!isCollapsed}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-slate-200 hover:bg-slate-800/40"
-                >
-                  <span className={`text-slate-500 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
-                    ›
-                  </span>
-                  {group.label}
-                  <span className="text-xs font-normal text-slate-500">
-                    {group.clients.length} client{group.clients.length === 1 ? '' : 's'}
-                  </span>
-                </button>
-                {!isCollapsed && (
-                  <div className="border-t border-slate-800 px-1 pb-1">
-                    <DataTable
-                      columns={columns}
-                      rows={group.clients}
-                      emptyMessage="No clients."
-                      getRowKey={(client) => client.key}
-                      onRowClick={openClient}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  return <div className="flex flex-col gap-4">
+    <PageHeader title="Clients" subtitle="Central device inventory across AD, Kaspersky, opsi and WEC scans">
+      <div className="flex gap-2"><Button variant="secondary" onClick={() => navigate('/clients/compare')}>Compare</Button>
+        <Button variant="secondary" onClick={probeOnline} disabled={probing || !filtered.length}>{probing ? 'Checking…' : 'Check online'}</Button>
+        <Button variant="secondary" onClick={() => { void environment.refresh(); reloadScanned(); }} disabled={environment.loading}>{environment.loading ? 'Refreshing…' : 'Refresh'}</Button></div>
+    </PageHeader>
+    <Toolbar><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter by device, OS or finding" aria-label="Filter clients" className="w-64" />
+      <Select fullWidth={false} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ClientStatusFilter)} aria-label="Filter clients by status">
+        <option value="ALL">All statuses</option><option value="HEALTHY">Healthy</option><option value="PROBLEMS">Problems</option><option value="INCOMPLETE">Incomplete</option><option value="UNMANAGED">Unmanaged</option>
+      </Select>
+      <Select fullWidth={false} value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as ClientSourceFilter)} aria-label="Filter clients by source">
+        <option value="ALL">All sources</option><option value="AD">Active Directory</option><option value="KASPERSKY">Kaspersky</option><option value="OPSI">opsi</option><option value="SCANNED">Scanned</option><option value="SAVED">Saved</option>
+      </Select>
+      <Select fullWidth={false} value={groupMode} onChange={(event) => setGroupMode(event.target.value as GroupMode)} aria-label="Group clients by">
+        <option value="none">No grouping</option><option value="os">Group by OS</option><option value="site">Group by site</option>
+      </Select></Toolbar>
+    <p className="text-sm text-slate-400">{filtered.length} devices · {filtered.filter((client) => client.scanned).length} scanned</p>
+    {environment.error && <ErrorState title="Environment inventory failed" message={environment.error} />}
+    {environment.loading && !environment.result ? <Spinner label="Loading environment inventory …" /> : !filtered.length ? <EmptyState title="No clients" message="No device matches the current filters." />
+      : groupMode === 'none' ? table(filtered) : <div className="flex flex-col gap-3">{groups.map((group) => { const hidden = collapsed.has(group.label); return <div key={group.label} className="rounded-lg border border-slate-800">
+        <button type="button" className="flex w-full gap-2 px-3 py-2 text-left text-sm text-slate-200" onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(group.label)) next.delete(group.label); else next.add(group.label); return next; })}>{group.label} <span className="text-slate-500">{group.clients.length}</span></button>
+        {!hidden && <div className="border-t border-slate-800">{table(group.clients)}</div>}</div>; })}</div>}
+  </div>;
 }

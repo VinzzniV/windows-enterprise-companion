@@ -35,10 +35,13 @@ internal sealed class GetLatestPrintSnapshotHandler
     : IActionHandler<GetLatestPrintSnapshotRequest, PrintServerSnapshot>
 {
     private readonly IPrintSnapshotRepository _repository;
+    private readonly LastKnownDevices _lastKnownDevices;
 
-    public GetLatestPrintSnapshotHandler(IPrintSnapshotRepository repository)
+    public GetLatestPrintSnapshotHandler(
+        IPrintSnapshotRepository repository, LastKnownDevices lastKnownDevices)
     {
         _repository = repository;
+        _lastKnownDevices = lastKnownDevices;
     }
 
     public string Module => "printmanagement";
@@ -53,7 +56,7 @@ internal sealed class GetLatestPrintSnapshotHandler
         return snapshot is null
             ? Result.Failure<PrintServerSnapshot>(Error.NotFound(
                 $"No stored snapshot for '{payload.Server}'."))
-            : Result.Success(snapshot);
+            : Result.Success(await _lastKnownDevices.FillAsync(snapshot, cancellationToken));
     }
 }
 

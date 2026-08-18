@@ -5,9 +5,9 @@ namespace Wec.Modules.PatchManagement.Application;
 public sealed record OpsiSession(OpsiConnection Connection, OpsiServerInfo ServerInfo);
 
 /// <summary>
-/// Session-scoped opsi credentials (ADR 0008): set by a successful connect,
-/// cleared by disconnect, gone on process exit. Never persisted, never
-/// logged, never sent back over the bridge.
+/// Live opsi session: set by a successful connect, cleared by disconnect and
+/// gone on process exit. An optional persisted copy is owned separately by
+/// Windows Credential Manager; passwords are never logged or returned.
 /// </summary>
 public sealed class OpsiSessionState
 {

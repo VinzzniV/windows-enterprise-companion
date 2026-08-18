@@ -19,7 +19,9 @@
     <ProjectReference Include="..\Modules\Wec.Modules.ActiveDirectory\Wec.Modules.ActiveDirectory.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.PatchManagement\Wec.Modules.PatchManagement.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.PrintManagement\Wec.Modules.PrintManagement.csproj" />
+    <ProjectReference Include="..\Modules\Wec.Modules.NetworkScan\Wec.Modules.NetworkScan.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.Targets\Wec.Modules.Targets.csproj" />
+    <ProjectReference Include="..\Modules\Wec.Modules.EmployeeLifecycle\Wec.Modules.EmployeeLifecycle.csproj" />
   </ItemGroup>
 
   <ItemGroup>

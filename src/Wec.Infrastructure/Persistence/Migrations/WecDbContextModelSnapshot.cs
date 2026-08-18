@@ -49,6 +49,275 @@ namespace Wec.Infrastructure.Persistence.Migrations
                     b.ToTable("diagnostics_runs", (string)null);
                 });
 
+            modelBuilder.Entity("Wec.Modules.EmployeeLifecycle.Persistence.CaseRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CancelReason")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("cancel_reason");
+
+                    b.Property<long?>("ClosedUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("closed_utc");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("created_utc");
+
+                    b.Property<DateOnly?>("EffectiveDate")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("effective_date");
+
+                    b.Property<long>("EmployeeId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("employee_lifecycle_cases", (string)null);
+                });
+
+            modelBuilder.Entity("Wec.Modules.EmployeeLifecycle.Persistence.CaseTaskRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("area");
+
+                    b.Property<string>("Assignee")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("assignee");
+
+                    b.Property<long>("CaseId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("case_id");
+
+                    b.Property<long?>("CompletedUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("completed_utc");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("created_utc");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("due_date");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("notes");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.ToTable("employee_lifecycle_tasks", (string)null);
+                });
+
+            modelBuilder.Entity("Wec.Modules.EmployeeLifecycle.Persistence.DepartmentRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ManagerName")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("manager_name");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("name");
+
+                    b.Property<string>("OuDistinguishedName")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("ou_distinguished_name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("employee_lifecycle_departments", (string)null);
+                });
+
+            modelBuilder.Entity("Wec.Modules.EmployeeLifecycle.Persistence.EmployeeRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<long>("CreatedUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("created_utc");
+
+                    b.Property<string>("Department")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("department");
+
+                    b.Property<string>("DistinguishedName")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("distinguished_name");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("email");
+
+                    b.Property<string>("EmployeeNumber")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("employee_number");
+
+                    b.Property<DateOnly?>("EntryDate")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("entry_date");
+
+                    b.Property<DateOnly?>("ExitDate")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("exit_date");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("first_name");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("last_name");
+
+                    b.Property<string>("Manager")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("manager");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("SamAccountName")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("sam_account_name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("title");
+
+                    b.Property<long>("UpdatedUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("updated_utc");
+
+                    b.Property<string>("UserPrincipalName")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("user_principal_name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastName");
+
+                    b.ToTable("employee_lifecycle_employees", (string)null);
+                });
+
+            modelBuilder.Entity("Wec.Modules.EmployeeLifecycle.Persistence.LifecycleAuditRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<long?>("CaseId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("case_id");
+
+                    b.Property<string>("Detail")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("detail");
+
+                    b.Property<long>("EmployeeId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("NewValue")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("new_value");
+
+                    b.Property<string>("OldValue")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("old_value");
+
+                    b.Property<long?>("TaskId")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("task_id");
+
+                    b.Property<long>("TimestampUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("timestamp_utc");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("user_name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.ToTable("employee_lifecycle_audit_entries", (string)null);
+                });
+
             modelBuilder.Entity("Wec.Modules.Inventory.Persistence.HardwareSnapshotRecord", b =>
                 {
                     b.Property<long>("Id")
@@ -102,6 +371,14 @@ namespace Wec.Infrastructure.Persistence.Migrations
                     b.Property<string>("ErrorMessage")
                         .HasColumnType("TEXT")
                         .HasColumnName("error_message");
+
+                    b.Property<string>("NewVersion")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("new_version");
+
+                    b.Property<string>("OldVersion")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("old_version");
 
                     b.Property<string>("PreviewJson")
                         .HasColumnType("TEXT")
@@ -160,6 +437,57 @@ namespace Wec.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("patchmanagement_product_mappings", (string)null);
+                });
+
+            modelBuilder.Entity("Wec.Modules.PatchManagement.Persistence.ProductVersionSourceRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CheckStatus")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("check_status");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("enabled");
+
+                    b.Property<long?>("LastCheckedUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("last_checked_utc");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("LatestVersion")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("latest_version");
+
+                    b.Property<string>("ProductId")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("source_url");
+
+                    b.Property<string>("VersionPattern")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("version_pattern");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique();
+
+                    b.ToTable("patchmanagement_version_sources", (string)null);
                 });
 
             modelBuilder.Entity("Wec.Modules.PrintManagement.Persistence.ClientPrinterScanRecord", b =>

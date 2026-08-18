@@ -1,4 +1,4 @@
-import type { AdComputer, SavedTarget, StoredInventoryHost, TargetRequest } from '../../shared/api-types';
+import type { AdComputer, HygieneDevice, SavedTarget, StoredInventoryHost, TargetRequest } from '../../shared/api-types';
 import type { CredentialValues } from '../../shared/targets/TargetSelector';
 
 /** A client in the workspace list, merged from AD, scan history and saved targets. */
@@ -20,6 +20,7 @@ export interface ClientEntry {
   /** Is a saved target. */
   saved: boolean;
   inAd: boolean;
+  environment: HygieneDevice | null;
 }
 
 export type GroupMode = 'none' | 'os' | 'site';
@@ -43,25 +44,28 @@ export function siteOf(name: string): string {
  * still listed.
  */
 export function buildClientList(
-  adComputers: readonly AdComputer[],
+  environmentDevices: readonly HygieneDevice[] | readonly AdComputer[],
   scannedHosts: readonly StoredInventoryHost[],
   savedClients: readonly SavedTarget[],
 ): ClientEntry[] {
   const byKey = new Map<string, ClientEntry>();
 
-  for (const computer of adComputers) {
-    const host = computer.dnsHostName ?? computer.name;
+  for (const item of environmentDevices) {
+    const device = 'computerName' in item ? item : null;
+    const legacy = device ? null : item as AdComputer;
+    const host = device ? device.hostName : legacy!.dnsHostName ?? legacy!.name;
     byKey.set(clientKey(host), {
       host,
       key: clientKey(host),
-      name: computer.name,
-      os: computer.operatingSystem,
-      description: computer.description,
-      enabled: computer.enabled,
+      name: device ? device.computerName : legacy!.name,
+      os: device ? device.activeDirectory.operatingSystem : legacy!.operatingSystem,
+      description: device ? device.activeDirectory.description ?? device.opsi.description : legacy!.description,
+      enabled: device ? device.activeDirectory.enabled ?? true : legacy!.enabled,
       scanned: false,
       capturedAtUtc: null,
       saved: false,
-      inAd: true,
+      inAd: device ? device.activeDirectory.exists : true,
+      environment: device,
     });
   }
 
@@ -83,6 +87,7 @@ export function buildClientList(
         capturedAtUtc: stored.capturedAtUtc,
         saved: false,
         inAd: false,
+        environment: null,
       });
     }
   }
@@ -104,6 +109,7 @@ export function buildClientList(
         capturedAtUtc: null,
         saved: true,
         inAd: false,
+        environment: null,
       });
     }
   }
@@ -144,7 +150,8 @@ export function filterClients(clients: readonly ClientEntry[], term: string): Cl
   const needle = term.trim().toLowerCase();
   if (needle === '') return [...clients];
   return clients.filter((client) =>
-    [client.name, client.host, client.os ?? ''].some((field) =>
+    [client.name, client.host, client.os ?? '', client.description ?? '',
+      ...(client.environment?.assessment.findings.map((finding) => finding.message) ?? [])].some((field) =>
       field.toLowerCase().includes(needle),
     ),
   );

@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Abstractions;
+using Wec.Core.Contracts;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.ActiveDirectory;
 using Wec.Modules.ActiveDirectory.Application;
 
@@ -84,7 +86,9 @@ public sealed class ComputerSearchServiceTests
         SetUpDomainJoined();
         SetUpComputerEntries(
             Entry("CN=PC2", ("name", "PC2"), ("dNSHostName", "pc2.kauth.local"),
-                ("operatingSystem", "Windows 11 Pro"), ("userAccountControl", "4096")),
+                ("operatingSystem", "Windows 11 Pro"), ("userAccountControl", "4096"),
+                ("lastLogonTimestamp", new DateTimeOffset(2026, 8, 15, 12, 0, 0, TimeSpan.Zero)
+                    .ToFileTime().ToString(System.Globalization.CultureInfo.InvariantCulture))),
             Entry("CN=PC1", ("name", "PC1"), ("dNSHostName", "pc1.kauth.local"),
                 ("operatingSystem", "Windows 10 Pro"), ("userAccountControl", "4098")));
 
@@ -97,7 +101,32 @@ public sealed class ComputerSearchServiceTests
         Assert.False(result.Value.Computers[0].Enabled); // 4098 carries the disabled bit
         Assert.True(result.Value.Computers[1].Enabled);
         Assert.Equal("pc1.kauth.local", result.Value.Computers[0].DnsHostName);
+        Assert.Equal("CN=PC1", result.Value.Computers[0].DistinguishedName);
+        Assert.Equal(new DateTimeOffset(2026, 8, 15, 12, 0, 0, TimeSpan.Zero), result.Value.Computers[1].LastLogonDate);
         Assert.False(result.Value.Truncated);
+    }
+
+    [Fact]
+    public async Task Inventory_LoadsDisabledComputersAndMapsRequiredFields()
+    {
+        SetUpDomainJoined();
+        var lastLogon = new DateTimeOffset(2026, 8, 1, 8, 30, 0, TimeSpan.Zero);
+        SetUpComputerEntries(
+            Entry("CN=PC1,OU=Clients,DC=kauth,DC=local", ("name", "PC1"),
+                ("userAccountControl", "4098"),
+                ("lastLogonTimestamp", lastLogon.ToFileTime().ToString(
+                    System.Globalization.CultureInfo.InvariantCulture))));
+
+        Result<AdComputerInventory> result = await CreateService().LoadAsync(
+            new AdComputerInventoryQuery(null, null, ScanCredentials.CurrentUser, 10),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        AdComputerInventoryItem computer = Assert.Single(result.Value.Computers);
+        Assert.Equal("PC1", computer.ComputerName);
+        Assert.False(computer.Enabled);
+        Assert.Equal("CN=PC1,OU=Clients,DC=kauth,DC=local", computer.DistinguishedName);
+        Assert.Equal(lastLogon, computer.LastLogonDate);
     }
 
     [Fact]

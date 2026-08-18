@@ -93,6 +93,8 @@ public sealed class PrintServerScanServiceTests
         PrinterEntry entry = Assert.Single(result.Value.Printers);
         Assert.Equal("Denkingen-EG", entry.QueueName);
         Assert.Equal("10.1.1.20", entry.DeviceAddress);
+        // An address that is already an IP literal resolves to itself, no DNS needed
+        Assert.Equal("10.1.1.20", entry.DeviceIp);
         Assert.NotNull(entry.Device);
         Assert.Equal("VCF1234567", entry.Device!.SerialNumber);
         Assert.Equal("UTAX P-4539i MFP", entry.Device.Model);
@@ -133,6 +135,83 @@ public sealed class PrintServerScanServiceTests
         PrinterEntry wsd = Assert.Single(result.Value.Printers, entry => entry.QueueName == "Queue-B");
         Assert.Null(wsd.DeviceAddress);
         Assert.Null(wsd.DeviceError);
+    }
+
+    [Fact]
+    public async Task Capture_ReportsTcpPortsNoQueueUsesAsUnused()
+    {
+        SetUpCim(
+            printers: [Instance(("Name", "Queue-A"), ("PortName", "IP_10.1.1.20"))],
+            ports:
+            [
+                Instance(("Name", "IP_10.1.1.20"), ("PrinterHostAddress", "10.1.1.20")),
+                Instance(("Name", "IP_10.1.1.99"), ("PrinterHostAddress", "10.1.1.99")),
+                Instance(("Name", "PORTPROMPT:")),
+            ],
+            drivers: []);
+        _snmpReader.GetAsync(Arg.Any<SnmpEndpoint>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<SnmpVarBind>>(new Error(ErrorCode.ConnectionTimeout, "no answer")));
+
+        Result<PrintServerSnapshot> result = await CreateService().CaptureAsync(
+            ScanTarget.Remote("prsrv"), ScanCredentials.CurrentUser, CancellationToken.None);
+
+        UnusedPort unused = Assert.Single(result.Value.UnusedPorts);
+        Assert.Equal("IP_10.1.1.99", unused.Name);
+        Assert.Equal("10.1.1.99", unused.HostAddress);
+    }
+
+    [Fact]
+    public async Task Capture_PooledPortNames_AreNotReportedAsUnused()
+    {
+        SetUpCim(
+            printers: [Instance(("Name", "Pool-A"), ("PortName", "PK-NETPRT008,PK-NETPRT039"))],
+            ports:
+            [
+                Instance(("Name", "PK-NETPRT008"), ("PrinterHostAddress", "PK-NETPRT008")),
+                Instance(("Name", "PK-NETPRT039"), ("PrinterHostAddress", "PK-NETPRT039")),
+                Instance(("Name", "IP_10.1.1.99"), ("PrinterHostAddress", "10.1.1.99")),
+            ],
+            drivers: []);
+        _snmpReader.GetAsync(Arg.Any<SnmpEndpoint>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<SnmpVarBind>>(new Error(ErrorCode.ConnectionTimeout, "no answer")));
+
+        Result<PrintServerSnapshot> result = await CreateService().CaptureAsync(
+            ScanTarget.Remote("prsrv"), ScanCredentials.CurrentUser, CancellationToken.None);
+
+        UnusedPort unused = Assert.Single(result.Value.UnusedPorts);
+        Assert.Equal("IP_10.1.1.99", unused.Name);
+    }
+
+    [Fact]
+    public async Task Capture_IgnoredPseudoPrinters_AreNotCapturedAtAll()
+    {
+        SetUpCim(
+            printers:
+            [
+                Instance(("Name", "Microsoft Print to PDF"), ("DriverName", "Microsoft Print To PDF"),
+                    ("PortName", "PORTPROMPT:")),
+                Instance(("Name", "Microsoft XPS Document Writer"), ("DriverName", "Microsoft XPS Document Writer v4"),
+                    ("PortName", "XPSPort:")),
+                Instance(("Name", "PDFCreator"), ("DriverName", "PDFCreator"), ("PortName", "pdfcmon")),
+                Instance(("Name", "Queue-A"), ("PortName", "IP_10.1.1.20")),
+            ],
+            ports: [Instance(("Name", "IP_10.1.1.20"), ("PrinterHostAddress", "10.1.1.20"))],
+            drivers:
+            [
+                Instance(("Name", "Microsoft Print To PDF")),
+                Instance(("Name", "Microsoft XPS Document Writer v4")),
+                Instance(("Name", "PDFCreator")),
+            ]);
+        _snmpReader.GetAsync(Arg.Any<SnmpEndpoint>(), Arg.Any<IReadOnlyList<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<SnmpVarBind>>(new Error(ErrorCode.ConnectionTimeout, "no answer")));
+
+        Result<PrintServerSnapshot> result = await CreateService().CaptureAsync(
+            ScanTarget.Remote("prsrv"), ScanCredentials.CurrentUser, CancellationToken.None);
+
+        PrinterEntry entry = Assert.Single(result.Value.Printers);
+        Assert.Equal("Queue-A", entry.QueueName);
+        // Their drivers must not resurface as "unused" either
+        Assert.Empty(result.Value.UnusedDrivers);
     }
 
     [Fact]

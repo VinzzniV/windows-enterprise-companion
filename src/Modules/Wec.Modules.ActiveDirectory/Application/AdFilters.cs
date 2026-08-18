@@ -17,6 +17,8 @@ internal static class AdFilters
     public const int UacPasswordNeverExpires = 65536;
 
     public const string Users = "(&(objectCategory=person)(objectClass=user))";
+    public const string EnabledUsers =
+        $"(&(objectCategory=person)(objectClass=user)(!({UacBitAnd}2)))";
     public const string DisabledUsers =
         $"(&(objectCategory=person)(objectClass=user)({UacBitAnd}2))";
     public const string Groups = "(objectCategory=group)";

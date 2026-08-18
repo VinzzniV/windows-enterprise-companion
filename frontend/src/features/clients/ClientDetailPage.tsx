@@ -16,11 +16,13 @@ import { DiagnosticsSection } from './sections/DiagnosticsSection';
 import { EventLogSection } from './sections/EventLogSection';
 import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
+import { OverviewSection } from './sections/OverviewSection';
 import { openPsSession } from '../../shared/ps/openPsSession';
 
-type SectionKey = 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
+type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: 'overview', label: 'Overview' },
   { key: 'inventory', label: 'Inventory' },
   { key: 'security', label: 'Security' },
   { key: 'diagnostics', label: 'Diagnostics' },
@@ -57,7 +59,7 @@ export function ClientDetailPage() {
   // undefined = getAppInfo not resolved yet; string|null once known. Sections
   // must wait for this so the local machine is never scanned as a remote target.
   const [machineName, setMachineName] = useState<string | null | undefined>(undefined);
-  const [section, setSection] = useState<SectionKey>('inventory');
+  const [section, setSection] = useState<SectionKey>('overview');
 
   useEffect(() => {
     invoke<AppInfoResponse>('system', 'getAppInfo')
@@ -158,6 +160,9 @@ export function ClientDetailPage() {
         // All sections stay mounted; switching tabs only hides them, so an
         // in-progress scan keeps running and its result is never discarded.
         <>
+          <div role="tabpanel" id="clientpanel-overview" aria-labelledby="clienttab-overview" hidden={section !== 'overview'}>
+            <OverviewSection host={host} />
+          </div>
           <div role="tabpanel" id="clientpanel-inventory" aria-labelledby="clienttab-inventory" hidden={section !== 'inventory'}>
             <InventorySection key={host} target={target} />
           </div>

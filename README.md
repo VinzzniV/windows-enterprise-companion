@@ -13,6 +13,12 @@ read-only: it can write opsi rollout action requests, gated behind a
 mandatory preview, explicit confirmation and an audit log (ADR 0008).
 Each module has its own README under `src/Modules/`.
 
+User-configurable operating parameters belong in the in-app **Settings** area.
+`appsettings.json` provides deployment defaults; UI changes are merged into
+`%APPDATA%\Wec\usersettings.json` and never include passwords or session
+credentials. New modules should extend the existing Settings surface instead
+of introducing module-specific configuration files or hidden editors.
+
 The primary workspace is **Clients** (ADR 0010): an Active-Directory-sourced
 client list (unpopulated until opened) where a client is scanned on demand —
 Inventory, Security, Diagnostics and installed Printers as tabbed sections that
@@ -43,7 +49,7 @@ and the ADRs in [docs/adr/](docs/adr/).
 | Security | 13 read-only checks with per-host scan history; single-host and parallel multi-host scans | yes (registry checks via StdRegProv; SecurityCenter2-aware AV/firewall; account-policy check local-only) |
 | Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting; parallel multi-host runs | WMI-based checks yes; connectivity probes stay local-perspective |
 | Active Directory | Domain overview + hygiene checks over LDAP; test bind; computer search that feeds the multi-host scan pickers | own or explicitly named domain/DC |
-| Patch Management | Semi-automatic opsi workflow hub (ADR 0008): dashboard, inventory comparison, mandatory rollout preview with confirmation, audit log; session-only credentials | opsi server over JSON-RPC (HTTPS :4447) |
+| Patch Management | Central opsi package/depot dashboard (ADR 0008/0014/0015): manufacturer checks, depot comparison, gated test → approval → synchronization, client rollout and versioned audit history | opsi JSON-RPC (HTTPS :4447) + Windows OpenSSH for confirmed package operations |
 | Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels); queues merged per physical device, search + site grouping, snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009). Client-installed printers are a separate CIM path shown in the client detail | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
 | Reporting | HTML/JSON executive summary per machine (local or a scanned remote client); reads already-captured data, never starts a scan | local + any scanned client |
 | Saved Targets | Persist frequently used servers/clients (host + role + user name, never a password) to pre-fill the pickers (ADR 0010) | local (SQLite) |
@@ -145,6 +151,23 @@ Rejected credentials report `AUTHENTICATION_FAILED`, missing rights on the
 target report `ACCESS_DENIED` — except under NTLM, where WinRM reports both
 as access denied (the error text says so).
 
+## opsi package operations over SSH
+
+Confirmed package updates use the Windows OpenSSH client and never store an
+SSH password. Before the first run:
+
+1. Install the Windows **OpenSSH Client** optional feature.
+2. Add every opsi depot host key to the current Windows user's
+   `~/.ssh/known_hosts` and verify its fingerprint out of band.
+3. Configure agent/default-key authentication for
+   `Wec:PatchManagement:SshUserName`, or set `SshIdentityFile` in the per-user
+   settings file.
+4. If the SSH account is not root, enable `UseNonInteractiveSudo` and grant a
+   narrowly scoped passwordless sudo rule for `opsi-package-updater`.
+
+The command timeout defaults to 30 minutes. WEC verifies the resulting
+`productOnDepot` version through opsi before allowing pilot approval.
+
 ## Current limitations
 
 - The executive-summary report is per machine and reads only data already
@@ -163,9 +186,10 @@ as access denied (the error text says so).
   the UI yet (the bridge has no cancel channel).
 - Elevation applies to the whole app via restart (button in the sidebar
   footer); there is no per-action elevation prompt (deliberate, ADR 0002).
-- Patch Management prepares `opsi-package-updater` runs as planned, audited
-  commands but does not execute them (no SSH channel yet, ADR 0008); the
-  only opsi write is the confirmed rollout action request.
+- Patch Management executes explicitly confirmed repository-backed
+  `opsi-package-updater` runs over Windows OpenSSH (ADR 0015). SSH uses
+  key/agent authentication, strict host-key checking and a test-depot approval
+  gate; package operations and rollout requests are audited per target.
 - TypeScript API types are mirrored manually from the C# DTOs
   (`frontend/src/shared/api-types.ts`) — review on every DTO change.
 - Artifacts are not code-signed (no certificate yet) — SmartScreen warns on

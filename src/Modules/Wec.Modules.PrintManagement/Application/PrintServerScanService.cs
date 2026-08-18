@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
@@ -78,6 +80,13 @@ public sealed class PrintServerScanService
             return Result.Failure<PrintServerSnapshot>(drivers.Error!);
         }
 
+        // Pseudo-printers (Print to PDF, XPS, PDFCreator) are dropped here, before
+        // anything else sees them — inventory, hints and export stay device-only.
+        List<WmiInstance> realPrinters =
+            [.. printers.Value.Where(printer => !IsIgnored(printer.GetString("Name")))];
+        List<WmiInstance> realDrivers =
+            [.. drivers.Value.Where(driver => !IsIgnored(driver.GetString("Name")))];
+
         var addressByPort = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (WmiInstance port in ports.Value)
         {
@@ -90,7 +99,7 @@ public sealed class PrintServerScanService
         }
 
         var driverVersionByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (WmiInstance driver in drivers.Value)
+        foreach (WmiInstance driver in realDrivers)
         {
             if (driver.GetString("Name") is { Length: > 0 } name
                 && FormatDriverVersion(driver.GetInteger("DriverVersion")) is { } version)
@@ -100,7 +109,7 @@ public sealed class PrintServerScanService
         }
 
         var queueRows = new List<(string Queue, string? Share, string? Driver, string? Port, string? Location, string? Comment, string? Address)>();
-        foreach (WmiInstance printer in printers.Value)
+        foreach (WmiInstance printer in realPrinters)
         {
             if (printer.GetString("Name") is not { Length: > 0 } queueName)
             {
@@ -118,9 +127,15 @@ public sealed class PrintServerScanService
                 portName is not null ? addressByPort.GetValueOrDefault(portName) : null));
         }
 
+        List<string> distinctAddresses = [.. queueRows
+            .Select(row => row.Address)
+            .Where(address => address is not null).Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+
         IReadOnlyDictionary<string, Result<PrinterDevice>> devices = await QueryDevicesAsync(
-            [.. queueRows.Select(row => row.Address).Where(address => address is not null).Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase)],
-            cancellationToken);
+            distinctAddresses, cancellationToken);
+        IReadOnlyDictionary<string, string?> ipByAddress = await ResolveIpsAsync(
+            distinctAddresses, cancellationToken);
 
         List<PrinterEntry> entries = [.. queueRows
             .Select(row =>
@@ -142,11 +157,73 @@ public sealed class PrintServerScanService
                         ? new DeviceQueryError(
                             JsonNamingPolicy.SnakeCaseUpper.ConvertName(device.Error!.Code.ToString()),
                             device.Error.Message)
-                        : null);
+                        : null)
+                {
+                    DeviceIp = row.Address is not null ? ipByAddress.GetValueOrDefault(row.Address) : null,
+                };
             })
             .OrderBy(entry => entry.QueueName, StringComparer.OrdinalIgnoreCase)];
 
-        return Result.Success(new PrintServerSnapshot(target.CacheKey, _clock.UtcNow, entries));
+        return Result.Success(new PrintServerSnapshot(target.CacheKey, _clock.UtcNow, entries)
+        {
+            UnusedPorts = FindUnusedPorts(ports.Value, queueRows),
+            UnusedDrivers = FindUnusedDrivers(realDrivers, queueRows, driverVersionByName),
+        });
+    }
+
+    private bool IsIgnored(string? name) =>
+        name is { Length: > 0 }
+        && _options.IgnoredQueues.Any(ignored =>
+            ignored.Length > 0 && name.StartsWith(ignored, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Installed drivers (MSFT_PrinterDriver) that no queue binds to anymore —
+    /// leftovers after printers were removed. Surfaced as a hint only; deletion
+    /// stays a manual admin decision because drivers carry package dependencies.
+    /// </summary>
+    internal static IReadOnlyList<UnusedDriver> FindUnusedDrivers(
+        IReadOnlyList<WmiInstance> drivers,
+        IReadOnlyList<(string Queue, string? Share, string? Driver, string? Port, string? Location, string? Comment, string? Address)> queueRows,
+        IReadOnlyDictionary<string, string> driverVersionByName)
+    {
+        var usedDriverNames = new HashSet<string>(
+            queueRows.Select(row => row.Driver).Where(driver => driver is { Length: > 0 }).Cast<string>(),
+            StringComparer.OrdinalIgnoreCase);
+
+        return [.. drivers
+            .Select(driver => driver.GetString("Name"))
+            .Where(name => name is { Length: > 0 } && !usedDriverNames.Contains(name))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(name => new UnusedDriver(name, driverVersionByName.GetValueOrDefault(name)))
+            .OrderBy(driver => driver.Name, StringComparer.OrdinalIgnoreCase)];
+    }
+
+    /// <summary>
+    /// TCP/IP ports (they carry a host address) that no queue references anymore —
+    /// the deletable leftovers after a printer is removed. Pseudo-ports without an
+    /// address are skipped so the list only contains ports an admin can safely drop.
+    /// </summary>
+    internal static IReadOnlyList<UnusedPort> FindUnusedPorts(
+        IReadOnlyList<WmiInstance> ports,
+        IReadOnlyList<(string Queue, string? Share, string? Driver, string? Port, string? Location, string? Comment, string? Address)> queueRows)
+    {
+        // A pooled printer reports its PortName as a comma-separated list ("A,B") —
+        // split it, otherwise the individual ports look unused and get offered for
+        // deletion, which would break the pool (0x800700aa on the server).
+        var usedPortNames = new HashSet<string>(
+            queueRows
+                .Where(row => row.Port is { Length: > 0 })
+                .SelectMany(row => row.Port!.Split(
+                    ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)),
+            StringComparer.OrdinalIgnoreCase);
+
+        return [.. ports
+            .Where(port => port.GetString("Name") is { Length: > 0 } name
+                && port.GetString("PrinterHostAddress") is { Length: > 0 }
+                && !usedPortNames.Contains(name))
+            .Select(port => new UnusedPort(port.GetString("Name")!, port.GetString("PrinterHostAddress")))
+            .OrderBy(port => port.Name, StringComparer.OrdinalIgnoreCase)];
     }
 
     private async Task<IReadOnlyDictionary<string, Result<PrinterDevice>>> QueryDevicesAsync(
@@ -171,6 +248,34 @@ public sealed class PrintServerScanService
             }
         }));
         return results;
+    }
+
+    private static async Task<IReadOnlyDictionary<string, string?>> ResolveIpsAsync(
+        IReadOnlyList<string> addresses, CancellationToken cancellationToken)
+    {
+        KeyValuePair<string, string?>[] resolved = await Task.WhenAll(addresses.Select(async address =>
+            new KeyValuePair<string, string?>(address, await ResolveIpAsync(address, cancellationToken))));
+        return new Dictionary<string, string?>(resolved, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static async Task<string?> ResolveIpAsync(string address, CancellationToken cancellationToken)
+    {
+        if (IPAddress.TryParse(address, out _))
+        {
+            return address;
+        }
+
+        try
+        {
+            IPAddress[] hostAddresses = await Dns.GetHostAddressesAsync(address, cancellationToken);
+            return hostAddresses
+                .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+                ?.ToString();
+        }
+        catch (Exception exception) when (exception is SocketException or ArgumentException)
+        {
+            return null;
+        }
     }
 
     private async Task<Result<PrinterDevice>> QueryDeviceAsync(
