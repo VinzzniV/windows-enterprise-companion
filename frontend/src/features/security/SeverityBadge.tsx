@@ -2,6 +2,7 @@ import type { FindingSeverity } from '../../shared/api-types';
 import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 
 const severityTone: Record<FindingSeverity, BadgeTone> = {
+  UNKNOWN: 'warn',
   CRITICAL: 'fail',
   HIGH: 'fail',
   MEDIUM: 'warn',

@@ -91,6 +91,22 @@ public sealed class ReportExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Export_WhenShellOpenFails_ReturnsWrittenPathAndVisibleWarning()
+    {
+        SetUpData();
+        _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(_exportPath);
+        _shellLauncher.TryOpenPath(_exportPath).Returns(false);
+
+        Result<ReportExportResult> result = await CreateService().ExportHtmlAsync(
+            host: null, openAfterExport: true, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(_exportPath, result.Value.FilePath);
+        Assert.NotNull(result.Value.OpenError);
+        Assert.True(File.Exists(_exportPath));
+    }
+
+    [Fact]
     public async Task Export_DialogCancelled_ReturnsCancelledWithoutWriting()
     {
         SetUpData();

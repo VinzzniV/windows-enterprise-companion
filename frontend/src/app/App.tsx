@@ -84,6 +84,7 @@ const utilityButtonClass =
 /** Global status bar: where you are (left) + privilege and quick utilities (right). */
 function TopBar({ appInfo }: { appInfo: AppInfoResponse | null }) {
   const location = useLocation();
+  const [restartError, setRestartError] = useState<string | null>(null);
   return (
     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-950 px-6 py-2.5">
       <div className="min-w-0 text-xs text-slate-500">
@@ -95,23 +96,30 @@ function TopBar({ appInfo }: { appInfo: AppInfoResponse | null }) {
         <AdminSignIn />
         {appInfo && (
           <>
-          <StatusBadge variant={appInfo.isElevated ? 'elevation' : 'neutral'}>
-            {appInfo.isElevated ? 'Administrator' : 'Standard user'}
-          </StatusBadge>
-          {!appInfo.isElevated && (
-            <button
-              type="button"
-              title="Starts an elevated copy via the UAC prompt and closes this one"
-              onClick={() => {
-                // A dismissed UAC prompt is a valid outcome; errors surface in the host log
-                invoke('system', 'restartElevated', {}).catch(() => {});
-              }}
-              className={utilityButtonClass}
-            >
-              Restart as administrator
-            </button>
-          )}
+            <StatusBadge variant={appInfo.isElevated ? 'elevation' : 'neutral'}>
+              {appInfo.isElevated ? 'Administrator' : 'Standard user'}
+            </StatusBadge>
+            {!appInfo.isElevated && (
+              <button
+                type="button"
+                title="Starts an elevated copy via the UAC prompt and closes this one"
+                onClick={() => {
+                  setRestartError(null);
+                  invoke('system', 'restartElevated', {}).catch((caught: unknown) =>
+                    setRestartError(caught instanceof Error ? caught.message : String(caught)),
+                  );
+                }}
+                className={utilityButtonClass}
+              >
+                Restart as administrator
+              </button>
+            )}
           </>
+        )}
+        {restartError && (
+          <span role="alert" className="max-w-64 text-xs text-fail-400">
+            {restartError}
+          </span>
         )}
       </div>
     </header>

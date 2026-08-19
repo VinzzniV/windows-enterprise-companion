@@ -1,7 +1,6 @@
-using System.Diagnostics;
 using System.IO;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Wec.Core.Abstractions;
 using Wec.Core.Messaging;
 using Wec.Core.Results;
 using Wec.Infrastructure.Logging;
@@ -17,15 +16,15 @@ public sealed record OpenLogsFolderResponse(string LogDirectory);
 /// validated logging options — never from the request payload — so the bridge
 /// cannot be used to open arbitrary paths.
 /// </summary>
-internal sealed partial class OpenLogsFolderHandler : IActionHandler<OpenLogsFolderRequest, OpenLogsFolderResponse>
+internal sealed class OpenLogsFolderHandler : IActionHandler<OpenLogsFolderRequest, OpenLogsFolderResponse>
 {
     private readonly LoggingOptions _loggingOptions;
-    private readonly ILogger<OpenLogsFolderHandler> _logger;
+    private readonly IShellLauncher _shellLauncher;
 
-    public OpenLogsFolderHandler(IOptions<LoggingOptions> loggingOptions, ILogger<OpenLogsFolderHandler> logger)
+    public OpenLogsFolderHandler(IOptions<LoggingOptions> loggingOptions, IShellLauncher shellLauncher)
     {
         _loggingOptions = loggingOptions.Value;
-        _logger = logger;
+        _shellLauncher = shellLauncher;
     }
 
     public string Module => "system";
@@ -45,16 +44,13 @@ internal sealed partial class OpenLogsFolderHandler : IActionHandler<OpenLogsFol
                 Error.NotFound($"Log directory does not exist: {logDirectory}")));
         }
 
-        using Process? process = Process.Start(new ProcessStartInfo
+        if (!_shellLauncher.TryOpenPath(logDirectory))
         {
-            FileName = logDirectory,
-            UseShellExecute = true,
-        });
+            return Task.FromResult(Result.Failure<OpenLogsFolderResponse>(new Error(
+                ErrorCode.InternalError,
+                "The log directory could not be opened. Review the application log for details.")));
+        }
 
-        LogDirectoryOpened(logDirectory);
         return Task.FromResult(Result.Success(new OpenLogsFolderResponse(logDirectory)));
     }
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Opened log directory {LogDirectory} in shell")]
-    private partial void LogDirectoryOpened(string logDirectory);
 }

@@ -32,7 +32,7 @@ public sealed record ReportReadiness(
     bool IsReady,
     IReadOnlyList<ReportSourceReadiness> Sources);
 
-public sealed record ReportExportResult(bool Cancelled, string? FilePath);
+public sealed record ReportExportResult(bool Cancelled, string? FilePath, string? OpenError = null);
 
 internal sealed partial class ReportExportService
 {
@@ -159,13 +159,13 @@ internal sealed partial class ReportExportService
 
         LogExported(targetPath);
 
-        if (openAfterExport)
+        string? openError = null;
+        if (openAfterExport && !_shellLauncher.TryOpenPath(targetPath))
         {
-            // The path never crosses the bridge inbound: we only open what we just wrote
-            _shellLauncher.TryOpenPath(targetPath);
+            openError = "The report was written successfully but could not be opened. Open it manually from the saved path.";
         }
 
-        return Result.Success(new ReportExportResult(Cancelled: false, FilePath: targetPath));
+        return Result.Success(new ReportExportResult(Cancelled: false, FilePath: targetPath, openError));
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Report export ({FileExtension}) cancelled by the user")]

@@ -52,7 +52,7 @@ type BatchState =
   | { kind: 'done'; result: BatchScanResult }
   | { kind: 'error'; message: string };
 
-const allSeverities: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
+const allSeverities: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO', 'UNKNOWN'];
 
 function categoryLabel(category: FindingCategory): string {
   return category

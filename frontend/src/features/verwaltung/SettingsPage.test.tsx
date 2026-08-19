@@ -52,6 +52,7 @@ beforeEach(() => {
         isElevated: false,
         maxParallelScans: 4,
         machineName: 'TEST-PC',
+        runtimeProfile: 'test',
       });
     }
     if (action === 'getItLifecycleSettings') {
@@ -101,6 +102,16 @@ function renderSettings() {
     </TargetProvider>,
   );
 }
+
+it('shows an error when the log folder cannot be opened', async () => {
+  renderSettings();
+  const button = await screen.findByRole('button', { name: 'Open log folder' });
+  invokeMock.mockRejectedValueOnce(new Error('Shell association failed'));
+
+  await userEvent.click(button);
+
+  expect((await screen.findByRole('alert')).textContent).toContain('Shell association failed');
+});
 
 describe('SettingsPage', () => {
   it('loads and saves IT Lifecycle settings in-app', async () => {
