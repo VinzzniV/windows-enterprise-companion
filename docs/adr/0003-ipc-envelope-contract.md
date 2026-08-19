@@ -90,5 +90,6 @@ feature emits events; it will be added with the first feature that needs it.
 - Handlers are unit-testable without any transport or JSON concerns.
 - The dropped-message case (no `id`) is invisible to the frontend by design;
   client-side timeouts surface it as `BridgeTimeoutError`.
-- Manual TS/C# DTO sync (`shared/api-types.ts`) remains a known risk until the
-  DTO count justifies a generator (architecture plan §5).
+- C# action payloads/results and explicitly marked event payloads generate
+  `shared/api-types.generated.ts`; CI compares the committed output byte for
+  byte. `shared/api-types.ts` is only a compatibility facade for stable UI names.

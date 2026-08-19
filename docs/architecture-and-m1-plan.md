@@ -167,7 +167,7 @@ Envelope over `window.chrome.webview.postMessage` / `PostWebMessageAsJson`:
 | Error model | `Result<T>` with typed `Error { Code, Message, Details }` for expected failures (access denied, WMI unavailable, not found). Exceptions = bugs; global handler logs + returns generic `INTERNAL_ERROR` envelope without leaking internals. |
 | Check status | `CheckStatus: Succeeded / Failed / RequiresElevation / NotApplicable` (ADR 0002). |
 | DB | EF Core + SQLite, migrations from day 1, installed DB at `%LOCALAPPDATA%\Wec\wec.db`; development and named profiles are isolated below `%LOCALAPPDATA%\Wec`. Migrations are applied at startup. Initialization failures are surfaced through a safe startup error boundary. |
-| TS types | `shared/api-types.ts` maintained manually and reviewed against C# DTOs. Generator (TypeGen/NSwag) only when DTO count makes manual sync error-prone (~10+). |
+| TS types | Historical M1 decision: manual DTO mirroring. The current product generates `shared/api-types.generated.ts` from C# bridge contracts and verifies it in CI. |
 | Tests | xUnit + NSubstitute (backend), Vitest + Testing Library (frontend, minimal in M1). Integration tests run real migrations against a temp SQLite file — not in-memory provider, because SQLite behavior (types, constraints) is part of what we test. |
 | Naming | Self-explanatory identifiers; comments only for *why*. Analyzers + `.editorconfig` enforce style; `TreatWarningsAsErrors` on. |
 

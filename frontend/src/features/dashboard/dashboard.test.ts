@@ -121,6 +121,8 @@ describe('dashboard tile derivation', () => {
       {
         server: 'PRSRV1',
         capturedAtUtc: '2026-07-03T08:00:00Z',
+        unusedPorts: [],
+        unusedDrivers: [],
         printers: [
           {
             queueName: 'Q1',
@@ -142,6 +144,7 @@ describe('dashboard tile derivation', () => {
               supplies: [{ description: 'Black', percent: 5, isLow: true }],
             },
             deviceError: null,
+            deviceDataFromUtc: null,
           },
         ],
       },
@@ -163,6 +166,7 @@ describe('dashboard tile derivation', () => {
         userName: 'admin',
         opsiVersion: '4.3',
         defaultDepotFilter: 'Denkingen',
+        connectionError: null,
       }),
     ).toMatchObject({ value: 'Connected', tone: 'success' });
   });

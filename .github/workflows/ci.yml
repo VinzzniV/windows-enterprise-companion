@@ -53,6 +53,12 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Backend build (TreatWarningsAsErrors)
+        run: dotnet build --configuration Release
+
+      - name: Verify generated TypeScript bridge contracts
+        run: dotnet run --project tools/Wec.ContractGenerator --configuration Release --no-build -- --check
+
       - name: Frontend tests
         working-directory: frontend
         run: npm test
@@ -61,9 +67,6 @@ jobs:
       - name: Frontend build
         working-directory: frontend
         run: npm run build
-
-      - name: Backend build (TreatWarningsAsErrors)
-        run: dotnet build --configuration Release
 
       - name: Backend tests
         run: dotnet test --configuration Release --no-build

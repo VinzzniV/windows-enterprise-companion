@@ -28,6 +28,7 @@ function entry(over: Partial<PrinterEntry>): PrinterEntry {
     comment: null,
     device: null,
     deviceError: null,
+    deviceDataFromUtc: null,
     ...over,
   };
 }

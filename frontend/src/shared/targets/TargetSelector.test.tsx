@@ -16,9 +16,9 @@ const searchResult: AdComputerSearchResult = {
   domainName: 'kauth.local',
   truncated: false,
   computers: [
-    { name: 'PC1', dnsHostName: 'pc1.kauth.local', operatingSystem: 'Windows 11 Pro', enabled: true, description: null },
-    { name: 'PC2', dnsHostName: 'pc2.kauth.local', operatingSystem: null, enabled: true, description: null },
-    { name: 'OLD1', dnsHostName: 'old1.kauth.local', operatingSystem: null, enabled: false, description: null },
+    { name: 'PC1', dnsHostName: 'pc1.kauth.local', operatingSystem: 'Windows 11 Pro', enabled: true, description: null, distinguishedName: null, lastLogonDate: null },
+    { name: 'PC2', dnsHostName: 'pc2.kauth.local', operatingSystem: null, enabled: true, description: null, distinguishedName: null, lastLogonDate: null },
+    { name: 'OLD1', dnsHostName: 'old1.kauth.local', operatingSystem: null, enabled: false, description: null, distinguishedName: null, lastLogonDate: null },
   ],
 };
 
