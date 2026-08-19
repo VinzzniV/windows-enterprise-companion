@@ -1,7 +1,14 @@
 # WEC — Solution Structure, Dependency Rules, M1 Plan
 
-Status: Draft for approval · 2026-07-02
-Scope: expensive-to-change foundations + Milestone 1. Phases 2–5 evolve via ADRs.
+> **Historical document — M1 completed.** This is the foundation proposal and
+> implementation plan written on 2026-07-02. Its project list, status text,
+> checklist and out-of-scope section describe that milestone only; they are not
+> current product scope or an instruction to repeat M1. Use the root `README.md`
+> for the current product, `Claude.md` for coding-agent instructions and the
+> accepted records in `docs/adr/` for binding architecture decisions.
+
+Status: Historical foundation/M1 plan · completed
+Original scope: expensive-to-change foundations + Milestone 1.
 
 ---
 

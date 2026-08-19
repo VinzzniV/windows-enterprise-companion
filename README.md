@@ -6,12 +6,13 @@ from local assets, typed JSON message bridge — no HTTP server, no open ports
 (ADR 0001). Modular monolith; modules implement `IModule` and reference only
 `Wec.Core`.
 
-Analysis is read-only and targets the local machine or, for Inventory,
-Security and Active Directory, remote Windows clients over WinRM/LDAP
-(ADR 0007). The Patch Management module is the one deliberate exception to
-read-only: it can write opsi rollout action requests, gated behind a
-mandatory preview, explicit confirmation and an audit log (ADR 0008).
-Each module has its own README under `src/Modules/`.
+Assessment features are read-only and target the local machine, remote Windows
+clients or connected management systems. Two workflows deliberately write to
+managed systems:
+Patch Management can submit confirmed, previewed and audited opsi/package
+operations (ADRs 0008, 0015 and 0016), and Print Management can delete only
+ports that were detected as unused after explicit confirmation. Each backend
+module has its own README under `src/Modules/`.
 
 User-configurable operating parameters belong in the in-app **Settings** area.
 `appsettings.json` provides deployment defaults; UI changes are merged into
@@ -23,12 +24,12 @@ The primary workspace is **Clients** (ADR 0010): an Active-Directory-sourced
 client list (unpopulated until opened) where a client is scanned on demand —
 Inventory, Security, Diagnostics and installed Printers as tabbed sections that
 share one session credential per host — and two clients can be compared. The
-sidebar keeps **Fleet** views that are not per-client (**Dashboard** — a
-per-module summary of the last stored scan — Active Directory, Patch and Print
-Management) and a **Multi-host** group with the standalone pages as batch
-runners. Frequently used servers (print server, opsi, DC) can be saved as
-**targets** (host + role + user name, never a password) and pre-fill each
-picker. The UI follows a shared design system
+sidebar keeps the fleet-wide **Dashboard**, Active Directory, IT Lifecycle,
+Vulnerabilities, Patch Management, Print Management, Network Scan and
+Reporting views, plus Settings and Error Log under **Verwaltung**. Frequently
+used servers (print server, opsi, DC) can be saved as **targets** (host, role
+and user name, never a password) and pre-fill each picker. The UI follows a
+shared design system
 ([`frontend/src/shared/ui`](frontend/src/shared/ui/README.md)): bundled
 Inter (UI) and JetBrains Mono (serials/IPs/versions) fonts, semantic color
 tokens (`accent` + `ok/warn/fail/info`), and shared primitives — page
@@ -38,27 +39,34 @@ states. Every result view names the host, scan status and timestamp it
 belongs to; results for a previously selected target are never shown next
 to a newly selected one.
 
-Authoritative docs: [docs/architecture-and-m1-plan.md](docs/architecture-and-m1-plan.md)
-and the ADRs in [docs/adr/](docs/adr/).
+Current product scope is maintained in this README and the module READMEs.
+Accepted architecture decisions are in [docs/adr/](docs/adr/). The
+[foundation/M1 plan](docs/architecture-and-m1-plan.md) is retained as a
+historical record and is not the current implementation plan. `Claude.md` is
+the canonical coding-agent instruction source.
 
 ## Modules
 
 | Module | Scope | Remote |
 |---|---|---|
-| Inventory | CPU, RAM, disks, OS, network adapters (with IPs), GPUs, monitors, installed software, BitLocker; persistent per-host snapshots with delete; parallel multi-host scans | yes (software via remote registry/StdRegProv) |
-| Security | 13 read-only checks with per-host scan history; single-host and parallel multi-host scans | yes (registry checks via StdRegProv; SecurityCenter2-aware AV/firewall; account-policy check local-only) |
-| Diagnostics | Network/DNS/domain/time/services/event-log/system troubleshooting; parallel multi-host runs | WMI-based checks yes; connectivity probes stay local-perspective |
-| Active Directory | Domain overview + hygiene checks over LDAP; test bind; computer search that feeds the multi-host scan pickers | own or explicitly named domain/DC |
+| Inventory | CPU, RAM, disks, OS, network adapters, GPUs, monitors, installed software and BitLocker; one persistent snapshot per host | yes (software via registry/StdRegProv) |
+| Security | 13 read-only checks with persisted per-check execution outcome, coverage and host-scoped history; incomplete coverage is never a clean scan | yes (registry checks via StdRegProv; some checks are explicitly local-only) |
+| Diagnostics | Persisted latest troubleshooting run per host: network, DNS, domain, time, services, event log and system state | machine-state checks yes; connectivity/event-log probes stay local-perspective |
+| Active Directory | Domain overview and hygiene over LDAP; test bind; computer search for the Clients workspace and user search for IT Lifecycle | own or explicitly named domain/DC |
+| IT Lifecycle | Read-only correlation of AD computers with Kaspersky Security Center inventory for missing, orphaned, stale or outdated agents/endpoints | AD/LDAP + KSC OpenAPI |
+| Vulnerability Management | Nessus scan import with persisted assets/findings, sync status and historical trend | Nessus API (HTTPS :8834 by default) |
 | Patch Management | Central opsi package/depot dashboard (ADR 0008/0014/0015): manufacturer checks, depot comparison, gated test → approval → synchronization, client rollout and versioned audit history | opsi JSON-RPC (HTTPS :4447) + Windows OpenSSH for confirmed package operations |
 | Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels); queues merged per physical device, search + site grouping, snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009). Client-installed printers are a separate CIM path shown in the client detail | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
+| Network Scan | Active nmap discovery, device classification, reverse DNS and optional DHCP reservation correlation | scanned network ranges + optional DHCP server |
 | Reporting | HTML/JSON executive summary per machine (local or a scanned remote client); reads already-captured data, never starts a scan | local + any scanned client |
 | Saved Targets | Persist frequently used servers/clients (host + role + user name, never a password) to pre-fill the pickers (ADR 0010) | local (SQLite) |
 | Clients | AD-sourced client workspace; on-demand per-client scans, compare, on-demand online status (ping + WinRM 5985), one-click PowerShell remoting session (ADR 0011) | remote clients over WinRM |
-| Verwaltung | App-wide settings (read-only surface) and an error log reading warnings/errors from the current log file | local |
+| Verwaltung | App-wide configuration and an error log reading warnings/errors from the current log file | local |
 
 Admin credentials are entered once (top-bar sign-in) and reused for every
 remote target; the password lives in memory only, never persisted or logged
-(ADR 0007/0011). opsi keeps its own login.
+(ADR 0007/0011). opsi keeps its own session login. Nessus API keys are stored
+separately in Windows Credential Manager and never in user settings or SQLite.
 
 ## Prerequisites
 
@@ -177,13 +185,14 @@ The command timeout defaults to 30 minutes. WEC verifies the resulting
   visibly skipped for remote targets; machine-state diagnostics (domain
   membership, reboot pending, time sync, disks, services, updates) run against
   the remote target.
+- Security scans written before persisted per-check coverage was introduced
+  remain visibly coverage-unknown. They are not treated as fully comparable in
+  history and cannot produce resolved claims.
 - Remote software inventory reads the uninstall keys through WMI StdRegProv —
   it needs an account with remote registry read rights and takes noticeably
   longer than a local read (one WinRM round trip per registry value).
 - The snapshot store keeps one snapshot per host (no history); hosts stay
   listed until deleted or rescanned.
-- Batch scans report per-host progress live, but cannot be cancelled from
-  the UI yet (the bridge has no cancel channel).
 - Elevation applies to the whole app via restart (button in the sidebar
   footer); there is no per-action elevation prompt (deliberate, ADR 0002).
 - Patch Management executes explicitly confirmed repository-backed
@@ -261,7 +270,7 @@ All tunables (cache TTL, paths, log level) are options — defaults in
 | `src/Wec.Host` | WinForms shell, WebView2, bridge dispatcher, DI composition root |
 | `src/Wec.Core` | Contracts only: `Result<T>`, envelopes, `IModule`, abstractions |
 | `src/Wec.Infrastructure` | EF Core/SQLite, CIM/WMI, privilege detection, Serilog |
-| `src/Modules/Wec.Modules.Inventory` | First feature module (see its [README](src/Modules/Wec.Modules.Inventory/README.md)) |
+| `src/Modules/Wec.Modules.*` | Feature modules; each owns its handlers, domain/application logic, persistence configuration where needed, and README |
 | `frontend/` | Vite + React + Tailwind; `features/<x>` mirrors `Wec.Modules.<X>` |
 | `tests/` | xUnit unit tests + SQLite file-based integration tests |
 
