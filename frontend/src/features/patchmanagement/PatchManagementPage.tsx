@@ -422,7 +422,6 @@ export function PatchManagementPage() {
       'patchmanagement',
       'getDashboard',
       { depotFilter: filter.length > 0 ? filter : null },
-      120_000,
     )
       .then((result) => setDashboard(result))
       .catch((error: unknown) => {
@@ -564,7 +563,6 @@ export function PatchManagementPage() {
           depotFilter: depotFilter.length > 0 ? depotFilter : null,
           clientIds: selectedClients.size > 0 ? [...selectedClients] : null,
         },
-        120_000,
       )
         .then(setPreview)
         .catch((error: unknown) => setPreviewError(opsiError(error)));
@@ -586,7 +584,6 @@ export function PatchManagementPage() {
         depotFilter: preview.depotFilter,
         confirmed: true,
       },
-      120_000,
     )
       .then((outcome) => {
         setRolloutOutcome(
@@ -638,7 +635,7 @@ export function PatchManagementPage() {
       stage: packagePlan.stage,
       depotIds: packagePlan.targets.map((target) => target.depotId),
       confirmed: true,
-    }, Math.max(1, packagePlan.targets.length) * 1_900_000)
+    })
       .then((outcome) => {
         setPackageOutcome(outcome);
         setPackagePlan(null);
@@ -712,7 +709,7 @@ export function PatchManagementPage() {
     setVersionSourceError(null);
     invoke<VersionCheckResult>('patchmanagement', 'checkVendorVersions', {
       productIds: productIds ?? null,
-    }, 120_000)
+    })
       .then(() => {
         loadVersionSources();
         loadDashboard(depotFilter);

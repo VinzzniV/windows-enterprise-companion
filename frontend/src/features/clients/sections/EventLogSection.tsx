@@ -58,7 +58,7 @@ export function EventLogSection({ target }: { target: TargetRequest | null }) {
 
   const run = useCallback(() => {
     setState({ kind: 'running' });
-    invoke<EventLogQueryResult>('diagnostics', 'queryEventLog', { preset, target }, 120_000)
+    invoke<EventLogQueryResult>('diagnostics', 'queryEventLog', { preset, target })
       .then((result) => setState({ kind: 'done', result }))
       .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
   }, [preset, target]);

@@ -214,6 +214,14 @@ the dev server via `%APPDATA%\Wec\usersettings.json`:
 { "Wec": { "Frontend": { "UseDevServer": true } } }
 ```
 
+When the dev server is enabled (or the host runs in the `Development`
+environment), WEC derives a stable profile from the checkout path. Separate
+checkouts therefore do not share a database, logs, or WebView2 profile. Set
+`WEC_INSTANCE_PROFILE` to a name such as `feature-security` when an explicit,
+stable isolated profile is preferable. The active profile is visible in the
+footer and under Settings. Explicit custom paths in `usersettings.json` remain
+authoritative.
+
 Backend tests:
 
 ```bash
@@ -259,6 +267,12 @@ mislabeled release cannot be published.
 | Logs (Serilog, rolling daily) | `%LOCALAPPDATA%\Wec\logs\` |
 | WebView2 profile | `%LOCALAPPDATA%\Wec\webview2\` |
 | User settings overrides | `%APPDATA%\Wec\usersettings.json` |
+
+Development profiles use
+`%LOCALAPPDATA%\Wec\development\<checkout-hash>\`; explicitly named profiles
+use `%LOCALAPPDATA%\Wec\profiles\<name>\`. Installed production use keeps the
+stable locations above. A profile name may contain 1–64 letters, numbers,
+dots, underscores, or hyphens and must start with a letter or number.
 
 All tunables (cache TTL, paths, log level) are options — defaults in
 `src/Wec.Host/appsettings.json`, overridable per user.

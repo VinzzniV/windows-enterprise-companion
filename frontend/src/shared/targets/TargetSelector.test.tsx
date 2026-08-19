@@ -46,7 +46,6 @@ describe('TargetSelector AD computer picker', () => {
       'activedirectory',
       'searchComputers',
       { nameFilter: 'pc', includeDisabled: false },
-      120_000,
     );
 
     // Enabled computers are preselected, the disabled one is not

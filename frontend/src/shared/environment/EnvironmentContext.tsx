@@ -104,7 +104,6 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
       'employeelifecycle',
       'getHygiene',
       request,
-      180_000,
     )
       .then((next) => {
         if (generation.current === loadGeneration) {

@@ -6,6 +6,7 @@ using Wec.Core.Privileges;
 using Wec.Core.Results;
 using Wec.Infrastructure.Logging;
 using Wec.Infrastructure.Persistence;
+using Wec.Host.Runtime;
 
 namespace Wec.Host.Bridge;
 
@@ -17,7 +18,8 @@ public sealed record AppInfoResponse(
     string LogDirectory,
     bool IsElevated,
     int MaxParallelScans,
-    string MachineName);
+    string MachineName,
+    string RuntimeProfile);
 
 internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppInfoResponse>
 {
@@ -25,17 +27,20 @@ internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppI
     private readonly LoggingOptions _loggingOptions;
     private readonly IPrivilegeContext _privilegeContext;
     private readonly Wec.Core.Targets.RemoteScanOptions _remoteScanOptions;
+    private readonly RuntimeInstanceProfile _runtimeProfile;
 
     public GetAppInfoHandler(
         IOptions<DatabaseOptions> databaseOptions,
         IOptions<LoggingOptions> loggingOptions,
         IPrivilegeContext privilegeContext,
-        IOptions<Wec.Core.Targets.RemoteScanOptions> remoteScanOptions)
+        IOptions<Wec.Core.Targets.RemoteScanOptions> remoteScanOptions,
+        RuntimeInstanceProfile runtimeProfile)
     {
         _databaseOptions = databaseOptions.Value;
         _loggingOptions = loggingOptions.Value;
         _privilegeContext = privilegeContext;
         _remoteScanOptions = remoteScanOptions.Value;
+        _runtimeProfile = runtimeProfile;
     }
 
     public string Module => "system";
@@ -58,6 +63,7 @@ internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppI
             Path.GetFullPath(Environment.ExpandEnvironmentVariables(_loggingOptions.LogDirectory)),
             _privilegeContext.IsElevated,
             _remoteScanOptions.MaxParallelScans,
-            Environment.MachineName)));
+            Environment.MachineName,
+            _runtimeProfile.Name)));
     }
 }

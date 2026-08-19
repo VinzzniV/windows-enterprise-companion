@@ -196,7 +196,7 @@ export function SettingsPage() {
       serverUrl: nessus.serverUrl,
       requestTimeoutSeconds: nessus.requestTimeoutSeconds,
       trustedCertificateThumbprint: nessus.trustedCertificateThumbprint,
-    }, 120_000)
+    })
       .then((status) => { setNessusCredential(status); setEditingNessusCredential(false); setNessusAccessKey(''); setNessusSecretKey(''); environment?.invalidate(); })
       .catch((caught: unknown) => setNessusError(errorText(caught))).finally(() => setNessusBusy(false));
   };
@@ -236,6 +236,8 @@ export function SettingsPage() {
             <dd className="font-mono text-slate-200">{appInfo.version}</dd>
             <dt className="text-slate-400">Machine</dt>
             <dd className="font-mono text-slate-200">{appInfo.machineName}</dd>
+            <dt className="text-slate-400">Runtime profile</dt>
+            <dd className="font-mono text-slate-200">{appInfo.runtimeProfile}</dd>
             <dt className="text-slate-400">Privilege</dt>
             <dd className="text-slate-200">{appInfo.isElevated ? 'Administrator' : 'Standard user'}</dd>
             <dt className="text-slate-400">Max parallel scans</dt>

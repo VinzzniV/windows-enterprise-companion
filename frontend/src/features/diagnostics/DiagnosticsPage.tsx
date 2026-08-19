@@ -202,7 +202,7 @@ export function DiagnosticsPage() {
         ? current.map((candidate) => (candidate.key === key ? entry : candidate))
         : [...current, entry];
     });
-    return invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target }, 120_000)
+    return invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target })
       .then((run) =>
         setEntries((current) =>
           current.map((entry) =>

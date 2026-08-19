@@ -284,7 +284,6 @@ function AdComputerPicker({
       'activedirectory',
       'searchComputers',
       { nameFilter: filter.trim() || null, includeDisabled },
-      120_000,
     )
       .then((searchResult) => {
         setResult(searchResult);

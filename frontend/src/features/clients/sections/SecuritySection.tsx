@@ -35,7 +35,7 @@ export function SecuritySection({ target }: { target: TargetRequest | null }) {
 
   const runScan = useCallback(() => {
     setState({ kind: 'loading', scanning: true });
-    invoke<SecurityScanResult>('security', 'runScan', { target }, 120_000)
+    invoke<SecurityScanResult>('security', 'runScan', { target })
       .then((scan) => setState({ kind: 'loaded', scan }))
       .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
   }, [target]);

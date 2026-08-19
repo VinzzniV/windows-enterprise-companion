@@ -163,10 +163,10 @@ Envelope over `window.chrome.webview.postMessage` / `PostWebMessageAsJson`:
 |---|---|
 | DI | Generic Host + `Microsoft.Extensions.DependencyInjection`. Each module self-registers via `IModule.RegisterServices`. |
 | Logging | Serilog. Sinks: rolling file in `%LOCALAPPDATA%\Wec\logs\`, console in DEBUG. Structured properties: `Module`, `Action`, `CorrelationId` (= bridge request id). |
-| Configuration | `appsettings.json` (shipped defaults) + `%APPDATA%\Wec\usersettings.json` (user overrides). Options pattern, `ValidateOnStart`. No literals in code — every tunable is an option. |
+| Configuration | `appsettings.json` (shipped defaults) + `%APPDATA%\Wec\usersettings.json` (user overrides). Options pattern, `ValidateOnStart`. Development checkouts derive isolated runtime paths; `WEC_INSTANCE_PROFILE` selects an explicit isolated profile. Explicit user paths remain authoritative. |
 | Error model | `Result<T>` with typed `Error { Code, Message, Details }` for expected failures (access denied, WMI unavailable, not found). Exceptions = bugs; global handler logs + returns generic `INTERNAL_ERROR` envelope without leaking internals. |
 | Check status | `CheckStatus: Succeeded / Failed / RequiresElevation / NotApplicable` (ADR 0002). |
-| DB | EF Core + SQLite, migrations from day 1, DB at `%LOCALAPPDATA%\Wec\wec.db`. Migrations applied at startup (single-user desktop app — acceptable; revisit if that assumption changes). |
+| DB | EF Core + SQLite, migrations from day 1, installed DB at `%LOCALAPPDATA%\Wec\wec.db`; development and named profiles are isolated below `%LOCALAPPDATA%\Wec`. Migrations are applied at startup. Initialization failures are surfaced through a safe startup error boundary. |
 | TS types | `shared/api-types.ts` maintained manually and reviewed against C# DTOs. Generator (TypeGen/NSwag) only when DTO count makes manual sync error-prone (~10+). |
 | Tests | xUnit + NSubstitute (backend), Vitest + Testing Library (frontend, minimal in M1). Integration tests run real migrations against a temp SQLite file — not in-memory provider, because SQLite behavior (types, constraints) is part of what we test. |
 | Naming | Self-explanatory identifiers; comments only for *why*. Analyzers + `.editorconfig` enforce style; `TreatWarningsAsErrors` on. |

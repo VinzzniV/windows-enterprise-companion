@@ -17,6 +17,7 @@ export interface AppInfoResponse {
   isElevated: boolean;
   maxParallelScans: number;
   machineName: string;
+  runtimeProfile: string;
 }
 
 /** Wec.Modules.Targets.Persistence.TargetRoles (wire values) */

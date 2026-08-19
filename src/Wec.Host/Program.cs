@@ -14,6 +14,7 @@ using Wec.Core.Privileges;
 using Wec.Host.Bridge;
 using Wec.Host.Dialogs;
 using Wec.Host.Options;
+using Wec.Host.Runtime;
 using Wec.Infrastructure.Logging;
 using Wec.Infrastructure.Persistence;
 using Wec.Infrastructure.Privileges;
@@ -50,29 +51,46 @@ internal static partial class Program
     private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        IHost? host = null;
+        bool hostStarted = false;
 
         try
         {
-            using IHost host = BuildHost(args);
+            host = BuildHost(args);
             host.Start();
+            hostStarted = true;
             ValidateActionHandlerRegistrations(host.Services);
             ApplyDatabaseMigrations(host.Services);
-            try
-            {
-                Application.Run(host.Services.GetRequiredService<MainWindow>());
-            }
-            finally
-            {
-                host.StopAsync().GetAwaiter().GetResult();
-            }
+            Application.Run(host.Services.GetRequiredService<MainWindow>());
         }
-        catch (Exception exception) when (exception is OptionsValidationException or HostAbortedException)
+        catch (Exception exception)
         {
+            Log.Fatal(exception, "Application startup failed");
+            StartupFailurePresentation presentation = StartupFailurePresentation.From(
+                exception,
+                StartupPhase.Host);
             MessageBox.Show(
-                $"Configuration is invalid:{Environment.NewLine}{exception.Message}",
-                "Windows Enterprise Companion",
+                presentation.Message,
+                presentation.Title,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+        finally
+        {
+            if (hostStarted && host is not null)
+            {
+                try
+                {
+                    host.StopAsync().GetAwaiter().GetResult();
+                }
+                catch (Exception exception)
+                {
+                    Log.Error(exception, "Application host shutdown failed");
+                }
+            }
+
+            host?.Dispose();
+            Log.CloseAndFlush();
         }
     }
 
@@ -91,6 +109,15 @@ internal static partial class Program
             "usersettings.json");
         builder.Configuration.AddJsonFile(userSettingsPath, optional: true, reloadOnChange: false);
         builder.Services.AddSingleton(new UserSettingsStore(userSettingsPath));
+
+        RuntimeInstanceProfile runtimeProfile = RuntimeInstanceProfile.Resolve(
+            builder.Configuration,
+            builder.Environment.EnvironmentName,
+            builder.Environment.ContentRootPath,
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetEnvironmentVariable(RuntimeInstanceProfile.EnvironmentVariableName));
+        builder.Configuration.AddInMemoryCollection(runtimeProfile.ConfigurationOverrides);
+        builder.Services.AddSingleton(runtimeProfile);
 
         builder.Services
             .AddOptions<LoggingOptions>()
@@ -255,6 +282,7 @@ internal static partial class Program
         builder.Services.AddSingleton<IElevatedProcessLauncher, ShellElevatedProcessLauncher>();
         builder.Services.AddSingleton<IAppShutdown, MainWindowShutdown>();
         builder.Services.AddSingleton<IActionHandler, RestartElevatedHandler>();
+        builder.Services.AddSingleton<IBridgeExecutionTimeoutPolicy, BridgeExecutionTimeoutPolicy>();
         builder.Services.AddSingleton<ActionDispatcher>();
         builder.Services.AddSingleton<WebViewBridge>();
         builder.Services.AddSingleton<WebViewBridgeEventPublisher>();

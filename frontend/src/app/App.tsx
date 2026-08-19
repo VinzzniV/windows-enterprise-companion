@@ -104,7 +104,7 @@ function TopBar({ appInfo }: { appInfo: AppInfoResponse | null }) {
               title="Starts an elevated copy via the UAC prompt and closes this one"
               onClick={() => {
                 // A dismissed UAC prompt is a valid outcome; errors surface in the host log
-                invoke('system', 'restartElevated', {}, 120_000).catch(() => {});
+                invoke('system', 'restartElevated', {}).catch(() => {});
               }}
               className={utilityButtonClass}
             >
@@ -127,6 +127,9 @@ function AppInfoFooter({ appInfo }: { appInfo: AppInfoResponse | null }) {
     <div className="mt-auto flex flex-col gap-1.5 border-t border-slate-800 px-4 py-3 text-xs text-slate-500">
       <span className="truncate" title={`Version ${appInfo.version}`}>
         v{appInfo.version}
+      </span>
+      <span className="truncate" title={`Runtime profile: ${appInfo.runtimeProfile}`}>
+        Profile: {appInfo.runtimeProfile}
       </span>
       <span className="truncate" title={appInfo.databasePath}>
         DB: {appInfo.databasePath}

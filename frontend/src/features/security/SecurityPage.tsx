@@ -256,7 +256,7 @@ export function SecurityPage() {
     // ones immediately instead of showing them next to the new selection
     setActiveTarget(target);
     setState({ kind: 'loading' });
-    invoke<SecurityScanResult>('security', 'runScan', { target }, 120_000)
+    invoke<SecurityScanResult>('security', 'runScan', { target })
       .then((scan) => setState({ kind: 'loaded', scan }))
       .catch((error: unknown) =>
         setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),
@@ -297,7 +297,7 @@ export function SecurityPage() {
       kind: 'running',
       statuses: Object.fromEntries(hosts.map((host) => [host, 'QUEUED' as HostScanStatus])),
     });
-    invoke<BatchScanResult>('security', 'runBatchScan', payload, 600_000)
+    invoke<BatchScanResult>('security', 'runBatchScan', payload)
       .then((result) => setBatchState({ kind: 'done', result }))
       .catch((error: unknown) =>
         setBatchState({

@@ -20,7 +20,7 @@ export function InventorySection({ target }: { target: TargetRequest | null }) {
   const load = useCallback((forceRefresh: boolean, cacheOnly: boolean) => {
     setState({ kind: 'loading' });
     const payload: GetHardwareInfoRequest = { target, forceRefresh, cacheOnly };
-    invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', payload, 120_000)
+    invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', payload)
       .then((result) => setState({ kind: 'loaded', result }))
       .catch((error: unknown) =>
         // No cached snapshot yet is not an error — offer to scan
