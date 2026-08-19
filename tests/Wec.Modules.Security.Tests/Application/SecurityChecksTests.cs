@@ -291,12 +291,18 @@ public class OsSupportCheckTests
 
     private OsSupportCheck CreateCheck() => new(_harness.WmiQueryService, _harness.Clock);
 
+    private void SetUpOperatingSystem(string caption, string build, object? sku, int? productType = 1) =>
+        _harness.SetUpWmiQuery("Win32_OperatingSystem", CheckTestHarness.Instance(
+            ("Caption", caption),
+            ("BuildNumber", build),
+            ("OperatingSystemSKU", sku),
+            ("ProductType", productType)));
+
     [Fact]
     public async Task BuildPastEndOfSupport_ProducesConservativeMediumFinding()
     {
         // Windows 10 22H2 (19045) ended 2025-10-14; harness clock is 2026-07-02
-        _harness.SetUpWmiQuery("Win32_OperatingSystem", CheckTestHarness.Instance(
-            ("Caption", "Microsoft Windows 10 Pro"), ("BuildNumber", "19045")));
+        SetUpOperatingSystem("Microsoft Windows 10 Pro", "19045", 48u);
 
         SecurityFinding finding = Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
@@ -307,8 +313,7 @@ public class OsSupportCheckTests
     public async Task SupportedBuild_ProducesNoFindings()
     {
         // Windows 11 25H2 (26200) is supported until 2027 relative to the harness clock
-        _harness.SetUpWmiQuery("Win32_OperatingSystem", CheckTestHarness.Instance(
-            ("Caption", "Microsoft Windows 11 Pro"), ("BuildNumber", "26200")));
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "26200", 48u);
 
         Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
     }
@@ -316,12 +321,121 @@ public class OsSupportCheckTests
     [Fact]
     public async Task UnknownBuild_ProducesInfoFinding()
     {
-        _harness.SetUpWmiQuery("Win32_OperatingSystem", CheckTestHarness.Instance(
-            ("Caption", "Microsoft Windows Server 2031"), ("BuildNumber", "99999")));
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "99999", 48u);
 
-        Assert.Equal(
-            FindingSeverity.Info,
-            Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Severity);
+        SecurityFinding finding = Assert.Single(
+            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+
+        Assert.Equal(FindingSeverity.Info, finding.Severity);
+        Assert.EndsWith("-UNKNOWN", finding.FindingId, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Windows10Build19044_UsesDifferentGaAndLtscDates()
+    {
+        SetUpOperatingSystem("Microsoft Windows 10 Pro", "19044", 48u);
+        SecurityFinding proFinding = Assert.Single(
+            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Equal("2023-06-13", proFinding.Evidence["endOfSupport"]);
+        Assert.Equal("HomePro", proFinding.Evidence["lifecycleTrack"]);
+
+        SetUpOperatingSystem("Microsoft Windows 10 Enterprise LTSC 2021", "19044", 125u);
+        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Windows11Build26100_UsesEnterpriseRatherThanHomeProDate()
+    {
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2027, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "26100", 48u);
+        SecurityFinding proFinding = Assert.Single(
+            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Equal("2026-10-13", proFinding.Evidence["endOfSupport"]);
+
+        SetUpOperatingSystem("Microsoft Windows 11 Enterprise", "26100", 4u);
+        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Windows11Build26100_UsesEnterpriseLtscDate()
+    {
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2028, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        SetUpOperatingSystem("Microsoft Windows 11 Enterprise LTSC 2024", "26100", 125u);
+
+        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Windows11Build26100_UsesIotLtscExtendedDate()
+    {
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        SetUpOperatingSystem("Microsoft Windows 11 IoT Enterprise LTSC 2024", "26100", 191u);
+
+        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(null, 1, "(missing)")]
+    [InlineData(999u, 1, "999")]
+    [InlineData(48u, null, "48")]
+    [InlineData(48u, 3, "48")]
+    public async Task UnknownOrNonClientEdition_DoesNotPass(
+        object? sku,
+        int? productType,
+        string expectedSkuEvidence)
+    {
+        SetUpOperatingSystem("Unclassified Windows", "26100", sku, productType);
+
+        SecurityFinding finding = Assert.Single(
+            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+
+        Assert.EndsWith("-UNKNOWN", finding.FindingId, StringComparison.Ordinal);
+        Assert.Equal(expectedSkuEvidence, finding.Evidence["operatingSystemSku"]);
+        Assert.Equal("Unknown", finding.Evidence["lifecycleTrack"]);
+    }
+
+    [Fact]
+    public async Task MissingBuild_DoesNotPass()
+    {
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", string.Empty, 48u);
+
+        SecurityFinding finding = Assert.Single(
+            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+
+        Assert.EndsWith("-UNKNOWN", finding.FindingId, StringComparison.Ordinal);
+        Assert.Equal("(missing)", finding.Evidence["buildNumber"]);
+    }
+
+    [Fact]
+    public async Task EndDateRemainsSupportedUntilPacificDayEnds()
+    {
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "26100", 48u);
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2026, 10, 14, 6, 59, 0, TimeSpan.Zero));
+
+        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2026, 10, 14, 7, 1, 0, TimeSpan.Zero));
+        SecurityFinding finding = Assert.Single(
+            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.EndsWith("-EOL", finding.FindingId, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task QueryRequestsEditionAndProductType()
+    {
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "26200", 48u);
+
+        await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+
+        await _harness.WmiQueryService.Received().QueryAsync(
+            Arg.Any<Wec.Core.Targets.ScanTarget>(),
+            Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+            Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+            Arg.Any<string>(),
+            Arg.Is<string>(query => query.Contains("OperatingSystemSKU", StringComparison.Ordinal)
+                && query.Contains("ProductType", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
     }
 }
 
