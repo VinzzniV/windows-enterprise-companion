@@ -48,10 +48,13 @@ public sealed class ComputerSearchServiceTests
     }
 
     private void SetUpComputerEntries(params DirectoryEntryData[] entries) =>
-        _directoryReader.SearchAsync(
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
+                Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>(entries));
+            .Returns(call => Result.Success(new BoundedDirectorySearchResult(
+                entries.Length,
+                entries.Take(call.ArgAt<int>(1)).ToList())));
 
     private static DirectoryEntryData Entry(string dn, params (string Name, string Value)[] attributes) =>
         new(dn, attributes.ToDictionary(
@@ -150,10 +153,11 @@ public sealed class ComputerSearchServiceTests
     public async Task SearchFailure_Propagates()
     {
         SetUpDomainJoined();
-        _directoryReader.SearchAsync(
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
+                Arg.Any<int>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Failure<IReadOnlyList<DirectoryEntryData>>(
+            .Returns(Result.Failure<BoundedDirectorySearchResult>(
                 new Error(ErrorCode.AccessDenied, "read refused")));
 
         Result<AdComputerSearchResult> result = await CreateService()

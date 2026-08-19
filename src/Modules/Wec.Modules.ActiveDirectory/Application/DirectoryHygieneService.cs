@@ -121,8 +121,9 @@ internal sealed partial class DirectoryHygieneService
         string recommendation,
         CancellationToken cancellationToken)
     {
-        Result<IReadOnlyList<DirectoryEntryData>> entries = await _directoryReader.SearchAsync(
+        Result<BoundedDirectorySearchResult> entries = await _directoryReader.SearchBoundedAsync(
             BuildQuery(domainName, namingContext, ldapFilter, ["sAMAccountName", "lastLogonTimestamp"]),
+            _options.ExampleLimit,
             cancellationToken);
         if (entries.IsFailure)
         {
@@ -132,8 +133,8 @@ internal sealed partial class DirectoryHygieneService
         return Result.Success(new AdHygieneRule(
             ruleId,
             title,
-            entries.Value.Count,
-            [.. entries.Value.Take(_options.ExampleLimit).Select(ToAccountInfo)],
+            entries.Value.TotalCount,
+            [.. entries.Value.Entries.Select(ToAccountInfo)],
             recommendation));
     }
 
@@ -202,13 +203,14 @@ internal sealed partial class DirectoryHygieneService
             return Result.Success(new AdHygieneRule(ruleId, title, 0, [], recommendation));
         }
 
-        Result<IReadOnlyList<DirectoryEntryData>> entries = await _directoryReader.SearchAsync(
+        Result<BoundedDirectorySearchResult> entries = await _directoryReader.SearchBoundedAsync(
             BuildQuery(
                 domainName,
                 namingContext,
                 AdFilters.DisabledDirectMembersOfGroups(
                     privilegedGroups.Select(group => group.DistinguishedName)),
                 ["sAMAccountName"]),
+            _options.ExampleLimit,
             cancellationToken);
         if (entries.IsFailure)
         {
@@ -218,8 +220,8 @@ internal sealed partial class DirectoryHygieneService
         return Result.Success(new AdHygieneRule(
             ruleId,
             title,
-            entries.Value.Count,
-            [.. entries.Value.Take(_options.ExampleLimit).Select(ToAccountInfo)],
+            entries.Value.TotalCount,
+            [.. entries.Value.Entries.Select(ToAccountInfo)],
             recommendation));
     }
 
