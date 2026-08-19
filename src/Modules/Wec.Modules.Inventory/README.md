@@ -33,6 +33,9 @@ machine as the current user.
 
 - WMI access goes exclusively through the target-aware `IWmiQueryService`
   overload — the same queries run locally and remotely.
+- BitLocker acquisition is shared with Security through the narrow
+  `IDiskEncryptionStatusReader`; Inventory only maps its tri-state result to
+  the Inventory DTO and does not reinterpret unknown provider state.
 - **Installed software** is read from the registry uninstall keys (both
   bitness views), never `Win32_Product` (enumerating it triggers MSI
   reconfiguration). Locally through the registry seam; remotely read-only

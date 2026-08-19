@@ -188,15 +188,29 @@ public class RdpAccessCheckTests
 public class BitLockerCheckTests
 {
     private readonly CheckTestHarness _harness = new();
-    private readonly IPrivilegeContext _privilegeContext = Substitute.For<IPrivilegeContext>();
+    private readonly IDiskEncryptionStatusReader _reader = Substitute.For<IDiskEncryptionStatusReader>();
 
     private BitLockerCheck CreateCheck() =>
-        new(_harness.WmiQueryService, _privilegeContext, _harness.Clock);
+        new(_reader, _harness.Clock);
+
+    private void SetUpVolumes(params DiskEncryptionVolume[] volumes) =>
+        _reader.ReadAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<DiskEncryptionVolume>>(volumes));
 
     [Fact]
-    public async Task Unelevated_ProducesRequiresElevationWithoutWmi()
+    public async Task AccessDenied_ProducesRequiresElevation()
     {
-        _privilegeContext.Satisfies(PrivilegeLevel.Administrator).Returns(false);
+        _reader.ReadAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<DiskEncryptionVolume>>(
+                Error.AccessDenied("elevation required", PrivilegeLevel.Administrator)));
 
         SecurityCheckResult result = await CreateCheck().EvaluateAsync(
             CheckTestHarness.LocalContext, CancellationToken.None);
@@ -204,28 +218,78 @@ public class BitLockerCheckTests
         Assert.Equal(CheckStatus.RequiresElevation, result.Status);
         Assert.Equal(PrivilegeLevel.Administrator, result.Failure?.RequiredPrivilege);
         Assert.Empty(result.Findings);
-        await _harness.WmiQueryService.DidNotReceive().QueryAsync(
-            Arg.Any<Wec.Core.Targets.ScanTarget>(),
-            Arg.Any<Wec.Core.Targets.ScanCredentials>(),
-            Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ElevatedWithUnprotectedVolume_ProducesMediumFinding()
+    public async Task UnprotectedVolume_ProducesMediumFinding()
     {
-        _privilegeContext.Satisfies(PrivilegeLevel.Administrator).Returns(true);
-        _harness.SetUpWmiQuery("Win32_EncryptableVolume",
-            CheckTestHarness.Instance(("DriveLetter", "C:"), ("ProtectionStatus", 1u)),
-            CheckTestHarness.Instance(("DriveLetter", "D:"), ("ProtectionStatus", 0u)));
+        SetUpVolumes(
+            new DiskEncryptionVolume("C:", DiskEncryptionProtectionStatus.Protected),
+            new DiskEncryptionVolume("D:", DiskEncryptionProtectionStatus.Unprotected));
 
-        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
 
-        SecurityFinding finding = Assert.Single(findings);
+        Assert.Equal(CheckStatus.Succeeded, result.Status);
+        SecurityFinding finding = Assert.Single(result.Findings);
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
         Assert.Equal("D:", finding.Evidence["driveLetter"]);
+    }
+
+    [Fact]
+    public async Task EmptyProviderResult_IsFailedCoverage()
+    {
+        SetUpVolumes();
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public async Task UnknownVolumeState_IsFailedCoverage()
+    {
+        SetUpVolumes(new DiskEncryptionVolume("C:", DiskEncryptionProtectionStatus.Unknown));
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public async Task MixedUnknownAndUnprotected_RetainsObservedFindingButFailsCoverage()
+    {
+        SetUpVolumes(
+            new DiskEncryptionVolume("C:", DiskEncryptionProtectionStatus.Unknown),
+            new DiskEncryptionVolume("D:", DiskEncryptionProtectionStatus.Unprotected));
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal("D:", Assert.Single(result.Findings).Evidence["driveLetter"]);
+    }
+
+    [Fact]
+    public async Task ProviderFailure_IsFailedCoverage()
+    {
+        _reader.ReadAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<DiskEncryptionVolume>>(
+                Error.WmiUnavailable("provider failure")));
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Empty(result.Findings);
     }
 }
 
