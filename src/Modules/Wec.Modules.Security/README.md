@@ -68,6 +68,9 @@ describe observed conditions only.
 
 - Every check implements `ISecurityCheck` and receives a
   `SecurityScanContext` (target, credentials, connection options).
+- BitLocker uses the same narrow `IDiskEncryptionStatusReader` as Inventory.
+  Empty or unknown volume results make coverage incomplete; observed
+  unprotected volumes remain findings even when another volume is unknown.
 - `Win32_GroupUser.PartComponent` parsing handles both nested CIM reference
   instances (class name via `__CLASS`), DMTF reference paths and the observed
   `Win32_UserAccount (Name = "...", Domain = "...")` CIM display form.

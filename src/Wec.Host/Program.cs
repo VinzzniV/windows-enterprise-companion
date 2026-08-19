@@ -250,6 +250,7 @@ internal static partial class Program
         builder.Services.AddScoped<DbContext>(serviceProvider => serviceProvider.GetRequiredService<WecDbContext>());
 
         builder.Services.AddSingleton<IWmiQueryService, CimWmiQueryService>();
+        builder.Services.AddSingleton<IDiskEncryptionStatusReader, Wec.Infrastructure.Storage.WmiDiskEncryptionStatusReader>();
         builder.Services.AddSingleton<Wec.Core.Opsi.IOpsiClient, Wec.Infrastructure.Opsi.JsonRpcOpsiClient>();
         builder.Services.AddSingleton<Wec.Core.SoftwareUpdates.IVendorVersionClient, HttpVendorVersionClient>();
         builder.Services.AddSingleton<Wec.Core.RemoteExecution.IRemoteCommandExecutor, OpenSshRemoteCommandExecutor>();

@@ -1,7 +1,5 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wec.Core.Abstractions;
-using Wec.Core.Privileges;
 using Wec.Core.Results;
 using Wec.Core.Targets;
 using Wec.Modules.Inventory.Application;
@@ -11,56 +9,44 @@ namespace Wec.Modules.Inventory.Tests.Application;
 
 public class DiskEncryptionServiceTests
 {
-    private readonly IWmiQueryService _wmiQueryService = Substitute.For<IWmiQueryService>();
-    private readonly IPrivilegeContext _privilegeContext = Substitute.For<IPrivilegeContext>();
+    private readonly IDiskEncryptionStatusReader _reader = Substitute.For<IDiskEncryptionStatusReader>();
 
     private DiskEncryptionService CreateService() => new(
-        _wmiQueryService,
-        _privilegeContext,
-        Microsoft.Extensions.Options.Options.Create(new RemoteScanOptions()),
-        NullLogger<DiskEncryptionService>.Instance);
+        _reader,
+        Microsoft.Extensions.Options.Options.Create(new RemoteScanOptions()));
 
-    private void SetUpVolumes(params WmiInstance[] volumes) =>
-        _wmiQueryService
-            .QueryAsync(
+    private void SetUpVolumes(params DiskEncryptionVolume[] volumes) =>
+        _reader
+            .ReadAsync(
                 Arg.Any<ScanTarget>(),
                 Arg.Any<ScanCredentials>(),
                 Arg.Any<ConnectionOptions>(),
-                Arg.Any<string>(),
-                Arg.Any<string>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Success<IReadOnlyList<WmiInstance>>(volumes));
+            .Returns(Result.Success<IReadOnlyList<DiskEncryptionVolume>>(volumes));
 
     [Fact]
-    public async Task Unelevated_ReturnsAccessDeniedWithRequiredPrivilege_WithoutQueryingWmi()
+    public async Task ProviderFailure_IsForwardedWithoutInventingAStatus()
     {
-        _privilegeContext.Satisfies(PrivilegeLevel.Administrator).Returns(false);
+        _reader.ReadAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<DiskEncryptionVolume>>(
+                Error.WmiUnavailable("BitLocker provider unavailable.")));
         DiskEncryptionService service = CreateService();
 
         Result<DiskEncryptionStatus> result = await service.GetStatusAsync(
             ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);
-        Assert.Equal(PrivilegeLevel.Administrator, result.Error.RequiredPrivilege);
-        await _wmiQueryService.DidNotReceive().QueryAsync(
-            Arg.Any<ScanTarget>(),
-            Arg.Any<ScanCredentials>(),
-            Arg.Any<ConnectionOptions>(),
-            Arg.Any<string>(),
-            Arg.Any<string>(),
-            Arg.Any<CancellationToken>());
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
     }
 
     [Fact]
     public async Task RemoteTarget_SkipsLocalElevationCheck()
     {
-        _privilegeContext.Satisfies(PrivilegeLevel.Administrator).Returns(false);
-        SetUpVolumes(new WmiInstance(new Dictionary<string, object?>
-        {
-            ["DriveLetter"] = "C:",
-            ["ProtectionStatus"] = 1u,
-        }));
+        SetUpVolumes(new DiskEncryptionVolume("C:", DiskEncryptionProtectionStatus.Protected));
         DiskEncryptionService service = CreateService();
 
         Result<DiskEncryptionStatus> result = await service.GetStatusAsync(
@@ -68,23 +54,20 @@ public class DiskEncryptionServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("pc-042", result.Value.Host);
+        await _reader.Received(1).ReadAsync(
+            ScanTarget.Remote("pc-042"),
+            ScanCredentials.CurrentUser,
+            Arg.Any<ConnectionOptions>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Elevated_MapsProtectionStatusPerVolume()
     {
-        _privilegeContext.Satisfies(PrivilegeLevel.Administrator).Returns(true);
         SetUpVolumes(
-            new WmiInstance(new Dictionary<string, object?>
-            {
-                ["DriveLetter"] = "C:",
-                ["ProtectionStatus"] = 1u,
-            }),
-            new WmiInstance(new Dictionary<string, object?>
-            {
-                ["DriveLetter"] = "D:",
-                ["ProtectionStatus"] = 0u,
-            }));
+            new DiskEncryptionVolume("C:", DiskEncryptionProtectionStatus.Protected),
+            new DiskEncryptionVolume("D:", DiskEncryptionProtectionStatus.Unprotected),
+            new DiskEncryptionVolume(null, DiskEncryptionProtectionStatus.Unknown));
         DiskEncryptionService service = CreateService();
 
         Result<DiskEncryptionStatus> result = await service.GetStatusAsync(
@@ -95,6 +78,7 @@ public class DiskEncryptionServiceTests
         Assert.Collection(
             result.Value.Volumes,
             volume => Assert.Equal(("C:", VolumeProtectionStatus.Protected), (volume.DriveLetter, volume.ProtectionStatus)),
-            volume => Assert.Equal(("D:", VolumeProtectionStatus.Unprotected), (volume.DriveLetter, volume.ProtectionStatus)));
+            volume => Assert.Equal(("D:", VolumeProtectionStatus.Unprotected), (volume.DriveLetter, volume.ProtectionStatus)),
+            volume => Assert.Equal((null, VolumeProtectionStatus.Unknown), (volume.DriveLetter, volume.ProtectionStatus)));
     }
 }

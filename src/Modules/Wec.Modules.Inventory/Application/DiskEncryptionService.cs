@@ -1,7 +1,5 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
-using Wec.Core.Privileges;
 using Wec.Core.Results;
 using Wec.Core.Targets;
 using Wec.Modules.Inventory.Domain;
@@ -12,23 +10,15 @@ public sealed record DiskEncryptionStatus(string Host, IReadOnlyList<Encryptable
 
 public sealed class DiskEncryptionService
 {
-    private const string VolumeEncryptionNamespace = @"root\cimv2\Security\MicrosoftVolumeEncryption";
-
-    private readonly IWmiQueryService _wmiQueryService;
-    private readonly IPrivilegeContext _privilegeContext;
+    private readonly IDiskEncryptionStatusReader _reader;
     private readonly ConnectionOptions _connectionOptions;
-    private readonly ILogger<DiskEncryptionService> _logger;
 
     public DiskEncryptionService(
-        IWmiQueryService wmiQueryService,
-        IPrivilegeContext privilegeContext,
-        IOptions<RemoteScanOptions> remoteScanOptions,
-        ILogger<DiskEncryptionService> logger)
+        IDiskEncryptionStatusReader reader,
+        IOptions<RemoteScanOptions> remoteScanOptions)
     {
-        _wmiQueryService = wmiQueryService;
-        _privilegeContext = privilegeContext;
+        _reader = reader;
         _connectionOptions = remoteScanOptions.Value.ToConnectionOptions();
-        _logger = logger;
     }
 
     public async Task<Result<DiskEncryptionStatus>> GetStatusAsync(
@@ -36,23 +26,10 @@ public sealed class DiskEncryptionService
         ScanCredentials credentials,
         CancellationToken cancellationToken)
     {
-        // Declared privilege requirement (ADR 0002): fail deterministically before
-        // touching WMI instead of depending on the provider's access-denied behavior.
-        // Remote rights come from the connection credentials, not this process.
-        if (target.IsLocal && !_privilegeContext.Satisfies(PrivilegeLevel.Administrator))
-        {
-            _logger.LogInformation("Disk encryption status requested without elevation");
-            return Result.Failure<DiskEncryptionStatus>(Error.AccessDenied(
-                "Reading BitLocker status requires administrator privileges.",
-                PrivilegeLevel.Administrator));
-        }
-
-        Result<IReadOnlyList<WmiInstance>> volumes = await _wmiQueryService.QueryAsync(
+        Result<IReadOnlyList<DiskEncryptionVolume>> volumes = await _reader.ReadAsync(
             target,
             credentials,
             _connectionOptions,
-            VolumeEncryptionNamespace,
-            "SELECT DriveLetter, ProtectionStatus FROM Win32_EncryptableVolume",
             cancellationToken);
         if (volumes.IsFailure)
         {
@@ -64,12 +41,12 @@ public sealed class DiskEncryptionService
             volumes.Value.Select(ToEncryptableVolume).ToList()));
     }
 
-    private static EncryptableVolume ToEncryptableVolume(WmiInstance instance) => new(
-        instance.GetString("DriveLetter"),
-        (instance.GetInteger("ProtectionStatus") ?? 2) switch
+    private static EncryptableVolume ToEncryptableVolume(DiskEncryptionVolume volume) => new(
+        volume.DriveLetter,
+        volume.ProtectionStatus switch
         {
-            0 => VolumeProtectionStatus.Unprotected,
-            1 => VolumeProtectionStatus.Protected,
+            DiskEncryptionProtectionStatus.Unprotected => VolumeProtectionStatus.Unprotected,
+            DiskEncryptionProtectionStatus.Protected => VolumeProtectionStatus.Protected,
             _ => VolumeProtectionStatus.Unknown,
         });
 }
