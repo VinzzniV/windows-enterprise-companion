@@ -60,6 +60,23 @@ public class LocalAdministratorsPartComponentParsingTests
     }
 
     [Theory]
+    [InlineData("Win32_UserAccount (Name = \"Admin\", Domain = \"TESTHOST\")", "TESTHOST", "Admin", "User")]
+    [InlineData("Win32_Group (Domain = \"CONTOSO\", Name = \"IT-Admins\")", "CONTOSO", "IT-Admins", "Group")]
+    public void ObservedCimDisplayReference_IsParsedRegardlessOfPropertyOrder(
+        string reference,
+        string expectedDomain,
+        string expectedName,
+        string expectedKind)
+    {
+        AdminGroupMember? member = LocalAdministratorsCheck.ParseMember(reference);
+
+        Assert.NotNull(member);
+        Assert.Equal(expectedDomain, member.Domain);
+        Assert.Equal(expectedName, member.Name);
+        Assert.Equal(Enum.Parse<AdminMemberKind>(expectedKind), member.Kind);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("garbage without a reference")]
     [InlineData(42)]
@@ -69,7 +86,7 @@ public class LocalAdministratorsPartComponentParsingTests
     }
 
     [Fact]
-    public async Task NestedReferences_ProduceMembershipWithScopeAndKind()
+    public async Task PartiallyParsedReferences_DoNotClaimAnExactMembershipCount()
     {
         var harness = new CheckTestHarness();
         harness.SetUpWmiQuery("Win32_Group ", CheckTestHarness.Instance(
@@ -84,10 +101,33 @@ public class LocalAdministratorsPartComponentParsingTests
             await check.EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
 
         SecurityFinding membership = Assert.Single(findings);
-        Assert.Equal("2", membership.Evidence["memberCount"]);
+        Assert.Equal("3", membership.Evidence["rawMemberCount"]);
+        Assert.Equal("2", membership.Evidence["parsedMemberCount"]);
+        Assert.Equal("1", membership.Evidence["unparsedMemberCount"]);
+        Assert.False(membership.Evidence.ContainsKey("memberCount"));
+        Assert.Contains("incomplete", membership.Title, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(@"TESTHOST\Admin (local user)", membership.Evidence["members"], StringComparison.Ordinal);
         Assert.Contains(@"CONTOSO\IT-Admins (domain group)", membership.Evidence["members"], StringComparison.Ordinal);
-        Assert.Equal("1", membership.Evidence["unparsedMemberReferences"]);
+    }
+
+    [Fact]
+    public async Task AllUnparseableReferences_DoNotClaimZeroMembers()
+    {
+        var harness = new CheckTestHarness();
+        harness.SetUpWmiQuery("Win32_Group ", CheckTestHarness.Instance(
+            ("Name", "Administrators"), ("Domain", "TESTHOST")));
+        harness.SetUpWmiQuery("Win32_GroupUser",
+            CheckTestHarness.Instance(("PartComponent", (object?)"unsupported representation")));
+
+        var check = new LocalAdministratorsCheck(harness.WmiQueryService, harness.Clock);
+        SecurityFinding membership = Assert.Single(
+            await check.EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+
+        Assert.Equal("1", membership.Evidence["rawMemberCount"]);
+        Assert.Equal("0", membership.Evidence["parsedMemberCount"]);
+        Assert.Equal("1", membership.Evidence["unparsedMemberCount"]);
+        Assert.False(membership.Evidence.ContainsKey("memberCount"));
+        Assert.DoesNotContain("has 0 members", membership.Title, StringComparison.OrdinalIgnoreCase);
     }
 }
 

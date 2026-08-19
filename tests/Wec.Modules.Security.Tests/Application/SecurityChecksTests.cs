@@ -352,7 +352,24 @@ public class LocalAdministratorsCheckTests
         SecurityFinding membership = Assert.Single(findings);
         Assert.Equal(FindingSeverity.Info, membership.Severity);
         Assert.Equal("2", membership.Evidence["memberCount"]);
+        Assert.Equal("2", membership.Evidence["rawMemberCount"]);
+        Assert.Equal("2", membership.Evidence["parsedMemberCount"]);
+        Assert.Equal("0", membership.Evidence["unparsedMemberCount"]);
         Assert.Contains(@"TESTHOST\Admin", membership.Evidence["members"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EmptyRawMembership_IsTheOnlyDefinitiveZero()
+    {
+        SetUpGroupAndMembers();
+
+        SecurityFinding membership = Assert.Single(
+            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+
+        Assert.Equal("Local Administrators group has 0 members", membership.Title);
+        Assert.Equal("0", membership.Evidence["memberCount"]);
+        Assert.Equal("0", membership.Evidence["rawMemberCount"]);
+        Assert.Equal("0", membership.Evidence["unparsedMemberCount"]);
     }
 
     [Fact]
