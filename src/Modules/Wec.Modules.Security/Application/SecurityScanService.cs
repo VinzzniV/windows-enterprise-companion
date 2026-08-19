@@ -39,14 +39,27 @@ public sealed partial class SecurityScanService
     {
         var context = new SecurityScanContext(target, credentials, _connectionOptions);
         DateTimeOffset startedAtUtc = _clock.UtcNow;
-        var findings = new List<SecurityFinding>();
-        var failedChecks = 0;
+        var checkResults = new List<SecurityCheckResult>(_checks.Count);
 
         foreach (ISecurityCheck check in _checks)
         {
             try
             {
-                findings.AddRange(await check.EvaluateAsync(context, cancellationToken));
+                SecurityCheckResult checkResult = await check.EvaluateAsync(context, cancellationToken);
+                if (!string.Equals(checkResult.CheckId, check.CheckId, StringComparison.Ordinal))
+                {
+                    _logger.LogError(
+                        "Security check {ExpectedCheckId} returned result for {ActualCheckId}",
+                        check.CheckId,
+                        checkResult.CheckId);
+                    checkResult = SecurityCheckResult.DidNotRun(
+                        check.CheckId,
+                        new Error(
+                            ErrorCode.InternalError,
+                            "The check returned an inconsistent execution result."));
+                }
+
+                checkResults.Add(checkResult);
             }
             catch (OperationCanceledException)
             {
@@ -57,12 +70,19 @@ public sealed partial class SecurityScanService
                 // A crashing check is a bug, but it must not take the whole scan
                 // down or hide the results of the remaining checks. The degraded
                 // state is reflected in the scan status instead of being swallowed.
-                failedChecks++;
                 _logger.LogError(exception, "Security check {CheckId} threw unexpectedly", check.CheckId);
+                checkResults.Add(SecurityCheckResult.DidNotRun(
+                    check.CheckId,
+                    new Error(
+                        ErrorCode.InternalError,
+                        "The check crashed unexpectedly. See the application log for details.")));
             }
         }
 
         DateTimeOffset completedAtUtc = _clock.UtcNow;
+        IReadOnlyList<SecurityFinding> findings =
+            [.. checkResults.SelectMany(result => result.Findings)];
+        int failedChecks = checkResults.Count(result => result.Status == CheckStatus.Failed);
         ScanStatus status = failedChecks == 0 ? ScanStatus.Completed : ScanStatus.CompletedWithErrors;
 
         long scanId = await _repository.SaveScanAsync(
@@ -70,13 +90,21 @@ public sealed partial class SecurityScanService
             startedAtUtc,
             completedAtUtc,
             status,
-            findings,
+            SecurityCoverage.CurrentVersion,
+            checkResults,
             cancellationToken);
 
         LogScanFinished(scanId, target.CacheKey, status, findings.Count, _checks.Count, failedChecks);
 
         return Result.Success(new SecurityScanResult(
-            scanId, target.DisplayName, startedAtUtc, completedAtUtc, status, findings));
+            scanId,
+            target.DisplayName,
+            startedAtUtc,
+            completedAtUtc,
+            status,
+            findings,
+            checkResults,
+            SecurityCoverage.CurrentVersion));
     }
 
     [LoggerMessage(

@@ -39,18 +39,62 @@ internal sealed class ScanHistoryService
                 .GroupBy(finding => finding.Severity)
                 .OrderByDescending(group => group.Key)
                 .Select(group => new SeverityCount(group.Key, group.Count())),
-        ]);
+        ],
+        scan.Coverage);
 
     private static ScanDiff BuildDiff(SecurityScanResult latest, SecurityScanResult previous)
     {
-        HashSet<(string, string)> previousKeys = [.. previous.Findings.Select(FindingIdentity)];
-        HashSet<(string, string)> latestKeys = [.. latest.Findings.Select(FindingIdentity)];
+        if (!latest.Coverage.IsKnown || !previous.Coverage.IsKnown)
+        {
+            return new ScanDiff(
+                latest.ScanId,
+                previous.ScanId,
+                [],
+                [],
+                IsFullyComparable: false,
+                UncomparedCheckIds: []);
+        }
+
+        Dictionary<string, SecurityCheckResult> latestChecks = latest.CheckResults
+            .ToDictionary(result => result.CheckId, StringComparer.Ordinal);
+        Dictionary<string, SecurityCheckResult> previousChecks = previous.CheckResults
+            .ToDictionary(result => result.CheckId, StringComparer.Ordinal);
+        List<string> checkIds = latestChecks.Keys
+            .Union(previousChecks.Keys, StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        var newFindings = new List<SecurityFinding>();
+        var resolvedFindings = new List<SecurityFinding>();
+        var uncomparedCheckIds = new List<string>();
+
+        foreach (string checkId in checkIds)
+        {
+            if (!latestChecks.TryGetValue(checkId, out SecurityCheckResult? latestCheck)
+                || latestCheck.Status != CheckStatus.Succeeded
+                || !previousChecks.TryGetValue(checkId, out SecurityCheckResult? previousCheck)
+                || previousCheck.Status != CheckStatus.Succeeded)
+            {
+                uncomparedCheckIds.Add(checkId);
+                continue;
+            }
+
+            HashSet<(string, string)> previousKeys = [.. previousCheck.Findings.Select(FindingIdentity)];
+            HashSet<(string, string)> latestKeys = [.. latestCheck.Findings.Select(FindingIdentity)];
+
+            newFindings.AddRange(
+                latestCheck.Findings.Where(finding => !previousKeys.Contains(FindingIdentity(finding))));
+            resolvedFindings.AddRange(
+                previousCheck.Findings.Where(finding => !latestKeys.Contains(FindingIdentity(finding))));
+        }
 
         return new ScanDiff(
             latest.ScanId,
             previous.ScanId,
-            [.. latest.Findings.Where(finding => !previousKeys.Contains(FindingIdentity(finding)))],
-            [.. previous.Findings.Where(finding => !latestKeys.Contains(FindingIdentity(finding)))]);
+            newFindings,
+            resolvedFindings,
+            IsFullyComparable: checkIds.Count > 0 && uncomparedCheckIds.Count == 0,
+            uncomparedCheckIds);
     }
 
     private static (string, string) FindingIdentity(SecurityFinding finding) =>

@@ -20,7 +20,7 @@ internal sealed class SecureBootCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-SECUREBOOT";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -31,22 +31,16 @@ internal sealed class SecureBootCheck : ISecurityCheck
 
         if (state.IsFailure)
         {
-            return [CheckFindings.NotRun(
-                CheckId,
-                "Secure Boot state could not be determined",
-                FindingCategory.PlatformIntegrity,
-                "Secure Boot",
-                "Verify registry read permissions and retry the scan.",
-                state.Error!,
-                capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, state.Error!);
         }
 
-        return state.Value switch
+        IReadOnlyList<SecurityFinding> findings = state.Value switch
         {
             int enabled when enabled == 1 => [],
             int => [DisabledFinding(capturedAtUtc)],
             _ => [NotAvailableFinding(capturedAtUtc)],
         };
+        return SecurityCheckResult.Succeeded(CheckId, findings);
     }
 
     private SecurityFinding DisabledFinding(DateTimeOffset capturedAtUtc) => new(

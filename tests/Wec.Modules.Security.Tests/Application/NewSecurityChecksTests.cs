@@ -97,9 +97,11 @@ public class LocalAdministratorsPartComponentParsingTests
             CheckTestHarness.Instance(("PartComponent", (object?)"unparseable")));
 
         var check = new LocalAdministratorsCheck(harness.WmiQueryService, harness.Clock);
-        IReadOnlyList<SecurityFinding> findings =
-            await check.EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        SecurityCheckResult result = await check.EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = result.Findings;
 
+        Assert.Equal(CheckStatus.Failed, result.Status);
         SecurityFinding membership = Assert.Single(findings);
         Assert.Equal("3", membership.Evidence["rawMemberCount"]);
         Assert.Equal("2", membership.Evidence["parsedMemberCount"]);
@@ -120,9 +122,11 @@ public class LocalAdministratorsPartComponentParsingTests
             CheckTestHarness.Instance(("PartComponent", (object?)"unsupported representation")));
 
         var check = new LocalAdministratorsCheck(harness.WmiQueryService, harness.Clock);
-        SecurityFinding membership = Assert.Single(
-            await check.EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        SecurityCheckResult result = await check.EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+        SecurityFinding membership = Assert.Single(result.Findings);
 
+        Assert.Equal(CheckStatus.Failed, result.Status);
         Assert.Equal("1", membership.Evidence["rawMemberCount"]);
         Assert.Equal("0", membership.Evidence["parsedMemberCount"]);
         Assert.Equal("1", membership.Evidence["unparsedMemberCount"]);
@@ -143,7 +147,7 @@ public class UacCheckTests
         _harness.SetUpRegistryValue("EnableLUA", 0);
 
         SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
         Assert.Equal(FindingSeverity.High, finding.Severity);
     }
 
@@ -154,7 +158,7 @@ public class UacCheckTests
         _harness.SetUpRegistryValue("ConsentPromptBehaviorAdmin", 0);
 
         SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
     }
 
@@ -164,7 +168,23 @@ public class UacCheckTests
         _harness.SetUpRegistryValue("EnableLUA", 1);
         _harness.SetUpRegistryValue("ConsentPromptBehaviorAdmin", 5);
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+    }
+
+    [Fact]
+    public async Task ConsentPromptReadFailure_ProducesFailedExecution()
+    {
+        _harness.SetUpRegistryValue("EnableLUA", 1);
+        _harness.SetUpRegistryFailure(
+            "ConsentPromptBehaviorAdmin",
+            Error.WmiUnavailable("registry provider unavailable"));
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Failure?.Code);
+        Assert.Empty(result.Findings);
     }
 
     [Fact]
@@ -174,10 +194,11 @@ public class UacCheckTests
         _harness.SetUpRegistryValue("EnableLUA", 0);
 
         SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None)).Findings);
         Assert.Equal(FindingSeverity.High, finding.Severity);
         Assert.DoesNotContain("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
     }
+
 }
 
 public class WindowsUpdateRecencyCheckTests
@@ -193,7 +214,7 @@ public class WindowsUpdateRecencyCheckTests
         _harness.SetUpWmiQuery("Win32_QuickFixEngineering",
             CheckTestHarness.Instance(("HotFixID", "KB5060000"), ("InstalledOn", "6/20/2026")));
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 
     [Fact]
@@ -204,20 +225,22 @@ public class WindowsUpdateRecencyCheckTests
             CheckTestHarness.Instance(("HotFixID", "KB5029876"), ("InstalledOn", "12/1/2025")));
 
         SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
         Assert.Equal("2026-01-15", finding.Evidence["lastInstalledUpdateUtc"]);
     }
 
     [Fact]
-    public async Task NoParseableDates_ProducesNotRunFinding()
+    public async Task NoParseableDates_ProducesFailedExecution()
     {
         _harness.SetUpWmiQuery("Win32_QuickFixEngineering",
             CheckTestHarness.Instance(("HotFixID", "KB1"), ("InstalledOn", "")));
 
-        SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
-        Assert.EndsWith("NOT-RUN", finding.FindingId, StringComparison.Ordinal);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal(ErrorCode.NotFound, result.Failure?.Code);
+        Assert.Empty(result.Findings);
     }
 
     [Theory]
@@ -242,7 +265,7 @@ public class RebootPendingCheckTests
         _harness.SetUpSubKeys("Auto Update");
         _harness.SetUpRegistryValue("PendingFileRenameOperations", null);
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 
     [Fact]
@@ -253,7 +276,7 @@ public class RebootPendingCheckTests
         _harness.SetUpRegistryValue("PendingFileRenameOperations", new[] { @"\??\C:\old", "" });
 
         SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
         Assert.Equal(FindingSeverity.Info, finding.Severity);
         Assert.Contains("RebootPending", finding.Evidence["signals"], StringComparison.Ordinal);
         Assert.Contains("PendingFileRenameOperations", finding.Evidence["signals"], StringComparison.Ordinal);
@@ -267,9 +290,42 @@ public class RebootPendingCheckTests
         _harness.SetUpRegistryValue("PendingFileRenameOperations", null);
 
         SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None)).Findings);
         Assert.Equal(FindingSeverity.Info, finding.Severity);
         Assert.DoesNotContain("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Component Based Servicing")]
+    [InlineData("Auto Update")]
+    public async Task SubKeyReadFailure_ProducesFailedExecution(string failingPath)
+    {
+        _harness.SetUpSubKeys("Component Based Servicing");
+        _harness.SetUpSubKeys("Auto Update");
+        _harness.SetUpSubKeysFailure(failingPath, Error.WmiUnavailable("registry provider unavailable"));
+        _harness.SetUpRegistryValue("PendingFileRenameOperations", null);
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public async Task PendingRenameReadFailure_ProducesFailedExecution()
+    {
+        _harness.SetUpSubKeys("Component Based Servicing");
+        _harness.SetUpSubKeys("Auto Update");
+        _harness.SetUpRegistryFailure(
+            "PendingFileRenameOperations",
+            Error.WmiUnavailable("registry provider unavailable"));
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Empty(result.Findings);
     }
 }
 
@@ -291,7 +347,7 @@ public class AccountPolicyCheckTests
         SetUpPolicy(minPasswordLength: 0, lockoutThreshold: 0);
 
         IReadOnlyList<SecurityFinding> findings =
-            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         Assert.Equal(2, findings.Count);
         Assert.All(findings, finding => Assert.Equal(FindingSeverity.Medium, finding.Severity));
@@ -302,26 +358,29 @@ public class AccountPolicyCheckTests
     {
         SetUpPolicy(minPasswordLength: 12, lockoutThreshold: 5);
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 
     [Fact]
-    public async Task ReadFailure_ProducesNotRunFinding()
+    public async Task ReadFailure_ProducesFailedExecution()
     {
         _policyReader.ReadAccountPolicy().Returns(
             Result.Failure<LocalAccountPolicy>(new Error(ErrorCode.WmiUnavailable, "api failed")));
 
-        SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
-        Assert.EndsWith("NOT-RUN", finding.FindingId, StringComparison.Ordinal);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Empty(result.Findings);
     }
 
     [Fact]
-    public async Task RemoteTarget_ProducesLocalOnlyFinding()
+    public async Task RemoteTarget_ProducesNotApplicableExecution()
     {
-        SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
-        Assert.EndsWith("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.RemoteContext, CancellationToken.None);
+        Assert.Equal(CheckStatus.NotApplicable, result.Status);
+        Assert.Equal(ErrorCode.UnsupportedRemoteOperation, result.Failure?.Code);
+        Assert.Empty(result.Findings);
     }
 }
 
@@ -336,7 +395,7 @@ public class RemoteRegistryChecksTests
         var check = new RdpAccessCheck(_harness.RegistryReader, _harness.Clock);
 
         SecurityFinding finding = Assert.Single(
-            await check.EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
+            (await check.EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None)).Findings);
 
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
         Assert.DoesNotContain("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
@@ -356,7 +415,7 @@ public class RemoteRegistryChecksTests
         var check = new SecureBootCheck(_harness.RegistryReader, _harness.Clock);
 
         SecurityFinding finding = Assert.Single(
-            await check.EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None));
+            (await check.EvaluateAsync(CheckTestHarness.RemoteContext, CancellationToken.None)).Findings);
 
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
         Assert.DoesNotContain("LOCAL-ONLY", finding.FindingId, StringComparison.Ordinal);
@@ -379,7 +438,7 @@ public class DefenderSignatureAgeTests
             ("AntivirusSignatureAge", 12u)));
 
         SecurityFinding finding = Assert.Single(
-            await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
         Assert.Equal("12", finding.Evidence["antivirusSignatureAgeDays"]);
     }
@@ -392,6 +451,6 @@ public class DefenderSignatureAgeTests
             ("RealTimeProtectionEnabled", true),
             ("AntivirusSignatureAge", 1u)));
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 }

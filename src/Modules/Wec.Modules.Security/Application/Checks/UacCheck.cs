@@ -19,7 +19,7 @@ internal sealed class UacCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-UAC";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -29,20 +29,13 @@ internal sealed class UacCheck : ISecurityCheck
             context.Target, context.Credentials, context.Connection, PoliciesSystemKey, "EnableLUA", cancellationToken);
         if (enableLua.IsFailure)
         {
-            return [CheckFindings.NotRun(
-                CheckId,
-                "UAC state could not be determined",
-                FindingCategory.Accounts,
-                "User Account Control",
-                "Verify registry read permissions and retry the scan.",
-                enableLua.Error!,
-                capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, enableLua.Error!);
         }
 
         // Missing value = Windows default (UAC on) — no finding
         if (enableLua.Value is int enabled && enabled == 0)
         {
-            return [new SecurityFinding(
+            return SecurityCheckResult.Succeeded(CheckId, [new SecurityFinding(
                 $"{CheckId}-DISABLED",
                 "User Account Control is disabled",
                 "EnableLUA is 0: every process started by an administrator account runs with full "
@@ -58,14 +51,19 @@ internal sealed class UacCheck : ISecurityCheck
                 "Re-enable UAC (EnableLUA = 1) and reboot. Software that 'requires' disabled UAC "
                     + "should be treated as a legacy exception and isolated.",
                 RequiredPrivilege: null,
-                capturedAtUtc)];
+                capturedAtUtc)]);
         }
 
         Result<object?> consentBehavior = await _registryReader.ReadLocalMachineValueAsync(
             context.Target, context.Credentials, context.Connection, PoliciesSystemKey, "ConsentPromptBehaviorAdmin", cancellationToken);
-        if (consentBehavior.IsSuccess && consentBehavior.Value is int behavior && behavior == 0)
+        if (consentBehavior.IsFailure)
         {
-            return [new SecurityFinding(
+            return CheckFindings.NotRun(CheckId, consentBehavior.Error!);
+        }
+
+        if (consentBehavior.Value is int behavior && behavior == 0)
+        {
+            return SecurityCheckResult.Succeeded(CheckId, [new SecurityFinding(
                 $"{CheckId}-SILENT-ELEVATION",
                 "UAC elevates administrators without prompting",
                 "ConsentPromptBehaviorAdmin is 0: elevation happens silently. Malware running in an "
@@ -81,9 +79,9 @@ internal sealed class UacCheck : ISecurityCheck
                 "Set ConsentPromptBehaviorAdmin to prompt for consent on the secure desktop "
                     + "(value 2 or the Windows default 5).",
                 RequiredPrivilege: null,
-                capturedAtUtc)];
+                capturedAtUtc)]);
         }
 
-        return [];
+        return SecurityCheckResult.Succeeded(CheckId);
     }
 }

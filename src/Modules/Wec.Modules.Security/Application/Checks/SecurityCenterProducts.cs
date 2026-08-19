@@ -11,25 +11,23 @@ internal sealed record ActiveSecurityProduct(string DisplayName);
 /// Windows itself uses to decide "is antivirus / a firewall present". Unlike the
 /// Defender-native and Windows-Firewall-native WMI classes, it is aware of
 /// third-party suites (e.g. Kaspersky), so a machine protected by such a suite is
-/// not falsely reported as "antivirus/firewall off".
-///
-/// SecurityCenter2 exists on client SKUs only, not on Windows Server; any query
-/// failure (namespace absent, access denied, unstubbed) is treated as
-/// "no third-party product detected" so the caller falls back to the native check.
+/// not falsely reported as "antivirus/firewall off". A provider failure is
+/// returned explicitly: falling back to a native provider would turn missing
+/// Security Center coverage into a plausible but unverified result.
 /// </summary>
 internal static class SecurityCenterProducts
 {
     private const string Namespace = @"root\SecurityCenter2";
 
-    public static Task<ActiveSecurityProduct?> ActiveAntivirusAsync(
+    public static Task<Result<ActiveSecurityProduct?>> ActiveAntivirusAsync(
         IWmiQueryService wmiQueryService, SecurityScanContext context, CancellationToken cancellationToken) =>
         FirstActiveThirdPartyAsync(wmiQueryService, context, "AntiVirusProduct", cancellationToken);
 
-    public static Task<ActiveSecurityProduct?> ActiveFirewallAsync(
+    public static Task<Result<ActiveSecurityProduct?>> ActiveFirewallAsync(
         IWmiQueryService wmiQueryService, SecurityScanContext context, CancellationToken cancellationToken) =>
         FirstActiveThirdPartyAsync(wmiQueryService, context, "FirewallProduct", cancellationToken);
 
-    private static async Task<ActiveSecurityProduct?> FirstActiveThirdPartyAsync(
+    private static async Task<Result<ActiveSecurityProduct?>> FirstActiveThirdPartyAsync(
         IWmiQueryService wmiQueryService,
         SecurityScanContext context,
         string className,
@@ -38,10 +36,16 @@ internal static class SecurityCenterProducts
         Result<IReadOnlyList<WmiInstance>>? result = await wmiQueryService.QueryAsync(
             context, Namespace, $"SELECT displayName, productState FROM {className}", cancellationToken);
 
-        // null: unstubbed in tests; IsFailure: namespace absent (server) or access denied.
-        if (result is null || result.IsFailure)
+        if (result is null)
         {
-            return null;
+            return Result.Failure<ActiveSecurityProduct?>(new Error(
+                ErrorCode.InternalError,
+                "Windows Security Center returned no execution result."));
+        }
+
+        if (result.IsFailure)
+        {
+            return Result.Failure<ActiveSecurityProduct?>(result.Error!);
         }
 
         foreach (WmiInstance product in result.Value)
@@ -52,10 +56,10 @@ internal static class SecurityCenterProducts
                 continue;
             }
 
-            return new ActiveSecurityProduct(displayName);
+            return Result.Success<ActiveSecurityProduct?>(new ActiveSecurityProduct(displayName));
         }
 
-        return null;
+        return Result.Success<ActiveSecurityProduct?>(null);
     }
 
     private static bool IsMicrosoftBuiltIn(string displayName) =>

@@ -26,10 +26,11 @@ public sealed class BatchSecurityScanServiceTests
     {
         _check.CheckId.Returns("TEST-CHECK");
         _check.EvaluateAsync(Arg.Any<SecurityScanContext>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<SecurityFinding>>([]));
+            .Returns(SecurityCheckResult.Succeeded("TEST-CHECK"));
         _repository.SaveScanAsync(
                 Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(),
-                Arg.Any<ScanStatus>(), Arg.Any<IReadOnlyList<SecurityFinding>>(), Arg.Any<CancellationToken>())
+                Arg.Any<ScanStatus>(), Arg.Any<int>(), Arg.Any<IReadOnlyList<SecurityCheckResult>>(),
+                Arg.Any<CancellationToken>())
             .Returns(1L);
         _eventPublisher
             .When(publisher => publisher.Publish(Arg.Any<BridgeEvent>()))
@@ -126,7 +127,7 @@ public sealed class BatchSecurityScanServiceTests
     {
         SetUpConnectivityGate("pc-01", GateSuccess());
         _check.EvaluateAsync(Arg.Any<SecurityScanContext>(), Arg.Any<CancellationToken>())
-            .Returns<Task<IReadOnlyList<SecurityFinding>>>(_ => throw new InvalidOperationException("bug"));
+            .Returns<Task<SecurityCheckResult>>(_ => throw new InvalidOperationException("bug"));
 
         Result<BatchScanResult> result = await CreateService().RunBatchScanAsync(
             ["pc-01"], ScanCredentials.CurrentUser, CancellationToken.None);

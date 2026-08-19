@@ -33,6 +33,20 @@ public sealed class ScanHistoryServiceTests
         Now);
 
     private static SecurityScanResult Scan(long id, params SecurityFinding[] findings) =>
+        ScanWithChecks(id, new SecurityCheckResult("TEST-CHECK", CheckStatus.Succeeded, findings));
+
+    private static SecurityScanResult ScanWithChecks(long id, params SecurityCheckResult[] checkResults) =>
+        new(
+            id,
+            Environment.MachineName,
+            Now.AddMinutes(-id),
+            Now.AddMinutes(-id).AddSeconds(5),
+            ScanStatus.Completed,
+            checkResults.SelectMany(result => result.Findings).ToList(),
+            checkResults,
+            SecurityCoverage.CurrentVersion);
+
+    private static SecurityScanResult LegacyScan(long id, params SecurityFinding[] findings) =>
         new(id, Environment.MachineName, Now.AddMinutes(-id), Now.AddMinutes(-id).AddSeconds(5), ScanStatus.Completed, findings);
 
     private void SetUpScans(params SecurityScanResult[] newestFirst) =>
@@ -55,6 +69,8 @@ public sealed class ScanHistoryServiceTests
         Assert.Equal(
             [new SeverityCount(FindingSeverity.High, 2), new SeverityCount(FindingSeverity.Info, 1)],
             summary.SeverityCounts);
+        Assert.True(summary.Coverage.IsKnown);
+        Assert.True(summary.Coverage.IsComplete);
     }
 
     [Fact]
@@ -81,6 +97,8 @@ public sealed class ScanHistoryServiceTests
         Assert.Equal(1, diff.PreviousScanId);
         Assert.Equal("NEW", Assert.Single(diff.NewFindings).FindingId);
         Assert.Equal("RESOLVED", Assert.Single(diff.ResolvedFindings).FindingId);
+        Assert.True(diff.IsFullyComparable);
+        Assert.Empty(diff.UncomparedCheckIds);
     }
 
     [Fact]
@@ -106,5 +124,85 @@ public sealed class ScanHistoryServiceTests
 
         Assert.Empty(result.Value.Scans);
         Assert.Null(result.Value.ChangesSinceLastScan);
+    }
+
+    [Theory]
+    [InlineData(CheckStatus.Failed)]
+    [InlineData(CheckStatus.RequiresElevation)]
+    [InlineData(CheckStatus.NotApplicable)]
+    public async Task Diff_CurrentCheckDidNotSucceed_DoesNotClaimPreviousFindingWasResolved(
+        CheckStatus latestStatus)
+    {
+        SetUpScans(
+            ScanWithChecks(2, new SecurityCheckResult("FIREWALL", latestStatus, [])),
+            ScanWithChecks(1, new SecurityCheckResult(
+                "FIREWALL", CheckStatus.Succeeded, [Finding("FIREWALL-OFF", "Public")])));
+
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(
+            ScanTarget.Local, CancellationToken.None);
+
+        ScanDiff diff = result.Value.ChangesSinceLastScan!;
+        Assert.Empty(diff.ResolvedFindings);
+        Assert.False(diff.IsFullyComparable);
+        Assert.Equal(["FIREWALL"], diff.UncomparedCheckIds);
+    }
+
+    [Fact]
+    public async Task Diff_PreviousCheckFailed_DoesNotClaimCurrentFindingIsNew()
+    {
+        SetUpScans(
+            ScanWithChecks(2, new SecurityCheckResult(
+                "FIREWALL", CheckStatus.Succeeded, [Finding("FIREWALL-OFF", "Public")])),
+            ScanWithChecks(1, new SecurityCheckResult("FIREWALL", CheckStatus.Failed, [])));
+
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(
+            ScanTarget.Local, CancellationToken.None);
+
+        ScanDiff diff = result.Value.ChangesSinceLastScan!;
+        Assert.Empty(diff.NewFindings);
+        Assert.False(diff.IsFullyComparable);
+        Assert.Equal(["FIREWALL"], diff.UncomparedCheckIds);
+    }
+
+    [Fact]
+    public async Task Diff_PartialCoverage_StillComparesChecksThatSucceededInBothScans()
+    {
+        SetUpScans(
+            ScanWithChecks(
+                2,
+                new SecurityCheckResult("FIREWALL", CheckStatus.Succeeded, []),
+                new SecurityCheckResult("TPM", CheckStatus.RequiresElevation, [])),
+            ScanWithChecks(
+                1,
+                new SecurityCheckResult(
+                    "FIREWALL", CheckStatus.Succeeded, [Finding("FIREWALL-OFF", "Public")]),
+                new SecurityCheckResult("TPM", CheckStatus.Succeeded, [Finding("TPM-OFF", "TPM")])));
+
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(
+            ScanTarget.Local, CancellationToken.None);
+
+        ScanDiff diff = result.Value.ChangesSinceLastScan!;
+        Assert.Equal("FIREWALL-OFF", Assert.Single(diff.ResolvedFindings).FindingId);
+        Assert.DoesNotContain(diff.ResolvedFindings, finding => finding.FindingId == "TPM-OFF");
+        Assert.False(diff.IsFullyComparable);
+        Assert.Equal(["TPM"], diff.UncomparedCheckIds);
+    }
+
+    [Fact]
+    public async Task Diff_LegacyCoverageUnknown_ProducesNoChangeClaims()
+    {
+        SetUpScans(
+            Scan(2),
+            LegacyScan(1, Finding("FIREWALL-OFF", "Public")));
+
+        Result<ScanHistoryResult> result = await CreateService().GetHistoryAsync(
+            ScanTarget.Local, CancellationToken.None);
+
+        ScanDiff diff = result.Value.ChangesSinceLastScan!;
+        Assert.Empty(diff.NewFindings);
+        Assert.Empty(diff.ResolvedFindings);
+        Assert.False(diff.IsFullyComparable);
+        Assert.Empty(diff.UncomparedCheckIds);
+        Assert.False(result.Value.Scans[1].Coverage.IsKnown);
     }
 }

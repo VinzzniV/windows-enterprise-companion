@@ -23,7 +23,7 @@ internal sealed class BitLockerCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-BITLOCKER";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -35,16 +35,11 @@ internal sealed class BitLockerCheck : ISecurityCheck
         // Remote rights come from the connection credentials, not this process.
         if (context.Target.IsLocal && !_privilegeContext.Satisfies(PrivilegeLevel.Administrator))
         {
-            return [CheckFindings.NotRun(
+            return CheckFindings.NotRun(
                 CheckId,
-                "BitLocker status was not checked (requires elevation)",
-                FindingCategory.Encryption,
-                "BitLocker volumes",
-                "Restart the app as administrator to include disk encryption in the scan.",
                 Error.AccessDenied(
                     "Reading BitLocker status requires administrator privileges.",
-                    PrivilegeLevel.Administrator),
-                capturedAtUtc)];
+                    PrivilegeLevel.Administrator));
         }
 
         Result<IReadOnlyList<WmiInstance>> volumes = await _wmiQueryService.QueryAsync(
@@ -55,14 +50,7 @@ internal sealed class BitLockerCheck : ISecurityCheck
 
         if (volumes.IsFailure)
         {
-            return [CheckFindings.NotRun(
-                CheckId,
-                "BitLocker status could not be determined",
-                FindingCategory.Encryption,
-                "BitLocker volumes",
-                "Verify the BitLocker management components and retry the scan.",
-                volumes.Error!,
-                capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, volumes.Error!);
         }
 
         var findings = new List<SecurityFinding>();
@@ -97,6 +85,6 @@ internal sealed class BitLockerCheck : ISecurityCheck
                 capturedAtUtc));
         }
 
-        return findings;
+        return SecurityCheckResult.Succeeded(CheckId, findings);
     }
 }

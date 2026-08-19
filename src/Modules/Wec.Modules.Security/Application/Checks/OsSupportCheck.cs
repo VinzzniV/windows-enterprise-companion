@@ -68,7 +68,7 @@ internal sealed class OsSupportCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-OSSUPPORT";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -85,14 +85,7 @@ internal sealed class OsSupportCheck : ISecurityCheck
             Error error = operatingSystems.IsFailure
                 ? operatingSystems.Error!
                 : Error.NotFound("Win32_OperatingSystem returned no instance.");
-            return [CheckFindings.NotRun(
-                CheckId,
-                "Operating system support status could not be determined",
-                FindingCategory.OperatingSystem,
-                "Operating system",
-                "Verify the Windows Management Instrumentation service and retry the scan.",
-                error,
-                capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, error);
         }
 
         WmiInstance operatingSystem = operatingSystems.Value[0];
@@ -103,19 +96,18 @@ internal sealed class OsSupportCheck : ISecurityCheck
 
         if (!int.TryParse(buildNumberText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int buildNumber))
         {
-            return [UnknownFinding(
+            return UnknownResult(
                 caption,
                 buildNumberText,
                 skuValue,
                 productType,
                 track: null,
-                "The operating-system build number is missing or invalid.",
-                capturedAtUtc)];
+                "The operating-system build number is missing or invalid.");
         }
 
         if (productType != 1)
         {
-            return [UnknownFinding(
+            return UnknownResult(
                 caption,
                 buildNumberText,
                 skuValue,
@@ -123,8 +115,7 @@ internal sealed class OsSupportCheck : ISecurityCheck
                 track: null,
                 productType is null
                     ? "The Windows product type is missing."
-                    : "The offline lifecycle table covers Windows client products only.",
-                capturedAtUtc)];
+                    : "The offline lifecycle table covers Windows client products only.");
         }
 
         OsLifecycleTrack? track = skuValue is >= int.MinValue and <= int.MaxValue
@@ -132,7 +123,7 @@ internal sealed class OsSupportCheck : ISecurityCheck
             : null;
         if (track is null)
         {
-            return [UnknownFinding(
+            return UnknownResult(
                 caption,
                 buildNumberText,
                 skuValue,
@@ -140,28 +131,26 @@ internal sealed class OsSupportCheck : ISecurityCheck
                 track,
                 skuValue is null
                     ? "The Windows edition SKU is missing."
-                    : $"Windows edition SKU {skuValue.Value} is not mapped to a verified lifecycle track.",
-                capturedAtUtc)];
+                    : $"Windows edition SKU {skuValue.Value} is not mapped to a verified lifecycle track.");
         }
 
         if (!LifecycleTable.TryGetValue((buildNumber, track.Value), out OsLifecycleEntry? lifecycle))
         {
-            return [UnknownFinding(
+            return UnknownResult(
                 caption,
                 buildNumberText,
                 skuValue,
                 productType,
                 track,
-                "This build and lifecycle-track combination is not in the offline lifecycle table.",
-                capturedAtUtc)];
+                "This build and lifecycle-track combination is not in the offline lifecycle table.");
         }
 
         if (capturedAtUtc <= EndOfSupportUtc(lifecycle.LastSupportedDate))
         {
-            return [];
+            return SecurityCheckResult.Succeeded(CheckId);
         }
 
-        return [new SecurityFinding(
+        return SecurityCheckResult.Succeeded(CheckId, [new SecurityFinding(
             $"{CheckId}-EOL",
             $"{lifecycle.Name} is past standard servicing",
             $"Microsoft's standard servicing for {lifecycle.Name} (build {buildNumber}) ended on "
@@ -173,7 +162,7 @@ internal sealed class OsSupportCheck : ISecurityCheck
             Evidence(caption, buildNumberText, skuValue, productType, track, lifecycle.LastSupportedDate),
             "Upgrade to a supported Windows release or verify and document the device's extended update entitlement.",
             RequiredPrivilege: null,
-            capturedAtUtc)];
+            capturedAtUtc)]);
     }
 
     private static OsLifecycleEntry Entry(string name, int year, int month, int day) =>
@@ -200,24 +189,18 @@ internal sealed class OsSupportCheck : ISecurityCheck
         return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(endOfPacificDay, MicrosoftLifecycleTimeZone));
     }
 
-    private SecurityFinding UnknownFinding(
+    private SecurityCheckResult UnknownResult(
         string caption,
         string buildNumber,
         long? sku,
         long? productType,
         OsLifecycleTrack? track,
-        string reason,
-        DateTimeOffset capturedAtUtc) => new(
-        $"{CheckId}-UNKNOWN",
-        "Operating system support status is unknown",
-        $"{reason} The app cannot determine support status from its offline lifecycle snapshot.",
-        FindingSeverity.Info,
-        FindingCategory.OperatingSystem,
-        caption,
-        Evidence(caption, buildNumber, sku, productType, track, lastSupportedDate: null),
-        "Check the Microsoft Windows release-health and product lifecycle documentation for this edition and build.",
-        RequiredPrivilege: null,
-        capturedAtUtc);
+        string reason) => SecurityCheckResult.DidNotRun(
+        CheckId,
+        Error.NotFound(
+            $"{reason} Lifecycle is unknown for '{caption}', build '{buildNumber}', SKU "
+            + $"'{sku?.ToString(CultureInfo.InvariantCulture) ?? "missing"}', product type "
+            + $"'{productType?.ToString(CultureInfo.InvariantCulture) ?? "missing"}', track '{track?.ToString() ?? "Unknown"}'."));
 
     private static Dictionary<string, string> Evidence(
         string caption,

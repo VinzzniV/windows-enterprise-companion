@@ -26,18 +26,25 @@ internal sealed partial class FirewallProfilesCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-FIREWALL";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
         // When a third-party firewall (e.g. Kaspersky) is registered and active, the
         // Windows Firewall is routinely turned off on purpose. Report that product
         // instead of falsely flagging "Windows Firewall disabled".
-        ActiveSecurityProduct? thirdPartyFirewall =
+        Result<ActiveSecurityProduct?> thirdPartyFirewall =
             await SecurityCenterProducts.ActiveFirewallAsync(_wmiQueryService, context, cancellationToken);
-        if (thirdPartyFirewall is not null)
+        if (thirdPartyFirewall.IsFailure)
         {
-            return [ThirdPartyFirewallFinding(thirdPartyFirewall, _clock.UtcNow)];
+            return CheckFindings.NotRun(CheckId, thirdPartyFirewall.Error!);
+        }
+
+        if (thirdPartyFirewall.Value is not null)
+        {
+            return SecurityCheckResult.Succeeded(
+                CheckId,
+                [ThirdPartyFirewallFinding(thirdPartyFirewall.Value, _clock.UtcNow)]);
         }
 
         Result<IReadOnlyList<WmiInstance>> profiles = await _wmiQueryService.QueryAsync(
@@ -54,7 +61,7 @@ internal sealed partial class FirewallProfilesCheck : ISecurityCheck
                 "Firewall check could not query profiles: {ErrorCode} {ErrorMessage}",
                 profiles.Error!.Code,
                 profiles.Error.Message);
-            return [CheckNotRunFinding(profiles.Error, capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, profiles.Error);
         }
 
         var findings = new List<SecurityFinding>();
@@ -68,7 +75,7 @@ internal sealed partial class FirewallProfilesCheck : ISecurityCheck
         }
 
         LogCheckEvaluated(profiles.Value.Count, findings.Count);
-        return findings;
+        return SecurityCheckResult.Succeeded(CheckId, findings);
     }
 
     [LoggerMessage(
@@ -127,23 +134,4 @@ internal sealed partial class FirewallProfilesCheck : ISecurityCheck
         RequiredPrivilege: null,
         CapturedAtUtc: capturedAtUtc);
 
-    private SecurityFinding CheckNotRunFinding(Error error, DateTimeOffset capturedAtUtc) => new(
-        FindingId: $"{CheckId}-NOT-RUN",
-        Title: "Windows Firewall status could not be determined",
-        Description:
-            "The firewall check could not read the firewall profiles. The firewall state is unknown, "
-            + "not necessarily bad — investigate why the query failed.",
-        // Conservative: unknown state is reported as INFO, not as an alarm
-        Severity: FindingSeverity.Info,
-        Category: FindingCategory.Firewall,
-        AffectedResource: "Windows Firewall",
-        Evidence: new Dictionary<string, string>
-        {
-            ["errorCode"] = error.Code.ToString(),
-            ["errorMessage"] = error.Message,
-            ["source"] = $@"{FirewallNamespace}\MSFT_NetFirewallProfile",
-        },
-        Recommendation: "Verify that the Windows Management Instrumentation service is running and retry the scan.",
-        RequiredPrivilege: error.RequiredPrivilege,
-        CapturedAtUtc: capturedAtUtc);
 }

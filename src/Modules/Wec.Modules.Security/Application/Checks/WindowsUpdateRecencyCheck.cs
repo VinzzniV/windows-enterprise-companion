@@ -26,7 +26,7 @@ internal sealed class WindowsUpdateRecencyCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-PATCHLEVEL";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -40,14 +40,7 @@ internal sealed class WindowsUpdateRecencyCheck : ISecurityCheck
 
         if (hotfixes.IsFailure)
         {
-            return [CheckFindings.NotRun(
-                CheckId,
-                "Installed update history could not be determined",
-                FindingCategory.OperatingSystem,
-                "Windows Update",
-                "Verify the Windows Management Instrumentation service and retry the scan.",
-                hotfixes.Error!,
-                capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, hotfixes.Error!);
         }
 
         DateTimeOffset newestInstall = hotfixes.Value
@@ -59,23 +52,18 @@ internal sealed class WindowsUpdateRecencyCheck : ISecurityCheck
 
         if (newestInstall == default)
         {
-            return [CheckFindings.NotRun(
+            return CheckFindings.NotRun(
                 CheckId,
-                "No installed update dates could be read",
-                FindingCategory.OperatingSystem,
-                "Windows Update",
-                "Check the update history in Windows Update manually.",
-                Error.NotFound("Win32_QuickFixEngineering returned no parseable InstalledOn dates."),
-                capturedAtUtc)];
+                Error.NotFound("Win32_QuickFixEngineering returned no parseable InstalledOn dates."));
         }
 
         double daysSinceLastUpdate = (_clock.UtcNow - newestInstall).TotalDays;
         if (daysSinceLastUpdate <= _options.MaxDaysSinceLastInstalledUpdate)
         {
-            return [];
+            return SecurityCheckResult.Succeeded(CheckId);
         }
 
-        return [new SecurityFinding(
+        return SecurityCheckResult.Succeeded(CheckId, [new SecurityFinding(
             $"{CheckId}-STALE",
             $"No updates installed for {(int)daysSinceLastUpdate} days",
             "The newest entry in the installed-update history is older than the configured "
@@ -93,7 +81,7 @@ internal sealed class WindowsUpdateRecencyCheck : ISecurityCheck
             "Run Windows Update and verify the update service, network access to the update "
                 + "source, and any WSUS/Intune assignment.",
             RequiredPrivilege: null,
-            capturedAtUtc)];
+            capturedAtUtc)]);
     }
 
     // InstalledOn is a localized string in most providers ("7/2/2026" or
