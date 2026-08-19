@@ -165,7 +165,12 @@ export function ActiveDirectoryPage() {
       { connection: toConnectionRequest(connectionForm, adminCredentials) },
       120_000,
     )
-      .then((result) => setTestBindState({ kind: 'ok', result }))
+      .then((result) => {
+        setTestBindState({ kind: 'ok', result });
+        if (!result.domainJoined && connectionForm.domain.trim() === '') {
+          setHygieneState({ kind: 'idle' });
+        }
+      })
       .catch((error: unknown) => setTestBindState({ kind: 'error', ...adError(error) }));
   }, [connectionForm, adminCredentials]);
 
@@ -179,6 +184,9 @@ export function ActiveDirectoryPage() {
     )
       .then((overview) => {
         setState({ kind: 'loaded', overview });
+        if (!overview.domainJoined) {
+          setHygieneState({ kind: 'idle' });
+        }
         // Remember a pinned DC so it prefills next launch — like a saved print server.
         const host = connectionForm.server.trim();
         const alreadySaved = savedTargets.some(
@@ -209,8 +217,12 @@ export function ActiveDirectoryPage() {
       .catch((error: unknown) => setHygieneState({ kind: 'error', ...adError(error) }));
   }, [connectionForm, adminCredentials]);
 
-  const setForm = (patch: Partial<ConnectionFormState>) =>
+  const setForm = (patch: Partial<ConnectionFormState>) => {
     setConnectionForm((current) => ({ ...current, ...patch }));
+    setState({ kind: 'idle' });
+    setHygieneState({ kind: 'idle' });
+    setTestBindState({ kind: 'idle' });
+  };
 
   // Nothing cached yet: fall back to the newest saved DC so the user only has to hit
   // Analyze. The analysis itself stays manual — the bind needs the admin sign-in.
@@ -237,6 +249,12 @@ export function ActiveDirectoryPage() {
 
   const overview = state.kind === 'loaded' ? state.overview : null;
   const hygiene = hygieneState.kind === 'loaded' ? hygieneState.hygiene : null;
+  const usesLocalDomain = connectionForm.domain.trim() === '';
+  const knownWorkgroup =
+    usesLocalDomain &&
+    ((overview !== null && !overview.domainJoined) ||
+      (hygiene !== null && !hygiene.domainJoined) ||
+      (testBindState.kind === 'ok' && !testBindState.result.domainJoined));
 
   return (
     <div className="flex flex-col gap-4">
@@ -247,8 +265,15 @@ export function ActiveDirectoryPage() {
         <Button variant="primary" onClick={loadOverview} disabled={state.kind === 'loading'}>
           {state.kind === 'loading' ? 'Analyzing …' : 'Analyze directory'}
         </Button>
-        <Button onClick={loadHygiene} disabled={hygieneState.kind === 'loading'}>
-          {hygieneState.kind === 'loading' ? 'Checking …' : 'Run hygiene checks'}
+        <Button
+          onClick={loadHygiene}
+          disabled={hygieneState.kind === 'loading' || knownWorkgroup}
+        >
+          {knownWorkgroup
+            ? 'Hygiene unavailable (workgroup)'
+            : hygieneState.kind === 'loading'
+              ? 'Checking …'
+              : 'Run hygiene checks'}
         </Button>
       </PageHeader>
 
@@ -288,11 +313,9 @@ export function ActiveDirectoryPage() {
           <Button onClick={testConnection} disabled={testBindState.kind === 'testing'}>
             {testBindState.kind === 'testing' ? 'Testing …' : 'Test connection'}
           </Button>
-          {testBindState.kind === 'ok' && (
+          {testBindState.kind === 'ok' && testBindState.result.domainJoined && (
             <span className="text-sm text-ok-400">
-              {testBindState.result.domainJoined
-                ? `Connected — ${testBindState.result.domainName} (${testBindState.result.defaultNamingContext})`
-                : 'This machine is not domain-joined and no domain was entered.'}
+              {`Connected — ${testBindState.result.domainName} (${testBindState.result.defaultNamingContext})`}
             </span>
           )}
         </div>
@@ -317,11 +340,11 @@ export function ActiveDirectoryPage() {
         <ErrorState title="Directory analysis failed" message={state.message} hint={state.hint} />
       )}
 
-      {overview && !overview.domainJoined && (
-        <Card title="Not domain-joined">
+      {knownWorkgroup && (
+        <Card title="No local Active Directory domain">
           <p className="text-sm text-slate-300">
-            This machine is in a workgroup — there is no directory to analyze. Enter a domain
-            above to analyze a foreign directory, or join a domain.
+            This machine is in a workgroup, so local directory analysis and hygiene are not
+            applicable. Enter a domain above to analyze a foreign directory, or join a domain.
           </p>
         </Card>
       )}
@@ -376,12 +399,6 @@ export function ActiveDirectoryPage() {
           message={hygieneState.message}
           hint={hygieneState.hint}
         />
-      )}
-
-      {hygiene && !hygiene.domainJoined && (
-        <Card title="Hygiene checks">
-          <p className="text-sm text-slate-300">Not domain-joined — nothing to check.</p>
-        </Card>
       )}
 
       {hygiene?.domainJoined && (
