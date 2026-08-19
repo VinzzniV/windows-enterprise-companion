@@ -11,15 +11,17 @@ one that must survive years of maintenance.
 
 Before writing or changing any code, read:
 
-1. `docs/architecture-and-m1-plan.md` — solution structure, project list,
-   dependency rules, IPC contract sketch, cross-cutting decisions,
-   M1 step-by-step plan with Definition of Done.
-2. `docs/adr/0001-webview2-host-instead-of-tauri.md`
-3. `docs/adr/0002-conservative-elevation-strategy.md`
+1. `README.md` — current product scope, modules, workflows and operational
+   limitations.
+2. The README of every module being changed under `src/Modules/`.
+3. The relevant accepted records in `docs/adr/`.
 
-These documents are binding. If an implementation detail conflicts with them,
-stop and raise the conflict instead of silently deviating. New architectural
-decisions require a new ADR in `docs/adr/` (numbered, same format).
+This file is the canonical coding-agent instruction source. Accepted ADRs are
+binding architecture decisions. `docs/architecture-and-m1-plan.md` is a
+historical foundation/M1 plan, not current scope or an implementation queue.
+If current code, the product README and an ADR conflict, stop and raise the
+conflict instead of silently deviating. New architectural decisions require a
+new ADR in `docs/adr/` (numbered, same format).
 
 ## Approved architecture (summary — details in the docs above)
 
@@ -39,9 +41,13 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
   (`{id, module, action, payload}` → `{id, success, data|error}` + events).
   Handlers (`IActionHandler`) are transport-agnostic and return `Result<T>`.
 - Elevation (ADR 0002): app starts unelevated (`asInvoker`). `IPrivilegeContext`
-  reports capabilities. Checks return
-  `CheckStatus: Succeeded | Failed | RequiresElevation | NotApplicable`.
-  Never auto-elevate. No elevated helper process in M1.
+  reports capabilities. Never auto-elevate; there is no elevated helper
+  process.
+- Security separates observed risk from execution truth. `FindingSeverity`
+  classifies findings only; persisted per-check `CheckStatus` values
+  (`Succeeded`, `Failed`, `RequiresElevation`, `NotApplicable`) determine
+  coverage. Incomplete or legacy coverage must never be presented as passed,
+  resolved or fully comparable.
 - Error model: `Result<T>` with typed `Error {Code, Message, Details}` for
   expected failures (access denied, WMI unavailable, not found).
   Exceptions are reserved for bugs; a global handler maps them to a generic
@@ -49,8 +55,9 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 - Remote analysis (ADR 0007): WSMan `CimSession` behind `IWmiQueryService`,
   LDAP credentials behind `IDirectoryReader` (ADR 0006 revision). Targets and
   credentials are Core types (`Wec.Core.Targets`); explicit credentials are
-  in-memory per request, never persisted. Local-only checks report
-  `UNSUPPORTED_REMOTE_OPERATION`-style findings instead of silently skipping.
+  in-memory per request, never persisted. Local-only work reports a typed
+  `UNSUPPORTED_REMOTE_OPERATION`/`NotApplicable` result instead of silently
+  falling back to the WEC machine.
 - Patch management (ADR 0008/0015): opsi data and rollout requests use JSON-RPC
   behind `IOpsiClient`; repository package updates use Windows OpenSSH behind
   `IRemoteCommandExecutor`. Both require preview + explicit confirmation and
@@ -74,20 +81,27 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 - Logging: Serilog, structured. Rolling file in `%LOCALAPPDATA%\Wec\logs\`,
   console sink in DEBUG. Every bridge request carries a `CorrelationId`
   (= envelope id) plus `Module` and `Action` properties.
-- Frontend mirrors backend: `frontend/src/features/<x>` ↔ `Wec.Modules.<X>`.
-  `shared/bridge/bridgeClient.ts` handles invoke/subscribe with id correlation
-  and timeouts. `shared/api-types.ts` mirrors C# DTOs (manual sync for now).
+- Module-facing frontend features mirror the corresponding backend module;
+  frontend-only workspaces such as Dashboard and Clients may compose multiple
+  module contracts. `shared/bridge/bridgeClient.ts` handles invoke/subscribe
+  with id correlation and timeouts. `shared/api-types.ts` mirrors C# DTOs
+  (manual sync for now).
 
-## Current milestone: M1 — "Show hardware information for the local machine"
+## Current product state
 
-Flow: CIM query → Inventory module → SQLite cache → bridge → React panel.
-Follow the 10-step plan in `docs/architecture-and-m1-plan.md` §6 **in order**,
-one commit per step. Do not skip ahead. The Definition of Done in that document
-is the acceptance criteria.
+M1 is complete. The host currently registers Inventory, Security, Diagnostics,
+Reporting, Active Directory, Patch Management, Print Management, Network Scan,
+Saved Targets, IT Lifecycle and Vulnerability Management. The React shell also
+contains the Dashboard, Clients workspace, Settings and Error Log views. Use
+`README.md`, the relevant module README and current code as the product-state
+reference; do not infer the next milestone from the historical M1 plan.
 
-Out of scope for M1 (do not build, even if "it would be easy"):
-runtime plugin loading, elevated helper process, TypeScript type generator,
-in-app log viewer, dashboard module, anything from Phase 2+.
+Keep the established modular-monolith boundaries. Do not introduce runtime
+plugins, dynamic navigation, a local HTTP server, merged modules, per-feature
+architecture-layer projects, cross-module feature references, generic
+repositories or generic check/diagnostic base classes, MediatR/CQRS, an event
+bus or global React state without an explicitly approved architectural
+requirement and ADR.
 
 ## Coding conventions
 
@@ -101,7 +115,7 @@ in-app log viewer, dashboard module, anything from Phase 2+.
 - Tests: xUnit + NSubstitute. Unit tests mock Core abstractions
   (`IWmiQueryService` etc.). Integration tests run real migrations against a
   temp SQLite **file** (never the EF in-memory provider). Frontend: Vitest +
-  Testing Library (minimal in M1).
+  Testing Library.
 - Every module gets a README. Architectural decisions get ADRs.
 
 ## How to work with the developer
@@ -122,7 +136,7 @@ in-app log viewer, dashboard module, anything from Phase 2+.
   software development. Short explanations of patterns/best practices at the
   point where they are applied are welcome — no lectures.
 
-## Commands (once the skeleton exists)
+## Commands
 
 ```bash
 dotnet build                      # full solution build

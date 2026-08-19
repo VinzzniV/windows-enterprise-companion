@@ -6,6 +6,8 @@ public sealed class SecurityFindingRecord
 
     public long ScanId { get; set; }
 
+    public string? CheckId { get; set; }
+
     public string FindingId { get; set; } = string.Empty;
 
     public string Title { get; set; } = string.Empty;

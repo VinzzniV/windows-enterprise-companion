@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
 import { errorText } from '../../../shared/bridge/errorText';
 import type { LatestScanResult, SecurityScanResult, TargetRequest } from '../../../shared/api-types';
@@ -7,7 +7,6 @@ import {
   FindingCard,
   ResultContext,
   SeveritySummary,
-  splitFindings,
 } from '../../security/SecurityPage';
 import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
@@ -41,11 +40,6 @@ export function SecuritySection({ target }: { target: TargetRequest | null }) {
       .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
   }, [target]);
 
-  const { problems, coverage } = useMemo(
-    () => splitFindings(state.kind === 'loaded' ? state.scan.findings : []),
-    [state],
-  );
-
   if (state.kind === 'loading') {
     return <Spinner label={state.scanning ? 'Running security checks …' : 'Loading last scan …'} />;
   }
@@ -71,16 +65,24 @@ export function SecuritySection({ target }: { target: TargetRequest | null }) {
     );
   }
 
+  const problems = state.scan.findings;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-end">
         <Button onClick={runScan}>Re-run scan</Button>
       </div>
-      <ResultContext scan={state.scan} problemCount={problems.length} coverageCount={coverage.length} />
+      <ResultContext scan={state.scan} problemCount={problems.length} />
       <SeveritySummary problems={problems} />
       {problems.length === 0 ? (
         <Card title="Result">
-          <p className="text-sm text-ok-400">No findings — all executed checks passed.</p>
+          <p className={state.scan.coverage.isComplete ? 'text-sm text-ok-400' : 'text-sm text-warn-400'}>
+            {state.scan.coverage.isComplete
+              ? 'No findings — all applicable checks completed.'
+              : state.scan.coverage.isKnown
+                ? 'No findings observed — scan coverage is incomplete.'
+                : 'No findings observed — legacy scan coverage is unavailable.'}
+          </p>
         </Card>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -89,7 +91,7 @@ export function SecuritySection({ target }: { target: TargetRequest | null }) {
           ))}
         </ul>
       )}
-      <CoverageNotes notes={coverage} />
+      <CoverageNotes results={state.scan.checkResults} />
     </div>
   );
 }

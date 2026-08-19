@@ -236,12 +236,22 @@ export function ComparePage() {
           )}
 
           {comparison.a.scan && comparison.b.scan ? (
-            <SetDiffCard
-              title="Security findings"
-              diff={compareFindings(comparison.a.scan.findings, comparison.b.scan.findings)}
-              labelA={comparison.a.host}
-              labelB={comparison.b.host}
-            />
+            <>
+              {(!comparison.a.scan.coverage.isComplete || !comparison.b.scan.coverage.isComplete) && (
+                <Card title="Security comparison coverage">
+                  <p className="text-sm text-warn-400">
+                    The finding comparison is observational only: at least one scan has incomplete or legacy
+                    coverage, so missing findings are not evidence that a condition is absent.
+                  </p>
+                </Card>
+              )}
+              <SetDiffCard
+                title="Security findings"
+                diff={compareFindings(comparison.a.scan.findings, comparison.b.scan.findings)}
+                labelA={comparison.a.host}
+                labelB={comparison.b.host}
+              />
+            </>
           ) : (
             <Card title="Security findings">
               <p className="text-sm text-slate-400">

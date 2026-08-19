@@ -12,7 +12,7 @@ a host string targets the already-scanned remote client with that cache key.
 
 | Action | Payload | Result |
 |---|---|---|
-| `reporting/getOverview` | `{ host?: string \| null }` | `ReportOverview` — what data is available for export |
+| `reporting/getOverview` | `{ host?: string \| null }` | `ReportOverview` — available data plus Security coverage/readiness |
 | `reporting/exportHtml` | `{ openAfterExport?: boolean, host?: string \| null }` | `ReportExportResult` — save-dialog flow, self-contained HTML |
 | `reporting/exportJson` | `{ openAfterExport?: boolean, host?: string \| null }` | `ReportExportResult` — same data set as camelCase JSON |
 
@@ -24,6 +24,14 @@ a host string targets the already-scanned remote client with that cache key.
 - With per-host caches/scans (ADR 0007), the providers key on the target's
   `ScanTarget.CacheKey` (`host` null ⇒ local). A single report is always one
   host; a multi-host *aggregate* report is still a future slice.
+- Security report data contains the persisted per-check outcomes and derived
+  coverage. The overview, HTML and JSON distinguish complete, incomplete and
+  unavailable legacy coverage. Failed/elevation-blocked checks remain visible.
+- An empty finding list is labelled `PASS` only when coverage is complete. With
+  incomplete or unknown coverage it means only that no findings were observed;
+  it is explicitly not a complete assessment.
+- Scans created before coverage version 1 remain coverage-unknown after the
+  database migration. Reporting never reconstructs or guesses missing outcomes.
 - Dialog cancel is a success (`cancelled: true`), not an error. Nothing to
   export ⇒ `NOT_FOUND` before any dialog. `openAfterExport` opens only the
   file just written — no path ever crosses the bridge inbound.
@@ -33,4 +41,5 @@ a host string targets the already-scanned remote client with that cache key.
 ## Tests
 
 `tests/Wec.Modules.Reporting.Tests` — export flow with mocked providers,
-dialog service and file writer; XSS/encoding and no-external-assets tests.
+dialog service and file writer; complete/incomplete/legacy Security coverage;
+XSS/encoding and no-external-assets tests.

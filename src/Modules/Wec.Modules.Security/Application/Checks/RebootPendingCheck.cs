@@ -23,7 +23,7 @@ internal sealed class RebootPendingCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-REBOOTPENDING";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -31,29 +31,48 @@ internal sealed class RebootPendingCheck : ISecurityCheck
 
         var reasons = new List<string>();
 
-        if (await HasSubKeyAsync(context, ComponentBasedServicingKey, "RebootPending", cancellationToken))
+        Result<bool> componentBasedServicing = await HasSubKeyAsync(
+            context, ComponentBasedServicingKey, "RebootPending", cancellationToken);
+        if (componentBasedServicing.IsFailure)
+        {
+            return CheckFindings.NotRun(CheckId, componentBasedServicing.Error!);
+        }
+
+        if (componentBasedServicing.Value)
         {
             reasons.Add("Component Based Servicing: RebootPending");
         }
 
-        if (await HasSubKeyAsync(context, AutoUpdateKey, "RebootRequired", cancellationToken))
+        Result<bool> windowsUpdate = await HasSubKeyAsync(
+            context, AutoUpdateKey, "RebootRequired", cancellationToken);
+        if (windowsUpdate.IsFailure)
+        {
+            return CheckFindings.NotRun(CheckId, windowsUpdate.Error!);
+        }
+
+        if (windowsUpdate.Value)
         {
             reasons.Add("Windows Update: RebootRequired");
         }
 
         Result<object?> pendingRenames = await _registryReader.ReadLocalMachineValueAsync(
             context.Target, context.Credentials, context.Connection, SessionManagerKey, "PendingFileRenameOperations", cancellationToken);
-        if (pendingRenames.IsSuccess && pendingRenames.Value is string[] { Length: > 0 })
+        if (pendingRenames.IsFailure)
+        {
+            return CheckFindings.NotRun(CheckId, pendingRenames.Error!);
+        }
+
+        if (pendingRenames.Value is string[] { Length: > 0 })
         {
             reasons.Add("Session Manager: PendingFileRenameOperations");
         }
 
         if (reasons.Count == 0)
         {
-            return [];
+            return SecurityCheckResult.Succeeded(CheckId);
         }
 
-        return [new SecurityFinding(
+        return SecurityCheckResult.Succeeded(CheckId, [new SecurityFinding(
             $"{CheckId}-PENDING",
             "A reboot is pending",
             "Windows signals a pending reboot. Installed updates or component changes are not "
@@ -67,15 +86,16 @@ internal sealed class RebootPendingCheck : ISecurityCheck
             },
             "Reboot the machine at the next opportunity so pending updates become effective.",
             RequiredPrivilege: null,
-            capturedAtUtc)];
+            capturedAtUtc)]);
     }
 
-    private async Task<bool> HasSubKeyAsync(
+    private async Task<Result<bool>> HasSubKeyAsync(
         SecurityScanContext context, string parentKeyPath, string subKeyName, CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<string>> subKeys = await _registryReader.ReadLocalMachineSubKeyNamesAsync(
             context.Target, context.Credentials, context.Connection, parentKeyPath, cancellationToken);
-        return subKeys.IsSuccess
-            && subKeys.Value.Contains(subKeyName, StringComparer.OrdinalIgnoreCase);
+        return subKeys.IsFailure
+            ? Result.Failure<bool>(subKeys.Error!)
+            : Result.Success(subKeys.Value.Contains(subKeyName, StringComparer.OrdinalIgnoreCase));
     }
 }

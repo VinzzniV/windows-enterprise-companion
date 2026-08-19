@@ -24,7 +24,7 @@ internal sealed class DefenderStatusCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-DEFENDER";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -32,11 +32,18 @@ internal sealed class DefenderStatusCheck : ISecurityCheck
         // protection; Defender then drops to passive mode, which is expected. Report
         // that product and skip the Defender-native checks instead of falsely
         // flagging "Defender disabled".
-        ActiveSecurityProduct? thirdPartyAntivirus =
+        Result<ActiveSecurityProduct?> thirdPartyAntivirus =
             await SecurityCenterProducts.ActiveAntivirusAsync(_wmiQueryService, context, cancellationToken);
-        if (thirdPartyAntivirus is not null)
+        if (thirdPartyAntivirus.IsFailure)
         {
-            return [ThirdPartyAntivirusFinding(thirdPartyAntivirus, _clock.UtcNow)];
+            return CheckFindings.NotRun(CheckId, thirdPartyAntivirus.Error!);
+        }
+
+        if (thirdPartyAntivirus.Value is not null)
+        {
+            return SecurityCheckResult.Succeeded(
+                CheckId,
+                [ThirdPartyAntivirusFinding(thirdPartyAntivirus.Value, _clock.UtcNow)]);
         }
 
         Result<IReadOnlyList<WmiInstance>> status = await _wmiQueryService.QueryAsync(
@@ -52,15 +59,7 @@ internal sealed class DefenderStatusCheck : ISecurityCheck
             Error error = status.IsFailure
                 ? status.Error!
                 : Error.NotFound("MSFT_MpComputerStatus returned no instance.");
-            return [CheckFindings.NotRun(
-                CheckId,
-                "Microsoft Defender status could not be determined",
-                FindingCategory.MalwareProtection,
-                "Microsoft Defender",
-                "If a third-party antivirus replaces Defender this can be expected; "
-                    + "verify that a real-time protection product is active.",
-                error,
-                capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, error);
         }
 
         WmiInstance defender = status.Value[0];
@@ -134,7 +133,7 @@ internal sealed class DefenderStatusCheck : ISecurityCheck
                 capturedAtUtc));
         }
 
-        return findings;
+        return SecurityCheckResult.Succeeded(CheckId, findings);
     }
 
     private SecurityFinding ThirdPartyAntivirusFinding(

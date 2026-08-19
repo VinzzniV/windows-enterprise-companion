@@ -14,5 +14,9 @@ public sealed class SecurityScanRecord
 
     public int FindingCount { get; set; }
 
+    public int? CoverageVersion { get; set; }
+
     public List<SecurityFindingRecord> Findings { get; set; } = [];
+
+    public List<SecurityCheckResultRecord> CheckResults { get; set; } = [];
 }

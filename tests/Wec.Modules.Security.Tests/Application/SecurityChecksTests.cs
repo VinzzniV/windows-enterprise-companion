@@ -1,4 +1,5 @@
 using NSubstitute;
+using Wec.Core.Abstractions;
 using Wec.Core.Privileges;
 using Wec.Core.Results;
 using Wec.Modules.Security.Application.Checks;
@@ -21,7 +22,7 @@ public class DefenderStatusCheckTests
         _harness.SetUpWmiQuery("MSFT_MpComputerStatus", CheckTestHarness.Instance(
             ("AntivirusEnabled", false), ("RealTimeProtectionEnabled", false)));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal(FindingSeverity.High, finding.Severity);
@@ -34,21 +35,46 @@ public class DefenderStatusCheckTests
         _harness.SetUpWmiQuery("MSFT_MpComputerStatus", CheckTestHarness.Instance(
             ("AntivirusEnabled", true), ("RealTimeProtectionEnabled", false)));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         Assert.Equal(FindingSeverity.Medium, Assert.Single(findings).Severity);
     }
 
     [Fact]
-    public async Task DefenderNamespaceMissing_ProducesInfoNotRunFinding()
+    public async Task DefenderNamespaceMissing_ProducesFailedExecution()
     {
         _harness.SetUpWmiFailure("MSFT_MpComputerStatus", Error.WmiUnavailable("namespace not found"));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
 
-        SecurityFinding finding = Assert.Single(findings);
-        Assert.Equal(FindingSeverity.Info, finding.Severity);
-        Assert.EndsWith("NOT-RUN", finding.FindingId, StringComparison.Ordinal);
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Failure?.Code);
+        Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public async Task SecurityCenterFailure_DoesNotSilentlyFallBackToDefender()
+    {
+        _harness.WmiQueryService
+            .QueryAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                @"root\SecurityCenter2",
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(
+                Error.WmiUnavailable("Security Center unavailable")));
+        _harness.SetUpWmiQuery("MSFT_MpComputerStatus", CheckTestHarness.Instance(
+            ("AntivirusEnabled", true), ("RealTimeProtectionEnabled", true)));
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Failure?.Code);
+        Assert.Empty(result.Findings);
     }
 
     [Fact]
@@ -57,7 +83,7 @@ public class DefenderStatusCheckTests
         _harness.SetUpWmiQuery("MSFT_MpComputerStatus", CheckTestHarness.Instance(
             ("AntivirusEnabled", true), ("RealTimeProtectionEnabled", true)));
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 
     [Fact]
@@ -69,7 +95,7 @@ public class DefenderStatusCheckTests
         _harness.SetUpWmiQuery("MSFT_MpComputerStatus", CheckTestHarness.Instance(
             ("AntivirusEnabled", false), ("RealTimeProtectionEnabled", false)));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal(FindingSeverity.Info, finding.Severity);
@@ -85,7 +111,7 @@ public class DefenderStatusCheckTests
         _harness.SetUpWmiQuery("MSFT_MpComputerStatus", CheckTestHarness.Instance(
             ("AntivirusEnabled", false), ("RealTimeProtectionEnabled", false)));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         Assert.Equal(FindingSeverity.High, Assert.Single(findings).Severity);
     }
@@ -118,7 +144,7 @@ public class Smb1ProtocolCheckTests
         _harness.SetUpWmiQuery("Win32_OptionalFeature", CheckTestHarness.Instance(
             ("Name", "SMB1Protocol"), ("InstallState", 1u)));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         Assert.Equal(FindingSeverity.High, Assert.Single(findings).Severity);
     }
@@ -128,7 +154,7 @@ public class Smb1ProtocolCheckTests
     {
         _harness.SetUpWmiQuery("Win32_OptionalFeature");
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 }
 
@@ -143,7 +169,7 @@ public class RdpAccessCheckTests
     {
         _harness.SetUpRegistryValue("fDenyTSConnections", 0);
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         Assert.Equal(FindingSeverity.Medium, Assert.Single(findings).Severity);
     }
@@ -155,7 +181,7 @@ public class RdpAccessCheckTests
     {
         _harness.SetUpRegistryValue("fDenyTSConnections", registryValue);
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 }
 
@@ -168,15 +194,16 @@ public class BitLockerCheckTests
         new(_harness.WmiQueryService, _privilegeContext, _harness.Clock);
 
     [Fact]
-    public async Task Unelevated_ProducesInfoNotRunFindingWithRequiredPrivilege_WithoutWmi()
+    public async Task Unelevated_ProducesRequiresElevationWithoutWmi()
     {
         _privilegeContext.Satisfies(PrivilegeLevel.Administrator).Returns(false);
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
 
-        SecurityFinding finding = Assert.Single(findings);
-        Assert.Equal(FindingSeverity.Info, finding.Severity);
-        Assert.Equal(PrivilegeLevel.Administrator, finding.RequiredPrivilege);
+        Assert.Equal(CheckStatus.RequiresElevation, result.Status);
+        Assert.Equal(PrivilegeLevel.Administrator, result.Failure?.RequiredPrivilege);
+        Assert.Empty(result.Findings);
         await _harness.WmiQueryService.DidNotReceive().QueryAsync(
             Arg.Any<Wec.Core.Targets.ScanTarget>(),
             Arg.Any<Wec.Core.Targets.ScanCredentials>(),
@@ -194,7 +221,7 @@ public class BitLockerCheckTests
             CheckTestHarness.Instance(("DriveLetter", "C:"), ("ProtectionStatus", 1u)),
             CheckTestHarness.Instance(("DriveLetter", "D:"), ("ProtectionStatus", 0u)));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
@@ -215,7 +242,7 @@ public class SecureBootCheckTests
 
         Assert.Equal(
             FindingSeverity.Medium,
-            Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Severity);
+            Assert.Single((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings).Severity);
     }
 
     [Fact]
@@ -225,7 +252,7 @@ public class SecureBootCheckTests
 
         Assert.Equal(
             FindingSeverity.Low,
-            Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Severity);
+            Assert.Single((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings).Severity);
     }
 
     [Fact]
@@ -233,7 +260,7 @@ public class SecureBootCheckTests
     {
         _harness.SetUpRegistryValue("UEFISecureBootEnabled", 1);
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 }
 
@@ -244,14 +271,16 @@ public class TpmCheckTests
     private TpmCheck CreateCheck() => new(_harness.WmiQueryService, _harness.Clock);
 
     [Fact]
-    public async Task AccessDenied_ProducesInfoNotRunFindingWithRequiredPrivilege()
+    public async Task AccessDenied_ProducesRequiresElevationExecution()
     {
         _harness.SetUpWmiFailure("Win32_Tpm",
             Error.AccessDenied("access denied", PrivilegeLevel.Administrator));
 
-        SecurityFinding finding = Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
-        Assert.Equal(FindingSeverity.Info, finding.Severity);
-        Assert.Equal(PrivilegeLevel.Administrator, finding.RequiredPrivilege);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+        Assert.Equal(CheckStatus.RequiresElevation, result.Status);
+        Assert.Equal(PrivilegeLevel.Administrator, result.Failure?.RequiredPrivilege);
+        Assert.Empty(result.Findings);
     }
 
     [Fact]
@@ -261,7 +290,7 @@ public class TpmCheckTests
 
         Assert.Equal(
             FindingSeverity.Low,
-            Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Severity);
+            Assert.Single((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings).Severity);
     }
 
     [Fact]
@@ -272,7 +301,7 @@ public class TpmCheckTests
 
         Assert.Equal(
             FindingSeverity.Medium,
-            Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Severity);
+            Assert.Single((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings).Severity);
     }
 
     [Fact]
@@ -281,7 +310,7 @@ public class TpmCheckTests
         _harness.SetUpWmiQuery("Win32_Tpm", CheckTestHarness.Instance(
             ("IsEnabled_InitialValue", true), ("SpecVersion", "2.0")));
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 }
 
@@ -291,14 +320,20 @@ public class OsSupportCheckTests
 
     private OsSupportCheck CreateCheck() => new(_harness.WmiQueryService, _harness.Clock);
 
+    private void SetUpOperatingSystem(string caption, string build, object? sku, int? productType = 1) =>
+        _harness.SetUpWmiQuery("Win32_OperatingSystem", CheckTestHarness.Instance(
+            ("Caption", caption),
+            ("BuildNumber", build),
+            ("OperatingSystemSKU", sku),
+            ("ProductType", productType)));
+
     [Fact]
     public async Task BuildPastEndOfSupport_ProducesConservativeMediumFinding()
     {
         // Windows 10 22H2 (19045) ended 2025-10-14; harness clock is 2026-07-02
-        _harness.SetUpWmiQuery("Win32_OperatingSystem", CheckTestHarness.Instance(
-            ("Caption", "Microsoft Windows 10 Pro"), ("BuildNumber", "19045")));
+        SetUpOperatingSystem("Microsoft Windows 10 Pro", "19045", 48u);
 
-        SecurityFinding finding = Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        SecurityFinding finding = Assert.Single((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
         Assert.Equal(FindingSeverity.Medium, finding.Severity);
         Assert.Equal("2025-10-14", finding.Evidence["endOfSupport"]);
     }
@@ -307,21 +342,135 @@ public class OsSupportCheckTests
     public async Task SupportedBuild_ProducesNoFindings()
     {
         // Windows 11 25H2 (26200) is supported until 2027 relative to the harness clock
-        _harness.SetUpWmiQuery("Win32_OperatingSystem", CheckTestHarness.Instance(
-            ("Caption", "Microsoft Windows 11 Pro"), ("BuildNumber", "26200")));
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "26200", 48u);
 
-        Assert.Empty(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
     }
 
     [Fact]
-    public async Task UnknownBuild_ProducesInfoFinding()
+    public async Task UnknownBuild_ProducesFailedExecution()
     {
-        _harness.SetUpWmiQuery("Win32_OperatingSystem", CheckTestHarness.Instance(
-            ("Caption", "Microsoft Windows Server 2031"), ("BuildNumber", "99999")));
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "99999", 48u);
 
-        Assert.Equal(
-            FindingSeverity.Info,
-            Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Severity);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal(ErrorCode.NotFound, result.Failure?.Code);
+        Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public async Task Windows10Build19044_UsesDifferentGaAndLtscDates()
+    {
+        SetUpOperatingSystem("Microsoft Windows 10 Pro", "19044", 48u);
+        SecurityFinding proFinding = Assert.Single(
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+        Assert.Equal("2023-06-13", proFinding.Evidence["endOfSupport"]);
+        Assert.Equal("HomePro", proFinding.Evidence["lifecycleTrack"]);
+
+        SetUpOperatingSystem("Microsoft Windows 10 Enterprise LTSC 2021", "19044", 125u);
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+    }
+
+    [Fact]
+    public async Task Windows11Build26100_UsesEnterpriseRatherThanHomeProDate()
+    {
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2027, 1, 1, 0, 0, 0, TimeSpan.Zero));
+
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "26100", 48u);
+        SecurityFinding proFinding = Assert.Single(
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+        Assert.Equal("2026-10-13", proFinding.Evidence["endOfSupport"]);
+
+        SetUpOperatingSystem("Microsoft Windows 11 Enterprise", "26100", 4u);
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+    }
+
+    [Fact]
+    public async Task Windows11Build26100_UsesEnterpriseLtscDate()
+    {
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2028, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        SetUpOperatingSystem("Microsoft Windows 11 Enterprise LTSC 2024", "26100", 125u);
+
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+    }
+
+    [Fact]
+    public async Task Windows11Build26100_UsesIotLtscExtendedDate()
+    {
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        SetUpOperatingSystem("Microsoft Windows 11 IoT Enterprise LTSC 2024", "26100", 191u);
+
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+    }
+
+    [Theory]
+    [InlineData(null, 1, "(missing)")]
+    [InlineData(999u, 1, "999")]
+    [InlineData(48u, null, "48")]
+    [InlineData(48u, 3, "48")]
+    public async Task UnknownOrNonClientEdition_DoesNotPass(
+        object? sku,
+        int? productType,
+        string expectedSkuEvidence)
+    {
+        SetUpOperatingSystem("Unclassified Windows", "26100", sku, productType);
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal(ErrorCode.NotFound, result.Failure?.Code);
+        Assert.Contains(
+            expectedSkuEvidence == "(missing)" ? "missing" : expectedSkuEvidence,
+            result.Failure?.Message,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public async Task MissingBuild_DoesNotPass()
+    {
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", string.Empty, 48u);
+
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Contains("build number", result.Failure?.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(result.Findings);
+    }
+
+    [Fact]
+    public async Task EndDateRemainsSupportedUntilPacificDayEnds()
+    {
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "26100", 48u);
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2026, 10, 14, 6, 59, 0, TimeSpan.Zero));
+
+        Assert.Empty((await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+
+        _harness.Clock.UtcNow.Returns(new DateTimeOffset(2026, 10, 14, 7, 1, 0, TimeSpan.Zero));
+        SecurityFinding finding = Assert.Single(
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+        Assert.EndsWith("-EOL", finding.FindingId, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task QueryRequestsEditionAndProductType()
+    {
+        SetUpOperatingSystem("Microsoft Windows 11 Pro", "26200", 48u);
+
+        await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+
+        await _harness.WmiQueryService.Received().QueryAsync(
+            Arg.Any<Wec.Core.Targets.ScanTarget>(),
+            Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+            Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+            Arg.Any<string>(),
+            Arg.Is<string>(query => query.Contains("OperatingSystemSKU", StringComparison.Ordinal)
+                && query.Contains("ProductType", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
     }
 }
 
@@ -347,12 +496,29 @@ public class LocalAdministratorsCheckTests
             @"\\TESTHOST\root\cimv2:Win32_UserAccount.Domain=""TESTHOST"",Name=""Admin""",
             @"\\TESTHOST\root\cimv2:Win32_Group.Domain=""CONTOSO"",Name=""IT-Admins""");
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         SecurityFinding membership = Assert.Single(findings);
         Assert.Equal(FindingSeverity.Info, membership.Severity);
         Assert.Equal("2", membership.Evidence["memberCount"]);
+        Assert.Equal("2", membership.Evidence["rawMemberCount"]);
+        Assert.Equal("2", membership.Evidence["parsedMemberCount"]);
+        Assert.Equal("0", membership.Evidence["unparsedMemberCount"]);
         Assert.Contains(@"TESTHOST\Admin", membership.Evidence["members"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EmptyRawMembership_IsTheOnlyDefinitiveZero()
+    {
+        SetUpGroupAndMembers();
+
+        SecurityFinding membership = Assert.Single(
+            (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings);
+
+        Assert.Equal("Local Administrators group has 0 members", membership.Title);
+        Assert.Equal("0", membership.Evidence["memberCount"]);
+        Assert.Equal("0", membership.Evidence["rawMemberCount"]);
+        Assert.Equal("0", membership.Evidence["unparsedMemberCount"]);
     }
 
     [Fact]
@@ -362,7 +528,7 @@ public class LocalAdministratorsCheckTests
             @"\\TESTHOST\root\cimv2:Win32_UserAccount.Domain=""TESTHOST"",Name=""Admin""",
             @"\\TESTHOST\root\cimv2:Win32_Group.Domain=""CONTOSO"",Name=""Domain Users""");
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         Assert.Equal(2, findings.Count);
         SecurityFinding risky = Assert.Single(findings, finding => finding.Severity == FindingSeverity.Medium);
@@ -370,12 +536,14 @@ public class LocalAdministratorsCheckTests
     }
 
     [Fact]
-    public async Task GroupLookupFailure_ProducesInfoNotRunFinding()
+    public async Task GroupLookupFailure_ProducesFailedExecution()
     {
         _harness.SetUpWmiFailure("Win32_Group ", Error.WmiUnavailable("WMI unreachable"));
 
-        SecurityFinding finding = Assert.Single(await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None));
-        Assert.Equal(FindingSeverity.Info, finding.Severity);
-        Assert.EndsWith("NOT-RUN", finding.FindingId, StringComparison.Ordinal);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Failure?.Code);
+        Assert.Empty(result.Findings);
     }
 }

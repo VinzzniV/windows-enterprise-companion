@@ -27,6 +27,15 @@ internal sealed class CheckTestHarness
     {
         Clock = Substitute.For<IClock>();
         Clock.UtcNow.Returns(Now);
+        WmiQueryService
+            .QueryAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                @"root\SecurityCenter2",
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<WmiInstance>>([]));
     }
 
     public void SetUpWmiQuery(string classNameFragment, params WmiInstance[] instances) =>
@@ -62,6 +71,17 @@ internal sealed class CheckTestHarness
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success(value));
 
+    public void SetUpRegistryFailure(string valueName, Error error) =>
+        RegistryReader
+            .ReadLocalMachineValueAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                valueName,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<object?>(error));
+
     public void SetUpSubKeys(string parentFragment, params string[] subKeys) =>
         RegistryReader
             .ReadLocalMachineSubKeyNamesAsync(
@@ -71,6 +91,16 @@ internal sealed class CheckTestHarness
                 Arg.Is<string>(path => path.Contains(parentFragment, StringComparison.Ordinal)),
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<string>>(subKeys));
+
+    public void SetUpSubKeysFailure(string parentFragment, Error error) =>
+        RegistryReader
+            .ReadLocalMachineSubKeyNamesAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Is<string>(path => path.Contains(parentFragment, StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<string>>(error));
 
     public static WmiInstance Instance(params (string Name, object? Value)[] properties) =>
         new(properties.ToDictionary(property => property.Name, property => property.Value));

@@ -95,6 +95,22 @@ export function ReportingSection({ host }: { host: string | null }) {
                 }, ${overview.securityFindingCount ?? 0} findings`
               : 'No scan yet — run the Security section for this machine first.'}
           </dd>
+          {overview.securityScanCompletedAtUtc && (
+            <>
+              <dt className="text-slate-400">Security coverage</dt>
+              <dd
+                className={
+                  overview.securityCoverage?.isComplete ? 'text-ok-400' : 'text-warn-400'
+                }
+              >
+                {overview.securityCoverage?.isComplete
+                  ? `${overview.securityCoverage.succeededChecks}/${overview.securityCoverage.applicableChecks} applicable checks evaluated`
+                  : overview.securityCoverage?.isKnown
+                    ? `${overview.securityCoverage.succeededChecks}/${overview.securityCoverage.applicableChecks} applicable checks evaluated — incomplete`
+                    : 'Unavailable for this legacy scan — findings are not a complete assessment.'}
+              </dd>
+            </>
+          )}
           <dt className="text-slate-400">Diagnostics</dt>
           <dd className="text-slate-400">
             Not included — diagnostics are live-only and never triggered silently by an export.

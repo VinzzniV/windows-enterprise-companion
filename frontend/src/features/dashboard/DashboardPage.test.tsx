@@ -33,6 +33,18 @@ describe('DashboardPage', () => {
             findings: [
               { findingId: 'A', severity: 'CRITICAL', title: 't', description: 'd', category: 'SYSTEM', affectedResource: 'r', recommendation: 'x', evidence: {}, requiredPrivilege: null },
             ],
+            checkResults: [],
+            coverageVersion: 1,
+            coverage: {
+              isKnown: true,
+              totalChecks: 13,
+              succeededChecks: 13,
+              failedChecks: 0,
+              requiresElevationChecks: 0,
+              notApplicableChecks: 0,
+              applicableChecks: 13,
+              isComplete: true,
+            },
           },
         });
       }

@@ -11,10 +11,32 @@ public sealed record SecurityFindingReportData(
     string Recommendation,
     string? RequiredPrivilege);
 
+public sealed record SecurityCheckFailureReportData(
+    string Code,
+    string Message,
+    string? RequiredPrivilege);
+
+public sealed record SecurityCheckReportData(
+    string CheckId,
+    string Status,
+    SecurityCheckFailureReportData? Failure);
+
+public sealed record SecurityCoverageReportData(
+    bool IsKnown,
+    bool IsComplete,
+    int TotalChecks,
+    int ApplicableChecks,
+    int SucceededChecks,
+    int FailedChecks,
+    int RequiresElevationChecks,
+    int NotApplicableChecks);
+
 public sealed record SecurityReportData(
     DateTimeOffset CompletedAtUtc,
     string Status,
-    IReadOnlyList<SecurityFindingReportData> Findings);
+    IReadOnlyList<SecurityFindingReportData> Findings,
+    SecurityCoverageReportData Coverage,
+    IReadOnlyList<SecurityCheckReportData> CheckResults);
 
 /// <summary>Implemented by the Security module; consumed via Core only (ADR 0004).</summary>
 public interface ISecurityReportDataProvider

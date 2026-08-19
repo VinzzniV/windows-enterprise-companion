@@ -20,7 +20,7 @@ internal sealed class Smb1ProtocolCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-SMB1";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -34,29 +34,22 @@ internal sealed class Smb1ProtocolCheck : ISecurityCheck
 
         if (feature.IsFailure)
         {
-            return [CheckFindings.NotRun(
-                CheckId,
-                "SMB1 protocol state could not be determined",
-                FindingCategory.NetworkServices,
-                "SMB1 protocol",
-                "Verify the Windows Management Instrumentation service and retry the scan.",
-                feature.Error!,
-                capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, feature.Error!);
         }
 
         // Feature absent (removed from the image) means SMB1 cannot be enabled — no finding
         if (feature.Value.Count == 0)
         {
-            return [];
+            return SecurityCheckResult.Succeeded(CheckId);
         }
 
         long? installState = feature.Value[0].GetInteger("InstallState");
         if (installState != InstallStateEnabled)
         {
-            return [];
+            return SecurityCheckResult.Succeeded(CheckId);
         }
 
-        return [new SecurityFinding(
+        return SecurityCheckResult.Succeeded(CheckId, [new SecurityFinding(
             $"{CheckId}-ENABLED",
             "The insecure SMB1 protocol is enabled",
             "The SMB1Protocol optional feature is installed and enabled. SMB1 lacks integrity and "
@@ -73,6 +66,6 @@ internal sealed class Smb1ProtocolCheck : ISecurityCheck
             "Disable the SMB1Protocol optional feature unless a legacy device strictly requires it; "
                 + "if it does, isolate that device and document the exception.",
             RequiredPrivilege: null,
-            capturedAtUtc)];
+            capturedAtUtc)]);
     }
 }

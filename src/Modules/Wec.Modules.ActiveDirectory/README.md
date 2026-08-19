@@ -14,7 +14,7 @@ operation.
 | `activedirectory/getOverview` | `{ connection?: DirectoryConnectionRequest }` | `AdOverviewResult` — domain membership, DC list, user/group/computer counts |
 | `activedirectory/getHygiene` | `{ connection?: DirectoryConnectionRequest }` | `AdHygieneResult` — privileged groups + hygiene rules (inactive users/computers, password-never-expires, disabled-but-privileged) |
 | `activedirectory/testConnection` | `{ connection?: DirectoryConnectionRequest }` | `TestDirectoryConnectionResult` — the RootDSE bind every analysis starts with; a passing test means overview/hygiene can connect |
-| `activedirectory/searchComputers` | `{ nameFilter?, includeDisabled?, connection? }` | `AdComputerSearchResult` — the Get-ADComputer-with-filter equivalent; feeds the multi-host pickers on the Inventory/Security/Diagnostics pages. Substring match by default, user-typed `*` wildcards pass through; enabled computers only unless `includeDisabled` |
+| `activedirectory/searchComputers` | `{ nameFilter?, includeDisabled?, connection? }` | `AdComputerSearchResult` — the Get-ADComputer-with-filter equivalent; feeds the Clients workspace. Substring match by default, user-typed `*` wildcards pass through; enabled computers only unless `includeDisabled` |
 | `activedirectory/searchUsers` | `{ baseDistinguishedName?, includeDisabled?, connection? }` | `AdUserSearchResult` — user listing scoped to an OU (base DN) or the whole domain, including group memberships as plain CNs. Used by the Employee Lifecycle feature to show which accounts exist in a department OU. Truncates at `UserSearchLimit` |
 
 `DirectoryConnectionRequest` = `{ domain?, server?, userName?, userDomain?,
@@ -58,7 +58,8 @@ rejected as `INVALID_REQUEST` naming the accepted forms.
 | `SearchTimeout` | 30 s | Per-request client/server time limit |
 | `InactivityThreshold` | 90 days | lastLogonTimestamp age that counts as inactive |
 | `ExampleLimit` | 20 | Maximum example accounts/members per rule or group |
-| `ComputerSearchLimit` | 500 | Upper bound for the computer search behind the scan pickers (result carries a `truncated` flag) |
+| `ComputerSearchLimit` | 500 | Upper bound for the computer search behind the Clients workspace (result carries a `truncated` flag) |
+| `UserSearchLimit` | 500 | Upper bound for the OU/domain user search (result carries a `truncated` flag) |
 
 ## Tests
 

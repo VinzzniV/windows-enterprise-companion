@@ -13,7 +13,7 @@ namespace Wec.Modules.Security.Application;
 /// Scans several remote hosts in parallel (bounded by
 /// Wec:Remote:MaxParallelScans). A cheap connectivity gate per host turns
 /// unreachable machines into a structured per-host failure instead of a full
-/// scan whose every check reports NOT-RUN. One host failing never aborts the
+/// scan whose every check reports an incomplete outcome. One host failing never aborts the
 /// batch. Per-host progress goes out as security/batchScanProgress events.
 /// </summary>
 public sealed partial class BatchSecurityScanService
@@ -117,6 +117,7 @@ public sealed partial class BatchSecurityScanService
             }
 
             HostScanStatus status = scan.Value.Status == ScanStatus.Completed
+                && scan.Value.Coverage.IsComplete
                 ? HostScanStatus.Completed
                 : HostScanStatus.CompletedWithErrors;
             PublishStatus(host, status);

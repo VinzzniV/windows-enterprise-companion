@@ -8,7 +8,8 @@ public sealed record ScanSummary(
     DateTimeOffset CompletedAtUtc,
     ScanStatus Status,
     int FindingCount,
-    IReadOnlyList<SeverityCount> SeverityCounts);
+    IReadOnlyList<SeverityCount> SeverityCounts,
+    SecurityCoverage Coverage);
 
 /// <summary>
 /// Findings that appeared in / disappeared from the latest scan compared to
@@ -19,7 +20,9 @@ public sealed record ScanDiff(
     long LatestScanId,
     long PreviousScanId,
     IReadOnlyList<SecurityFinding> NewFindings,
-    IReadOnlyList<SecurityFinding> ResolvedFindings);
+    IReadOnlyList<SecurityFinding> ResolvedFindings,
+    bool IsFullyComparable,
+    IReadOnlyList<string> UncomparedCheckIds);
 
 public sealed record ScanHistoryResult(
     IReadOnlyList<ScanSummary> Scans,

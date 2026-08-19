@@ -24,7 +24,7 @@ internal sealed class AccountPolicyCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-ACCOUNTPOLICY";
 
-    public Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -32,26 +32,14 @@ internal sealed class AccountPolicyCheck : ISecurityCheck
 
         if (!context.Target.IsLocal)
         {
-            return Task.FromResult<IReadOnlyList<SecurityFinding>>([CheckFindings.LocalOnly(
-                CheckId,
-                "Local account policy was not checked on the remote target",
-                FindingCategory.Accounts,
-                "Local account policy",
-                context.Target.DisplayName,
-                capturedAtUtc)]);
+            return Task.FromResult(CheckFindings.LocalOnly(
+                CheckId, context.Target.DisplayName, "Local account policy"));
         }
 
         Result<LocalAccountPolicy> policy = _accountPolicyReader.ReadAccountPolicy();
         if (policy.IsFailure)
         {
-            return Task.FromResult<IReadOnlyList<SecurityFinding>>([CheckFindings.NotRun(
-                CheckId,
-                "Local account policy could not be read",
-                FindingCategory.Accounts,
-                "Local account policy",
-                "Retry the scan; if it keeps failing check the Workstation service.",
-                policy.Error!,
-                capturedAtUtc)]);
+            return Task.FromResult(CheckFindings.NotRun(CheckId, policy.Error!));
         }
 
         var findings = new List<SecurityFinding>();
@@ -96,6 +84,6 @@ internal sealed class AccountPolicyCheck : ISecurityCheck
                 capturedAtUtc));
         }
 
-        return Task.FromResult<IReadOnlyList<SecurityFinding>>(findings);
+        return Task.FromResult(SecurityCheckResult.Succeeded(CheckId, findings));
     }
 }

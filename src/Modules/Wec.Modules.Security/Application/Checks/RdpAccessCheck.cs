@@ -20,7 +20,7 @@ internal sealed class RdpAccessCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-RDP";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -31,24 +31,17 @@ internal sealed class RdpAccessCheck : ISecurityCheck
 
         if (denyConnections.IsFailure)
         {
-            return [CheckFindings.NotRun(
-                CheckId,
-                "Remote Desktop state could not be determined",
-                FindingCategory.NetworkServices,
-                "Remote Desktop (RDP)",
-                "Verify registry read permissions and retry the scan.",
-                denyConnections.Error!,
-                capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, denyConnections.Error!);
         }
 
         // Missing value = Windows default (connections denied) — no finding
         bool rdpEnabled = denyConnections.Value is int deny && deny == 0;
         if (!rdpEnabled)
         {
-            return [];
+            return SecurityCheckResult.Succeeded(CheckId);
         }
 
-        return [new SecurityFinding(
+        return SecurityCheckResult.Succeeded(CheckId, [new SecurityFinding(
             $"{CheckId}-ENABLED",
             "Remote Desktop connections are enabled",
             "Inbound Remote Desktop is allowed on this machine. RDP is a frequent initial access vector "
@@ -64,6 +57,6 @@ internal sealed class RdpAccessCheck : ISecurityCheck
             "Disable Remote Desktop if it is not needed. If it is, restrict it to specific accounts and "
                 + "networks, require NLA, and never expose 3389 to the internet.",
             RequiredPrivilege: null,
-            capturedAtUtc)];
+            capturedAtUtc)]);
     }
 }

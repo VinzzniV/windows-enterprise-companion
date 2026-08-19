@@ -26,10 +26,16 @@ public sealed class SecurityScanRecordConfiguration : IEntityTypeConfiguration<S
             .IsRequired();
         builder.Property(scan => scan.Status).HasColumnName("status").IsRequired();
         builder.Property(scan => scan.FindingCount).HasColumnName("finding_count").IsRequired();
+        builder.Property(scan => scan.CoverageVersion).HasColumnName("coverage_version");
 
         builder.HasMany(scan => scan.Findings)
             .WithOne()
             .HasForeignKey(finding => finding.ScanId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(scan => scan.CheckResults)
+            .WithOne()
+            .HasForeignKey(result => result.ScanId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
@@ -42,6 +48,7 @@ public sealed class SecurityFindingRecordConfiguration : IEntityTypeConfiguratio
         builder.HasKey(finding => finding.Id);
         builder.Property(finding => finding.Id).HasColumnName("id");
         builder.Property(finding => finding.ScanId).HasColumnName("scan_id").IsRequired();
+        builder.Property(finding => finding.CheckId).HasColumnName("check_id");
         builder.Property(finding => finding.FindingId).HasColumnName("finding_id").IsRequired();
         builder.Property(finding => finding.Title).HasColumnName("title").IsRequired();
         builder.Property(finding => finding.Description).HasColumnName("description").IsRequired();
@@ -57,5 +64,25 @@ public sealed class SecurityFindingRecordConfiguration : IEntityTypeConfiguratio
             .IsRequired();
 
         builder.HasIndex(finding => finding.ScanId).HasDatabaseName("ix_security_findings_scan_id");
+    }
+}
+
+public sealed class SecurityCheckResultRecordConfiguration : IEntityTypeConfiguration<SecurityCheckResultRecord>
+{
+    public void Configure(EntityTypeBuilder<SecurityCheckResultRecord> builder)
+    {
+        builder.ToTable("security_check_results");
+        builder.HasKey(result => result.Id);
+        builder.Property(result => result.Id).HasColumnName("id");
+        builder.Property(result => result.ScanId).HasColumnName("scan_id").IsRequired();
+        builder.Property(result => result.CheckId).HasColumnName("check_id").IsRequired();
+        builder.Property(result => result.Status).HasColumnName("status").IsRequired();
+        builder.Property(result => result.FailureCode).HasColumnName("failure_code");
+        builder.Property(result => result.FailureMessage).HasColumnName("failure_message");
+        builder.Property(result => result.RequiredPrivilege).HasColumnName("required_privilege");
+
+        builder.HasIndex(result => new { result.ScanId, result.CheckId })
+            .IsUnique()
+            .HasDatabaseName("ux_security_check_results_scan_check");
     }
 }

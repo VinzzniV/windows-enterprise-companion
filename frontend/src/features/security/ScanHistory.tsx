@@ -77,9 +77,16 @@ export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
     <>
       {changes && (
         <Card title="Changes since previous scan">
-          {changes.newFindings.length === 0 && changes.resolvedFindings.length === 0 ? (
+          {!changes.isFullyComparable && (
+            <p className="mb-2 text-sm text-warn-400">
+              Comparison incomplete — checks that did not complete in both scans cannot produce new or resolved claims.
+              {changes.uncomparedCheckIds.length > 0 &&
+                ` Uncompared: ${changes.uncomparedCheckIds.join(', ')}.`}
+            </p>
+          )}
+          {changes.isFullyComparable && changes.newFindings.length === 0 && changes.resolvedFindings.length === 0 ? (
             <p className="text-sm text-slate-400">No changes — same findings as the previous scan.</p>
-          ) : (
+          ) : changes.newFindings.length > 0 || changes.resolvedFindings.length > 0 ? (
             <div className="flex flex-col gap-2 text-sm">
               {changes.newFindings.map((finding) => (
                 <div key={`new-${finding.findingId}-${finding.affectedResource}`} className="flex items-center gap-2">
@@ -100,7 +107,7 @@ export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </Card>
       )}
 
@@ -119,6 +126,13 @@ export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
                 <span className="text-xs text-slate-500">{scan.status.replaceAll('_', ' ')}</span>
                 <span className="text-xs text-slate-400">
                   {scan.findingCount} finding{scan.findingCount === 1 ? '' : 's'}
+                </span>
+                <span className={scan.coverage.isComplete ? 'text-xs text-ok-400' : 'text-xs text-warn-400'}>
+                  {scan.coverage.isComplete
+                    ? `${scan.coverage.succeededChecks}/${scan.coverage.applicableChecks} checks evaluated`
+                    : scan.coverage.isKnown
+                      ? `${scan.coverage.succeededChecks}/${scan.coverage.applicableChecks} checks evaluated · incomplete`
+                      : 'legacy coverage unavailable'}
                 </span>
                 <span className="flex items-center gap-1">
                   {scan.severityCounts.map((entry) => (

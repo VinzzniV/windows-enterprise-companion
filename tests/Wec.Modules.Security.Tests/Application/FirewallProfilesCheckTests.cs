@@ -55,7 +55,7 @@ public class FirewallProfilesCheckTests
             ("displayName", "Kaspersky Endpoint Security"), ("productState", 0x061100)));
         SetUpQuery("MSFT_NetFirewallProfile", Profile("Domain", false), Profile("Public", false));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal(FindingSeverity.Info, finding.Severity);
@@ -67,7 +67,7 @@ public class FirewallProfilesCheckTests
     {
         SetUpProfiles(Profile("Domain", true), Profile("Private", true), Profile("Public", true));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         Assert.Empty(findings);
     }
@@ -77,7 +77,7 @@ public class FirewallProfilesCheckTests
     {
         SetUpProfiles(Profile("Domain", true), Profile("Public", false));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal(FindingSeverity.High, finding.Severity);
@@ -93,14 +93,14 @@ public class FirewallProfilesCheckTests
         // MSFT_NetFirewallProfile.Enabled can surface as uint16: 0/1/2 (NotConfigured)
         SetUpProfiles(Profile("Domain", (ushort)0), Profile("Private", (ushort)1), Profile("Public", (ushort)2));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        IReadOnlyList<SecurityFinding> findings = (await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None)).Findings;
 
         SecurityFinding finding = Assert.Single(findings);
         Assert.Equal("Domain", finding.Evidence["profile"]);
     }
 
     [Fact]
-    public async Task WmiFailure_ProducesConservativeInfoFindingInsteadOfSilence()
+    public async Task WmiFailure_ProducesFailedExecutionWithoutFinding()
     {
         _wmiQueryService
             .QueryAsync(
@@ -113,15 +113,16 @@ public class FirewallProfilesCheckTests
             .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(
                 Error.WmiUnavailable("WMI service unreachable")));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
 
-        SecurityFinding finding = Assert.Single(findings);
-        Assert.Equal(FindingSeverity.Info, finding.Severity);
-        Assert.Equal("WmiUnavailable", finding.Evidence["errorCode"]);
+        Assert.Equal(CheckStatus.Failed, result.Status);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Failure?.Code);
+        Assert.Empty(result.Findings);
     }
 
     [Fact]
-    public async Task AccessDenied_CarriesRequiredPrivilegeOnTheFinding()
+    public async Task AccessDenied_ProducesRequiresElevationExecution()
     {
         _wmiQueryService
             .QueryAsync(
@@ -134,9 +135,11 @@ public class FirewallProfilesCheckTests
             .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(
                 Error.AccessDenied("access denied", PrivilegeLevel.Administrator)));
 
-        IReadOnlyList<SecurityFinding> findings = await CreateCheck().EvaluateAsync(CheckTestHarness.LocalContext, CancellationToken.None);
+        SecurityCheckResult result = await CreateCheck().EvaluateAsync(
+            CheckTestHarness.LocalContext, CancellationToken.None);
 
-        SecurityFinding finding = Assert.Single(findings);
-        Assert.Equal(PrivilegeLevel.Administrator, finding.RequiredPrivilege);
+        Assert.Equal(CheckStatus.RequiresElevation, result.Status);
+        Assert.Equal(PrivilegeLevel.Administrator, result.Failure?.RequiredPrivilege);
+        Assert.Empty(result.Findings);
     }
 }

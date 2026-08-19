@@ -48,7 +48,7 @@ internal sealed partial class LocalAdministratorsCheck : ISecurityCheck
 
     public string CheckId => "WEC-SEC-LOCALADMINS";
 
-    public async Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    public async Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken)
     {
@@ -66,7 +66,7 @@ internal sealed partial class LocalAdministratorsCheck : ISecurityCheck
             Error error = group.IsFailure
                 ? group.Error!
                 : Error.NotFound("The local Administrators group (S-1-5-32-544) was not found.");
-            return [NotRunFinding(error, capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, error);
         }
 
         string groupDomain = group.Value[0].GetString("Domain") ?? context.Target.DisplayName;
@@ -81,7 +81,7 @@ internal sealed partial class LocalAdministratorsCheck : ISecurityCheck
 
         if (members.IsFailure)
         {
-            return [NotRunFinding(members.Error!, capturedAtUtc)];
+            return CheckFindings.NotRun(CheckId, members.Error!);
         }
 
         List<AdminGroupMember> parsedMembers = members.Value
@@ -104,7 +104,17 @@ internal sealed partial class LocalAdministratorsCheck : ISecurityCheck
             findings.Add(RiskyMembersFinding(riskyMembers, capturedAtUtc));
         }
 
-        return findings;
+        int unparsedMemberCount = members.Value.Count - parsedMembers.Count;
+        if (unparsedMemberCount > 0)
+        {
+            return SecurityCheckResult.DidNotRun(
+                CheckId,
+                Error.WmiUnavailable(
+                    $"{unparsedMemberCount} of {members.Value.Count} local Administrators membership references could not be interpreted."),
+                findings);
+        }
+
+        return SecurityCheckResult.Succeeded(CheckId, findings);
     }
 
     /// <summary>
@@ -134,32 +144,62 @@ internal sealed partial class LocalAdministratorsCheck : ISecurityCheck
             KindFromClassName(reference.GetString(WmiInstance.ClassNameProperty)));
     }
 
-    // Matches e.g. \\PC\root\cimv2:Win32_UserAccount.Domain="CONTOSO",Name="jdoe"
-    // and the unprefixed Win32_Group.Domain="PC",Name="Administrators" form.
-    [GeneratedRegex("(?<class>Win32_\\w+)\\.Domain=\"(?<domain>[^\"]*)\",Name=\"(?<name>[^\"]*)\"")]
+    // Matches the class and property portion of a DMTF reference path, e.g.
+    // \\PC\root\cimv2:Win32_UserAccount.Domain="CONTOSO",Name="jdoe".
+    [GeneratedRegex(
+        "(?<class>Win32_\\w+)\\.(?<properties>.*)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DmtfReferenceRegex();
+
+    // This is the representation observed from CimInstance.ToString() for a
+    // reference-valued PartComponent property.
+    [GeneratedRegex(
+        "^\\s*(?<class>Win32_\\w+)\\s*\\((?<properties>.*)\\)\\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CimDisplayReferenceRegex();
+
+    [GeneratedRegex(
+        "(?<key>Domain|Name)\\s*=\\s*\"(?<value>[^\"]*)\"",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ReferencePropertyRegex();
 
     private static AdminGroupMember? FromDmtfReferencePath(string referencePath)
     {
         Match match = DmtfReferenceRegex().Match(referencePath);
         if (!match.Success)
         {
+            match = CimDisplayReferenceRegex().Match(referencePath);
+        }
+
+        if (!match.Success)
+        {
             return null;
         }
 
-        return new AdminGroupMember(
-            match.Groups["domain"].Value,
-            match.Groups["name"].Value,
-            KindFromClassName(match.Groups["class"].Value));
+        Dictionary<string, string> properties = ReferencePropertyRegex()
+            .Matches(match.Groups["properties"].Value)
+            .ToDictionary(
+                property => property.Groups["key"].Value,
+                property => property.Groups["value"].Value,
+                StringComparer.OrdinalIgnoreCase);
+
+        if (!properties.TryGetValue("Name", out string? name) || string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+
+        properties.TryGetValue("Domain", out string? domain);
+        return new AdminGroupMember(domain ?? string.Empty, name, KindFromClassName(match.Groups["class"].Value));
     }
 
-    private static AdminMemberKind KindFromClassName(string? className) => className switch
-    {
-        "Win32_UserAccount" => AdminMemberKind.User,
-        "Win32_Group" => AdminMemberKind.Group,
-        "Win32_SystemAccount" => AdminMemberKind.SystemAccount,
-        _ => AdminMemberKind.Unknown,
-    };
+    private static AdminMemberKind KindFromClassName(string? className) =>
+        className?.ToUpperInvariant() switch
+        {
+            "WIN32_USERACCOUNT" => AdminMemberKind.User,
+            "WIN32_GROUP" => AdminMemberKind.Group,
+            "WIN32_SYSTEMACCOUNT" => AdminMemberKind.SystemAccount,
+            _ => AdminMemberKind.Unknown,
+        };
 
     private static string DescribeMember(AdminGroupMember member, string groupDomain)
     {
@@ -186,24 +226,37 @@ internal sealed partial class LocalAdministratorsCheck : ISecurityCheck
         int rawMemberCount,
         DateTimeOffset capturedAtUtc)
     {
+        int unparsedCount = rawMemberCount - members.Count;
         var evidence = new Dictionary<string, string>
         {
-            ["memberCount"] = members.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["rawMemberCount"] = rawMemberCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["parsedMemberCount"] = members.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["unparsedMemberCount"] = unparsedCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["members"] = members.Count > 0
                 ? string.Join("; ", members.Select(member => DescribeMember(member, groupDomain)))
-                : "(none parsed)",
+                : unparsedCount == 0 ? "(none)" : "(none parsed)",
         };
-        int unparsedCount = rawMemberCount - members.Count;
-        if (unparsedCount > 0)
+
+        string title;
+        string description;
+        if (unparsedCount == 0)
         {
-            evidence["unparsedMemberReferences"] = unparsedCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            evidence["memberCount"] = members.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            title = $"Local Administrators group has {members.Count} members";
+            description = "Documentation of the current local Administrators membership. Review whether every "
+                + "entry still needs full administrative rights on this machine.";
+        }
+        else
+        {
+            title = "Local Administrators membership is incomplete";
+            description = $"The membership query returned {rawMemberCount} references, but only {members.Count} "
+                + "could be interpreted. The complete membership and risk state are unknown.";
         }
 
         return new SecurityFinding(
             $"{CheckId}-MEMBERSHIP",
-            $"Local Administrators group has {members.Count} members",
-            "Documentation of the current local Administrators membership. Review whether every "
-                + "entry still needs full administrative rights on this machine.",
+            title,
+            description,
             FindingSeverity.Info,
             FindingCategory.Accounts,
             "Local Administrators group",
@@ -231,13 +284,4 @@ internal sealed partial class LocalAdministratorsCheck : ISecurityCheck
         RequiredPrivilege: null,
         capturedAtUtc);
 
-    private SecurityFinding NotRunFinding(Error error, DateTimeOffset capturedAtUtc) =>
-        CheckFindings.NotRun(
-            CheckId,
-            "Local Administrators membership could not be read",
-            FindingCategory.Accounts,
-            "Local Administrators group",
-            "Verify the Windows Management Instrumentation service and retry the scan.",
-            error,
-            capturedAtUtc);
 }

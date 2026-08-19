@@ -13,4 +13,24 @@ public sealed record SecurityScanResult(
     DateTimeOffset StartedAtUtc,
     DateTimeOffset CompletedAtUtc,
     ScanStatus Status,
-    IReadOnlyList<SecurityFinding> Findings);
+    IReadOnlyList<SecurityFinding> Findings,
+    IReadOnlyList<SecurityCheckResult> CheckResults,
+    int? CoverageVersion)
+{
+    /// <summary>
+    /// Compatibility constructor for scans written before check coverage was
+    /// persisted. Such scans deliberately remain coverage-unknown.
+    /// </summary>
+    public SecurityScanResult(
+        long scanId,
+        string host,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset completedAtUtc,
+        ScanStatus status,
+        IReadOnlyList<SecurityFinding> findings)
+        : this(scanId, host, startedAtUtc, completedAtUtc, status, findings, [], null)
+    {
+    }
+
+    public SecurityCoverage Coverage => SecurityCoverage.From(CoverageVersion, CheckResults);
+}

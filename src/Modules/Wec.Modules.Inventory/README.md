@@ -43,14 +43,13 @@ machine as the current user.
 - **Network adapters** carry MAC, link speed (WMI unknown-sentinels like
   `Int64.MaxValue` normalize to null), IPv4/IPv6 addresses joined from
   `Win32_NetworkAdapterConfiguration`, and sort connected-first.
-- **Multi-host scans** run in parallel in the UI, bounded by
-  `Wec:Remote:MaxParallelScans` (exposed through `system/getAppInfo`).
 - **Monitors** (`WmiMonitorID`, `root\wmi`) are optional: headless machines
   and most VMs do not expose the class; that yields an empty list, not a
   failed snapshot.
 - Snapshot sections added later are nullable — cache entries written by
   older versions deserialize with those sections as "not captured".
-- The executive summary report always uses the **local** host's snapshot.
+- The executive summary report uses the stored snapshot for the selected host;
+  omitting the report host selects the local machine.
 
 ## Configuration
 

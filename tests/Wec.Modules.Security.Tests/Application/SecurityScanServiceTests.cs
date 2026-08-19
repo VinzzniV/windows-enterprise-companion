@@ -26,7 +26,8 @@ public class SecurityScanServiceTests
                 Arg.Any<DateTimeOffset>(),
                 Arg.Any<DateTimeOffset>(),
                 Arg.Any<ScanStatus>(),
-                Arg.Any<IReadOnlyList<SecurityFinding>>(),
+                Arg.Any<int>(),
+                Arg.Any<IReadOnlyList<SecurityCheckResult>>(),
                 Arg.Any<CancellationToken>())
             .Returns(42L);
         return new SecurityScanService(
@@ -37,12 +38,12 @@ public class SecurityScanServiceTests
             NullLogger<SecurityScanService>.Instance);
     }
 
-    private static ISecurityCheck CheckReturning(params SecurityFinding[] findings)
+    private static ISecurityCheck CheckReturning(string checkId, params SecurityFinding[] findings)
     {
         var check = Substitute.For<ISecurityCheck>();
-        check.CheckId.Returns("TEST-CHECK");
+        check.CheckId.Returns(checkId);
         check.EvaluateAsync(Arg.Any<SecurityScanContext>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<SecurityFinding>>(findings));
+            .Returns(SecurityCheckResult.Succeeded(checkId, findings));
         return check;
     }
 
@@ -62,8 +63,8 @@ public class SecurityScanServiceTests
     public async Task RunScan_AggregatesFindingsFromAllChecksAndPersistsThem()
     {
         SecurityScanService service = CreateService(
-            CheckReturning(Finding("A")),
-            CheckReturning(Finding("B"), Finding("C")));
+            CheckReturning("CHECK-A", Finding("A")),
+            CheckReturning("CHECK-B", Finding("B"), Finding("C")));
 
         Result<SecurityScanResult> result = await service.RunScanAsync(
             ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
@@ -78,7 +79,9 @@ public class SecurityScanServiceTests
             Now,
             Now,
             ScanStatus.Completed,
-            Arg.Is<IReadOnlyList<SecurityFinding>>(findings => findings.Count == 3),
+            SecurityCoverage.CurrentVersion,
+            Arg.Is<IReadOnlyList<SecurityCheckResult>>(checks =>
+                checks.Count == 2 && checks.Sum(check => check.Findings.Count) == 3),
             Arg.Any<CancellationToken>());
     }
 
@@ -90,7 +93,9 @@ public class SecurityScanServiceTests
         crashingCheck.EvaluateAsync(Arg.Any<SecurityScanContext>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("bug"));
 
-        SecurityScanService service = CreateService(crashingCheck, CheckReturning(Finding("SURVIVOR")));
+        SecurityScanService service = CreateService(
+            crashingCheck,
+            CheckReturning("SURVIVING-CHECK", Finding("SURVIVOR")));
 
         Result<SecurityScanResult> result = await service.RunScanAsync(
             ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
@@ -98,6 +103,12 @@ public class SecurityScanServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(ScanStatus.CompletedWithErrors, result.Value.Status);
         Assert.Equal("SURVIVOR", Assert.Single(result.Value.Findings).FindingId);
+        SecurityCheckResult crashed = Assert.Single(
+            result.Value.CheckResults,
+            check => check.CheckId == "CRASHING-CHECK");
+        Assert.Equal(CheckStatus.Failed, crashed.Status);
+        Assert.Equal(ErrorCode.InternalError, crashed.Failure?.Code);
+        Assert.DoesNotContain("bug", crashed.Failure?.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

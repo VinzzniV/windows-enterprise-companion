@@ -13,7 +13,7 @@ public interface ISecurityCheck
 {
     string CheckId { get; }
 
-    Task<IReadOnlyList<SecurityFinding>> EvaluateAsync(
+    Task<SecurityCheckResult> EvaluateAsync(
         SecurityScanContext context,
         CancellationToken cancellationToken);
 }

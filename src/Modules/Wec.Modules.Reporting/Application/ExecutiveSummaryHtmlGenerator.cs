@@ -50,6 +50,8 @@ internal static class ExecutiveSummaryHtmlGenerator
         html.Append(CultureInfo.InvariantCulture,
             $"<p>Latest scan completed {Ts(scan.CompletedAtUtc)} — status {H(Humanize(scan.Status))}, {scan.Findings.Count} findings.</p>");
 
+        AppendSecurityCoverage(html, scan);
+
         if (scan.Findings.Count > 0)
         {
             html.Append("<p class=\"chips\">");
@@ -79,10 +81,56 @@ internal static class ExecutiveSummaryHtmlGenerator
         }
         else
         {
-            html.Append("<p>No findings — all executed checks passed.</p>");
+            bool isPass = scan.Coverage.IsComplete
+                && string.Equals(scan.Status, "Completed", StringComparison.Ordinal);
+            html.Append(isPass
+                ? "<p class=\"coverage-ok\"><strong>PASS:</strong> No security findings were observed and all applicable checks completed successfully.</p>"
+                : "<p class=\"coverage-warning\"><strong>No security findings were observed.</strong> This scan is not a PASS because coverage or execution was incomplete or unavailable.</p>");
         }
 
         html.Append("</section>");
+    }
+
+    private static void AppendSecurityCoverage(StringBuilder html, SecurityReportData scan)
+    {
+        SecurityCoverageReportData coverage = scan.Coverage;
+        if (!coverage.IsKnown)
+        {
+            html.Append("<p class=\"coverage-warning\"><strong>Coverage unavailable.</strong> "
+                + "Per-check execution tracking is absent or inconsistent, for example on a legacy scan. "
+                + "The scan must not be interpreted as complete.</p>");
+            return;
+        }
+
+        string coverageClass = coverage.IsComplete ? "coverage-ok" : "coverage-warning";
+        string coverageLabel = coverage.IsComplete ? "Coverage complete" : "Coverage incomplete";
+        html.Append(CultureInfo.InvariantCulture,
+            $"<p class=\"{coverageClass}\"><strong>{coverageLabel}:</strong> {coverage.SucceededChecks} of {coverage.ApplicableChecks} applicable checks completed successfully. Failed: {coverage.FailedChecks}; requires elevation: {coverage.RequiresElevationChecks}; not applicable: {coverage.NotApplicableChecks}.</p>");
+
+        List<SecurityCheckReportData> checksWithoutResult = scan.CheckResults
+            .Where(result => !string.Equals(result.Status, "Succeeded", StringComparison.Ordinal))
+            .OrderBy(result => result.CheckId, StringComparer.Ordinal)
+            .ToList();
+        if (checksWithoutResult.Count == 0)
+        {
+            return;
+        }
+
+        html.Append("<h3>Checks without an evaluated result</h3>"
+            + "<table class=\"data\"><thead><tr><th>Check</th><th>Status</th><th>Reason</th></tr></thead><tbody>");
+        foreach (SecurityCheckReportData check in checksWithoutResult)
+        {
+            string reason = check.Failure is null
+                ? "No failure details were recorded."
+                : $"{check.Failure.Message} ({Humanize(check.Failure.Code)})"
+                    + (check.Failure.RequiredPrivilege is null
+                        ? string.Empty
+                        : $" Requires {Humanize(check.Failure.RequiredPrivilege)}.");
+            html.Append(CultureInfo.InvariantCulture,
+                $"<tr><td>{H(check.CheckId)}</td><td>{H(Humanize(check.Status))}</td><td>{H(reason)}</td></tr>");
+        }
+
+        html.Append("</tbody></table>");
     }
 
     private static void AppendInventorySection(StringBuilder html, InventoryReportData? inventory)
@@ -153,6 +201,7 @@ internal static class ExecutiveSummaryHtmlGenerator
         + "table.data thead{background:#eef1f6}"
         + ".chip{display:inline-block;border:1px solid #c4ccd8;border-radius:.3rem;padding:.1rem .5rem;font-size:.8rem;font-weight:600}"
         + ".sev-critical,.sev-high{color:#a11a1a}.sev-medium{color:#9a6700}.sev-low{color:#0a5da0}.sev-info{color:#4a5568}"
+        + ".coverage-ok{color:#176b3a}.coverage-warning{color:#8a5700}"
         + ".nodata{color:#4a5568;font-style:italic}"
         + "footer{margin-top:3rem;font-size:.8rem;color:#4a5568;border-top:1px solid #c4ccd8;padding-top:.5rem}"
         + "@media print{body{margin:0;max-width:none}}";

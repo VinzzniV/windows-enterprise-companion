@@ -17,7 +17,22 @@ public class ExecutiveSummaryHtmlGeneratorTests
     private static SecurityReportData BuildScan(params SecurityFindingReportData[] findings) => new(
         GeneratedAt.AddMinutes(-10),
         "Completed",
-        findings);
+        findings,
+        CompleteCoverage(),
+        []);
+
+    private static SecurityCoverageReportData CompleteCoverage() => new(
+        true, true, 2, 2, 2, 0, 0, 0);
+
+    private static SecurityReportData BuildScanWithCoverage(
+        SecurityCoverageReportData coverage,
+        IReadOnlyList<SecurityCheckReportData> checkResults,
+        params SecurityFindingReportData[] findings) => new(
+        GeneratedAt.AddMinutes(-10),
+        "Completed",
+        findings,
+        coverage,
+        checkResults);
 
     private static SecurityFindingReportData Finding(
         string findingId,
@@ -84,6 +99,73 @@ public class ExecutiveSummaryHtmlGeneratorTests
 
         Assert.Contains("No security scan has been run", html, StringComparison.Ordinal);
         Assert.Contains("No hardware snapshot has been captured", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_CompleteCoverageWithoutFindings_IsTheOnlySecurityPass()
+    {
+        string html = ExecutiveSummaryHtmlGenerator.Generate(Context(inventory: null, BuildScan()));
+
+        Assert.Contains("Coverage complete", html, StringComparison.Ordinal);
+        Assert.Contains("<strong>PASS:</strong>", html, StringComparison.Ordinal);
+        Assert.Contains("all applicable checks completed successfully", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_ScanWithErrors_IsNotAPassEvenIfStoredCoverageClaimsComplete()
+    {
+        SecurityReportData inconsistentScan = new(
+            GeneratedAt,
+            "CompletedWithErrors",
+            [],
+            CompleteCoverage(),
+            []);
+
+        string html = ExecutiveSummaryHtmlGenerator.Generate(Context(inventory: null, inconsistentScan));
+
+        Assert.Contains("This scan is not a PASS", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>PASS:</strong>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_IncompleteCoverageWithoutFindings_IsExplicitlyNotAPassAndListsFailures()
+    {
+        SecurityCoverageReportData incompleteCoverage = new(
+            true, false, 3, 3, 1, 1, 1, 0);
+        SecurityCheckReportData failedCheck = new(
+            "WEC-SEC-TPM",
+            "RequiresElevation",
+            new SecurityCheckFailureReportData(
+                "AccessDenied",
+                "Administrator privileges are required.",
+                "Administrator"));
+
+        string html = ExecutiveSummaryHtmlGenerator.Generate(Context(
+            inventory: null,
+            BuildScanWithCoverage(incompleteCoverage, [failedCheck])));
+
+        Assert.Contains("Coverage incomplete", html, StringComparison.Ordinal);
+        Assert.Contains("1 of 3 applicable checks", html, StringComparison.Ordinal);
+        Assert.Contains("This scan is not a PASS", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>PASS:</strong>", html, StringComparison.Ordinal);
+        Assert.Contains("WEC-SEC-TPM", html, StringComparison.Ordinal);
+        Assert.Contains("Administrator privileges are required", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Generate_LegacyCoverageWithoutFindings_IsExplicitlyUnavailableAndNotAPass()
+    {
+        SecurityCoverageReportData legacyCoverage = new(
+            false, false, 0, 0, 0, 0, 0, 0);
+
+        string html = ExecutiveSummaryHtmlGenerator.Generate(Context(
+            inventory: null,
+            BuildScanWithCoverage(legacyCoverage, [])));
+
+        Assert.Contains("Coverage unavailable", html, StringComparison.Ordinal);
+        Assert.Contains("legacy scan", html, StringComparison.Ordinal);
+        Assert.Contains("This scan is not a PASS", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>PASS:</strong>", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -6,59 +6,23 @@ namespace Wec.Modules.Security.Application.Checks;
 internal static class CheckFindings
 {
     /// <summary>
-    /// Uniform "check only runs on the local machine" finding for remote
-    /// targets (ADR 0007: no silent local fallback, no silent skip).
+    /// Uniform not-applicable execution outcome for checks that only run on
+    /// the local machine (ADR 0007: no silent local fallback or skip).
     /// </summary>
-    public static SecurityFinding LocalOnly(
+    public static SecurityCheckResult LocalOnly(
         string checkId,
-        string title,
-        FindingCategory category,
-        string affectedResource,
         string host,
-        DateTimeOffset capturedAtUtc) => new(
-        FindingId: $"{checkId}-LOCAL-ONLY",
-        Title: title,
-        Description:
-            "This check reads data that is only accessible on the machine WEC runs on "
-            + "(registry or local security APIs). It was skipped for the remote target.",
-        Severity: FindingSeverity.Info,
-        Category: category,
-        AffectedResource: affectedResource,
-        Evidence: new Dictionary<string, string>
-        {
-            ["errorCode"] = ErrorCode.UnsupportedRemoteOperation.ToString(),
-            ["host"] = host,
-        },
-        Recommendation: "Run WEC directly on this machine to include the check.",
-        RequiredPrivilege: null,
-        CapturedAtUtc: capturedAtUtc);
+        string subject) => SecurityCheckResult.DidNotRun(
+        checkId,
+        new Error(
+            ErrorCode.UnsupportedRemoteOperation,
+            $"{subject} is only available locally and was not evaluated on {host}."));
 
     /// <summary>
-    /// Uniform "check could not run" finding: conservative INFO severity —
-    /// an unknown state is reported, never alarmed and never hidden (ADR 0002).
+    /// Uniform incomplete execution outcome. Unknown provider state is kept
+    /// separate from findings and therefore can never be interpreted as PASS.
     /// </summary>
-    public static SecurityFinding NotRun(
+    public static SecurityCheckResult NotRun(
         string checkId,
-        string title,
-        FindingCategory category,
-        string affectedResource,
-        string recommendation,
-        Error error,
-        DateTimeOffset capturedAtUtc) => new(
-        FindingId: $"{checkId}-NOT-RUN",
-        Title: title,
-        Description:
-            "The check could not read the required data. The state is unknown, "
-            + "not necessarily bad — investigate why the read failed.",
-        Severity: FindingSeverity.Info,
-        Category: category,
-        AffectedResource: affectedResource,
-        Evidence: new Dictionary<string, string>
-        {
-            ["errorCode"] = error.Code.ToString(),
-            ["errorMessage"] = error.Message,
-        },
-        Recommendation: recommendation,
-        RequiredPrivilege: error.RequiredPrivilege,
-        CapturedAtUtc: capturedAtUtc);
+        Error error) => SecurityCheckResult.DidNotRun(checkId, error);
 }

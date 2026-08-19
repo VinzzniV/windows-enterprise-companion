@@ -22,11 +22,6 @@ function latestOf<T extends { capturedAtUtc: string }>(items: T[]): T {
   return items.reduce((newest, item) => (item.capturedAtUtc > newest.capturedAtUtc ? item : newest));
 }
 
-/** Coverage checks (skipped remotely / read failed) are not security problems. */
-function isProblem(findingId: string): boolean {
-  return !findingId.endsWith('-LOCAL-ONLY') && !findingId.endsWith('-NOT-RUN');
-}
-
 export function deriveInventoryTile(hosts: StoredInventoryHost[]): TileMetric {
   if (hosts.length === 0) {
     return { value: 'No hosts', tone: 'neutral', note: 'Run an inventory scan' };
@@ -42,14 +37,16 @@ export function deriveSecurityTile(scan: SecurityScanResult | null): TileMetric 
   if (!scan) {
     return { value: 'No scan', tone: 'neutral', note: 'Run a security scan' };
   }
-  const problems = scan.findings.filter((finding) => isProblem(finding.findingId));
+  const problems = scan.findings;
   const critical = problems.filter((finding) => finding.severity === 'CRITICAL').length;
   const high = problems.filter((finding) => finding.severity === 'HIGH').length;
   const attention = critical + high;
   return {
     value: attention > 0 ? `${attention} critical/high` : `${problems.length} findings`,
-    tone: critical > 0 ? 'danger' : high > 0 ? 'warning' : 'success',
-    note: `${scan.host} · ${formatTimestamp(scan.completedAtUtc)}`,
+    tone: critical > 0 ? 'danger' : high > 0 || !scan.coverage.isComplete ? 'warning' : 'success',
+    note: `${scan.host} · ${formatTimestamp(scan.completedAtUtc)} · ${
+      scan.coverage.isComplete ? 'coverage complete' : 'coverage incomplete'
+    }`,
   };
 }
 

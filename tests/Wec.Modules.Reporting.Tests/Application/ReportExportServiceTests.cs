@@ -22,6 +22,16 @@ public sealed class ReportExportServiceTests : IDisposable
     private readonly string _exportPath = Path.Combine(
         Path.GetTempPath(), $"wec-report-test-{Guid.NewGuid():N}.html");
 
+    private static SecurityCoverageReportData CompleteCoverage() => new(
+        IsKnown: true,
+        IsComplete: true,
+        TotalChecks: 2,
+        ApplicableChecks: 1,
+        SucceededChecks: 1,
+        FailedChecks: 0,
+        RequiresElevationChecks: 0,
+        NotApplicableChecks: 1);
+
     private ReportExportService CreateService()
     {
         var clock = Substitute.For<IClock>();
@@ -46,7 +56,7 @@ public sealed class ReportExportServiceTests : IDisposable
                 new OperatingSystemReportData("Windows 11", "10.0", "26200", "64-Bit"))
             : null);
         _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(scan
-            ? new SecurityReportData(Now, "Completed", [])
+            ? new SecurityReportData(Now, "Completed", [], CompleteCoverage(), [])
             : null);
     }
 
@@ -130,6 +140,32 @@ public sealed class ReportExportServiceTests : IDisposable
         Assert.True(overview.IsSuccess);
         Assert.Equal(Now, overview.Value.InventoryCapturedAtUtc);
         Assert.Null(overview.Value.SecurityScanCompletedAtUtc);
+        Assert.Null(overview.Value.SecurityCoverage);
+    }
+
+    [Fact]
+    public async Task Overview_ExposesSecurityCoverageWithoutReinterpretingScanStatus()
+    {
+        SecurityCoverageReportData incompleteCoverage = new(
+            IsKnown: true,
+            IsComplete: false,
+            TotalChecks: 3,
+            ApplicableChecks: 3,
+            SucceededChecks: 1,
+            FailedChecks: 1,
+            RequiresElevationChecks: 1,
+            NotApplicableChecks: 0);
+        _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns((InventoryReportData?)null);
+        _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new SecurityReportData(Now, "CompletedWithErrors", [], incompleteCoverage, []));
+
+        Result<ReportOverview> overview = await CreateService().GetOverviewAsync(
+            host: null, CancellationToken.None);
+
+        Assert.Equal("CompletedWithErrors", overview.Value.SecurityScanStatus);
+        Assert.Equal(incompleteCoverage, overview.Value.SecurityCoverage);
+        Assert.False(overview.Value.SecurityCoverage!.IsComplete);
     }
 
     [Fact]
