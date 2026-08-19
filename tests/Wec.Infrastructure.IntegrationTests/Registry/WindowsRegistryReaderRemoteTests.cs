@@ -8,7 +8,7 @@ namespace Wec.Infrastructure.IntegrationTests.Registry;
 
 /// <summary>
 /// Verifies the remote StdRegProv decode path of <see cref="WindowsRegistryReader"/>
-/// (type probing DWORD → MultiString, ReturnValue gate, uint → int) with a fake
+/// (type probing DWORD → String → MultiString, ReturnValue gate, uint → int) with a fake
 /// WMI service — no remote machine required.
 /// </summary>
 public sealed class WindowsRegistryReaderRemoteTests
@@ -49,6 +49,7 @@ public sealed class WindowsRegistryReaderRemoteTests
     {
         var wmi = new FakeWmiQueryService();
         wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u)); // not a DWORD
+        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 1u)); // not a string
         wmi.OnMethod["GetMultiStringValue"] = MethodResult(("ReturnValue", 0u), ("sValue", new[] { "a", "b" }));
 
         Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
@@ -62,6 +63,7 @@ public sealed class WindowsRegistryReaderRemoteTests
     {
         var wmi = new FakeWmiQueryService();
         wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u));
+        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 1u));
         wmi.OnMethod["GetMultiStringValue"] = MethodResult(("ReturnValue", 1u));
 
         Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
@@ -69,6 +71,36 @@ public sealed class WindowsRegistryReaderRemoteTests
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public async Task RemoteStringProbeTransportFailure_IsPropagated()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u));
+        wmi.OnErrors["GetStringValue"] = Error.WmiUnavailable("transport failed");
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
+        Assert.DoesNotContain("GetMultiStringValue", wmi.InvokedMethods);
+    }
+
+    [Fact]
+    public async Task RemoteMultiStringProbeTransportFailure_IsPropagated()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u));
+        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 1u));
+        wmi.OnErrors["GetMultiStringValue"] = Error.WmiUnavailable("transport failed");
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
     }
 
     [Fact]
@@ -104,6 +136,10 @@ public sealed class WindowsRegistryReaderRemoteTests
     {
         public Dictionary<string, WmiInstance> OnMethod { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        public Dictionary<string, Error> OnErrors { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public List<string> InvokedMethods { get; } = [];
+
         public Task<Result<IReadOnlyList<WmiInstance>>> QueryAsync(
             ScanTarget target, ScanCredentials credentials, ConnectionOptions connection,
             string wmiNamespace, string wqlQuery, CancellationToken cancellationToken) =>
@@ -112,9 +148,17 @@ public sealed class WindowsRegistryReaderRemoteTests
         public Task<Result<WmiInstance>> InvokeMethodAsync(
             ScanTarget target, ScanCredentials credentials, ConnectionOptions connection,
             string wmiNamespace, string className, string methodName,
-            IReadOnlyDictionary<string, object?> inputParameters, CancellationToken cancellationToken) =>
-            Task.FromResult(OnMethod.TryGetValue(methodName, out WmiInstance? instance)
+            IReadOnlyDictionary<string, object?> inputParameters, CancellationToken cancellationToken)
+        {
+            InvokedMethods.Add(methodName);
+            if (OnErrors.TryGetValue(methodName, out Error? error))
+            {
+                return Task.FromResult(Result.Failure<WmiInstance>(error));
+            }
+
+            return Task.FromResult(OnMethod.TryGetValue(methodName, out WmiInstance? instance)
                 ? Result.Success(instance)
                 : Result.Failure<WmiInstance>(Error.WmiUnavailable($"no stub for {methodName}")));
+        }
     }
 }

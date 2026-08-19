@@ -2,16 +2,18 @@
 
 Read-only troubleshooting snapshot per computer. WMI-based checks run
 locally or against remote targets (ADR 0007); the connectivity probes
-(gateway, DNS, DC reachability, time sync, event logs) measure *this*
+(gateway, DNS, DC reachability and event logs) measure *this*
 machine's perspective — for remote targets they return a visible
 `NOT_RUN` / `UnsupportedRemoteOperation` result instead of silently running
-against the wrong machine. Results are never persisted.
+against the wrong machine. The latest run is persisted per host and restored
+when that client is opened again.
 
 ## Bridge actions
 
 | Action | Payload | Result |
 |---|---|---|
 | `diagnostics/runDiagnostics` | `{ target?: TargetRequest }` | `DiagnosticRunResult` — categorized results; empty target = local machine |
+| `diagnostics/getLatestDiagnostics` | `{ target?: TargetRequest }` | latest persisted `DiagnosticRunResult` for the host, or `null` |
 
 ## Diagnostics by category
 
@@ -23,7 +25,7 @@ against the wrong machine. Results are never persisted.
 | DNS | `WEC-DIAG-DNS-SERVERS` | Ping of every configured DNS server (warning-only — ICMP is often filtered) | local perspective |
 | Domain | `WEC-DIAG-SYS-DOMAIN` | Domain/workgroup membership | yes (WMI) |
 | Domain | `WEC-DIAG-DOM-DCREACH` | DC discovery via the domain's A records + ping (skipped on workgroup machines) | local perspective |
-| Time | `WEC-DIAG-SYS-TIMESYNC` | W32Time sync type, NTP server, service state | local perspective (registry) |
+| Time | `WEC-DIAG-SYS-TIMESYNC` | W32Time sync type, NTP server, service state | yes (registry/StdRegProv + WMI) |
 | Services | `WEC-DIAG-SYS-SERVICES` | Monitored services running | yes (WMI) |
 | Event logs | `WEC-DIAG-SYS-EVENTLOG` | Critical/error volume in the configured logs | local (Win32_NTLogEvent too slow over WinRM) |
 | System | `WEC-DIAG-SYS-DISKSPACE` | Free space on fixed drives (Win32_LogicalDisk) | yes (WMI) |
@@ -33,6 +35,11 @@ against the wrong machine. Results are never persisted.
 Statuses: `PASS`, `WARNING` (ran, negative), `FAIL` (broken), `NOT_RUN`
 (could not read — carries the error). A crashing diagnostic becomes a
 visible `FAIL` result; the run continues.
+
+Time synchronization is `PASS` only when all required registry and WMI data
+was read and interpreted. Provider failures or incomplete service properties
+produce `NOT_RUN`; missing, disabled or unrecognized configuration produces a
+named `WARNING`.
 
 Known limitation: clock *offset* against the time source is not measured
 (that needs an NTP client); the time diagnostic reports configuration and
@@ -55,5 +62,5 @@ service state.
 ## Tests
 
 `tests/Wec.Modules.Diagnostics.Tests` — all seams mocked
-(`INetworkInfoProvider`, `IPingProbe`, `IDnsResolver`, `IDriveInfoProvider`,
+(`INetworkInfoProvider`, `IPingProbe`, `IDnsResolver`,
 `IRegistryReader`, `IWmiQueryService`, `IEventLogReader`).

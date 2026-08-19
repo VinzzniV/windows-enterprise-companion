@@ -128,6 +128,17 @@ public class TimeSynchronizationDiagnosticTests
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success(value));
 
+    private void SetUpRegistryFailure(string valueName, Error error) =>
+        _registryReader
+            .ReadLocalMachineValueAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                valueName,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<object?>(error));
+
     [Fact]
     public async Task NoSyncConfigured_ProducesWarning()
     {
@@ -162,19 +173,138 @@ public class TimeSynchronizationDiagnosticTests
     [Fact]
     public async Task RegistryAccessDenied_ProducesNotRunWithRequiredPrivilege()
     {
-        _registryReader
-            .ReadLocalMachineValueAsync(
-                Arg.Any<Wec.Core.Targets.ScanTarget>(),
-                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
-                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
-                Arg.Any<string>(),
-                "Type",
-                Arg.Any<CancellationToken>())
-            .Returns(Result.Failure<object?>(Error.AccessDenied("denied", PrivilegeLevel.Administrator)));
+        SetUpRegistryFailure("Type", Error.AccessDenied("denied", PrivilegeLevel.Administrator));
 
         DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.NotRun, result.Status);
         Assert.Equal(PrivilegeLevel.Administrator, result.RequiredPrivilege);
+    }
+
+    [Fact]
+    public async Task NtpServerRegistryFailure_ProducesNotRunInsteadOfPass()
+    {
+        SetUpRegistryValue("Type", "NTP");
+        SetUpRegistryFailure("NtpServer", Error.AccessDenied("denied", PrivilegeLevel.Administrator));
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.NotRun, result.Status);
+        Assert.Equal(PrivilegeLevel.Administrator, result.RequiredPrivilege);
+        Assert.Equal(nameof(ErrorCode.AccessDenied), result.Evidence["errorCode"]);
+        await _wmiQueryService.DidNotReceiveWithAnyArgs()
+            .QueryAsync(default!, default!, default!, default!, default!, default);
+    }
+
+    [Fact]
+    public async Task WmiFailure_ProducesNotRunInsteadOfPass()
+    {
+        SetUpRegistryValue("Type", "NTP");
+        SetUpRegistryValue("NtpServer", "time.windows.com,0x9");
+        _wmiQueryService
+            .QueryAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(Error.WmiUnavailable("unreachable")));
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.NotRun, result.Status);
+        Assert.Equal(nameof(ErrorCode.WmiUnavailable), result.Evidence["errorCode"]);
+    }
+
+    [Fact]
+    public async Task MissingWindowsTimeService_ProducesWarningInsteadOfPass()
+    {
+        SetUpRegistryValue("Type", "NTP");
+        SetUpRegistryValue("NtpServer", "time.windows.com,0x9");
+        _wmiQueryService.SetUpWmiQuery("Win32_Service");
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+        Assert.Equal("not installed", result.Evidence["w32TimeService"]);
+    }
+
+    [Theory]
+    [InlineData(null, "Manual")]
+    [InlineData("Running", null)]
+    public async Task IncompleteWindowsTimeServiceData_ProducesNotRun(string? state, string? startMode)
+    {
+        SetUpRegistryValue("Type", "NTP");
+        SetUpRegistryValue("NtpServer", "time.windows.com,0x9");
+        _wmiQueryService.SetUpWmiQuery("Win32_Service", SystemTestSetup.Instance(
+            ("Name", "W32Time"), ("State", state), ("StartMode", startMode)));
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.NotRun, result.Status);
+    }
+
+    [Fact]
+    public async Task MissingSynchronizationType_ProducesWarningInsteadOfPass()
+    {
+        SetUpConfiguration(null);
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+    }
+
+    [Fact]
+    public async Task UnsupportedSynchronizationTypeValue_ProducesNotRun()
+    {
+        SetUpRegistryValue("Type", 1);
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.NotRun, result.Status);
+        Assert.Equal("Int32", result.Evidence["valueType"]);
+    }
+
+    [Fact]
+    public async Task UnknownSynchronizationType_ProducesWarningInsteadOfPass()
+    {
+        SetUpConfiguration("CustomProvider");
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+    }
+
+    [Fact]
+    public async Task StoppedAutomaticService_ProducesWarningInsteadOfPass()
+    {
+        SetUpConfiguration("NTP", serviceState: "Stopped", startMode: "Auto");
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+    }
+
+    [Fact]
+    public async Task NtpTypeWithoutServer_ProducesWarningInsteadOfPass()
+    {
+        SetUpRegistryValue("Type", "NTP");
+        SetUpRegistryValue("NtpServer", null);
+        _wmiQueryService.SetUpWmiQuery("Win32_Service", SystemTestSetup.Instance(
+            ("Name", "W32Time"), ("State", "Running"), ("StartMode", "Manual")));
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
     }
 
     [Fact]

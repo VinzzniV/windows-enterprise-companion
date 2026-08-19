@@ -112,16 +112,24 @@ public sealed class WindowsRegistryReader : IRegistryReader
 
         Result<WmiInstance> stringValue = await _wmiQueryService.InvokeMethodAsync(
             target, credentials, connection, StdRegProvNamespace, StdRegProvClass, "GetStringValue", inputs, cancellationToken);
-        if (stringValue.IsSuccess && Succeeded(stringValue.Value)
-            && stringValue.Value.GetRawValue("sValue") is string singleString)
+        if (stringValue.IsFailure)
+        {
+            return Result.Failure<object?>(stringValue.Error!);
+        }
+
+        if (Succeeded(stringValue.Value) && stringValue.Value.GetRawValue("sValue") is string singleString)
         {
             return Result.Success<object?>(singleString);
         }
 
         Result<WmiInstance> multiString = await _wmiQueryService.InvokeMethodAsync(
             target, credentials, connection, StdRegProvNamespace, StdRegProvClass, "GetMultiStringValue", inputs, cancellationToken);
-        if (multiString.IsSuccess && Succeeded(multiString.Value)
-            && multiString.Value.GetRawValue("sValue") is string[] strings)
+        if (multiString.IsFailure)
+        {
+            return Result.Failure<object?>(multiString.Error!);
+        }
+
+        if (Succeeded(multiString.Value) && multiString.Value.GetRawValue("sValue") is string[] strings)
         {
             return Result.Success<object?>(strings);
         }
