@@ -67,6 +67,8 @@ interface HostEntry {
   label: string;
   target: TargetRequest | null;
   state: LoadState;
+  refreshing: boolean;
+  refreshError: string | null;
 }
 
 type EncryptionState =
@@ -343,11 +345,14 @@ export function HardwareInfoPage() {
       }
       setEntries((current) => {
         const existing = current.find((entry) => entry.key === key);
+        const preserveSnapshot = existing?.state.kind === 'loaded';
         const entry: HostEntry = {
           key,
           label: existing?.label ?? (target?.host ?? 'Local machine'),
           target,
-          state: { kind: 'loading' },
+          state: preserveSnapshot ? existing.state : { kind: 'loading' },
+          refreshing: preserveSnapshot,
+          refreshError: null,
         };
         return existing
           ? current.map((candidate) => (candidate.key === key ? entry : candidate))
@@ -360,19 +365,32 @@ export function HardwareInfoPage() {
           setEntries((current) =>
             current.map((entry) =>
               entry.key === key
-                ? { ...entry, label: result.host, state: { kind: 'loaded', result } }
+                ? {
+                    ...entry,
+                    label: result.host,
+                    state: { kind: 'loaded', result },
+                    refreshing: false,
+                    refreshError: null,
+                  }
                 : entry,
             ),
           ),
         )
         .catch((error: unknown) =>
-          setEntries((current) =>
-            current.map((entry) =>
-              entry.key === key
-                ? { ...entry, state: { kind: 'error', message: errorText(error) } }
-                : entry,
-            ),
-          ),
+          setEntries((current) => {
+            const message = errorText(error);
+            return current.map((entry) => {
+              if (entry.key !== key) return entry;
+              return entry.state.kind === 'loaded'
+                ? { ...entry, refreshing: false, refreshError: message }
+                : {
+                    ...entry,
+                    state: { kind: 'error', message },
+                    refreshing: false,
+                    refreshError: null,
+                  };
+            });
+          }),
         );
     },
     [],
@@ -415,7 +433,7 @@ export function HardwareInfoPage() {
     );
   }, [selection, load]);
 
-  const anyLoading = entries.some((entry) => entry.state.kind === 'loading');
+  const anyLoading = entries.some((entry) => entry.state.kind === 'loading' || entry.refreshing);
   const selectedEntry = entries.find((entry) => entry.key === selectedKey) ?? entries[0] ?? null;
 
   return (
@@ -457,7 +475,7 @@ export function HardwareInfoPage() {
                   >
                     <span
                       className={`h-2 w-2 shrink-0 rounded-full ${
-                        entry.state.kind === 'loading'
+                        entry.state.kind === 'loading' || entry.refreshing
                           ? 'animate-pulse bg-info-400'
                           : entry.state.kind === 'error'
                             ? 'bg-fail-500'
@@ -493,13 +511,14 @@ export function HardwareInfoPage() {
               <div className="flex items-center gap-3">
                 {selectedEntry.state.kind === 'loaded' && (
                   <span className="text-xs text-slate-400">
-                    {selectedEntry.state.result.fromCache ? 'From cache' : 'Freshly captured'} —{' '}
-                    {new Date(selectedEntry.state.result.capturedAtUtc).toLocaleString()}
+                    {selectedEntry.refreshing
+                      ? 'Refreshing — previous snapshot remains visible'
+                      : `${selectedEntry.state.result.fromCache ? 'From cache' : 'Freshly captured'} — ${new Date(selectedEntry.state.result.capturedAtUtc).toLocaleString()}`}
                   </span>
                 )}
                 <Button
                   onClick={() => load(selectedEntry.target, true)}
-                  disabled={selectedEntry.state.kind === 'loading'}
+                  disabled={selectedEntry.state.kind === 'loading' || selectedEntry.refreshing}
                 >
                   Refresh
                 </Button>
@@ -516,6 +535,14 @@ export function HardwareInfoPage() {
                 message={selectedEntry.state.message}
                 hint="Check that the host is reachable, WinRM is enabled on it and the account has remote management rights."
               />
+            )}
+
+            {selectedEntry.refreshError && (
+              <div role="alert" className="rounded border border-fail-700/60 bg-fail-950/30 p-3">
+                <p className="text-sm text-fail-300">
+                  Refresh failed; the previous snapshot is still shown. {selectedEntry.refreshError}
+                </p>
+              </div>
             )}
 
             {selectedEntry.state.kind === 'loaded' && (

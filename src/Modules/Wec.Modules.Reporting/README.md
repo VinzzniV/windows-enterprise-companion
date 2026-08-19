@@ -32,6 +32,15 @@ a host string targets the already-scanned remote client with that cache key.
   it is explicitly not a complete assessment.
 - Scans created before coverage version 1 remain coverage-unknown after the
   database migration. Reporting never reconstructs or guesses missing outcomes.
+- The overview and both export formats include a readiness block for the two
+  persisted sources. Each source is `READY`, `MISSING`, `STALE`, or
+  `INCOMPLETE`, with capture time, age, and provenance. Readiness is advisory:
+  a partial export remains possible, but the report records why it must not be
+  treated as current or complete.
+- The default freshness window is 24 hours for Inventory and Security. Override
+  `Wec:Reporting:MaximumInventoryAge` or
+  `Wec:Reporting:MaximumSecurityScanAge` with a positive `TimeSpan` when the
+  operating procedure requires a different window.
 - Dialog cancel is a success (`cancelled: true`), not an error. Nothing to
   export ⇒ `NOT_FOUND` before any dialog. `openAfterExport` opens only the
   file just written — no path ever crosses the bridge inbound.

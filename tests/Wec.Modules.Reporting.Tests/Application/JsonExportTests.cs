@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
@@ -35,6 +36,7 @@ public sealed class JsonExportTests : IDisposable
             _saveFileDialog,
             Substitute.For<IShellLauncher>(),
             clock,
+            Options.Create(new ReportingOptions()),
             NullLogger<ReportExportService>.Instance);
     }
 
@@ -72,6 +74,8 @@ public sealed class JsonExportTests : IDisposable
         Assert.Equal(
             "Succeeded",
             root.GetProperty("securityScan").GetProperty("checkResults")[0].GetProperty("status").GetString());
+        Assert.True(root.GetProperty("readiness").GetProperty("isReady").GetBoolean());
+        Assert.Equal("READY", root.GetProperty("readiness").GetProperty("sources")[0].GetProperty("state").GetString());
     }
 
     [Fact]

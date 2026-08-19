@@ -434,6 +434,25 @@ export interface ReportOverview {
   securityScanStatus: string | null;
   securityFindingCount: number | null;
   securityCoverage: SecurityCoverage | null;
+  readiness: ReportReadiness;
+}
+
+/** Wec.Modules.Reporting.Application.ReportReadiness */
+export interface ReportReadiness {
+  evaluatedAtUtc: string;
+  isReady: boolean;
+  sources: ReportSourceReadiness[];
+}
+
+/** Wec.Modules.Reporting.Application.ReportSourceReadiness */
+export interface ReportSourceReadiness {
+  source: string;
+  provenance: string;
+  state: 'READY' | 'MISSING' | 'STALE' | 'INCOMPLETE';
+  capturedAtUtc: string | null;
+  ageSeconds: number | null;
+  isComplete: boolean;
+  summary: string;
 }
 
 /** Wec.Modules.Reporting.Handlers.GetReportOverviewRequest — host null/omitted = local machine */

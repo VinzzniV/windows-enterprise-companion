@@ -23,6 +23,30 @@ const overviewWithData: ReportOverview = {
     applicableChecks: 13,
     isComplete: false,
   },
+  readiness: {
+    evaluatedAtUtc: '2026-07-02T18:10:00Z',
+    isReady: false,
+    sources: [
+      {
+        source: 'Hardware inventory',
+        provenance: 'Persisted WMI/CIM inventory snapshot',
+        state: 'READY',
+        capturedAtUtc: '2026-07-02T18:00:00Z',
+        ageSeconds: 600,
+        isComplete: true,
+        summary: 'Available, complete, and current.',
+      },
+      {
+        source: 'Security posture',
+        provenance: 'Persisted Security scan and per-check outcomes',
+        state: 'INCOMPLETE',
+        capturedAtUtc: '2026-07-02T18:05:00Z',
+        ageSeconds: 300,
+        isComplete: false,
+        summary: 'One applicable check failed.',
+      },
+    ],
+  },
 };
 
 function setUpInvoke(exportResult: ReportExportResult): void {
@@ -67,6 +91,9 @@ describe('ReportingPage', () => {
     render(<ReportingPage />);
 
     expect(await screen.findByText(/12\/13 applicable checks evaluated — incomplete/)).toBeDefined();
+    expect(screen.getByText('REFRESH REQUIRED')).toBeDefined();
+    expect(screen.getByText('Persisted WMI/CIM inventory snapshot')).toBeDefined();
+    expect(screen.getByText('5m old')).toBeDefined();
   });
 
   it('disables exports when there is nothing to export yet', async () => {
@@ -76,6 +103,30 @@ describe('ReportingPage', () => {
       securityScanStatus: null,
       securityFindingCount: null,
       securityCoverage: null,
+      readiness: {
+        evaluatedAtUtc: '2026-07-02T18:10:00Z',
+        isReady: false,
+        sources: [
+          {
+            source: 'Hardware inventory',
+            provenance: 'Persisted WMI/CIM inventory snapshot',
+            state: 'MISSING',
+            capturedAtUtc: null,
+            ageSeconds: null,
+            isComplete: false,
+            summary: 'No hardware inventory data is available.',
+          },
+          {
+            source: 'Security posture',
+            provenance: 'Persisted Security scan and per-check outcomes',
+            state: 'MISSING',
+            capturedAtUtc: null,
+            ageSeconds: null,
+            isComplete: false,
+            summary: 'No security posture data is available.',
+          },
+        ],
+      },
     } satisfies ReportOverview);
 
     render(<ReportingPage />);

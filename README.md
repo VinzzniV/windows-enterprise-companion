@@ -277,6 +277,11 @@ dots, underscores, or hyphens and must start with a letter or number.
 All tunables (cache TTL, paths, log level) are options — defaults in
 `src/Wec.Host/appsettings.json`, overridable per user.
 
+Reporting never starts live collection. Its readiness block evaluates the
+persisted Inventory snapshot and Security scan against their configured
+freshness windows and shows missing, stale, or incomplete sources before
+export.
+
 ## Solution layout
 
 | Project | Role |
