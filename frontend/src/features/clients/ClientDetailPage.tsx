@@ -18,6 +18,7 @@ import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
 import { OverviewSection } from './sections/OverviewSection';
 import { openPsSession } from '../../shared/ps/openPsSession';
+import { errorText } from '../../shared/bridge/errorText';
 
 type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
 
@@ -60,6 +61,7 @@ export function ClientDetailPage() {
   // must wait for this so the local machine is never scanned as a remote target.
   const [machineName, setMachineName] = useState<string | null | undefined>(undefined);
   const [section, setSection] = useState<SectionKey>('overview');
+  const [powerShellError, setPowerShellError] = useState<string | null>(null);
 
   useEffect(() => {
     invoke<AppInfoResponse>('system', 'getAppInfo')
@@ -106,7 +108,12 @@ export function ClientDetailPage() {
           {!local && (
             <Button
               variant="secondary"
-              onClick={() => void openPsSession(host, credentials ?? null).catch(() => {})}
+              onClick={() => {
+                setPowerShellError(null);
+                void openPsSession(host, credentials ?? null).catch((caught: unknown) =>
+                  setPowerShellError(errorText(caught)),
+                );
+              }}
               title={`Open a PowerShell session to ${host}`}
             >
               PowerShell
@@ -128,6 +135,11 @@ export function ClientDetailPage() {
           )}
         </div>
       </PageHeader>
+      {powerShellError && (
+        <p role="alert" className="rounded border border-fail-700/60 bg-fail-950/30 px-3 py-2 text-sm text-fail-300">
+          PowerShell session could not be opened: {powerShellError}
+        </p>
+      )}
 
       {!local && <ClientScanIdentity credentials={credentials} />}
 

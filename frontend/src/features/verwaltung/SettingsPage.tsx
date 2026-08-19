@@ -55,6 +55,7 @@ export function SettingsPage() {
   const [nessusError, setNessusError] = useState<string | null>(null);
   const [editingNessusCredential, setEditingNessusCredential] = useState(false);
   const [nessusCertificate, setNessusCertificate] = useState<NessusCertificateResult | null>(null);
+  const [openLogsError, setOpenLogsError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -248,9 +249,18 @@ export function SettingsPage() {
             <dd className="break-all font-mono text-xs text-slate-300">{appInfo.logDirectory}</dd>
           </dl>
           <div className="mt-3">
-            <Button variant="secondary" onClick={() => invoke('system', 'openLogsFolder').catch(() => {})}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setOpenLogsError(null);
+                invoke('system', 'openLogsFolder').catch((caught: unknown) =>
+                  setOpenLogsError(errorText(caught)),
+                );
+              }}
+            >
               Open log folder
             </Button>
+            {openLogsError && <p role="alert" className="mt-2 text-sm text-fail-400">{openLogsError}</p>}
           </div>
         </Card>
       )}

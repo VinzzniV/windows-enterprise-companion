@@ -63,7 +63,7 @@ describe('ReportingPage', () => {
   });
 
   it('shows the export result path after a successful export', async () => {
-    setUpInvoke({ cancelled: false, filePath: 'C:\\reports\\wec.html' });
+    setUpInvoke({ cancelled: false, filePath: 'C:\\reports\\wec.html', openError: null });
 
     render(<ReportingPage />);
     await userEvent.click(await screen.findByRole('button', { name: 'Export HTML' }));
@@ -77,7 +77,7 @@ describe('ReportingPage', () => {
   });
 
   it('treats a cancelled save dialog as a neutral outcome, not an error', async () => {
-    setUpInvoke({ cancelled: true, filePath: null });
+    setUpInvoke({ cancelled: true, filePath: null, openError: null });
 
     render(<ReportingPage />);
     await userEvent.click(await screen.findByRole('button', { name: 'Export JSON' }));
@@ -86,7 +86,7 @@ describe('ReportingPage', () => {
   });
 
   it('shows incomplete security coverage in the report overview', async () => {
-    setUpInvoke({ cancelled: true, filePath: null });
+    setUpInvoke({ cancelled: true, filePath: null, openError: null });
 
     render(<ReportingPage />);
 

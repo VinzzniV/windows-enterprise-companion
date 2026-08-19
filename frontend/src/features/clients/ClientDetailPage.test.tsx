@@ -64,6 +64,7 @@ describe('ClientDetailPage', () => {
         });
       }
       if (module === 'security' && action === 'getLatestScan') return Promise.resolve({ scan: null });
+      if (module === 'system' && action === 'openPsSession') return Promise.reject(new Error('PowerShell is unavailable'));
       if (module === 'reporting' && action === 'getOverview') {
         return Promise.resolve({
           inventoryCapturedAtUtc: null,
@@ -91,6 +92,8 @@ describe('ClientDetailPage', () => {
     expect(await screen.findByText('Scanning as current user')).toBeDefined(); // remote → creds needed
     expect((await screen.findByRole('tab', { name: 'Overview' })).getAttribute('aria-selected')).toBe('true');
     expect(await screen.findByText('Environment assessment')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'PowerShell' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('PowerShell is unavailable');
     expect(screen.getByText('MISSING KASPERSKY').parentElement?.textContent)
       .toContain('Enabled in Active Directory, but no matching Kaspersky device was found.');
     expect(screen.getByText('Windows 11 Pro')).toBeDefined();

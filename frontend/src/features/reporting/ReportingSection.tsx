@@ -21,7 +21,7 @@ type OverviewState =
 type ExportState =
   | { kind: 'idle' }
   | { kind: 'exporting' }
-  | { kind: 'exported'; filePath: string }
+  | { kind: 'exported'; filePath: string; openError: string | null }
   | { kind: 'cancelled' }
   | { kind: 'error'; message: string };
 
@@ -75,7 +75,7 @@ export function ReportingSection({ host }: { host: string | null }) {
           setExportState(
             result.cancelled || result.filePath === null
               ? { kind: 'cancelled' }
-              : { kind: 'exported', filePath: result.filePath },
+              : { kind: 'exported', filePath: result.filePath, openError: result.openError },
           ),
         )
         .catch((error: unknown) => setExportState({ kind: 'error', message: errorMessage(error) }));
@@ -209,9 +209,12 @@ export function ReportingSection({ host }: { host: string | null }) {
             </p>
           )}
           {exportState.kind === 'exported' && (
-            <p className="text-sm text-ok-400">
-              Report written to <span className="font-mono text-ok-300">{exportState.filePath}</span>
-            </p>
+            <div>
+              <p className="text-sm text-ok-400">
+                Report written to <span className="font-mono text-ok-300">{exportState.filePath}</span>
+              </p>
+              {exportState.openError && <p role="alert" className="mt-1 text-sm text-warn-400">{exportState.openError}</p>}
+            </div>
           )}
           {exportState.kind === 'cancelled' && <p className="text-sm text-slate-400">Export cancelled.</p>}
           {exportState.kind === 'error' && <p className="text-sm text-fail-400">{exportState.message}</p>}

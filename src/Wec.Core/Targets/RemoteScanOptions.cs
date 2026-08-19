@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Wec.Core.Configuration;
 
 namespace Wec.Core.Targets;
 
@@ -6,6 +7,7 @@ public sealed class RemoteScanOptions
 {
     public const string SectionName = "Wec:Remote";
 
+    [PositiveTimeSpan]
     public TimeSpan ConnectionTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     [Range(1, 64)]

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Wec.Core.Configuration;
 
 namespace Wec.Modules.Diagnostics;
 
@@ -9,10 +10,13 @@ public sealed class DiagnosticsOptions
     [Required]
     public string DnsProbeHostname { get; set; } = string.Empty;
 
+    [PositiveTimeSpan]
     public TimeSpan ProbeTimeout { get; set; } = TimeSpan.FromSeconds(3);
 
+    [MinLength(1)]
     public string[] EventLogNames { get; set; } = [];
 
+    [PositiveTimeSpan]
     public TimeSpan EventLogLookback { get; set; } = TimeSpan.FromHours(24);
 
     [Range(1, 10_000)]
@@ -21,6 +25,7 @@ public sealed class DiagnosticsOptions
     [Range(1, 10_000)]
     public int EventLogErrorWarningThreshold { get; set; } = 50;
 
+    [MinLength(1)]
     public string[] MonitoredServices { get; set; } = [];
 
     [Range(1, 99)]

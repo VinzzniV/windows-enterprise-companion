@@ -197,10 +197,11 @@ export interface DiskEncryptionStatus {
 }
 
 /** Wec.Modules.Security.Domain.FindingSeverity (SCREAMING_SNAKE on the wire) */
-export type FindingSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type FindingSeverity = 'UNKNOWN' | 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 /** Wec.Modules.Security.Domain.FindingCategory (SCREAMING_SNAKE on the wire) */
 export type FindingCategory =
+  | 'UNKNOWN'
   | 'FIREWALL'
   | 'MALWARE_PROTECTION'
   | 'NETWORK_SERVICES'
@@ -470,6 +471,7 @@ export interface ExportReportRequest {
 export interface ReportExportResult {
   cancelled: boolean;
   filePath: string | null;
+  openError: string | null;
 }
 
 /** Wec.Modules.ActiveDirectory.Application.DirectoryConnectionRequest — all fields optional; empty = own domain, current user */
@@ -965,7 +967,7 @@ export interface HygieneSummary {
   nessusHigh: number;
 }
 
-export type NessusSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type NessusSeverity = 'UNKNOWN' | 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type NessusSyncPhase = 'IDLE' | 'DISCOVERING_SCANS' | 'IMPORTING_CURRENT_RUNS' | 'PUBLISHING_CURRENT_INVENTORY' | 'IMPORTING_HISTORY' | 'COMPLETED' | 'FAILED';
 export type TrendVerdict = 'INSUFFICIENT_DATA' | 'BETTER' | 'WORSE' | 'STABLE';
 export interface NessusSyncStatus { phase: NessusSyncPhase; running: boolean; startedAtUtc: string | null; lastSuccessfulSyncUtc: string | null; error: string | null; completedScans: number; totalScans: number; historySupported: boolean; serverVersion: string | null; }
