@@ -72,6 +72,7 @@ function severityCount(findings: SecurityFinding[], severity: FindingSeverity): 
 }
 
 export function FindingCard({ finding }: { finding: SecurityFinding }) {
+  const evidenceCount = Object.keys(finding.evidence).length;
   return (
     <li className="rounded-lg border border-slate-800 bg-slate-900 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -87,13 +88,17 @@ export function FindingCard({ finding }: { finding: SecurityFinding }) {
         </div>
       </div>
       <p className="mt-2 text-sm text-slate-300">{finding.description}</p>
-      <div className="mt-3">
-        <EvidenceList evidence={finding.evidence} />
-      </div>
       <p className="mt-3 text-sm text-slate-400">
         <span className="font-medium text-slate-300">Recommendation: </span>
         {finding.recommendation}
       </p>
+      {evidenceCount > 0 && (
+        <div className="mt-3">
+          <DetailsDisclosure summary={`Raw evidence (${evidenceCount})`}>
+            <EvidenceList evidence={finding.evidence} />
+          </DetailsDisclosure>
+        </div>
+      )}
     </li>
   );
 }

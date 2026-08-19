@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
-import type { ScanHistoryResult, ScanSummary, TargetRequest } from '../../shared/api-types';
+import type { ScanHistoryResult, TargetRequest } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { Spinner } from '../../shared/ui/Spinner';
 import { SeverityBadge } from './SeverityBadge';
@@ -9,33 +9,6 @@ type HistoryState =
   | { kind: 'loading' }
   | { kind: 'loaded'; history: ScanHistoryResult }
   | { kind: 'error'; message: string };
-
-/** Inline sparkline of finding counts, oldest → newest. No chart dependency. */
-function TrendSparkline({ scans }: { scans: ScanSummary[] }) {
-  if (scans.length < 2) {
-    return null;
-  }
-
-  const counts = [...scans].reverse().map((scan) => scan.findingCount);
-  const max = Math.max(...counts, 1);
-  const width = 160;
-  const height = 36;
-  const step = width / (counts.length - 1);
-  const points = counts
-    .map((count, index) => `${(index * step).toFixed(1)},${(height - 4 - (count / max) * (height - 8)).toFixed(1)}`)
-    .join(' ');
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="h-9 w-40 shrink-0 text-accent-400"
-      role="img"
-      aria-label={`Finding count trend across ${counts.length} scans`}
-    >
-      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
 
 interface ScanHistoryProps {
   /** Changes when a new scan lands; triggers a refetch. */
@@ -113,7 +86,6 @@ export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
 
       <Card title={`Scan history (${scans.length})`}>
         <div className="flex flex-col gap-3">
-          <TrendSparkline scans={scans} />
           <ul className="flex flex-col text-sm">
             {scans.map((scan) => (
               <li

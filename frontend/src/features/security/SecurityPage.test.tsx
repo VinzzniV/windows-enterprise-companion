@@ -7,7 +7,7 @@ import type {
   SecurityCoverage,
   SecurityFinding,
 } from '../../shared/api-types';
-import { SecurityPage } from './SecurityPage';
+import { FindingCard, SecurityPage } from './SecurityPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
@@ -85,6 +85,21 @@ function setUpInvoke(latest: LatestScanResult): void {
 describe('SecurityPage', () => {
   beforeEach(() => {
     invokeMock.mockReset();
+  });
+
+  it('keeps administrator guidance visible and raw evidence collapsed', async () => {
+    render(
+      <ul>
+        <FindingCard finding={finding({ evidence: { providerCode: '42' } })} />
+      </ul>,
+    );
+
+    expect(screen.getByText(/Recommendation:/).parentElement?.textContent).toContain('Do something');
+    const disclosure = screen.getByText('Raw evidence (1)').closest('details');
+    expect(disclosure?.hasAttribute('open')).toBe(false);
+    await userEvent.click(screen.getByText('Raw evidence (1)'));
+    expect(disclosure?.hasAttribute('open')).toBe(true);
+    expect(screen.getByText('providerCode')).toBeDefined();
   });
 
   it('renders findings from the latest scan', async () => {
