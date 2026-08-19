@@ -79,6 +79,11 @@ public sealed class DirectoryHygieneServiceTests
                 Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([]));
+        _directoryReader.SearchBoundedAsync(
+                Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
+                Arg.Any<int>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(0, [])));
     }
 
     [Fact]
@@ -102,10 +107,11 @@ public sealed class DirectoryHygieneServiceTests
         Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        await _directoryReader.Received(1).SearchAsync(
+        await _directoryReader.Received(1).SearchBoundedAsync(
             Arg.Is<DirectorySearchQuery>(query =>
                 query.LdapFilter.Contains($"lastLogonTimestamp<={expectedCutoff}") &&
                 query.LdapFilter.Contains("objectClass=user")),
+            _options.ExampleLimit,
             Arg.Any<CancellationToken>());
     }
 
@@ -114,17 +120,19 @@ public sealed class DirectoryHygieneServiceTests
     {
         SetUpDomainScaffolding();
         long staleFileTime = Now.Subtract(TimeSpan.FromDays(200)).UtcDateTime.ToFileTimeUtc();
-        _directoryReader.SearchAsync(
+        IReadOnlyList<DirectoryEntryData> examples =
+        [
+            Entry("CN=a", ("sAMAccountName", "a"),
+                ("lastLogonTimestamp", staleFileTime.ToString(System.Globalization.CultureInfo.InvariantCulture))),
+            Entry("CN=b", ("sAMAccountName", "b")),
+        ];
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query =>
                     query.LdapFilter.Contains("lastLogonTimestamp") &&
                     query.LdapFilter.Contains("objectClass=user")),
+                _options.ExampleLimit,
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([
-                Entry("CN=a", ("sAMAccountName", "a"),
-                    ("lastLogonTimestamp", staleFileTime.ToString(System.Globalization.CultureInfo.InvariantCulture))),
-                Entry("CN=b", ("sAMAccountName", "b")),
-                Entry("CN=c", ("sAMAccountName", "c")),
-            ]));
+            .Returns(Result.Success(new BoundedDirectorySearchResult(3, examples)));
 
         Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
@@ -144,9 +152,10 @@ public sealed class DirectoryHygieneServiceTests
 
         await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
-        await _directoryReader.Received(1).SearchAsync(
+        await _directoryReader.Received(1).SearchBoundedAsync(
             Arg.Is<DirectorySearchQuery>(query =>
                 query.LdapFilter.Contains(":=65536") && query.LdapFilter.Contains("(!(userAccountControl")),
+            _options.ExampleLimit,
             Arg.Any<CancellationToken>());
     }
 
@@ -195,10 +204,11 @@ public sealed class DirectoryHygieneServiceTests
 
         await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
-        await _directoryReader.Received(1).SearchAsync(
+        await _directoryReader.Received(1).SearchBoundedAsync(
             Arg.Is<DirectorySearchQuery>(query =>
                 query.LdapFilter.Contains(@"CN=Admins \28Tier 0\29") &&
                 query.LdapFilter.Contains(":=2)")),
+            _options.ExampleLimit,
             Arg.Any<CancellationToken>());
     }
 
@@ -206,10 +216,11 @@ public sealed class DirectoryHygieneServiceTests
     public async Task DirectoryFailureDuringRules_PropagatesTypedError()
     {
         SetUpDomainScaffolding();
-        _directoryReader.SearchAsync(
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.LdapFilter.Contains(":=65536")),
+                _options.ExampleLimit,
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Failure<IReadOnlyList<DirectoryEntryData>>(new Error(
+            .Returns(Result.Failure<BoundedDirectorySearchResult>(new Error(
                 ErrorCode.AccessDenied, "Read refused")));
 
         Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);

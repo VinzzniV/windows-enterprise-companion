@@ -60,7 +60,8 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
             return Result.Success(new AdComputerSearchResult(false, null, [], Truncated: false));
         }
 
-        Result<IReadOnlyList<DirectoryEntryData>> entries = await _directoryReader.SearchAsync(
+        int limit = resultLimit ?? _options.ComputerSearchLimit;
+        Result<BoundedDirectorySearchResult> entries = await _directoryReader.SearchBoundedAsync(
             new DirectorySearchQuery(
                 context.Value.DomainName!,
                 context.Value.DefaultNamingContext!,
@@ -71,13 +72,14 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 _options.SearchTimeout,
                 connection.Server,
                 connection.Credentials),
+            limit,
             cancellationToken);
         if (entries.IsFailure)
         {
             return Result.Failure<AdComputerSearchResult>(entries.Error!);
         }
 
-        List<AdComputer> computers = [.. entries.Value
+        List<AdComputer> computers = [.. entries.Value.Entries
             .Select(entry => new AdComputer(
                 entry.GetFirstValue("name") ?? entry.DistinguishedName,
                 entry.GetFirstValue("dNSHostName"),
@@ -88,12 +90,11 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 ParseFileTime(entry.GetLong("lastLogonTimestamp"))))
             .OrderBy(computer => computer.Name, StringComparer.OrdinalIgnoreCase)];
 
-        int limit = resultLimit ?? _options.ComputerSearchLimit;
-        bool truncated = computers.Count > limit;
+        bool truncated = entries.Value.TotalCount > computers.Count;
         return Result.Success(new AdComputerSearchResult(
             true,
             context.Value.DomainName,
-            truncated ? computers[..limit] : computers,
+            computers,
             truncated));
     }
 

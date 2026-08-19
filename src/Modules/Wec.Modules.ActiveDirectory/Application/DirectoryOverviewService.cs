@@ -125,12 +125,13 @@ internal sealed partial class DirectoryOverviewService
         CancellationToken cancellationToken)
     {
         // Empty attribute list = entries only, no attribute payload
-        Result<IReadOnlyList<DirectoryEntryData>> entries = await _directoryReader.SearchAsync(
+        Result<BoundedDirectorySearchResult> entries = await _directoryReader.SearchBoundedAsync(
             BuildQuery(domainName, namingContext, ldapFilter, []),
+            entryLimit: 0,
             cancellationToken);
         return entries.IsFailure
             ? Result.Failure<int>(entries.Error!)
-            : Result.Success(entries.Value.Count);
+            : Result.Success(entries.Value.TotalCount);
     }
 
     private DirectorySearchQuery BuildQuery(

@@ -88,21 +88,24 @@ public sealed class DirectoryOverviewServiceTests
             .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([
                 Entry($"CN=DC01,OU=Domain Controllers,{NamingContext}", ("dNSHostName", "dc01.corp.example.com")),
             ]));
-        _directoryReader.SearchAsync(
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query =>
                     query.Attributes.Count == 0 && query.LdapFilter.Contains("objectClass=user")),
+                0,
                 Arg.Any<CancellationToken>())
             .Returns(
-                Result.Success<IReadOnlyList<DirectoryEntryData>>([Entry("CN=a"), Entry("CN=b"), Entry("CN=c")]),
-                Result.Success<IReadOnlyList<DirectoryEntryData>>([Entry("CN=disabled")]));
-        _directoryReader.SearchAsync(
+                Result.Success(new BoundedDirectorySearchResult(3, [])),
+                Result.Success(new BoundedDirectorySearchResult(1, [])));
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.LdapFilter == "(objectCategory=group)"),
+                0,
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([Entry("CN=g1"), Entry("CN=g2")]));
-        _directoryReader.SearchAsync(
+            .Returns(Result.Success(new BoundedDirectorySearchResult(2, [])));
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.LdapFilter == "(objectCategory=computer)"),
+                0,
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([Entry("CN=pc1")]));
+            .Returns(Result.Success(new BoundedDirectorySearchResult(1, [])));
 
         Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(DirectoryConnection.Default, CancellationToken.None);
 
@@ -159,7 +162,12 @@ public sealed class DirectoryOverviewServiceTests
         _directoryReader.SearchAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Failure<IReadOnlyList<DirectoryEntryData>>(new Error(
+            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([]));
+        _directoryReader.SearchBoundedAsync(
+                Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
+                0,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<BoundedDirectorySearchResult>(new Error(
                 ErrorCode.AccessDenied, "Read refused")));
 
         Result<AdOverviewResult> result = await CreateService().GetOverviewAsync(DirectoryConnection.Default, CancellationToken.None);

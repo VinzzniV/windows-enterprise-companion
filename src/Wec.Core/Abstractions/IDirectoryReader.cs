@@ -12,4 +12,18 @@ public interface IDirectoryReader
     Task<Result<IReadOnlyList<DirectoryEntryData>>> SearchAsync(
         DirectorySearchQuery query,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Counts every LDAP match while retaining at most <paramref name="entryLimit"/>
+    /// entries. This keeps overview and example queries exact without
+    /// materializing an entire directory on the client.
+    /// </summary>
+    Task<Result<BoundedDirectorySearchResult>> SearchBoundedAsync(
+        DirectorySearchQuery query,
+        int entryLimit,
+        CancellationToken cancellationToken);
 }
+
+public sealed record BoundedDirectorySearchResult(
+    int TotalCount,
+    IReadOnlyList<DirectoryEntryData> Entries);

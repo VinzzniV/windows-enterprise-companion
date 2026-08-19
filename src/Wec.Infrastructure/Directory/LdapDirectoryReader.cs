@@ -30,14 +30,33 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
         // S.DS.Protocols is synchronous; run off the caller thread (UI)
         Task.Run(() => ExecuteSearch(query), cancellationToken);
 
+    public Task<Result<BoundedDirectorySearchResult>> SearchBoundedAsync(
+        DirectorySearchQuery query,
+        int entryLimit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(entryLimit);
+        return Task.Run(() => ExecuteBoundedSearch(query, entryLimit), cancellationToken);
+    }
+
     private Result<IReadOnlyList<DirectoryEntryData>> ExecuteSearch(DirectorySearchQuery query)
+    {
+        Result<BoundedDirectorySearchResult> result = ExecuteBoundedSearch(query, int.MaxValue);
+        return result.IsFailure
+            ? Result.Failure<IReadOnlyList<DirectoryEntryData>>(result.Error!)
+            : Result.Success(result.Value.Entries);
+    }
+
+    private Result<BoundedDirectorySearchResult> ExecuteBoundedSearch(
+        DirectorySearchQuery query,
+        int entryLimit)
     {
         string connectionTarget = query.Server ?? query.DomainDnsName;
 
         Error? dnsError = ProbeDnsResolution(connectionTarget);
         if (dnsError is not null)
         {
-            return Result.Failure<IReadOnlyList<DirectoryEntryData>>(dnsError);
+            return Result.Failure<BoundedDirectorySearchResult>(dnsError);
         }
 
         try
@@ -68,13 +87,16 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
             var pageControl = new PageResultRequestControl(query.PageSize);
             request.Controls.Add(pageControl);
 
-            var entries = new List<DirectoryEntryData>();
+            var accumulator = new BoundedDirectoryResultAccumulator(entryLimit);
             while (true)
             {
                 var response = (SearchResponse)connection.SendRequest(request, query.TimeLimit);
                 foreach (SearchResultEntry entry in response.Entries)
                 {
-                    entries.Add(ToEntryData(entry));
+                    if (accumulator.CountAndShouldRetain())
+                    {
+                        accumulator.Retain(ToEntryData(entry));
+                    }
                 }
 
                 PageResultResponseControl? pageResponse = response.Controls
@@ -88,15 +110,20 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
                 pageControl.Cookie = pageResponse.Cookie;
             }
 
-            LogSearchCompleted(entries.Count, query.LdapFilter, connectionTarget);
-            return Result.Success<IReadOnlyList<DirectoryEntryData>>(entries);
+            BoundedDirectorySearchResult result = accumulator.Build();
+            LogSearchCompleted(
+                result.TotalCount,
+                result.Entries.Count,
+                query.LdapFilter,
+                connectionTarget);
+            return Result.Success(result);
         }
         catch (LdapException exception)
         {
             Error error = LdapErrorMapper.MapLdapException(exception.ErrorCode, exception.Message, connectionTarget);
             _logger.LogWarning(
                 exception, "Directory search failed with {ErrorCode}: {LdapFilter}", error.Code, query.LdapFilter);
-            return Result.Failure<IReadOnlyList<DirectoryEntryData>>(error);
+            return Result.Failure<BoundedDirectorySearchResult>(error);
         }
         catch (DirectoryOperationException exception)
         {
@@ -104,7 +131,7 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
                 exception.Response?.ResultCode, exception.Message, connectionTarget);
             _logger.LogWarning(
                 exception, "Directory search failed with {ErrorCode}: {LdapFilter}", error.Code, query.LdapFilter);
-            return Result.Failure<IReadOnlyList<DirectoryEntryData>>(error);
+            return Result.Failure<BoundedDirectorySearchResult>(error);
         }
     }
 
@@ -185,6 +212,42 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
 
     [LoggerMessage(
         Level = LogLevel.Debug,
-        Message = "Directory search returned {EntryCount} entries for {LdapFilter} against {DomainDnsName}")]
-    private partial void LogSearchCompleted(int entryCount, string ldapFilter, string domainDnsName);
+        Message = "Directory search counted {TotalCount} entries and retained {RetainedCount} for {LdapFilter} against {DomainDnsName}")]
+    private partial void LogSearchCompleted(
+        int totalCount,
+        int retainedCount,
+        string ldapFilter,
+        string domainDnsName);
+}
+
+internal sealed class BoundedDirectoryResultAccumulator
+{
+    private readonly int _entryLimit;
+    private readonly List<DirectoryEntryData> _entries;
+    private int _totalCount;
+
+    public BoundedDirectoryResultAccumulator(int entryLimit)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(entryLimit);
+        _entryLimit = entryLimit;
+        _entries = new List<DirectoryEntryData>(Math.Min(entryLimit, 1_024));
+    }
+
+    public bool CountAndShouldRetain()
+    {
+        _totalCount = checked(_totalCount + 1);
+        return _entries.Count < _entryLimit;
+    }
+
+    public void Retain(DirectoryEntryData entry)
+    {
+        if (_entries.Count >= _entryLimit)
+        {
+            throw new InvalidOperationException("The bounded LDAP entry limit has already been reached.");
+        }
+
+        _entries.Add(entry);
+    }
+
+    public BoundedDirectorySearchResult Build() => new(_totalCount, _entries);
 }

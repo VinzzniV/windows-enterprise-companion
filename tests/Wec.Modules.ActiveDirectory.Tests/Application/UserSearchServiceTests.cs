@@ -56,11 +56,13 @@ public sealed class UserSearchServiceTests
     public async Task Search_UsesTheOuAsSearchBaseAndMapsUsersWithGroups()
     {
         SetUpDomainJoined();
-        _directoryReader.SearchAsync(
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query =>
                     query.Scope == DirectorySearchScope.Subtree && query.BaseDistinguishedName == ItOu),
+                500,
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([
+            .Returns(Result.Success(new BoundedDirectorySearchResult(2,
+            [
                 Entry($"CN=Max Muster,{ItOu}", new Dictionary<string, IReadOnlyList<string>>
                 {
                     ["displayName"] = ["Max Muster"],
@@ -74,7 +76,7 @@ public sealed class UserSearchServiceTests
                     ["sAMAccountName"] = ["a.account"],
                     ["userAccountControl"] = ["514"],
                 }),
-            ]));
+            ])));
 
         Result<AdUserSearchResult> result = await CreateService()
             .SearchAsync(DirectoryConnection.Default, ItOu, includeDisabled: true, CancellationToken.None);
@@ -98,19 +100,21 @@ public sealed class UserSearchServiceTests
     public async Task Search_WithoutBaseDn_FallsBackToTheNamingContext()
     {
         SetUpDomainJoined();
-        _directoryReader.SearchAsync(
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
+                500,
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([]));
+            .Returns(Result.Success(new BoundedDirectorySearchResult(0, [])));
 
         Result<AdUserSearchResult> result = await CreateService()
             .SearchAsync(DirectoryConnection.Default, null, includeDisabled: false, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(NamingContext, result.Value.BaseDistinguishedName);
-        await _directoryReader.Received(1).SearchAsync(
+        await _directoryReader.Received(1).SearchBoundedAsync(
             Arg.Is<DirectorySearchQuery>(query =>
                 query.BaseDistinguishedName == NamingContext && query.LdapFilter == AdFilters.EnabledUsers),
+            500,
             Arg.Any<CancellationToken>());
     }
 
@@ -118,14 +122,15 @@ public sealed class UserSearchServiceTests
     public async Task Search_TruncatesToTheConfiguredLimit()
     {
         SetUpDomainJoined();
-        _directoryReader.SearchAsync(
+        _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
+                2,
                 Arg.Any<CancellationToken>())
-            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([
+            .Returns(Result.Success(new BoundedDirectorySearchResult(3,
+            [
                 Entry("CN=A", new Dictionary<string, IReadOnlyList<string>> { ["sAMAccountName"] = ["a"] }),
                 Entry("CN=B", new Dictionary<string, IReadOnlyList<string>> { ["sAMAccountName"] = ["b"] }),
-                Entry("CN=C", new Dictionary<string, IReadOnlyList<string>> { ["sAMAccountName"] = ["c"] }),
-            ]));
+            ])));
 
         Result<AdUserSearchResult> result = await CreateService(userSearchLimit: 2)
             .SearchAsync(DirectoryConnection.Default, ItOu, includeDisabled: true, CancellationToken.None);

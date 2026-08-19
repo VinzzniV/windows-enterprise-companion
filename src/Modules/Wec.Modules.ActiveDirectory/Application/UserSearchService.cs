@@ -62,7 +62,7 @@ internal sealed class UserSearchService
             ? context.Value.DefaultNamingContext!
             : baseDistinguishedName.Trim();
 
-        Result<IReadOnlyList<DirectoryEntryData>> entries = await _directoryReader.SearchAsync(
+        Result<BoundedDirectorySearchResult> entries = await _directoryReader.SearchBoundedAsync(
             new DirectorySearchQuery(
                 context.Value.DomainName!,
                 baseDn,
@@ -73,13 +73,14 @@ internal sealed class UserSearchService
                 _options.SearchTimeout,
                 connection.Server,
                 connection.Credentials),
+            _options.UserSearchLimit,
             cancellationToken);
         if (entries.IsFailure)
         {
             return Result.Failure<AdUserSearchResult>(entries.Error!);
         }
 
-        List<AdUser> users = [.. entries.Value
+        List<AdUser> users = [.. entries.Value.Entries
             .Select(entry => new AdUser(
                 entry.GetFirstValue("displayName") ?? entry.GetFirstValue("sAMAccountName") ?? entry.DistinguishedName,
                 entry.GetFirstValue("sAMAccountName"),
@@ -91,12 +92,12 @@ internal sealed class UserSearchService
                     .OrderBy(group => group, StringComparer.OrdinalIgnoreCase)]))
             .OrderBy(user => user.Name, StringComparer.OrdinalIgnoreCase)];
 
-        bool truncated = users.Count > _options.UserSearchLimit;
+        bool truncated = entries.Value.TotalCount > users.Count;
         return Result.Success(new AdUserSearchResult(
             true,
             context.Value.DomainName,
             baseDn,
-            truncated ? users[.._options.UserSearchLimit] : users,
+            users,
             truncated));
     }
 

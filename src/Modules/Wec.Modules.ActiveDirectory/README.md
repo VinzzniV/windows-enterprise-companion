@@ -38,8 +38,11 @@ rejected as `INVALID_REQUEST` naming the accepted forms.
   `AUTHENTICATION_FAILED` (LDAP bind rejected), `DIRECTORY_UNAVAILABLE`
   with a DC-down/firewall explanation, `CONNECTION_TIMEOUT`, `NOT_FOUND`
   (naming context missing) and `ACCESS_DENIED` (read refused).
-- Counts use paged searches with an empty attribute list (RFC 4511 `1.1`),
-  so no attribute payload crosses the wire.
+- Counts use paged searches with an empty attribute list (RFC 4511 `1.1`).
+  The provider counts all server pages but retains no entries for count-only
+  queries. Hygiene and interactive searches retain only their configured
+  example/result limit, so a large directory is never fully materialized in
+  the client.
 - Hygiene rules report **exact counts** with **bounded example lists**
   (`ExampleLimit`); privileged groups are resolved by well-known SID
   (Domain/Enterprise/Schema Admins RIDs 512/519/518, Builtin Administrators
@@ -64,4 +67,7 @@ rejected as `INVALID_REQUEST` naming the accepted forms.
 ## Tests
 
 `tests/Wec.Modules.ActiveDirectory.Tests` — the directory seam and WMI are
-mocked; no test touches a real domain.
+mocked; no automated test touches a real domain. The infrastructure suite
+contains a 25,000-entry paged fixture that verifies exact counts with bounded
+materialization. Use the optional [Active Directory lab runbook](../../../docs/active-directory-lab.md)
+for workgroup, domain, credentials, paging, and large-directory smoke checks.
