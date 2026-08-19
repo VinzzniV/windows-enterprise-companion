@@ -190,7 +190,8 @@ public class DnsServerReachabilityDiagnosticTests
     private void SetUpDnsServers(params string[] servers) =>
         _networkInfoProvider.GetActiveAdapters().Returns(Result.Success<IReadOnlyList<NetworkAdapterInfo>>(
         [
-            new NetworkAdapterInfo("Ethernet", "Intel", [], [], [.. servers]),
+            new NetworkAdapterInfo(
+                "Ethernet", "Intel", [new Ipv4AddressInfo("10.0.0.5", 24)], [], [.. servers]),
         ]));
 
     [Fact]
@@ -322,6 +323,9 @@ public class NetworkAdapterClassificationTests
     [InlineData("vEthernet (Default Switch)", "Hyper-V Virtual Ethernet Adapter")]
     [InlineData("Ethernet 2", "VMware Virtual Ethernet Adapter for VMnet8")]
     [InlineData("wg0", "WireGuard Tunnel")]
+    [InlineData("Npcap Loopback Adapter", "Npcap Packet Driver")]
+    [InlineData("Ethernet QoS", "Microsoft QoS Packet Scheduler")]
+    [InlineData("WFP Adapter", "Windows Filtering Platform filter")]
     public void VirtualAdapters_AreClassifiedAsVirtual(string name, string description)
     {
         Assert.True(NetworkConfigurationDiagnostic.IsVirtualAdapter(Adapter(name, description)));
@@ -336,7 +340,7 @@ public class NetworkAdapterClassificationTests
     }
 
     [Fact]
-    public async Task VirtualAdaptersNextToPhysical_GetASeparateSecondaryResult()
+    public async Task FilterAdaptersNextToRelevantAdapter_AreCollapsedIntoSecondaryEvidence()
     {
         var networkInfoProvider = Substitute.For<INetworkInfoProvider>();
         networkInfoProvider.GetActiveAdapters().Returns(Result.Success<IReadOnlyList<NetworkAdapterInfo>>(
@@ -350,11 +354,32 @@ public class NetworkAdapterClassificationTests
 
         IReadOnlyList<DiagnosticResult> results = await diagnostic.EvaluateAsync(DiagnosticContext.Local, CancellationToken.None);
 
-        Assert.Equal(2, results.Count);
-        Assert.Equal(DiagnosticStatus.Pass, results[0].Status);
-        Assert.Contains("MAC: AA:BB:CC:DD:EE:FF", results[0].Evidence["adapter: Ethernet"], StringComparison.Ordinal);
-        Assert.Contains("1000 Mbit/s", results[0].Evidence["adapter: Ethernet"], StringComparison.Ordinal);
-        Assert.Contains("DHCP", results[0].Evidence["adapter: Ethernet"], StringComparison.Ordinal);
-        Assert.Equal("Virtual network adapters", results[1].AffectedResource);
+        DiagnosticResult result = Assert.Single(results);
+        Assert.Equal(DiagnosticStatus.Pass, result.Status);
+        Assert.Contains("MAC: AA:BB:CC:DD:EE:FF", result.Evidence["adapter: Ethernet"], StringComparison.Ordinal);
+        Assert.Contains("1000 Mbit/s", result.Evidence["adapter: Ethernet"], StringComparison.Ordinal);
+        Assert.Contains("DHCP", result.Evidence["adapter: Ethernet"], StringComparison.Ordinal);
+        Assert.Equal("1", result.Evidence["secondaryAdapterCount"]);
+        Assert.Contains("vEthernet (WSL)", result.Evidence["secondaryAdapters"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PreferredRoutedVpn_RemainsRelevantDespiteVirtualMarker()
+    {
+        var networkInfoProvider = Substitute.For<INetworkInfoProvider>();
+        networkInfoProvider.GetActiveAdapters().Returns(Result.Success<IReadOnlyList<NetworkAdapterInfo>>(
+        [
+            new NetworkAdapterInfo(
+                "WireGuard", "WireGuard Tunnel", [new Ipv4AddressInfo("10.8.0.2", 24)],
+                ["10.8.0.1"], ["10.8.0.1"], InterfaceIndex: 42, IsPreferredRoute: true),
+        ]));
+        var diagnostic = new NetworkConfigurationDiagnostic(networkInfoProvider, DiagnosticsTestSetup.Clock());
+
+        DiagnosticResult result = Assert.Single(
+            await diagnostic.EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Pass, result.Status);
+        Assert.Contains("adapter: WireGuard", result.Evidence.Keys);
+        Assert.Equal("0", result.Evidence["secondaryAdapterCount"]);
     }
 }

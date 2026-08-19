@@ -5,14 +5,6 @@ namespace Wec.Modules.Diagnostics.Application.Diagnostics;
 
 internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
 {
-    // Virtualization/VPN/filter adapters that would otherwise drown out the
-    // physical adapters in the result list
-    private static readonly string[] VirtualAdapterMarkers =
-    [
-        "virtual", "vethernet", "hyper-v", "vmware", "virtualbox", "tap-", "tap ",
-        "wintun", "wireguard", "openvpn", "loopback", "npcap", "bluetooth",
-    ];
-
     private readonly INetworkInfoProvider _networkInfoProvider;
     private readonly IClock _clock;
 
@@ -51,16 +43,14 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
                 capturedAtUtc)]);
         }
 
-        List<NetworkAdapterInfo> physicalAdapters = adaptersResult.Value
-            .Where(adapter => !IsVirtualAdapter(adapter))
-            .ToList();
-        List<NetworkAdapterInfo> virtualAdapters = adaptersResult.Value
-            .Where(IsVirtualAdapter)
-            .ToList();
+        IReadOnlyList<NetworkAdapterInfo> relevantAdapters =
+            NetworkAdapterSelection.RelevantAdapters(adaptersResult.Value);
+        IReadOnlyList<NetworkAdapterInfo> secondaryAdapters =
+            NetworkAdapterSelection.SecondaryAdapters(adaptersResult.Value);
 
         var results = new List<DiagnosticResult>();
 
-        if (physicalAdapters.Count == 0 && virtualAdapters.Count == 0)
+        if (adaptersResult.Value.Count == 0)
         {
             results.Add(BuildResult(
                 DiagnosticStatus.Fail,
@@ -76,21 +66,43 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
             return Task.FromResult<IReadOnlyList<DiagnosticResult>>(results);
         }
 
-        // A machine that only has virtual adapters up still needs a visible
-        // primary result — fall back to evaluating those
-        List<NetworkAdapterInfo> primaryAdapters = physicalAdapters.Count > 0 ? physicalAdapters : virtualAdapters;
+        if (relevantAdapters.Count == 0)
+        {
+            results.Add(BuildResult(
+                DiagnosticStatus.Warning,
+                "No relevant IP-capable network adapter was identified",
+                "Network adapters",
+                new Dictionary<string, string>
+                {
+                    ["activeAdapterCount"] = adaptersResult.Value.Count.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture),
+                    ["secondaryAdapters"] = DescribeSecondaryAdapters(secondaryAdapters),
+                },
+                [
+                    "Check whether the expected Ethernet, Wi-Fi, or routed VPN adapter has a usable IPv4 address.",
+                    "Review filter and virtual adapters only after confirming the primary network path.",
+                ],
+                capturedAtUtc));
+            return Task.FromResult<IReadOnlyList<DiagnosticResult>>(results);
+        }
 
         var evidence = new Dictionary<string, string>
         {
-            ["activeAdapters"] = primaryAdapters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["relevantAdapters"] = relevantAdapters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["secondaryAdapterCount"] = secondaryAdapters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
         };
-        foreach (NetworkAdapterInfo adapter in primaryAdapters)
+        foreach (NetworkAdapterInfo adapter in relevantAdapters)
         {
             evidence[$"adapter: {adapter.Name}"] = DescribeAdapter(adapter);
         }
 
-        bool anyGateway = primaryAdapters.Any(adapter => adapter.GatewayAddresses.Count > 0);
-        bool anyDnsServer = primaryAdapters.Any(adapter => adapter.DnsServers.Count > 0);
+        if (secondaryAdapters.Count > 0)
+        {
+            evidence["secondaryAdapters"] = DescribeSecondaryAdapters(secondaryAdapters);
+        }
+
+        bool anyGateway = NetworkAdapterSelection.SelectGateway(relevantAdapters) is not null;
+        bool anyDnsServer = relevantAdapters.Any(adapter => adapter.DnsServers.Count > 0);
 
         if (!anyGateway || !anyDnsServer)
         {
@@ -126,31 +138,11 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
                 capturedAtUtc));
         }
 
-        if (physicalAdapters.Count > 0 && virtualAdapters.Count > 0)
-        {
-            var virtualEvidence = new Dictionary<string, string>();
-            foreach (NetworkAdapterInfo adapter in virtualAdapters)
-            {
-                virtualEvidence[$"adapter: {adapter.Name}"] = DescribeAdapter(adapter);
-            }
-
-            results.Add(BuildResult(
-                DiagnosticStatus.Pass,
-                $"{virtualAdapters.Count} virtual/filter adapters are active",
-                "Virtual network adapters",
-                virtualEvidence,
-                [],
-                capturedAtUtc));
-        }
-
         return Task.FromResult<IReadOnlyList<DiagnosticResult>>(results);
     }
 
-    internal static bool IsVirtualAdapter(NetworkAdapterInfo adapter)
-    {
-        string haystack = $"{adapter.Name} {adapter.Description}".ToLowerInvariant();
-        return VirtualAdapterMarkers.Any(marker => haystack.Contains(marker, StringComparison.Ordinal));
-    }
+    internal static bool IsVirtualAdapter(NetworkAdapterInfo adapter) =>
+        NetworkAdapterSelection.IsSecondaryAdapter(adapter);
 
     private static string DescribeAdapter(NetworkAdapterInfo adapter)
     {
@@ -166,9 +158,22 @@ internal sealed class NetworkConfigurationDiagnostic : IDiagnostic
             false => "static",
             null => "—",
         };
+        string route = adapter.IsPreferredRoute switch
+        {
+            true => "preferred route",
+            false => "not preferred",
+            null => "route unknown",
+        };
         return $"{addresses} · GW: {JoinOrDash(adapter.GatewayAddresses)} · DNS: {JoinOrDash(adapter.DnsServers)}"
-            + $" · MAC: {adapter.MacAddress ?? "—"} · {linkSpeed} · {dhcp} · {adapter.InterfaceType ?? "—"}";
+            + $" · MAC: {adapter.MacAddress ?? "—"} · {linkSpeed} · {dhcp} · {adapter.InterfaceType ?? "—"}"
+            + $" · ifIndex {adapter.InterfaceIndex?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—"}"
+            + $" · {route}";
     }
+
+    private static string DescribeSecondaryAdapters(IReadOnlyList<NetworkAdapterInfo> adapters) =>
+        adapters.Count == 0
+            ? "(none)"
+            : string.Join("; ", adapters.Select(adapter => $"{adapter.Name} ({adapter.Description})"));
 
     private static string JoinOrDash(IReadOnlyList<string> values) =>
         values.Count > 0 ? string.Join(", ", values) : "—";

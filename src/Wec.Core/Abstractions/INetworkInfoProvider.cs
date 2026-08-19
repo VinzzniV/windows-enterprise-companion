@@ -13,7 +13,9 @@ public sealed record NetworkAdapterInfo(
     string? MacAddress = null,
     long? SpeedBitsPerSecond = null,
     bool? IsDhcpEnabled = null,
-    string? InterfaceType = null);
+    string? InterfaceType = null,
+    int? InterfaceIndex = null,
+    bool? IsPreferredRoute = null);
 
 public interface INetworkInfoProvider
 {

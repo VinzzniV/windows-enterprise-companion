@@ -31,12 +31,16 @@ internal static class TestDefaults
     public static NetworkAdapterInfo Adapter(
         string name = "Ethernet",
         string[]? gateways = null,
-        string[]? dnsServers = null) => new(
+        string[]? dnsServers = null,
+        bool? isPreferredRoute = null,
+        int? interfaceIndex = null) => new(
         name,
         $"{name} adapter",
         [new Ipv4AddressInfo("192.168.1.10", 24)],
         gateways ?? ["192.168.1.1"],
-        dnsServers ?? ["192.168.1.1"]);
+        dnsServers ?? ["192.168.1.1"],
+        InterfaceIndex: interfaceIndex,
+        IsPreferredRoute: isPreferredRoute);
 
     public static void SetUpAdapters(this INetworkInfoProvider provider, params NetworkAdapterInfo[] adapters) =>
         provider.GetActiveAdapters().Returns(Result.Success<IReadOnlyList<NetworkAdapterInfo>>(adapters));
@@ -122,6 +126,46 @@ public class GatewayReachabilityDiagnosticTests
         DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("2", result.Evidence["roundtripMs"]);
+    }
+
+    [Fact]
+    public async Task PreferredRouteAdapter_IsSelectedInsteadOfFirstGateway()
+    {
+        _provider.SetUpAdapters(
+            TestDefaults.Adapter(
+                name: "Filter Adapter",
+                gateways: ["fe80::1"],
+                isPreferredRoute: false,
+                interfaceIndex: 7),
+            TestDefaults.Adapter(
+                name: "Ethernet",
+                gateways: ["10.0.0.1"],
+                isPreferredRoute: true,
+                interfaceIndex: 12));
+        SetUpProbeReply(success: true, roundtripMs: 2, status: "Success");
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        await _pingProbe.Received(1).SendAsync("10.0.0.1", Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        Assert.Equal("Ethernet", result.Evidence["adapter"]);
+        Assert.Equal("12", result.Evidence["interfaceIndex"]);
+        Assert.Equal("Windows preferred IPv4 route", result.Evidence["selection"]);
+    }
+
+    [Fact]
+    public async Task Ipv4Gateway_IsPreferredWhenWindowsRouteIsUnavailable()
+    {
+        _provider.SetUpAdapters(
+            TestDefaults.Adapter(name: "Adapter A", gateways: ["fe80::1"]),
+            TestDefaults.Adapter(name: "Adapter B", gateways: ["192.168.50.1"]));
+        SetUpProbeReply(success: true, roundtripMs: 2, status: "Success");
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+
+        await _pingProbe.Received(1).SendAsync("192.168.50.1", Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        Assert.Contains("IPv4 gateway", result.Evidence["selection"], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -227,4 +271,31 @@ public class DiagnosticRunServiceTests
         Assert.Contains(run.Value.Results, result =>
             result.DiagnosticId == "HEALTHY" && result.Status == DiagnosticStatus.Pass);
     }
+
+    [Fact]
+    public async Task Results_AreOrderedFailWarningNotRunPass()
+    {
+        var diagnostic = Substitute.For<IDiagnostic>();
+        diagnostic.DiagnosticId.Returns("ORDER");
+        diagnostic.EvaluateAsync(Arg.Any<DiagnosticContext>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<DiagnosticResult>>(
+            [
+                Result("pass", DiagnosticStatus.Pass),
+                Result("not-run", DiagnosticStatus.NotRun),
+                Result("warning", DiagnosticStatus.Warning),
+                Result("fail", DiagnosticStatus.Fail),
+            ]));
+        var service = new DiagnosticRunService(
+            [diagnostic], TestDefaults.Clock(), NullLogger<DiagnosticRunService>.Instance);
+
+        Result<DiagnosticRunResult> run = await service.RunAsync(DiagnosticContext.Local, CancellationToken.None);
+
+        Assert.Equal(
+            [DiagnosticStatus.Fail, DiagnosticStatus.Warning, DiagnosticStatus.NotRun, DiagnosticStatus.Pass],
+            run.Value.Results.Select(result => result.Status));
+    }
+
+    private static DiagnosticResult Result(string id, DiagnosticStatus status) => new(
+        id, id, status, DiagnosticCategory.Network, id,
+        new Dictionary<string, string>(), [], null, TestDefaults.Now);
 }

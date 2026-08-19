@@ -53,11 +53,9 @@ internal sealed class GatewayReachabilityDiagnostic : IDiagnostic
                 capturedAtUtc)];
         }
 
-        string? gateway = adapters.Value
-            .SelectMany(adapter => adapter.GatewayAddresses)
-            .FirstOrDefault();
+        GatewaySelection? selection = NetworkAdapterSelection.SelectGateway(adapters.Value);
 
-        if (gateway is null)
+        if (selection is null)
         {
             return [BuildResult(
                 DiagnosticStatus.NotRun,
@@ -71,6 +69,16 @@ internal sealed class GatewayReachabilityDiagnostic : IDiagnostic
                 capturedAtUtc)];
         }
 
+        string gateway = selection.Gateway;
+        var gatewayEvidence = new Dictionary<string, string>
+        {
+            ["defaultGateway"] = gateway,
+            ["adapter"] = selection.Adapter.Name,
+            ["interfaceIndex"] = selection.Adapter.InterfaceIndex?.ToString(
+                System.Globalization.CultureInfo.InvariantCulture) ?? "(unknown)",
+            ["selection"] = selection.Reason,
+        };
+
         Result<PingProbeReply> probe = await _pingProbe.SendAsync(gateway, _options.ProbeTimeout, cancellationToken);
         capturedAtUtc = _clock.UtcNow;
 
@@ -81,9 +89,8 @@ internal sealed class GatewayReachabilityDiagnostic : IDiagnostic
                 DiagnosticStatus.Fail,
                 "Gateway reachability test could not be executed",
                 $"Default gateway {gateway}",
-                new Dictionary<string, string>
+                new Dictionary<string, string>(gatewayEvidence)
                 {
-                    ["defaultGateway"] = gateway,
                     ["errorCode"] = probe.Error!.Code.ToString(),
                     ["errorMessage"] = probe.Error.Message,
                     ["errorDetails"] = probe.Error.Details ?? "—",
@@ -101,9 +108,8 @@ internal sealed class GatewayReachabilityDiagnostic : IDiagnostic
                 DiagnosticStatus.Pass,
                 "Default gateway is reachable",
                 $"Default gateway {gateway}",
-                new Dictionary<string, string>
+                new Dictionary<string, string>(gatewayEvidence)
                 {
-                    ["defaultGateway"] = gateway,
                     ["roundtripMs"] = probe.Value.RoundtripMilliseconds.ToString(
                         System.Globalization.CultureInfo.InvariantCulture),
                     ["pingStatus"] = probe.Value.Status,
@@ -118,9 +124,8 @@ internal sealed class GatewayReachabilityDiagnostic : IDiagnostic
             DiagnosticStatus.Warning,
             "Default gateway did not answer the ping",
             $"Default gateway {gateway}",
-            new Dictionary<string, string>
+            new Dictionary<string, string>(gatewayEvidence)
             {
-                ["defaultGateway"] = gateway,
                 ["pingStatus"] = probe.Value.Status,
                 ["timeout"] = _options.ProbeTimeout.ToString(),
             },

@@ -19,8 +19,8 @@ when that client is opened again.
 
 | Category | DiagnosticId | What it checks | Remote |
 |---|---|---|---|
-| Network | `WEC-DIAG-NET-CONFIG` | Physical adapters (IP, gateway, DNS, MAC, link speed, DHCP/static, type); virtual/filter adapters in a secondary result | local perspective |
-| Network | `WEC-DIAG-NET-GATEWAY` | Default gateway ping | local perspective |
+| Network | `WEC-DIAG-NET-CONFIG` | Relevant routed/IP-capable adapters (IP, gateway, DNS, MAC, link speed, DHCP/static, type); virtual/filter/APIPA-only adapters remain collapsed secondary evidence | local perspective |
+| Network | `WEC-DIAG-NET-GATEWAY` | Gateway ping using the interface selected by the Windows route table; deterministic IPv4/relevant-adapter fallback when route selection is unavailable | local perspective |
 | DNS | `WEC-DIAG-NET-DNS` | Resolution of the configured probe hostname | local perspective |
 | DNS | `WEC-DIAG-DNS-SERVERS` | Ping of every configured DNS server (warning-only — ICMP is often filtered) | local perspective |
 | Domain | `WEC-DIAG-SYS-DOMAIN` | Domain/workgroup membership | yes (WMI) |
@@ -35,6 +35,12 @@ when that client is opened again.
 Statuses: `PASS`, `WARNING` (ran, negative), `FAIL` (broken), `NOT_RUN`
 (could not read — carries the error). A crashing diagnostic becomes a
 visible `FAIL` result; the run continues.
+
+Results and category sections are ordered `FAIL -> WARNING -> NOT_RUN -> PASS`.
+Suggested actions for every non-pass result are shown before raw evidence;
+successful evidence stays collapsed. Network adapter fixtures include captured
+Npcap, WFP, QoS, Hyper-V and routed VPN shapes so filter interfaces cannot
+silently become the primary network assessment.
 
 Time synchronization is `PASS` only when all required registry and WMI data
 was read and interpreted. Provider failures or incomplete service properties
