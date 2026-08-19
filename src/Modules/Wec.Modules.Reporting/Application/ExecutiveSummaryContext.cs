@@ -7,4 +7,5 @@ public sealed record ExecutiveSummaryContext(
     string AppVersion,
     DateTimeOffset GeneratedAtUtc,
     InventoryReportData? Inventory,
-    SecurityReportData? SecurityScan);
+    SecurityReportData? SecurityScan,
+    ReportReadiness Readiness);

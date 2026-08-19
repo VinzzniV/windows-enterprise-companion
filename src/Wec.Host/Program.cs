@@ -173,6 +173,15 @@ internal static partial class Program
             .ValidateOnStart();
 
         builder.Services
+            .AddOptions<ReportingOptions>()
+            .Bind(builder.Configuration.GetSection(ReportingOptions.SectionName))
+            .Validate(options => options.MaximumInventoryAge > TimeSpan.Zero,
+                "The Reporting inventory freshness window must be positive.")
+            .Validate(options => options.MaximumSecurityScanAge > TimeSpan.Zero,
+                "The Reporting Security freshness window must be positive.")
+            .ValidateOnStart();
+
+        builder.Services
             .AddOptions<ActiveDirectoryOptions>()
             .Bind(builder.Configuration.GetSection(ActiveDirectoryOptions.SectionName))
             .ValidateDataAnnotations()

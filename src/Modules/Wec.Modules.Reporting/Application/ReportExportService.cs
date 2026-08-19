@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
 using Wec.Core.Results;
@@ -14,7 +15,22 @@ public sealed record ReportOverview(
     DateTimeOffset? SecurityScanCompletedAtUtc,
     string? SecurityScanStatus,
     int? SecurityFindingCount,
-    SecurityCoverageReportData? SecurityCoverage);
+    SecurityCoverageReportData? SecurityCoverage,
+    ReportReadiness Readiness);
+
+public sealed record ReportSourceReadiness(
+    string Source,
+    string Provenance,
+    string State,
+    DateTimeOffset? CapturedAtUtc,
+    long? AgeSeconds,
+    bool IsComplete,
+    string Summary);
+
+public sealed record ReportReadiness(
+    DateTimeOffset EvaluatedAtUtc,
+    bool IsReady,
+    IReadOnlyList<ReportSourceReadiness> Sources);
 
 public sealed record ReportExportResult(bool Cancelled, string? FilePath);
 
@@ -30,6 +46,7 @@ internal sealed partial class ReportExportService
     private readonly ISaveFileDialogService _saveFileDialog;
     private readonly IShellLauncher _shellLauncher;
     private readonly IClock _clock;
+    private readonly ReportingOptions _options;
     private readonly ILogger<ReportExportService> _logger;
 
     public ReportExportService(
@@ -38,6 +55,7 @@ internal sealed partial class ReportExportService
         ISaveFileDialogService saveFileDialog,
         IShellLauncher shellLauncher,
         IClock clock,
+        IOptions<ReportingOptions> options,
         ILogger<ReportExportService> logger)
     {
         _inventoryProvider = inventoryProvider;
@@ -45,6 +63,7 @@ internal sealed partial class ReportExportService
         _saveFileDialog = saveFileDialog;
         _shellLauncher = shellLauncher;
         _clock = clock;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -52,13 +71,15 @@ internal sealed partial class ReportExportService
     {
         InventoryReportData? inventory = await _inventoryProvider.GetLatestAsync(host, cancellationToken);
         SecurityReportData? scan = await _securityProvider.GetLatestScanAsync(host, cancellationToken);
+        ReportReadiness readiness = BuildReadiness(inventory, scan, _clock.UtcNow);
 
         return Result.Success(new ReportOverview(
             inventory?.CapturedAtUtc,
             scan?.CompletedAtUtc,
             scan?.Status,
             scan?.Findings.Count,
-            scan?.Coverage));
+            scan?.Coverage,
+            readiness));
     }
 
     public Task<Result<ReportExportResult>> ExportHtmlAsync(
@@ -101,12 +122,14 @@ internal sealed partial class ReportExportService
         // null host = the local machine; otherwise the report is about the scanned client
         string subjectName = host is null ? Environment.MachineName : ScanTarget.Remote(host).DisplayName;
         DateTimeOffset generatedAtUtc = _clock.UtcNow;
+        ReportReadiness readiness = BuildReadiness(inventory, scan, generatedAtUtc);
         string content = renderContent(new ExecutiveSummaryContext(
             subjectName,
             ResolveAppVersion(),
             generatedAtUtc,
             inventory,
-            scan));
+            scan,
+            readiness));
 
         string suggestedFileName = string.Create(
             CultureInfo.InvariantCulture,
@@ -157,5 +180,113 @@ internal sealed partial class ReportExportService
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             ?? "unknown";
         return informationalVersion.Split('+')[0];
+    }
+
+    private ReportReadiness BuildReadiness(
+        InventoryReportData? inventory,
+        SecurityReportData? scan,
+        DateTimeOffset evaluatedAtUtc)
+    {
+        ReportSourceReadiness inventoryReadiness = SourceReadiness(
+            source: "Hardware inventory",
+            provenance: "Persisted WMI/CIM inventory snapshot",
+            capturedAtUtc: inventory?.CapturedAtUtc,
+            isComplete: inventory is not null,
+            maximumAge: _options.MaximumInventoryAge,
+            incompleteSummary: null,
+            evaluatedAtUtc);
+
+        bool securityComplete = scan is not null
+            && scan.Coverage.IsKnown
+            && scan.Coverage.IsComplete
+            && string.Equals(scan.Status, "Completed", StringComparison.Ordinal);
+        string? securityIncompleteSummary = scan is null || securityComplete
+            ? null
+            : !scan.Coverage.IsKnown
+                ? "Per-check coverage is unavailable; the scan cannot be treated as complete."
+                : $"Only {scan.Coverage.SucceededChecks} of {scan.Coverage.ApplicableChecks} applicable checks completed successfully.";
+        ReportSourceReadiness securityReadiness = SourceReadiness(
+            source: "Security posture",
+            provenance: "Persisted Security scan and per-check outcomes",
+            capturedAtUtc: scan?.CompletedAtUtc,
+            isComplete: securityComplete,
+            maximumAge: _options.MaximumSecurityScanAge,
+            incompleteSummary: securityIncompleteSummary,
+            evaluatedAtUtc);
+
+        ReportSourceReadiness[] sources = [inventoryReadiness, securityReadiness];
+        return new ReportReadiness(
+            evaluatedAtUtc,
+            sources.All(source => string.Equals(source.State, "READY", StringComparison.Ordinal)),
+            sources);
+    }
+
+    private static ReportSourceReadiness SourceReadiness(
+        string source,
+        string provenance,
+        DateTimeOffset? capturedAtUtc,
+        bool isComplete,
+        TimeSpan maximumAge,
+        string? incompleteSummary,
+        DateTimeOffset evaluatedAtUtc)
+    {
+        if (capturedAtUtc is null)
+        {
+            return new ReportSourceReadiness(
+                source,
+                provenance,
+                "MISSING",
+                null,
+                null,
+                IsComplete: false,
+                $"No {source.ToLowerInvariant()} data is available.");
+        }
+
+        TimeSpan age = evaluatedAtUtc - capturedAtUtc.Value;
+        if (age < TimeSpan.Zero)
+        {
+            return new ReportSourceReadiness(
+                source,
+                provenance,
+                "INCOMPLETE",
+                capturedAtUtc,
+                null,
+                IsComplete: false,
+                "The source timestamp is in the future relative to report generation; data age cannot be trusted.");
+        }
+
+        long ageSeconds = (long)age.TotalSeconds;
+        if (!isComplete)
+        {
+            return new ReportSourceReadiness(
+                source,
+                provenance,
+                "INCOMPLETE",
+                capturedAtUtc,
+                ageSeconds,
+                IsComplete: false,
+                incompleteSummary ?? $"The {source.ToLowerInvariant()} data is incomplete.");
+        }
+
+        if (age > maximumAge)
+        {
+            return new ReportSourceReadiness(
+                source,
+                provenance,
+                "STALE",
+                capturedAtUtc,
+                ageSeconds,
+                IsComplete: true,
+                $"The data is older than the configured {maximumAge.TotalHours:0.#}-hour freshness window.");
+        }
+
+        return new ReportSourceReadiness(
+            source,
+            provenance,
+            "READY",
+            capturedAtUtc,
+            ageSeconds,
+            IsComplete: true,
+            "Available, complete, and within the configured freshness window.");
     }
 }

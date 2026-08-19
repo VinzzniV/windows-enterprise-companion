@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
@@ -42,6 +43,7 @@ public sealed class ReportExportServiceTests : IDisposable
             _saveFileDialog,
             _shellLauncher,
             clock,
+            Options.Create(new ReportingOptions()),
             NullLogger<ReportExportService>.Instance);
     }
 
@@ -141,6 +143,65 @@ public sealed class ReportExportServiceTests : IDisposable
         Assert.Equal(Now, overview.Value.InventoryCapturedAtUtc);
         Assert.Null(overview.Value.SecurityScanCompletedAtUtc);
         Assert.Null(overview.Value.SecurityCoverage);
+        Assert.False(overview.Value.Readiness.IsReady);
+        Assert.Equal("READY", overview.Value.Readiness.Sources[0].State);
+        Assert.Equal("MISSING", overview.Value.Readiness.Sources[1].State);
+    }
+
+    [Fact]
+    public async Task Overview_ReportsStaleAndIncompleteSourcesWithoutGuessingReadiness()
+    {
+        SecurityCoverageReportData incompleteCoverage = new(
+            true, false, 2, 2, 1, 1, 0, 0);
+        _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(
+            new InventoryReportData(
+                Now.AddDays(-2),
+                new CpuReportData("CPU", 8, 16, 4000),
+                [],
+                [],
+                new OperatingSystemReportData("Windows 11", "10.0", "26200", "64-Bit")));
+        _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(
+            new SecurityReportData(Now.AddMinutes(-5), "CompletedWithErrors", [], incompleteCoverage, []));
+
+        Result<ReportOverview> overview = await CreateService().GetOverviewAsync(null, CancellationToken.None);
+
+        Assert.False(overview.Value.Readiness.IsReady);
+        Assert.Collection(
+            overview.Value.Readiness.Sources,
+            inventory =>
+            {
+                Assert.Equal("STALE", inventory.State);
+                Assert.Equal(172800, inventory.AgeSeconds);
+                Assert.True(inventory.IsComplete);
+            },
+            security =>
+            {
+                Assert.Equal("INCOMPLETE", security.State);
+                Assert.Equal(300, security.AgeSeconds);
+                Assert.False(security.IsComplete);
+            });
+    }
+
+    [Fact]
+    public async Task Overview_FutureTimestamp_IsIncompleteInsteadOfSilentlyClampingAge()
+    {
+        _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(
+            new InventoryReportData(
+                Now.AddMinutes(5),
+                new CpuReportData("CPU", 8, 16, 4000),
+                [],
+                [],
+                new OperatingSystemReportData("Windows 11", "10.0", "26200", "64-Bit")));
+        _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(
+            new SecurityReportData(Now, "Completed", [], CompleteCoverage(), []));
+
+        Result<ReportOverview> overview = await CreateService().GetOverviewAsync(null, CancellationToken.None);
+
+        ReportSourceReadiness inventory = overview.Value.Readiness.Sources[0];
+        Assert.Equal("INCOMPLETE", inventory.State);
+        Assert.Null(inventory.AgeSeconds);
+        Assert.Contains("future", inventory.Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.False(overview.Value.Readiness.IsReady);
     }
 
     [Fact]

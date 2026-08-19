@@ -43,7 +43,35 @@ public class ExecutiveSummaryHtmlGeneratorTests
 
     private static ExecutiveSummaryContext Context(
         InventoryReportData? inventory,
-        SecurityReportData? scan) => new("TESTHOST", "0.1.0", GeneratedAt, inventory, scan);
+        SecurityReportData? scan) => new(
+            "TESTHOST",
+            "0.1.0",
+            GeneratedAt,
+            inventory,
+            scan,
+            Readiness(inventory, scan));
+
+    private static ReportReadiness Readiness(InventoryReportData? inventory, SecurityReportData? scan) => new(
+        GeneratedAt,
+        inventory is not null && scan is not null && scan.Coverage.IsComplete,
+        [
+            new ReportSourceReadiness(
+                "Hardware inventory",
+                "Persisted WMI/CIM inventory snapshot",
+                inventory is null ? "MISSING" : "READY",
+                inventory?.CapturedAtUtc,
+                inventory is null ? null : 1800,
+                inventory is not null,
+                inventory is null ? "No inventory data is available." : "Available and current."),
+            new ReportSourceReadiness(
+                "Security posture",
+                "Persisted Security scan and per-check outcomes",
+                scan is null ? "MISSING" : scan.Coverage.IsComplete ? "READY" : "INCOMPLETE",
+                scan?.CompletedAtUtc,
+                scan is null ? null : 600,
+                scan?.Coverage.IsComplete == true,
+                scan is null ? "No Security data is available." : "Coverage assessment."),
+        ]);
 
     [Fact]
     public void Generate_IsDeterministicForIdenticalInput()
@@ -65,6 +93,8 @@ public class ExecutiveSummaryHtmlGeneratorTests
         Assert.Contains("931.5 GB", html, StringComparison.Ordinal);
         Assert.Contains("2026-07-02 18:00 UTC", html, StringComparison.Ordinal);
         Assert.Contains("1 findings", html, StringComparison.Ordinal);
+        Assert.Contains("Report readiness", html, StringComparison.Ordinal);
+        Assert.Contains("Persisted WMI/CIM inventory snapshot", html, StringComparison.Ordinal);
     }
 
     [Fact]

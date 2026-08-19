@@ -11,6 +11,7 @@ import { Spinner } from '../../shared/ui/Spinner';
 import { Button } from '../../shared/ui/Button';
 import { ErrorState } from '../../shared/ui/States';
 import { Checkbox } from '../../shared/ui/Checkbox';
+import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 type OverviewState =
   | { kind: 'loading' }
@@ -26,6 +27,22 @@ type ExportState =
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export function formatDataAge(ageSeconds: number | null): string {
+  if (ageSeconds === null) return 'Unavailable';
+  const minutes = Math.floor(Math.max(0, ageSeconds) / 60);
+  const days = Math.floor(minutes / (24 * 60));
+  const hours = Math.floor((minutes % (24 * 60)) / 60);
+  if (days > 0) return `${days}d ${hours}h old`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m old`;
+  return `${minutes}m old`;
+}
+
+function readinessVariant(state: ReportOverview['readiness']['sources'][number]['state']) {
+  if (state === 'READY') return 'success' as const;
+  if (state === 'MISSING') return 'neutral' as const;
+  return 'warning' as const;
 }
 
 /**
@@ -79,6 +96,40 @@ export function ReportingSection({ host }: { host: string | null }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <Card title="Report readiness">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <StatusBadge variant={overview.readiness.isReady ? 'success' : 'warning'}>
+              {overview.readiness.isReady ? 'READY' : 'REFRESH REQUIRED'}
+            </StatusBadge>
+            <p className="text-sm text-slate-300">
+              {overview.readiness.isReady
+                ? 'All report sources are current and complete.'
+                : 'One or more report sources are missing, stale, or incomplete.'}
+            </p>
+          </div>
+          <ul className="grid gap-2 xl:grid-cols-2">
+            {overview.readiness.sources.map((source) => (
+              <li key={source.source} className="rounded border border-slate-800 bg-slate-950/40 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-slate-200">{source.source}</span>
+                  <StatusBadge variant={readinessVariant(source.state)}>{source.state}</StatusBadge>
+                </div>
+                <p className="mt-1 text-sm text-slate-300">{source.summary}</p>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 text-xs text-slate-400">
+                  <dt>Age</dt>
+                  <dd>{formatDataAge(source.ageSeconds)}</dd>
+                  <dt>Captured</dt>
+                  <dd>{source.capturedAtUtc ? new Date(source.capturedAtUtc).toLocaleString() : 'Unavailable'}</dd>
+                  <dt>Provenance</dt>
+                  <dd>{source.provenance}</dd>
+                </dl>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Card>
+
       <Card title={`Included data — ${subject}`}>
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
           <dt className="text-slate-400">Hardware inventory</dt>
@@ -150,6 +201,11 @@ export function ReportingSection({ host }: { host: string | null }) {
           {!hasAnyData && (
             <p className="text-sm text-slate-400">
               Nothing to export yet — capture inventory data or run a security scan for {subject} first.
+            </p>
+          )}
+          {hasAnyData && !overview.readiness.isReady && (
+            <p className="text-sm text-warn-400">
+              Export remains available, but the report will record that its source data is not ready.
             </p>
           )}
           {exportState.kind === 'exported' && (

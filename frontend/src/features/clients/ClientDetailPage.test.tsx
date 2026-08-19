@@ -39,6 +39,7 @@ describe('ClientDetailPage', () => {
           isElevated: false,
           maxParallelScans: 4,
           machineName: 'WEC-HOST',
+          runtimeProfile: 'test',
         });
       }
       if (module === 'inventory' && action === 'getHardwareInfo') {
@@ -69,6 +70,15 @@ describe('ClientDetailPage', () => {
           securityScanCompletedAtUtc: null,
           securityScanStatus: null,
           securityFindingCount: null,
+          securityCoverage: null,
+          readiness: {
+            evaluatedAtUtc: '2026-08-18T08:00:00Z',
+            isReady: false,
+            sources: [
+              { source: 'Hardware inventory', provenance: 'Persisted snapshot', state: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, summary: 'No inventory data is available.' },
+              { source: 'Security posture', provenance: 'Persisted scan', state: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, summary: 'No Security data is available.' },
+            ],
+          },
         });
       }
       return Promise.resolve({ targets: [] });
