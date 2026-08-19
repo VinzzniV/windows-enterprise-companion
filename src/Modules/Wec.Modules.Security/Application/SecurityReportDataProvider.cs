@@ -26,6 +26,7 @@ internal sealed class SecurityReportDataProvider : ISecurityReportDataProvider
             return null;
         }
 
+        SecurityCoverage coverage = scan.Coverage;
         return new SecurityReportData(
             scan.CompletedAtUtc,
             scan.Status.ToString(),
@@ -40,6 +41,26 @@ internal sealed class SecurityReportDataProvider : ISecurityReportDataProvider
                     finding.AffectedResource,
                     finding.Recommendation,
                     finding.RequiredPrivilege?.ToString()))
+                .ToList(),
+            new SecurityCoverageReportData(
+                coverage.IsKnown,
+                coverage.IsComplete,
+                coverage.TotalChecks,
+                coverage.ApplicableChecks,
+                coverage.SucceededChecks,
+                coverage.FailedChecks,
+                coverage.RequiresElevationChecks,
+                coverage.NotApplicableChecks),
+            scan.CheckResults
+                .Select(result => new SecurityCheckReportData(
+                    result.CheckId,
+                    result.Status.ToString(),
+                    result.Failure is null
+                        ? null
+                        : new SecurityCheckFailureReportData(
+                            result.Failure.Code.ToString(),
+                            result.Failure.Message,
+                            result.Failure.RequiredPrivilege?.ToString())))
                 .ToList());
     }
 }

@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { LatestScanResult, SecurityFinding } from '../../shared/api-types';
+import type {
+  LatestScanResult,
+  SecurityCheckResult,
+  SecurityCoverage,
+  SecurityFinding,
+} from '../../shared/api-types';
 import { SecurityPage } from './SecurityPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
@@ -27,6 +32,30 @@ function finding(overrides: Partial<SecurityFinding>): SecurityFinding {
   };
 }
 
+function coverage(overrides: Partial<SecurityCoverage> = {}): SecurityCoverage {
+  return {
+    isKnown: true,
+    totalChecks: 2,
+    succeededChecks: 2,
+    failedChecks: 0,
+    requiresElevationChecks: 0,
+    notApplicableChecks: 0,
+    applicableChecks: 2,
+    isComplete: true,
+    ...overrides,
+  };
+}
+
+function checkResult(overrides: Partial<SecurityCheckResult> = {}): SecurityCheckResult {
+  return {
+    checkId: 'TEST-CHECK',
+    status: 'SUCCEEDED',
+    findings: [],
+    failure: null,
+    ...overrides,
+  };
+}
+
 const latestScan: LatestScanResult = {
   scan: {
     scanId: 1,
@@ -38,6 +67,9 @@ const latestScan: LatestScanResult = {
       finding({ findingId: 'F-HIGH', title: 'Firewall disabled', severity: 'HIGH' }),
       finding({ findingId: 'F-INFO', title: 'Admins documented', severity: 'INFO', category: 'ACCOUNTS' }),
     ],
+    checkResults: [checkResult({ checkId: 'CHECK-A' }), checkResult({ checkId: 'CHECK-B' })],
+    coverageVersion: 1,
+    coverage: coverage(),
   },
 };
 
@@ -108,27 +140,66 @@ describe('SecurityPage', () => {
     expect(await screen.findByText('No scan yet')).toBeDefined();
   });
 
-  it('separates local-only coverage notes from real findings', async () => {
+  it('shows failed check outcomes separately from observed findings', async () => {
     setUpInvoke({
       scan: {
         ...latestScan.scan!,
-        findings: [
-          finding({ findingId: 'F-HIGH', title: 'Firewall disabled', severity: 'HIGH' }),
-          finding({
-            findingId: 'WEC-SEC-UAC-LOCAL-ONLY',
-            title: 'UAC check skipped',
-            severity: 'INFO',
+        status: 'COMPLETED_WITH_ERRORS',
+        findings: [finding({ findingId: 'F-HIGH', title: 'Firewall disabled', severity: 'HIGH' })],
+        checkResults: [
+          checkResult({ checkId: 'CHECK-A' }),
+          checkResult({
+            checkId: 'CHECK-B',
+            status: 'REQUIRES_ELEVATION',
+            failure: {
+              code: 'ACCESS_DENIED',
+              message: 'Administrator access is required.',
+              requiredPrivilege: 'ADMINISTRATOR',
+            },
           }),
         ],
+        coverage: coverage({
+          succeededChecks: 1,
+          requiresElevationChecks: 1,
+          isComplete: false,
+        }),
       },
     });
 
     render(<SecurityPage />);
     await screen.findByText('Firewall disabled');
 
-    expect(screen.getByText('Coverage (1 checks without a result)')).toBeDefined();
-    expect(screen.getByText('Local only')).toBeDefined();
-    // The coverage note must not inflate the finding count
+    expect(screen.getByText('Coverage (1 checks not evaluated)')).toBeDefined();
+    expect(screen.getByText('Requires elevation')).toBeDefined();
     expect(screen.getByText(/1 finding\b/)).toBeDefined();
+  });
+
+  it('never presents an all-failed zero-finding scan as pass', async () => {
+    setUpInvoke({
+      scan: {
+        ...latestScan.scan!,
+        status: 'COMPLETED_WITH_ERRORS',
+        findings: [],
+        checkResults: [
+          checkResult({
+            checkId: 'CHECK-A',
+            status: 'FAILED',
+            failure: { code: 'WMI_UNAVAILABLE', message: 'Provider unavailable.', requiredPrivilege: null },
+          }),
+        ],
+        coverage: coverage({
+          totalChecks: 1,
+          applicableChecks: 1,
+          succeededChecks: 0,
+          failedChecks: 1,
+          isComplete: false,
+        }),
+      },
+    });
+
+    render(<SecurityPage />);
+
+    expect(await screen.findByText('No findings observed — scan coverage is incomplete.')).toBeDefined();
+    expect(screen.queryByText(/all applicable checks completed/i)).toBeNull();
   });
 });

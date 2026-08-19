@@ -28,6 +28,17 @@ function finding(overrides: Partial<SecurityFinding>): SecurityFinding {
   } as SecurityFinding;
 }
 
+const completeCoverage = {
+  isKnown: true,
+  totalChecks: 13,
+  succeededChecks: 13,
+  failedChecks: 0,
+  requiresElevationChecks: 0,
+  notApplicableChecks: 0,
+  applicableChecks: 13,
+  isComplete: true,
+} as const;
+
 describe('dashboard tile derivation', () => {
   it('inventory: empty vs populated with the newest capture', () => {
     expect(deriveInventoryTile([])).toMatchObject({ value: 'No hosts', tone: 'neutral' });
@@ -41,7 +52,7 @@ describe('dashboard tile derivation', () => {
     expect(tile.note).toContain(new Date('2026-07-03T08:00:00Z').toLocaleString());
   });
 
-  it('security: critical drives the danger tone, coverage notes are excluded', () => {
+  it('security: critical findings drive the danger tone', () => {
     expect(deriveSecurityTile(null)).toMatchObject({ value: 'No scan' });
 
     const scan: SecurityScanResult = {
@@ -53,8 +64,10 @@ describe('dashboard tile derivation', () => {
       findings: [
         finding({ findingId: 'A', severity: 'CRITICAL' }),
         finding({ findingId: 'B', severity: 'HIGH' }),
-        finding({ findingId: 'C-LOCAL-ONLY', severity: 'CRITICAL' }), // coverage, ignored
       ],
+      checkResults: [],
+      coverageVersion: 1,
+      coverage: completeCoverage,
     };
     const tile = deriveSecurityTile(scan);
     expect(tile.value).toBe('2 critical/high');
@@ -69,9 +82,35 @@ describe('dashboard tile derivation', () => {
       completedAtUtc: '2026-07-03T08:01:00Z',
       status: 'COMPLETED',
       findings: [finding({ findingId: 'A', severity: 'LOW' })],
+      checkResults: [],
+      coverageVersion: 1,
+      coverage: completeCoverage,
     });
     expect(tile.value).toBe('1 findings');
     expect(tile.tone).toBe('success');
+  });
+
+  it('security: incomplete coverage is never a success tile', () => {
+    const tile = deriveSecurityTile({
+      scanId: 1,
+      host: 'PC1',
+      startedAtUtc: '2026-07-03T08:00:00Z',
+      completedAtUtc: '2026-07-03T08:01:00Z',
+      status: 'COMPLETED_WITH_ERRORS',
+      findings: [],
+      checkResults: [],
+      coverageVersion: 1,
+      coverage: {
+        ...completeCoverage,
+        succeededChecks: 12,
+        failedChecks: 1,
+        isComplete: false,
+      },
+    });
+
+    expect(tile.value).toBe('0 findings');
+    expect(tile.tone).toBe('warning');
+    expect(tile.note).toContain('coverage incomplete');
   });
 
   it('print: counts toner-low across snapshots and warns', () => {

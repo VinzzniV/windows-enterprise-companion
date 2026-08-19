@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { ScanHistoryResult, SecurityFinding } from '../../shared/api-types';
+import type { ScanHistoryResult, SecurityCoverage, SecurityFinding } from '../../shared/api-types';
 import { ScanHistory } from './ScanHistory';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
@@ -22,6 +22,17 @@ function finding(findingId: string, title: string): SecurityFinding {
   };
 }
 
+const completeCoverage: SecurityCoverage = {
+  isKnown: true,
+  totalChecks: 13,
+  succeededChecks: 13,
+  failedChecks: 0,
+  requiresElevationChecks: 0,
+  notApplicableChecks: 0,
+  applicableChecks: 13,
+  isComplete: true,
+};
+
 const history: ScanHistoryResult = {
   scans: [
     {
@@ -31,6 +42,7 @@ const history: ScanHistoryResult = {
       status: 'COMPLETED',
       findingCount: 2,
       severityCounts: [{ severity: 'HIGH', count: 2 }],
+      coverage: completeCoverage,
     },
     {
       scanId: 1,
@@ -42,6 +54,7 @@ const history: ScanHistoryResult = {
         { severity: 'HIGH', count: 1 },
         { severity: 'INFO', count: 1 },
       ],
+      coverage: completeCoverage,
     },
   ],
   changesSinceLastScan: {
@@ -49,6 +62,8 @@ const history: ScanHistoryResult = {
     previousScanId: 1,
     newFindings: [finding('NEW', 'SMB1 got enabled')],
     resolvedFindings: [finding('RESOLVED', 'Firewall was re-enabled')],
+    isFullyComparable: true,
+    uncomparedCheckIds: [],
   },
 };
 
@@ -71,12 +86,40 @@ describe('ScanHistory', () => {
   it('reports an unchanged scan pair as "no changes"', async () => {
     invokeMock.mockResolvedValue({
       ...history,
-      changesSinceLastScan: { latestScanId: 2, previousScanId: 1, newFindings: [], resolvedFindings: [] },
+      changesSinceLastScan: {
+        latestScanId: 2,
+        previousScanId: 1,
+        newFindings: [],
+        resolvedFindings: [],
+        isFullyComparable: true,
+        uncomparedCheckIds: [],
+      },
     } satisfies ScanHistoryResult);
 
     render(<ScanHistory refreshToken={2} />);
 
     expect(await screen.findByText(/No changes/)).toBeDefined();
+  });
+
+  it('marks incomplete comparisons and does not claim resolution', async () => {
+    invokeMock.mockResolvedValue({
+      ...history,
+      changesSinceLastScan: {
+        latestScanId: 2,
+        previousScanId: 1,
+        newFindings: [],
+        resolvedFindings: [],
+        isFullyComparable: false,
+        uncomparedCheckIds: ['FIREWALL'],
+      },
+    } satisfies ScanHistoryResult);
+
+    render(<ScanHistory refreshToken={2} />);
+
+    expect(await screen.findByText(/Comparison incomplete/)).toBeDefined();
+    expect(screen.getByText(/Uncompared: FIREWALL/)).toBeDefined();
+    expect(screen.queryByText(/No changes/)).toBeNull();
+    expect(screen.queryByText('resolved')).toBeNull();
   });
 
   it('renders nothing when there is no history yet', async () => {

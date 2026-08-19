@@ -13,6 +13,16 @@ const overviewWithData: ReportOverview = {
   securityScanCompletedAtUtc: '2026-07-02T18:05:00Z',
   securityScanStatus: 'Completed',
   securityFindingCount: 3,
+  securityCoverage: {
+    isKnown: true,
+    totalChecks: 13,
+    succeededChecks: 12,
+    failedChecks: 1,
+    requiresElevationChecks: 0,
+    notApplicableChecks: 0,
+    applicableChecks: 13,
+    isComplete: false,
+  },
 };
 
 function setUpInvoke(exportResult: ReportExportResult): void {
@@ -52,12 +62,21 @@ describe('ReportingPage', () => {
     expect(await screen.findByText('Export cancelled.')).toBeDefined();
   });
 
+  it('shows incomplete security coverage in the report overview', async () => {
+    setUpInvoke({ cancelled: true, filePath: null });
+
+    render(<ReportingPage />);
+
+    expect(await screen.findByText(/12\/13 applicable checks evaluated — incomplete/)).toBeDefined();
+  });
+
   it('disables exports when there is nothing to export yet', async () => {
     invokeMock.mockResolvedValue({
       inventoryCapturedAtUtc: null,
       securityScanCompletedAtUtc: null,
       securityScanStatus: null,
       securityFindingCount: null,
+      securityCoverage: null,
     } satisfies ReportOverview);
 
     render(<ReportingPage />);

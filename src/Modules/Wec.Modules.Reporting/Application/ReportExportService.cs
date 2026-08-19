@@ -13,7 +13,8 @@ public sealed record ReportOverview(
     DateTimeOffset? InventoryCapturedAtUtc,
     DateTimeOffset? SecurityScanCompletedAtUtc,
     string? SecurityScanStatus,
-    int? SecurityFindingCount);
+    int? SecurityFindingCount,
+    SecurityCoverageReportData? SecurityCoverage);
 
 public sealed record ReportExportResult(bool Cancelled, string? FilePath);
 
@@ -56,7 +57,8 @@ internal sealed partial class ReportExportService
             inventory?.CapturedAtUtc,
             scan?.CompletedAtUtc,
             scan?.Status,
-            scan?.Findings.Count));
+            scan?.Findings.Count,
+            scan?.Coverage));
     }
 
     public Task<Result<ReportExportResult>> ExportHtmlAsync(

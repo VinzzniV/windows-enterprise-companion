@@ -22,6 +22,9 @@ public sealed class JsonExportTests : IDisposable
     private readonly string _exportPath = Path.Combine(
         Path.GetTempPath(), $"wec-report-test-{Guid.NewGuid():N}.json");
 
+    private static SecurityCoverageReportData CompleteCoverage() => new(
+        true, true, 1, 1, 1, 0, 0, 0);
+
     private ReportExportService CreateService()
     {
         var clock = Substitute.For<IClock>();
@@ -49,7 +52,9 @@ public sealed class JsonExportTests : IDisposable
             "Completed",
             [new SecurityFindingReportData(
                 "WEC-SEC-TEST", "Title", "Description", "High", 3, "Firewall",
-                "Resource", "Recommendation", null)]));
+                "Resource", "Recommendation", null)],
+            CompleteCoverage(),
+            [new SecurityCheckReportData("WEC-SEC-TEST", "Succeeded", null)]));
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(_exportPath);
 
         Result<ReportExportResult> result = await CreateService().ExportJsonAsync(
@@ -63,6 +68,10 @@ public sealed class JsonExportTests : IDisposable
         Assert.Equal(Environment.MachineName, root.GetProperty("machineName").GetString());
         Assert.Equal("Test CPU", root.GetProperty("inventory").GetProperty("cpu").GetProperty("name").GetString());
         Assert.Equal("High", root.GetProperty("securityScan").GetProperty("findings")[0].GetProperty("severity").GetString());
+        Assert.True(root.GetProperty("securityScan").GetProperty("coverage").GetProperty("isComplete").GetBoolean());
+        Assert.Equal(
+            "Succeeded",
+            root.GetProperty("securityScan").GetProperty("checkResults")[0].GetProperty("status").GetString());
     }
 
     [Fact]
@@ -70,7 +79,7 @@ public sealed class JsonExportTests : IDisposable
     {
         _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns((InventoryReportData?)null);
         _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new SecurityReportData(
-            Now, "Completed", []));
+            Now, "Completed", [], CompleteCoverage(), []));
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns(_exportPath);
 
         await CreateService().ExportJsonAsync(host: null, openAfterExport: false, CancellationToken.None);
@@ -84,7 +93,7 @@ public sealed class JsonExportTests : IDisposable
     {
         _inventoryProvider.GetLatestAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns((InventoryReportData?)null);
         _securityProvider.GetLatestScanAsync(Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new SecurityReportData(
-            Now, "Completed", []));
+            Now, "Completed", [], CompleteCoverage(), []));
         _saveFileDialog.PromptForSavePath(Arg.Any<string>(), Arg.Any<string>()).Returns((string?)null);
 
         await CreateService().ExportJsonAsync(host: null, openAfterExport: false, CancellationToken.None);

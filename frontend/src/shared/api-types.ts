@@ -211,6 +211,9 @@ export type FindingCategory =
 /** Wec.Modules.Security.Domain.ScanStatus (SCREAMING_SNAKE on the wire) */
 export type ScanStatus = 'COMPLETED' | 'COMPLETED_WITH_ERRORS' | 'FAILED';
 
+/** Wec.Core.Results.CheckStatus (SCREAMING_SNAKE on the wire, ADR 0003) */
+export type CheckStatus = 'SUCCEEDED' | 'FAILED' | 'REQUIRES_ELEVATION' | 'NOT_APPLICABLE';
+
 /** Wec.Modules.Security.Domain.SecurityFinding */
 export interface SecurityFinding {
   findingId: string;
@@ -223,6 +226,33 @@ export interface SecurityFinding {
   recommendation: string;
   requiredPrivilege: PrivilegeLevel | null;
   capturedAtUtc: string;
+}
+
+/** Wec.Modules.Security.Domain.SecurityCheckFailure */
+export interface SecurityCheckFailure {
+  code: ErrorCode;
+  message: string;
+  requiredPrivilege: PrivilegeLevel | null;
+}
+
+/** Wec.Modules.Security.Domain.SecurityCheckResult */
+export interface SecurityCheckResult {
+  checkId: string;
+  status: CheckStatus;
+  findings: SecurityFinding[];
+  failure: SecurityCheckFailure | null;
+}
+
+/** Wec.Modules.Security.Domain.SecurityCoverage */
+export interface SecurityCoverage {
+  isKnown: boolean;
+  totalChecks: number;
+  succeededChecks: number;
+  failedChecks: number;
+  requiresElevationChecks: number;
+  notApplicableChecks: number;
+  applicableChecks: number;
+  isComplete: boolean;
 }
 
 /** Wec.Modules.Security.Handlers — runScan/getLatestScan/getScanHistory payloads */
@@ -238,6 +268,9 @@ export interface SecurityScanResult {
   completedAtUtc: string;
   status: ScanStatus;
   findings: SecurityFinding[];
+  checkResults: SecurityCheckResult[];
+  coverageVersion: number | null;
+  coverage: SecurityCoverage;
 }
 
 /** Wec.Modules.Security.Application.LatestScanResult */
@@ -399,6 +432,7 @@ export interface ReportOverview {
   securityScanCompletedAtUtc: string | null;
   securityScanStatus: string | null;
   securityFindingCount: number | null;
+  securityCoverage: SecurityCoverage | null;
 }
 
 /** Wec.Modules.Reporting.Handlers.GetReportOverviewRequest — host null/omitted = local machine */
@@ -498,6 +532,7 @@ export interface ScanSummary {
   status: ScanStatus;
   findingCount: number;
   severityCounts: SeverityCount[];
+  coverage: SecurityCoverage;
 }
 
 /** Wec.Modules.Security.Domain.ScanDiff */
@@ -506,6 +541,8 @@ export interface ScanDiff {
   previousScanId: number;
   newFindings: SecurityFinding[];
   resolvedFindings: SecurityFinding[];
+  isFullyComparable: boolean;
+  uncomparedCheckIds: string[];
 }
 
 /** Wec.Modules.Security.Domain.ScanHistoryResult */

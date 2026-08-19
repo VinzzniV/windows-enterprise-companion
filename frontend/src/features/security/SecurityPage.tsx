@@ -8,6 +8,7 @@ import type {
   HostScanStatus,
   LatestScanResult,
   RunBatchSecurityScanRequest,
+  SecurityCheckResult,
   SecurityFinding,
   SecurityScanResult,
 } from '../../shared/api-types';
@@ -66,22 +67,6 @@ type PageState =
   | { kind: 'loaded'; scan: SecurityScanResult | null }
   | { kind: 'error'; message: string };
 
-/** Checks that could not assess the host (skipped remotely / read failed) are
- *  coverage information, not security problems — they are shown separately. */
-function isCoverageNote(finding: SecurityFinding): boolean {
-  return finding.findingId.endsWith('-LOCAL-ONLY') || finding.findingId.endsWith('-NOT-RUN');
-}
-
-export function splitFindings(findings: SecurityFinding[]): {
-  problems: SecurityFinding[];
-  coverage: SecurityFinding[];
-} {
-  return {
-    problems: findings.filter((finding) => !isCoverageNote(finding)),
-    coverage: findings.filter(isCoverageNote),
-  };
-}
-
 function severityCount(findings: SecurityFinding[], severity: FindingSeverity): number {
   return findings.filter((finding) => finding.severity === severity).length;
 }
@@ -113,20 +98,28 @@ export function FindingCard({ finding }: { finding: SecurityFinding }) {
   );
 }
 
-export function CoverageNotes({ notes }: { notes: SecurityFinding[] }) {
-  if (notes.length === 0) {
+const checkStatusLabels: Record<SecurityCheckResult['status'], string> = {
+  SUCCEEDED: 'Succeeded',
+  FAILED: 'Not completed',
+  REQUIRES_ELEVATION: 'Requires elevation',
+  NOT_APPLICABLE: 'Not applicable',
+};
+
+export function CoverageNotes({ results }: { results: SecurityCheckResult[] }) {
+  const incomplete = results.filter((result) => result.status !== 'SUCCEEDED');
+  if (incomplete.length === 0) {
     return null;
   }
   return (
-    <Card title={`Coverage (${notes.length} checks without a result)`}>
+    <Card title={`Coverage (${incomplete.length} checks not evaluated)`}>
       <ul className="flex flex-col gap-2 text-sm">
-        {notes.map((note, index) => (
-          <li key={`${note.findingId}-${index}`} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <StatusBadge variant={note.findingId.endsWith('-LOCAL-ONLY') ? 'info' : 'neutral'}>
-              {note.findingId.endsWith('-LOCAL-ONLY') ? 'Local only' : 'Not run'}
+        {incomplete.map((result) => (
+          <li key={result.checkId} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <StatusBadge variant={result.status === 'REQUIRES_ELEVATION' ? 'elevation' : 'neutral'}>
+              {checkStatusLabels[result.status]}
             </StatusBadge>
-            <span className="text-slate-200">{note.title}</span>
-            <span className="text-xs text-slate-500">{note.recommendation}</span>
+            <span className="font-mono text-xs text-slate-300">{result.checkId}</span>
+            {result.failure && <span className="text-xs text-slate-500">{result.failure.message}</span>}
           </li>
         ))}
       </ul>
@@ -135,29 +128,33 @@ export function CoverageNotes({ notes }: { notes: SecurityFinding[] }) {
 }
 
 /** Host + status + timestamp line every result view hangs off of. */
-export function ResultContext({ scan, problemCount, coverageCount }: {
+export function ResultContext({ scan, problemCount }: {
   scan: SecurityScanResult;
   problemCount: number;
-  coverageCount: number;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm">
       <span className="font-medium">{scan.host}</span>
       <StatusBadge
         variant={
-          scan.status === 'COMPLETED'
+          scan.coverage.isComplete
             ? 'success'
-            : scan.status === 'COMPLETED_WITH_ERRORS'
+            : scan.coverage.isKnown
               ? 'elevation'
-              : 'error'
+              : 'neutral'
         }
       >
-        {scan.status.replaceAll('_', ' ')}
+        {scan.coverage.isComplete
+          ? 'COVERAGE COMPLETE'
+          : scan.coverage.isKnown
+            ? 'COVERAGE INCOMPLETE'
+            : 'COVERAGE UNAVAILABLE'}
       </StatusBadge>
       <span className="text-slate-400">{new Date(scan.completedAtUtc).toLocaleString()}</span>
       <span className="text-slate-400">
         {problemCount} finding{problemCount === 1 ? '' : 's'}
-        {coverageCount > 0 && ` · ${coverageCount} coverage note${coverageCount === 1 ? '' : 's'}`}
+        {scan.coverage.isKnown &&
+          ` · ${scan.coverage.succeededChecks}/${scan.coverage.applicableChecks} applicable checks evaluated`}
       </span>
     </div>
   );
@@ -176,7 +173,7 @@ export function SeveritySummary({ problems }: { problems: SecurityFinding[] }) {
 }
 
 function BatchHostRow({ outcome }: { outcome: BatchScanResult['hosts'][number] }) {
-  const findings = outcome.scan ? splitFindings(outcome.scan.findings) : null;
+  const findings = outcome.scan?.findings ?? null;
   return (
     <li className="rounded border border-slate-800 bg-slate-950/50 p-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -185,13 +182,16 @@ function BatchHostRow({ outcome }: { outcome: BatchScanResult['hosts'][number] }
         {findings && (
           <span className="flex items-center gap-1">
             {allSeverities
-              .map((severity) => ({ severity, count: severityCount(findings.problems, severity) }))
+                .map((severity) => ({ severity, count: severityCount(findings, severity) }))
               .filter((entry) => entry.count > 0)
               .map((entry) => (
                 <SeverityBadge key={entry.severity} severity={entry.severity} count={entry.count} />
               ))}
-            {findings.problems.length === 0 && (
-              <span className="text-xs text-ok-400">No findings</span>
+            {findings.length === 0 && outcome.scan?.coverage.isComplete && (
+              <span className="text-xs text-ok-400">No findings · coverage complete</span>
+            )}
+            {findings.length === 0 && !outcome.scan?.coverage.isComplete && (
+              <span className="text-xs text-warn-400">No findings observed · coverage incomplete</span>
             )}
           </span>
         )}
@@ -207,18 +207,18 @@ function BatchHostRow({ outcome }: { outcome: BatchScanResult['hosts'][number] }
           {outcome.error.details ? ` ${outcome.error.details}` : ''}
         </p>
       )}
-      {outcome.scan && findings && (findings.problems.length > 0 || findings.coverage.length > 0) && (
+      {outcome.scan && findings && (findings.length > 0 || !outcome.scan.coverage.isComplete) && (
         <div className="mt-2">
           <DetailsDisclosure
-            summary={`Show details (${findings.problems.length} findings, ${findings.coverage.length} coverage notes)`}
+            summary={`Show details (${findings.length} findings, ${outcome.scan.coverage.succeededChecks}/${outcome.scan.coverage.applicableChecks} checks evaluated)`}
           >
             <div className="flex flex-col gap-3">
               <ul className="flex flex-col gap-3">
-                {findings.problems.map((finding, index) => (
+                {findings.map((finding, index) => (
                   <FindingCard key={`${finding.findingId}-${index}`} finding={finding} />
                 ))}
               </ul>
-              <CoverageNotes notes={findings.coverage} />
+              <CoverageNotes results={outcome.scan.checkResults} />
             </div>
           </DetailsDisclosure>
         </div>
@@ -319,10 +319,7 @@ export function SecurityPage() {
     hostKeyOf(toTargetRequest(selection)) === hostKeyOf(activeTarget);
 
   const scan = state.kind === 'loaded' ? state.scan : null;
-  const { problems, coverage } = useMemo(
-    () => splitFindings(scan?.findings ?? []),
-    [scan],
-  );
+  const problems = useMemo(() => scan?.findings ?? [], [scan]);
 
   const availableCategories = useMemo(
     () => [...new Set(problems.map((finding) => finding.category))],
@@ -440,12 +437,18 @@ export function SecurityPage() {
 
       {showSingleResults && scan && (
         <>
-          <ResultContext scan={scan} problemCount={problems.length} coverageCount={coverage.length} />
+          <ResultContext scan={scan} problemCount={problems.length} />
           <SeveritySummary problems={problems} />
 
           {problems.length === 0 ? (
             <Card title="Result">
-              <p className="text-sm text-ok-400">No findings — all executed checks passed.</p>
+              <p className={scan.coverage.isComplete ? 'text-sm text-ok-400' : 'text-sm text-warn-400'}>
+                {scan.coverage.isComplete
+                  ? 'No findings — all applicable checks completed.'
+                  : scan.coverage.isKnown
+                    ? 'No findings observed — scan coverage is incomplete.'
+                    : 'No findings observed — legacy scan coverage is unavailable.'}
+              </p>
             </Card>
           ) : (
             <>
@@ -492,7 +495,7 @@ export function SecurityPage() {
             </>
           )}
 
-          <CoverageNotes notes={coverage} />
+          <CoverageNotes results={scan.checkResults} />
         </>
       )}
 
