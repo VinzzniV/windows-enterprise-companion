@@ -47,9 +47,12 @@ internal sealed class DnsServerReachabilityDiagnostic : IDiagnostic
                 capturedAtUtc)];
         }
 
-        List<string> dnsServers = adapters.Value
+        IReadOnlyList<NetworkAdapterInfo> relevantAdapters =
+            NetworkAdapterSelection.RelevantAdapters(adapters.Value);
+        List<string> dnsServers = relevantAdapters
             .SelectMany(adapter => adapter.DnsServers)
-            .Distinct()
+            .Where(server => !string.IsNullOrWhiteSpace(server))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         if (dnsServers.Count == 0)
@@ -57,8 +60,13 @@ internal sealed class DnsServerReachabilityDiagnostic : IDiagnostic
             return [BuildResult(
                 DiagnosticStatus.Warning,
                 "No DNS servers are configured",
-                new Dictionary<string, string> { ["dnsServers"] = "(none)" },
-                ["Without DNS servers name resolution fails — check DHCP or the static configuration."],
+                new Dictionary<string, string>
+                {
+                    ["dnsServers"] = "(none)",
+                    ["relevantAdapters"] = relevantAdapters.Count.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture),
+                },
+                ["No DNS server was found on a relevant IP-capable adapter — check DHCP or the static configuration."],
                 capturedAtUtc)];
         }
 
