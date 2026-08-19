@@ -30,7 +30,7 @@ WindowsEnterpriseCompanion/
 │   │   └── wwwroot/                   # Built frontend assets (Vite output, copied on build)
 │   │
 │   ├── Wec.Core/                      # Contracts only. Zero external dependencies*
-│   │   ├── Modules/                   #   IModule, ModuleDescriptor
+│   │   ├── Modules/                   #   IModule registration contract
 │   │   ├── Messaging/                 #   BridgeRequest, BridgeResponse, BridgeEvent, IActionHandler
 │   │   ├── Results/                   #   Result<T>, Error, ErrorCode, CheckStatus
 │   │   ├── Privileges/                #   IPrivilegeContext, PrivilegeLevel

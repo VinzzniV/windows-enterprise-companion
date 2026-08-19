@@ -10,8 +10,6 @@ namespace Wec.Modules.Diagnostics;
 
 public sealed class DiagnosticsModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("diagnostics", "Diagnostics");
-
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<DiagnosticRunService>();

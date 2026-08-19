@@ -10,8 +10,6 @@ namespace Wec.Modules.PatchManagement;
 
 public sealed class PatchManagementModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("patchmanagement", "Patch Management");
-
     public void RegisterServices(IServiceCollection services)
     {
         // The live session is process-local; its credential can be restored from the Windows vault.
