@@ -249,8 +249,12 @@ public sealed class EfSecurityScanRepository : ISecurityScanRepository
         record.FindingId,
         record.Title,
         record.Description,
-        Enum.TryParse(record.Severity, out FindingSeverity severity) ? severity : FindingSeverity.Info,
-        Enum.TryParse(record.Category, out FindingCategory category) ? category : FindingCategory.OperatingSystem,
+        Enum.TryParse(record.Severity, out FindingSeverity severity) && Enum.IsDefined(severity)
+            ? severity
+            : FindingSeverity.Unknown,
+        Enum.TryParse(record.Category, out FindingCategory category) && Enum.IsDefined(category)
+            ? category
+            : FindingCategory.Unknown,
         record.AffectedResource,
         DeserializeEvidence(record),
         record.Recommendation,

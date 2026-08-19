@@ -17,7 +17,16 @@ public sealed class WecDbContext : DbContext
     {
         foreach (Assembly moduleAssembly in _modelAssemblyRegistry.Assemblies)
         {
-            modelBuilder.ApplyConfigurationsFromAssembly(moduleAssembly);
+            if (ContainsEntityTypeConfiguration(moduleAssembly))
+            {
+                modelBuilder.ApplyConfigurationsFromAssembly(moduleAssembly);
+            }
         }
     }
+
+    internal static bool ContainsEntityTypeConfiguration(Assembly assembly) =>
+        assembly.DefinedTypes.Any(type => type is { IsAbstract: false, IsInterface: false }
+            && type.ImplementedInterfaces.Any(@interface =>
+                @interface.IsGenericType
+                && @interface.GetGenericTypeDefinition() == typeof(IEntityTypeConfiguration<>)));
 }

@@ -258,6 +258,32 @@ public sealed class SecurityScanPersistenceTests : IDisposable
         Assert.Equal(CheckStatus.Failed, check.Status);
     }
 
+    [Fact]
+    public async Task MalformedPersistedFindingEnums_AreVisibleAsUnknown()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        var repository = new EfSecurityScanRepository(
+            context, NullLogger<EfSecurityScanRepository>.Instance);
+        await repository.SaveScanAsync(
+            "PC-001",
+            StartedAt,
+            StartedAt.AddSeconds(1),
+            ScanStatus.Completed,
+            [BuildFinding()],
+            CancellationToken.None);
+        await context.Database.ExecuteSqlRawAsync(
+            "UPDATE security_findings SET severity = 'FUTURE_SEVERITY', category = 'FUTURE_CATEGORY'");
+        context.ChangeTracker.Clear();
+
+        SecurityScanResult? reloaded = await repository.GetLatestScanAsync(
+            "PC-001", CancellationToken.None);
+
+        SecurityFinding finding = Assert.Single(reloaded!.Findings);
+        Assert.Equal(FindingSeverity.Unknown, finding.Severity);
+        Assert.Equal(FindingCategory.Unknown, finding.Category);
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();
