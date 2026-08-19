@@ -13,6 +13,7 @@ namespace Wec.Infrastructure.IntegrationTests.Registry;
 /// </summary>
 public sealed class WindowsRegistryReaderRemoteTests
 {
+    private const uint WbemTypeMismatch = 0x80041005;
     private static readonly ScanTarget Remote = ScanTarget.Remote("pc-1.contoso.local");
 
     private static WindowsRegistryReader CreateReader(FakeWmiQueryService wmi) =>
@@ -35,7 +36,7 @@ public sealed class WindowsRegistryReaderRemoteTests
     public async Task RemoteStringValue_IsDecodedAsString()
     {
         var wmi = new FakeWmiQueryService();
-        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u)); // not a DWORD
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", WbemTypeMismatch)); // not a DWORD
         wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 0u), ("sValue", "NT5DS"));
 
         Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
@@ -48,8 +49,8 @@ public sealed class WindowsRegistryReaderRemoteTests
     public async Task RemoteMultiStringValue_IsDecodedAsStringArray()
     {
         var wmi = new FakeWmiQueryService();
-        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u)); // not a DWORD
-        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 1u)); // not a string
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", WbemTypeMismatch)); // not a DWORD
+        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", WbemTypeMismatch)); // not a string
         wmi.OnMethod["GetMultiStringValue"] = MethodResult(("ReturnValue", 0u), ("sValue", new[] { "a", "b" }));
 
         Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
@@ -63,21 +64,108 @@ public sealed class WindowsRegistryReaderRemoteTests
     {
         var wmi = new FakeWmiQueryService();
         wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u));
-        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 1u));
-        wmi.OnMethod["GetMultiStringValue"] = MethodResult(("ReturnValue", 1u));
 
         Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
             Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Bar", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value);
+        Assert.Equal(["GetDWORDValue"], wmi.InvokedMethods);
+    }
+
+    [Fact]
+    public async Task RemoteValueAccessDeniedReturnCode_IsPropagated()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 5u));
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);
+        Assert.Equal(Wec.Core.Privileges.PrivilegeLevel.Administrator, result.Error.RequiredPrivilege);
+        Assert.Equal(["GetDWORDValue"], wmi.InvokedMethods);
+    }
+
+    [Fact]
+    public async Task RemoteStringProbeAccessDeniedReturnCode_IsPropagated()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", WbemTypeMismatch));
+        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 5u));
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);
+        Assert.Equal(["GetDWORDValue", "GetStringValue"], wmi.InvokedMethods);
+    }
+
+    [Fact]
+    public async Task RemoteMultiStringProbeAccessDeniedReturnCode_IsPropagated()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", WbemTypeMismatch));
+        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", WbemTypeMismatch));
+        wmi.OnMethod["GetMultiStringValue"] = MethodResult(("ReturnValue", 5u));
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);
+        Assert.Equal(["GetDWORDValue", "GetStringValue", "GetMultiStringValue"], wmi.InvokedMethods);
+    }
+
+    [Fact]
+    public async Task RemoteValueMissingReturnCode_IsProviderFailure()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("uValue", 1u));
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
+        Assert.Contains("return code: missing", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task RemoteValueUnexpectedReturnCode_IsProviderFailure()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 87u));
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
+        Assert.Contains("return code: 87", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task RemoteValueSuccessWithoutPayload_IsProviderFailure()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 0u));
+
+        Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SYSTEM\Foo", "Type", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
+        Assert.Contains("success without a value", result.Error.Message);
     }
 
     [Fact]
     public async Task RemoteStringProbeTransportFailure_IsPropagated()
     {
         var wmi = new FakeWmiQueryService();
-        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u));
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", WbemTypeMismatch));
         wmi.OnErrors["GetStringValue"] = Error.WmiUnavailable("transport failed");
 
         Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
@@ -92,8 +180,8 @@ public sealed class WindowsRegistryReaderRemoteTests
     public async Task RemoteMultiStringProbeTransportFailure_IsPropagated()
     {
         var wmi = new FakeWmiQueryService();
-        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", 1u));
-        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", 1u));
+        wmi.OnMethod["GetDWORDValue"] = MethodResult(("ReturnValue", WbemTypeMismatch));
+        wmi.OnMethod["GetStringValue"] = MethodResult(("ReturnValue", WbemTypeMismatch));
         wmi.OnErrors["GetMultiStringValue"] = Error.WmiUnavailable("transport failed");
 
         Result<object?> result = await CreateReader(wmi).ReadLocalMachineValueAsync(
@@ -127,6 +215,48 @@ public sealed class WindowsRegistryReaderRemoteTests
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
+    }
+
+    [Fact]
+    public async Task RemoteEnumKeyAccessDeniedReturnCode_IsPropagated()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["EnumKey"] = MethodResult(("ReturnValue", 5u));
+
+        Result<IReadOnlyList<string>> result = await CreateReader(wmi).ReadLocalMachineSubKeyNamesAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SOFTWARE\Foo", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);
+        Assert.Equal(Wec.Core.Privileges.PrivilegeLevel.Administrator, result.Error.RequiredPrivilege);
+    }
+
+    [Fact]
+    public async Task RemoteEnumKeyMissingReturnCode_IsProviderFailure()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["EnumKey"] = MethodResult(("sNames", new[] { "RebootPending" }));
+
+        Result<IReadOnlyList<string>> result = await CreateReader(wmi).ReadLocalMachineSubKeyNamesAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SOFTWARE\Foo", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
+        Assert.Contains("return code: missing", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task RemoteEnumKeyUnexpectedReturnCode_IsProviderFailure()
+    {
+        var wmi = new FakeWmiQueryService();
+        wmi.OnMethod["EnumKey"] = MethodResult(("ReturnValue", 1u));
+
+        Result<IReadOnlyList<string>> result = await CreateReader(wmi).ReadLocalMachineSubKeyNamesAsync(
+            Remote, ScanCredentials.CurrentUser, ConnectionOptions.Default, @"SOFTWARE\Foo", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
+        Assert.Contains("return code: 1", result.Error.Message);
     }
 
     private static WmiInstance MethodResult(params (string Name, object? Value)[] properties) =>

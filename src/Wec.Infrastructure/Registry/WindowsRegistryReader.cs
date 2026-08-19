@@ -16,6 +16,13 @@ public sealed class WindowsRegistryReader : IRegistryReader
     private const string StdRegProvNamespace = @"root\default";
     private const string StdRegProvClass = "StdRegProv";
     private const uint HklmRoot = 0x80000002; // HKEY_LOCAL_MACHINE
+    private const long ErrorSuccess = 0;
+    private const long ErrorInvalidFunction = 1;
+    private const long ErrorFileNotFound = 2;
+    private const long ErrorPathNotFound = 3;
+    private const long ErrorAccessDenied = 5;
+    private const long ErrorInvalidData = 13;
+    private const long WbemErrorTypeMismatch = 0x80041005;
 
     private readonly IWmiQueryService _wmiQueryService;
     private readonly ILogger<WindowsRegistryReader> _logger;
@@ -104,10 +111,26 @@ public sealed class WindowsRegistryReader : IRegistryReader
             return Result.Failure<object?>(dword.Error!);
         }
 
-        if (Succeeded(dword.Value) && dword.Value.GetInteger("uValue") is long dwordValue)
+        long? dwordReturnCode = dword.Value.GetInteger("ReturnValue");
+        if (dwordReturnCode == ErrorSuccess)
         {
-            // Registry DWORDs are 32-bit; return int so callers match the native reader's type.
-            return Result.Success<object?>(unchecked((int)dwordValue));
+            if (dword.Value.GetInteger("uValue") is long dwordValue)
+            {
+                // Registry DWORDs are 32-bit; return int so callers match the native reader's type.
+                return Result.Success<object?>(unchecked((int)dwordValue));
+            }
+
+            return MalformedValueResult<object?>("GetDWORDValue", subKeyPath, valueName);
+        }
+
+        if (IsMissingValue(dwordReturnCode))
+        {
+            return Result.Success<object?>(null);
+        }
+
+        if (!IsTypeMismatch(dwordReturnCode))
+        {
+            return RegistryFailure<object?>("GetDWORDValue", subKeyPath, valueName, dwordReturnCode);
         }
 
         Result<WmiInstance> stringValue = await _wmiQueryService.InvokeMethodAsync(
@@ -117,9 +140,25 @@ public sealed class WindowsRegistryReader : IRegistryReader
             return Result.Failure<object?>(stringValue.Error!);
         }
 
-        if (Succeeded(stringValue.Value) && stringValue.Value.GetRawValue("sValue") is string singleString)
+        long? stringReturnCode = stringValue.Value.GetInteger("ReturnValue");
+        if (stringReturnCode == ErrorSuccess)
         {
-            return Result.Success<object?>(singleString);
+            if (stringValue.Value.GetRawValue("sValue") is string singleString)
+            {
+                return Result.Success<object?>(singleString);
+            }
+
+            return MalformedValueResult<object?>("GetStringValue", subKeyPath, valueName);
+        }
+
+        if (IsMissingValue(stringReturnCode))
+        {
+            return Result.Success<object?>(null);
+        }
+
+        if (!IsTypeMismatch(stringReturnCode))
+        {
+            return RegistryFailure<object?>("GetStringValue", subKeyPath, valueName, stringReturnCode);
         }
 
         Result<WmiInstance> multiString = await _wmiQueryService.InvokeMethodAsync(
@@ -129,13 +168,29 @@ public sealed class WindowsRegistryReader : IRegistryReader
             return Result.Failure<object?>(multiString.Error!);
         }
 
-        if (Succeeded(multiString.Value) && multiString.Value.GetRawValue("sValue") is string[] strings)
+        long? multiStringReturnCode = multiString.Value.GetInteger("ReturnValue");
+        if (multiStringReturnCode == ErrorSuccess)
         {
-            return Result.Success<object?>(strings);
+            if (multiString.Value.GetRawValue("sValue") is string[] strings)
+            {
+                return Result.Success<object?>(strings);
+            }
+
+            return MalformedValueResult<object?>("GetMultiStringValue", subKeyPath, valueName);
         }
 
-        // Value is absent or of an unsupported kind — treated as missing, like the native reader.
-        return Result.Success<object?>(null);
+        if (IsMissingValue(multiStringReturnCode))
+        {
+            return Result.Success<object?>(null);
+        }
+
+        if (IsTypeMismatch(multiStringReturnCode))
+        {
+            return Result.Failure<object?>(Error.WmiUnavailable(
+                $"Registry value 'HKLM\\{subKeyPath}\\{valueName}' has an unsupported value type."));
+        }
+
+        return RegistryFailure<object?>("GetMultiStringValue", subKeyPath, valueName, multiStringReturnCode);
     }
 
     private async Task<Result<IReadOnlyList<string>>> ReadRemoteSubKeyNamesAsync(
@@ -158,15 +213,71 @@ public sealed class WindowsRegistryReader : IRegistryReader
             return Result.Failure<IReadOnlyList<string>>(result.Error!);
         }
 
-        if (Succeeded(result.Value) && result.Value.GetRawValue("sNames") is string[] names)
+        long? returnCode = result.Value.GetInteger("ReturnValue");
+        if (returnCode == ErrorSuccess)
         {
-            return Result.Success<IReadOnlyList<string>>(names);
+            object? rawNames = result.Value.GetRawValue("sNames");
+            if (rawNames is null)
+            {
+                return Result.Success<IReadOnlyList<string>>([]);
+            }
+
+            if (rawNames is string[] names)
+            {
+                return Result.Success<IReadOnlyList<string>>(names);
+            }
+
+            return Result.Failure<IReadOnlyList<string>>(Error.WmiUnavailable(
+                $"StdRegProv.EnumKey returned malformed data for registry key 'HKLM\\{subKeyPath}'."));
         }
 
-        // Key does not exist (ReturnValue != 0) — empty, like the native reader.
-        return Result.Success<IReadOnlyList<string>>([]);
+        if (IsMissingKey(returnCode))
+        {
+            return Result.Success<IReadOnlyList<string>>([]);
+        }
+
+        return RegistryFailure<IReadOnlyList<string>>("EnumKey", subKeyPath, valueName: null, returnCode);
     }
 
-    // StdRegProv returns 0 on success; anything else means the key/value was not found or was inaccessible.
-    private static bool Succeeded(WmiInstance methodResult) => methodResult.GetInteger("ReturnValue") == 0;
+    // Real StdRegProv calls return ERROR_INVALID_FUNCTION for a missing named
+    // value from the DWORD/String getters and ERROR_FILE_NOT_FOUND from other
+    // getters. Both represent controlled absence, not successful observation.
+    private static bool IsMissingValue(long? returnCode) =>
+        returnCode is ErrorInvalidFunction or ErrorFileNotFound or ErrorPathNotFound;
+
+    private static bool IsMissingKey(long? returnCode) =>
+        returnCode is ErrorFileNotFound or ErrorPathNotFound;
+
+    // Probing a value with a getter for another registry kind returns either
+    // WBEM_E_TYPE_MISMATCH (observed with CIM) or ERROR_INVALID_DATA. Only these
+    // expected outcomes may advance; every other non-zero result is a failure.
+    private static bool IsTypeMismatch(long? returnCode) =>
+        returnCode is ErrorInvalidData or WbemErrorTypeMismatch;
+
+    private static Result<T> MalformedValueResult<T>(string methodName, string subKeyPath, string valueName) =>
+        Result.Failure<T>(Error.WmiUnavailable(
+            $"StdRegProv.{methodName} returned success without a value for registry entry "
+            + $"'HKLM\\{subKeyPath}\\{valueName}'."));
+
+    private static Result<T> RegistryFailure<T>(
+        string methodName,
+        string subKeyPath,
+        string? valueName,
+        long? returnCode)
+    {
+        string subject = valueName is null
+            ? $"registry key 'HKLM\\{subKeyPath}'"
+            : $"registry value 'HKLM\\{subKeyPath}\\{valueName}'";
+
+        if (returnCode == ErrorAccessDenied)
+        {
+            return Result.Failure<T>(Error.AccessDenied(
+                $"Access to {subject} was denied by StdRegProv.{methodName}.",
+                PrivilegeLevel.Administrator));
+        }
+
+        string code = returnCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "missing";
+        return Result.Failure<T>(Error.WmiUnavailable(
+            $"StdRegProv.{methodName} could not read {subject} (return code: {code})."));
+    }
 }
