@@ -72,7 +72,7 @@ describe('ScanHistory', () => {
     invokeMock.mockReset();
   });
 
-  it('renders the diff and the scan rows with a trend sparkline', async () => {
+  it('renders the diff and the scan rows without implying a trend', async () => {
     invokeMock.mockResolvedValue(history);
 
     render(<ScanHistory refreshToken={2} />);
@@ -80,7 +80,7 @@ describe('ScanHistory', () => {
     expect(await screen.findByText('SMB1 got enabled')).toBeDefined();
     expect(screen.getByText('Firewall was re-enabled')).toBeDefined();
     expect(screen.getByText('Scan history (2)')).toBeDefined();
-    expect(screen.getByRole('img', { name: /trend across 2 scans/i })).toBeDefined();
+    expect(screen.queryByRole('img', { name: /trend/i })).toBeNull();
   });
 
   it('reports an unchanged scan pair as "no changes"', async () => {

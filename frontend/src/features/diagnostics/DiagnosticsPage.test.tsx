@@ -58,6 +58,9 @@ describe('DiagnosticsPage', () => {
     expect(screen.getByText('Fail')).toBeDefined();
     // Failing checks put the way forward first
     expect(screen.getByText('Check the configured DNS servers')).toBeDefined();
+    const failedRow = screen.getByText('DNS server unreachable').closest('li');
+    expect(failedRow?.querySelector('details')?.hasAttribute('open')).toBe(false);
+    expect(failedRow?.querySelector('summary')?.textContent).toContain('Raw evidence (1)');
   });
 
   it('shows an error state when the run fails', async () => {
@@ -113,6 +116,7 @@ describe('DiagnosticsPage', () => {
 
     const healthyRow = screen.getByText('Healthy adapter').closest('li');
     expect(healthyRow?.querySelector('details')?.hasAttribute('open')).toBe(false);
+    expect(healthyRow?.querySelector('summary')?.textContent).toContain('Raw evidence (1)');
     const notRunRow = screen.getByText('Provider unavailable').closest('li');
     expect(notRunRow?.querySelector('ul')?.textContent).toContain('Restore provider access');
   });

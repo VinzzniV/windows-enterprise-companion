@@ -18,7 +18,7 @@ type State =
   | { kind: 'done'; run: DiagnosticRunResult }
   | { kind: 'error'; message: string };
 
-/** Diagnostics section of a client: last saved run on open, run again on demand. */
+/** Diagnostics section of a client: latest saved run on open, new runs only on demand. */
 export function DiagnosticsSection({ target }: { target: TargetRequest | null }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
@@ -72,7 +72,7 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm">
         <span className="text-slate-400">
-          Run completed {new Date(state.run.completedAtUtc).toLocaleString()}
+          Latest saved run completed {new Date(state.run.completedAtUtc).toLocaleString()}
         </span>
         <Button onClick={run}>Re-run</Button>
       </div>

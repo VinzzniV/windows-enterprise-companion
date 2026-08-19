@@ -46,7 +46,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
       { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
       { to: '/networkscan', label: 'Netzwerkscan', icon: navIcons.networkscan },
-      { to: '/reporting', label: 'Reporting', icon: navIcons.reporting },
+      { to: '/reporting', label: 'Report export', icon: navIcons.reporting },
     ],
   },
   {

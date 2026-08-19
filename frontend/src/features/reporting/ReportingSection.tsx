@@ -12,6 +12,7 @@ import { Button } from '../../shared/ui/Button';
 import { ErrorState } from '../../shared/ui/States';
 import { Checkbox } from '../../shared/ui/Checkbox';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
+import { errorText } from '../../shared/bridge/errorText';
 
 type OverviewState =
   | { kind: 'loading' }
@@ -24,10 +25,6 @@ type ExportState =
   | { kind: 'exported'; filePath: string; openError: string | null }
   | { kind: 'cancelled' }
   | { kind: 'error'; message: string };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export function formatDataAge(ageSeconds: number | null): string {
   if (ageSeconds === null) return 'Unavailable';
@@ -63,7 +60,7 @@ export function ReportingSection({ host }: { host: string | null }) {
     const payload: ReportOverviewRequest = { host };
     invoke<ReportOverview>('reporting', 'getOverview', payload)
       .then((overview) => setOverviewState({ kind: 'loaded', overview }))
-      .catch((error: unknown) => setOverviewState({ kind: 'error', message: errorMessage(error) }));
+      .catch((error: unknown) => setOverviewState({ kind: 'error', message: errorText(error) }));
   }, [host]);
 
   const exportReport = useCallback(
@@ -78,7 +75,7 @@ export function ReportingSection({ host }: { host: string | null }) {
               : { kind: 'exported', filePath: result.filePath, openError: result.openError },
           ),
         )
-        .catch((error: unknown) => setExportState({ kind: 'error', message: errorMessage(error) }));
+        .catch((error: unknown) => setExportState({ kind: 'error', message: errorText(error) }));
     },
     [openAfterExport, host],
   );
@@ -164,7 +161,7 @@ export function ReportingSection({ host }: { host: string | null }) {
           )}
           <dt className="text-slate-400">Diagnostics</dt>
           <dd className="text-slate-400">
-            Not included — diagnostics are live-only and never triggered silently by an export.
+            Not included — diagnostics are outside the report read contract. Export does not run checks or include the saved latest diagnostics run.
           </dd>
         </dl>
         <p className="mt-3 text-xs text-slate-500">

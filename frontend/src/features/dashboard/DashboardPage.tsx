@@ -178,8 +178,8 @@ export function DashboardPage() {
         <ModuleTile
           to="/reporting"
           icon={navIcons.reporting}
-          title="Reporting"
-          description="Executive HTML/JSON summary of this machine."
+          title="Report export"
+          description="Executive HTML/JSON summary from saved Inventory and Security data."
         />
       </div>
 

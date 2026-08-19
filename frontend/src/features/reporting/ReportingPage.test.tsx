@@ -90,10 +90,13 @@ describe('ReportingPage', () => {
 
     render(<ReportingPage />);
 
+    expect(screen.getByRole('heading', { name: 'Report export' })).toBeDefined();
     expect(await screen.findByText(/12\/13 applicable checks evaluated — incomplete/)).toBeDefined();
     expect(screen.getByText('REFRESH REQUIRED')).toBeDefined();
     expect(screen.getByText('Persisted WMI/CIM inventory snapshot')).toBeDefined();
     expect(screen.getByText('5m old')).toBeDefined();
+    expect(screen.getByText(/outside the report read contract/)).toBeDefined();
+    expect(screen.getByText(/does not run checks or include the saved latest diagnostics run/)).toBeDefined();
   });
 
   it('disables exports when there is nothing to export yet', async () => {
