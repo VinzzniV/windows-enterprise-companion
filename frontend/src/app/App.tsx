@@ -18,11 +18,12 @@ import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
 import { LogoMark } from '../shared/ui/LogoMark';
 import { ErrorBoundary } from '../shared/ui/ErrorBoundary';
-import { SplashIntro } from './SplashIntro';
+import { Button } from '../shared/ui/Button';
 import { navIcons } from './navIcons';
 import { TargetProvider } from '../shared/targets/TargetContext';
 import { EnvironmentProvider } from '../shared/environment/EnvironmentContext';
 import { AdminSignIn } from '../shared/targets/AdminSignIn';
+import { errorText } from '../shared/bridge/errorText';
 
 interface NavItem {
   to: string;
@@ -67,19 +68,20 @@ function sectionLabelFor(pathname: string): string {
   return allNavItems.find((item) => item.to !== '/' && pathname.startsWith(item.to))?.label ?? 'Overview';
 }
 
-function useAppInfo(): AppInfoResponse | null {
-  const [appInfo, setAppInfo] = useState<AppInfoResponse | null>(null);
+export type AppInfoState =
+  | { kind: 'loading' }
+  | { kind: 'loaded'; appInfo: AppInfoResponse }
+  | { kind: 'error'; message: string };
+
+function useAppInfo(): AppInfoState {
+  const [state, setState] = useState<AppInfoState>({ kind: 'loading' });
   useEffect(() => {
     invoke<AppInfoResponse>('system', 'getAppInfo')
-      .then(setAppInfo)
-      .catch(() => setAppInfo(null));
+      .then((appInfo) => setState({ kind: 'loaded', appInfo }))
+      .catch((caught: unknown) => setState({ kind: 'error', message: errorText(caught) }));
   }, []);
-  return appInfo;
+  return state;
 }
-
-const utilityButtonClass =
-  'rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-400 transition-colors ' +
-  'hover:bg-slate-800 hover:text-slate-200';
 
 /** Global status bar: where you are (left) + privilege and quick utilities (right). */
 function TopBar({ appInfo }: { appInfo: AppInfoResponse | null }) {
@@ -100,19 +102,19 @@ function TopBar({ appInfo }: { appInfo: AppInfoResponse | null }) {
               {appInfo.isElevated ? 'Administrator' : 'Standard user'}
             </StatusBadge>
             {!appInfo.isElevated && (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 title="Starts an elevated copy via the UAC prompt and closes this one"
                 onClick={() => {
                   setRestartError(null);
                   invoke('system', 'restartElevated', {}).catch((caught: unknown) =>
-                    setRestartError(caught instanceof Error ? caught.message : String(caught)),
+                    setRestartError(errorText(caught)),
                   );
                 }}
-                className={utilityButtonClass}
+                className="px-2 py-0.5 text-xs font-normal"
               >
                 Restart as administrator
-              </button>
+              </Button>
             )}
           </>
         )}
@@ -126,11 +128,27 @@ function TopBar({ appInfo }: { appInfo: AppInfoResponse | null }) {
   );
 }
 
-/** Dev/runtime info at the bottom of the sidebar: version and file locations. */
-function AppInfoFooter({ appInfo }: { appInfo: AppInfoResponse | null }) {
-  if (!appInfo) {
-    return null;
+/** Compact runtime identity and a keyboard-accessible log-folder action. */
+export function AppInfoFooter({ state }: { state: AppInfoState }) {
+  const [openError, setOpenError] = useState<string | null>(null);
+
+  if (state.kind === 'loading') {
+    return (
+      <div className="mt-auto border-t border-slate-800 px-4 py-3 text-xs text-slate-500">
+        Loading application information…
+      </div>
+    );
   }
+
+  if (state.kind === 'error') {
+    return (
+      <div className="mt-auto border-t border-slate-800 px-4 py-3 text-xs text-fail-400" role="alert">
+        Application information unavailable: {state.message}
+      </div>
+    );
+  }
+
+  const { appInfo } = state;
   return (
     <div className="mt-auto flex flex-col gap-1.5 border-t border-slate-800 px-4 py-3 text-xs text-slate-500">
       <span className="truncate" title={`Version ${appInfo.version}`}>
@@ -139,25 +157,28 @@ function AppInfoFooter({ appInfo }: { appInfo: AppInfoResponse | null }) {
       <span className="truncate" title={`Runtime profile: ${appInfo.runtimeProfile}`}>
         Profile: {appInfo.runtimeProfile}
       </span>
-      <span className="truncate" title={appInfo.databasePath}>
-        DB: {appInfo.databasePath}
-      </span>
-      <span className="flex items-center gap-2">
-        <span className="min-w-0 truncate" title={appInfo.logDirectory}>
-          Logs: {appInfo.logDirectory}
+      <Button
+        variant="ghost"
+        onClick={() => {
+          setOpenError(null);
+          let request: Promise<unknown>;
+          try {
+            request = invoke('system', 'openLogsFolder');
+          } catch (caught: unknown) {
+            setOpenError(errorText(caught));
+            return;
+          }
+          void request.catch((caught: unknown) => setOpenError(errorText(caught)));
+        }}
+        className="self-start text-xs"
+      >
+        Open log folder
+      </Button>
+      {openError && (
+        <span role="alert" className="text-fail-400">
+          {openError}
         </span>
-        <button
-          type="button"
-          onClick={() => {
-            invoke('system', 'openLogsFolder').catch(() => {
-              /* surfaced in host log; nothing actionable in the UI */
-            });
-          }}
-          className={`shrink-0 ${utilityButtonClass}`}
-        >
-          Open
-        </button>
-      </span>
+      )}
     </div>
   );
 }
@@ -173,9 +194,8 @@ function AppRoutes() {
   const location = useLocation();
 
   return (
-    // Key on the path so route changes replay the enter animation and
-    // reset the error boundary
-    <div key={location.pathname} className="wec-page-enter">
+    // Key on the path so route changes reset the error boundary.
+    <div key={location.pathname}>
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
@@ -198,8 +218,8 @@ function AppRoutes() {
 }
 
 export function App() {
-  const [introDone, setIntroDone] = useState(false);
-  const appInfo = useAppInfo();
+  const appInfoState = useAppInfo();
+  const appInfo = appInfoState.kind === 'loaded' ? appInfoState.appInfo : null;
 
   return (
     <HashRouter>
@@ -228,7 +248,7 @@ export function App() {
               </div>
             ))}
           </nav>
-          <AppInfoFooter appInfo={appInfo} />
+          <AppInfoFooter state={appInfoState} />
         </aside>
         <main className="flex flex-1 flex-col overflow-hidden">
           <TopBar appInfo={appInfo} />
@@ -239,7 +259,6 @@ export function App() {
           </div>
         </main>
       </div>
-      {!introDone && <SplashIntro onDone={() => setIntroDone(true)} />}
       </EnvironmentProvider>
       </TargetProvider>
     </HashRouter>

@@ -1,14 +1,9 @@
 interface LogoMarkProps {
   className?: string;
-  animated?: boolean;
 }
 
-/**
- * WEC logo mark: hexagonal outline (resilience/enterprise) around three
- * rack bars (systems under management). `animated` enables the stroke-draw
- * and staggered bar reveal used by the splash intro.
- */
-export function LogoMark({ className, animated = false }: LogoMarkProps) {
+/** WEC logo mark: hexagonal outline around three managed-system rack bars. */
+export function LogoMark({ className }: LogoMarkProps) {
   return (
     <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
       <path
@@ -16,9 +11,8 @@ export function LogoMark({ className, animated = false }: LogoMarkProps) {
         stroke="url(#wec-logo-gradient)"
         strokeWidth="3"
         strokeLinejoin="round"
-        className={animated ? 'wec-logo-hex' : undefined}
       />
-      {[24, 31, 38].map((y, index) => (
+      {[24, 31, 38].map((y) => (
         <rect
           key={y}
           x="21"
@@ -27,8 +21,6 @@ export function LogoMark({ className, animated = false }: LogoMarkProps) {
           height="4"
           rx="1.5"
           fill="currentColor"
-          className={animated ? 'wec-logo-bar' : undefined}
-          style={animated ? { animationDelay: `${650 + index * 140}ms` } : undefined}
         />
       ))}
       <defs>
