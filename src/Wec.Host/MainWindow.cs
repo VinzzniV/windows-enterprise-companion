@@ -5,6 +5,7 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using Wec.Host.Bridge;
 using Wec.Host.Options;
+using Wec.Host.Runtime;
 
 namespace Wec.Host;
 
@@ -77,13 +78,16 @@ internal sealed partial class MainWindow : Form
             NavigateToFrontend();
             LogWebViewInitialized(environment.BrowserVersionString);
         }
-        catch (WebView2RuntimeNotFoundException exception)
+        catch (Exception exception)
         {
-            _logger.LogCritical(exception, "WebView2 Evergreen Runtime is not installed");
+            _logger.LogCritical(exception, "WebView2 initialization failed");
+            StartupFailurePresentation presentation = StartupFailurePresentation.From(
+                exception,
+                StartupPhase.WebView);
             MessageBox.Show(
                 this,
-                "The WebView2 runtime is missing. Install the Microsoft Edge WebView2 Evergreen Runtime and restart the app.",
-                Text,
+                presentation.Message,
+                presentation.Title,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
             Close();

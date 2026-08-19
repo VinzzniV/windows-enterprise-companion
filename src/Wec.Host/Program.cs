@@ -51,29 +51,46 @@ internal static partial class Program
     private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        IHost? host = null;
+        bool hostStarted = false;
 
         try
         {
-            using IHost host = BuildHost(args);
+            host = BuildHost(args);
             host.Start();
+            hostStarted = true;
             ValidateActionHandlerRegistrations(host.Services);
             ApplyDatabaseMigrations(host.Services);
-            try
-            {
-                Application.Run(host.Services.GetRequiredService<MainWindow>());
-            }
-            finally
-            {
-                host.StopAsync().GetAwaiter().GetResult();
-            }
+            Application.Run(host.Services.GetRequiredService<MainWindow>());
         }
-        catch (Exception exception) when (exception is OptionsValidationException or HostAbortedException)
+        catch (Exception exception)
         {
+            Log.Fatal(exception, "Application startup failed");
+            StartupFailurePresentation presentation = StartupFailurePresentation.From(
+                exception,
+                StartupPhase.Host);
             MessageBox.Show(
-                $"Configuration is invalid:{Environment.NewLine}{exception.Message}",
-                "Windows Enterprise Companion",
+                presentation.Message,
+                presentation.Title,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+        finally
+        {
+            if (hostStarted && host is not null)
+            {
+                try
+                {
+                    host.StopAsync().GetAwaiter().GetResult();
+                }
+                catch (Exception exception)
+                {
+                    Log.Error(exception, "Application host shutdown failed");
+                }
+            }
+
+            host?.Dispose();
+            Log.CloseAndFlush();
         }
     }
 
