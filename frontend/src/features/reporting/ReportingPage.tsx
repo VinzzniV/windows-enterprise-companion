@@ -5,7 +5,7 @@ import { ReportingSection } from './ReportingSection';
 export function ReportingPage() {
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Reporting" subtitle="Executive summary export">
+      <PageHeader title="Report export" subtitle="Executive summary from saved Inventory and Security data">
         <StatusBadge variant="neutral">This machine</StatusBadge>
       </PageHeader>
       <ReportingSection host={null} />

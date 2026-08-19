@@ -29,7 +29,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'diagnostics', label: 'Diagnostics' },
   { key: 'events', label: 'Event logs' },
   { key: 'printers', label: 'Printers' },
-  { key: 'reporting', label: 'Reporting' },
+  { key: 'reporting', label: 'Report export' },
 ];
 
 /** Read-only reminder of which identity remote sections scan as (the global admin sign-in). */

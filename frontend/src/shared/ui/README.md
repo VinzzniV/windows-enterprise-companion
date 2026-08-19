@@ -46,5 +46,6 @@ views (`SnapshotGrid`, `FindingCard`/`CoverageNotes`, `RunSummary`/
 (`shared/targets/TargetContext`) — enter credentials once per host per session.
 Saved targets (`SavedTargetsBar`, backed by `Wec.Modules.Targets`) pre-fill
 pickers by role. Print Management keeps a single consolidated table but merges
-queues per physical device with search and site grouping; the standalone
-Inventory/Security/Diagnostics pages remain as Fleet multi-host batch runners.
+queues per physical device with search and site grouping. Inventory, Security
+and Diagnostics are currently embedded in Clients rather than routed as
+standalone pages.

@@ -72,6 +72,7 @@ describe('DashboardPage', () => {
     // Tiles for every module are present with links into them
     expect(screen.getByText('Clients')).toBeDefined();
     expect(screen.getByText('Active Directory')).toBeDefined();
+    expect(screen.getByText('Report export')).toBeDefined();
     // Derived metrics from stored data
     expect(await screen.findByText('1 host')).toBeDefined();
     expect(await screen.findByText('1 critical/high')).toBeDefined();

@@ -95,6 +95,8 @@ public class ExecutiveSummaryHtmlGeneratorTests
         Assert.Contains("1 findings", html, StringComparison.Ordinal);
         Assert.Contains("Report readiness", html, StringComparison.Ordinal);
         Assert.Contains("Persisted WMI/CIM inventory snapshot", html, StringComparison.Ordinal);
+        Assert.Contains("read-only assessment of TESTHOST", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("assessment of the local machine", html, StringComparison.Ordinal);
     }
 
     [Fact]
