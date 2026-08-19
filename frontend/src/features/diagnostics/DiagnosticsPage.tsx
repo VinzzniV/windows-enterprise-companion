@@ -72,7 +72,6 @@ function countByStatus(results: DiagnosticResult[], status: DiagnosticStatus): n
 
 function DiagnosticRow({ result }: { result: DiagnosticResult }) {
   // Problems put their way forward first; healthy checks collapse to one line
-  const needsAttention = result.status !== 'PASS';
   const evidenceCount = Object.keys(result.evidence).length;
 
   return (
@@ -88,7 +87,7 @@ function DiagnosticRow({ result }: { result: DiagnosticResult }) {
         </div>
       </div>
 
-      {needsAttention && result.suggestedNextSteps.length > 0 && (
+      {result.suggestedNextSteps.length > 0 && (
         <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-slate-300">
           {result.suggestedNextSteps.map((step, index) => (
             <li key={index}>{step}</li>
@@ -96,22 +95,10 @@ function DiagnosticRow({ result }: { result: DiagnosticResult }) {
         </ul>
       )}
 
-      {(evidenceCount > 0 || (!needsAttention && result.suggestedNextSteps.length > 0)) && (
+      {evidenceCount > 0 && (
         <div className="mt-2">
-          <DetailsDisclosure
-            summary={evidenceCount > 0 ? `Evidence (${evidenceCount})` : 'Details'}
-            defaultOpen={result.status === 'FAIL'}
-          >
-            <div className="flex flex-col gap-2">
-              <EvidenceList evidence={result.evidence} />
-              {!needsAttention && result.suggestedNextSteps.length > 0 && (
-                <ul className="list-disc space-y-0.5 pl-5 text-sm text-slate-300">
-                  {result.suggestedNextSteps.map((step, index) => (
-                    <li key={index}>{step}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
+          <DetailsDisclosure summary={`Raw evidence (${evidenceCount})`}>
+            <EvidenceList evidence={result.evidence} />
           </DetailsDisclosure>
         </div>
       )}
@@ -273,7 +260,7 @@ export function DiagnosticsPage() {
       {entries.length === 0 && (
         <EmptyState
           title="System diagnostics"
-          message="Checks network configuration, reachability, time synchronization, services, event logs, disk space, pending reboots and update recency. Remote targets run the WMI-based checks; connectivity probes are marked as local-perspective and skipped. Results are not persisted — this is a live troubleshooting snapshot."
+          message="Checks network configuration, reachability, time synchronization, services, event logs, disk space, pending reboots and update recency on demand. The latest run per host is saved; no diagnostics run in the background. Remote connectivity probes remain local-perspective and are skipped."
         />
       )}
 
