@@ -119,10 +119,15 @@ describe('SecurityPage', () => {
 
     render(<SecurityPage />);
     await screen.findByText('Firewall disabled');
-    await userEvent.click(screen.getByRole('button', { name: 'HIGH' }));
+    const highFilter = screen.getByRole('button', { name: 'HIGH: 1 finding' });
+    expect(highFilter.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('group', { name: 'Filter findings by severity' })).toBeDefined();
+    await userEvent.click(highFilter);
 
     expect(screen.queryByText('Firewall disabled')).toBeNull();
     expect(screen.getByText('Admins documented')).toBeDefined();
+    expect(highFilter.getAttribute('aria-pressed')).toBe('false');
+    expect(highFilter.textContent).toBe('HIGH (1)');
   });
 
   it('filters by category', async () => {

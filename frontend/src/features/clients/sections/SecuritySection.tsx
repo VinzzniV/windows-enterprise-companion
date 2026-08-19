@@ -4,10 +4,11 @@ import { errorText } from '../../../shared/bridge/errorText';
 import type { LatestScanResult, SecurityScanResult, TargetRequest } from '../../../shared/api-types';
 import {
   CoverageNotes,
-  FindingCard,
+  FindingList,
   ResultContext,
   SeveritySummary,
 } from '../../security/SecurityPage';
+import { ScanHistory } from '../../security/ScanHistory';
 import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
 import { Spinner } from '../../../shared/ui/Spinner';
@@ -85,13 +86,10 @@ export function SecuritySection({ target }: { target: TargetRequest | null }) {
           </p>
         </Card>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {problems.map((finding, index) => (
-            <FindingCard key={`${finding.findingId}-${index}`} finding={finding} />
-          ))}
-        </ul>
+        <FindingList key={state.scan.scanId} findings={problems} />
       )}
       <CoverageNotes results={state.scan.checkResults} />
+      <ScanHistory refreshToken={state.scan.scanId} target={target} />
     </div>
   );
 }

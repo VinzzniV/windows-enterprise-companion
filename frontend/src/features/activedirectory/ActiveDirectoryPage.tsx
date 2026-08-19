@@ -433,37 +433,42 @@ export function ActiveDirectoryPage() {
             </ul>
           </ResultCategory>
 
-          {hygiene.rules.map((rule) => (
-            <ResultCategory
-              key={rule.ruleId}
-              title={rule.title}
-              count={rule.matchCount}
-              tone={rule.matchCount > 0 ? 'warn' : 'ok'}
-            >
-              <div className="flex flex-col gap-2 text-sm">
-                <p className="text-slate-400">{rule.recommendation}</p>
-                {rule.examples.length > 0 && (
-                  <ul className="flex flex-col gap-1">
-                    {rule.examples.map((account) => (
-                      <li key={account.distinguishedName} className="flex items-baseline gap-2">
-                        <span>{account.name}</span>
-                        {account.lastLogonUtc && (
-                          <span className="text-xs text-slate-500">
-                            last logon {new Date(account.lastLogonUtc).toLocaleDateString()}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {rule.matchCount > rule.examples.length && (
-                  <p className="text-xs text-slate-500">
-                    Showing {rule.examples.length} of {rule.matchCount} matches.
-                  </p>
-                )}
-              </div>
-            </ResultCategory>
-          ))}
+          {[...hygiene.rules]
+            .sort(
+              (left, right) =>
+                Number(right.matchCount > 0) - Number(left.matchCount > 0),
+            )
+            .map((rule) => (
+              <ResultCategory
+                key={rule.ruleId}
+                title={rule.title}
+                count={rule.matchCount}
+                tone={rule.matchCount > 0 ? 'warn' : 'ok'}
+              >
+                <div className="flex flex-col gap-2 text-sm">
+                  <p className="text-slate-400">{rule.recommendation}</p>
+                  {rule.examples.length > 0 && (
+                    <ul className="flex flex-col gap-1">
+                      {rule.examples.map((account) => (
+                        <li key={account.distinguishedName} className="flex items-baseline gap-2">
+                          <span>{account.name}</span>
+                          {account.lastLogonUtc && (
+                            <span className="text-xs text-slate-500">
+                              last logon {new Date(account.lastLogonUtc).toLocaleDateString()}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {rule.matchCount > rule.examples.length && (
+                    <p className="text-xs text-slate-500">
+                      Showing {rule.examples.length} of {rule.matchCount} matches.
+                    </p>
+                  )}
+                </div>
+              </ResultCategory>
+            ))}
         </section>
       )}
     </div>

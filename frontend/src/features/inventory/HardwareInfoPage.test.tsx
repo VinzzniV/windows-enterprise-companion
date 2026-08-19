@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HardwareInfoResult } from '../../shared/api-types';
-import { formatLinkSpeed, HardwareInfoPage } from './HardwareInfoPage';
+import { formatLinkSpeed, formatSnapshotAge, HardwareInfoPage } from './HardwareInfoPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
@@ -17,13 +17,23 @@ const snapshotResult: HardwareInfoResult = {
   fromCache: false,
   snapshot: {
     cpu: { name: 'Test CPU', physicalCores: 4, logicalProcessors: 8, maxClockSpeedMhz: 4000 },
-    memoryBanks: [],
-    disks: [],
+    memoryBanks: [
+      { manufacturer: 'Memory Inc.', partNumber: 'MEM-16', capacityBytes: 16 * 1024 ** 3, speedMtps: 3200 },
+      { manufacturer: 'Memory Inc.', partNumber: 'MEM-16', capacityBytes: 16 * 1024 ** 3, speedMtps: 3200 },
+    ],
+    disks: [
+      { model: 'Test SSD', sizeBytes: 1024 ** 4, interfaceType: 'NVMe', mediaType: 'SSD' },
+    ],
     operatingSystem: { caption: 'Windows 11', version: '10.0', buildNumber: '26200', architecture: '64-bit' },
-    networkAdapters: [],
+    networkAdapters: [
+      { name: 'Ethernet', macAddress: '00:11:22:33:44:55', speedBitsPerSecond: 1_000_000_000, connected: true, adapterType: 'Ethernet', ipAddresses: ['192.0.2.10'] },
+      { name: 'Wi-Fi', macAddress: '00:11:22:33:44:66', speedBitsPerSecond: null, connected: false, adapterType: 'Wireless', ipAddresses: null },
+    ],
     gpus: [],
     monitors: [],
-    installedSoftware: [],
+    installedSoftware: [
+      { name: 'Management Agent', version: '1.0', publisher: 'Example' },
+    ],
     installedSoftwareError: null,
   },
 };
@@ -44,6 +54,13 @@ describe('formatLinkSpeed', () => {
     expect(formatLinkSpeed(9223372036854775807)).toBe('—');
     expect(formatLinkSpeed(0)).toBe('—');
     expect(formatLinkSpeed(null)).toBe('—');
+  });
+});
+
+describe('formatSnapshotAge', () => {
+  it('formats snapshot age without hiding the absolute capture time', () => {
+    expect(formatSnapshotAge('2026-08-19T08:00:00Z', Date.parse('2026-08-19T10:30:00Z'))).toBe('2 h old');
+    expect(formatSnapshotAge('invalid', Date.parse('2026-08-19T10:30:00Z'))).toBe('age unavailable');
   });
 });
 
@@ -68,6 +85,10 @@ describe('HardwareInfoPage refresh', () => {
     render(<HardwareInfoPage />);
 
     expect(await screen.findByText('Test CPU')).toBeDefined();
+    expect(screen.getByLabelText('Inventory totals').textContent).toContain('32.0 GBMemory');
+    expect(screen.getByLabelText('Inventory totals').textContent).toContain('1.0 TBStorage');
+    expect(screen.getByLabelText('Inventory totals').textContent).toContain('1/2Active network');
+    expect(screen.getByLabelText('Inventory totals').textContent).toContain('1Installed software');
     await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
     expect(screen.getByText('Test CPU')).toBeDefined();

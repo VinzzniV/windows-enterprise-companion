@@ -18,6 +18,7 @@ import { PageHeader } from '../../shared/ui/PageHeader';
 import { ErrorState } from '../../shared/ui/States';
 import { DataTable } from '../../shared/ui/DataTable';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
+import { SummaryMetric } from '../../shared/ui/SummaryMetric';
 import {
   LOCAL_TARGET_SELECTION,
   TargetSelector,
@@ -47,6 +48,20 @@ export function formatLinkSpeed(bitsPerSecond: number | null): string {
     return `${Number((bitsPerSecond / 1_000_000_000).toFixed(1))} Gbit/s`;
   if (bitsPerSecond >= 1_000_000) return `${Number((bitsPerSecond / 1_000_000).toFixed(1))} Mbit/s`;
   return `${bitsPerSecond} bit/s`;
+}
+
+export function formatSnapshotAge(capturedAtUtc: string, nowMs = Date.now()): string {
+  const capturedMs = Date.parse(capturedAtUtc);
+  if (!Number.isFinite(capturedMs)) return 'age unavailable';
+
+  const ageMinutes = Math.floor(Math.max(0, nowMs - capturedMs) / 60_000);
+  if (ageMinutes < 1) return 'less than a minute old';
+  if (ageMinutes < 60) return `${ageMinutes} min old`;
+
+  const ageHours = Math.floor(ageMinutes / 60);
+  if (ageHours < 48) return `${ageHours} h old`;
+
+  return `${Math.floor(ageHours / 24)} d old`;
 }
 
 function errorText(error: unknown): string {
@@ -149,8 +164,28 @@ function NotCaptured({ reason }: { reason?: string }) {
 
 export function SnapshotGrid({ result, target }: { result: HardwareInfoResult; target: TargetRequest | null }) {
   const { snapshot } = result;
+  const totalMemoryBytes = snapshot.memoryBanks.reduce((total, bank) => total + bank.capacityBytes, 0);
+  const totalStorageBytes = snapshot.disks.reduce((total, disk) => total + disk.sizeBytes, 0);
+  const activeAdapterCount = snapshot.networkAdapters?.filter((adapter) => adapter.connected !== false).length;
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Inventory totals">
+        <SummaryMetric label="Memory" value={formatBytes(totalMemoryBytes)} />
+        <SummaryMetric label="Storage" value={formatBytes(totalStorageBytes)} />
+        <SummaryMetric
+          label="Active network"
+          value={
+            activeAdapterCount === undefined
+              ? '—'
+              : `${activeAdapterCount}/${snapshot.networkAdapters?.length ?? 0}`
+          }
+        />
+        <SummaryMetric
+          label="Installed software"
+          value={snapshot.installedSoftware?.length ?? '—'}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <Card title="System">
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm">
           <dt className="text-slate-400">Computer</dt>
@@ -323,7 +358,8 @@ export function SnapshotGrid({ result, target }: { result: HardwareInfoResult; t
         )}
       </Card>
 
-      <EncryptionCard target={target} />
+        <EncryptionCard target={target} />
+      </div>
     </div>
   );
 }
@@ -513,7 +549,7 @@ export function HardwareInfoPage() {
                   <span className="text-xs text-slate-400">
                     {selectedEntry.refreshing
                       ? 'Refreshing — previous snapshot remains visible'
-                      : `${selectedEntry.state.result.fromCache ? 'From cache' : 'Freshly captured'} — ${new Date(selectedEntry.state.result.capturedAtUtc).toLocaleString()}`}
+                      : `${selectedEntry.state.result.fromCache ? 'From cache' : 'Freshly captured'} — ${formatSnapshotAge(selectedEntry.state.result.capturedAtUtc)} — ${new Date(selectedEntry.state.result.capturedAtUtc).toLocaleString()}`}
                   </span>
                 )}
                 <Button

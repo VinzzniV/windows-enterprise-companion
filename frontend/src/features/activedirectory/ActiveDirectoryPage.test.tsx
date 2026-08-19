@@ -47,6 +47,13 @@ const hygiene: AdHygieneResult = {
   privilegedGroups: [],
   rules: [
     {
+      ruleId: 'WEC-AD-EMPTY-GROUPS',
+      title: 'Empty groups',
+      matchCount: 0,
+      examples: [],
+      recommendation: 'No action required.',
+    },
+    {
       ruleId: 'WEC-AD-INACTIVE-USERS',
       title: 'Inactive users',
       matchCount: 250,
@@ -132,5 +139,10 @@ describe('ActiveDirectoryPage', () => {
     expect(await screen.findByText('Inactive users')).toBeDefined();
     expect(screen.getByText('250')).toBeDefined();
     expect(screen.getByText('Showing 1 of 250 matches.')).toBeDefined();
+
+    const ruleTitles = [...document.querySelectorAll('summary')].map((summary) => summary.textContent ?? '');
+    expect(ruleTitles.findIndex((title) => title.includes('Inactive users'))).toBeLessThan(
+      ruleTitles.findIndex((title) => title.includes('Empty groups')),
+    );
   });
 });
