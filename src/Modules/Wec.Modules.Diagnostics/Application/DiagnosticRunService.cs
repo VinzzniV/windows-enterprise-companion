@@ -62,8 +62,24 @@ public sealed partial class DiagnosticRunService
         DateTimeOffset completedAtUtc = _clock.UtcNow;
         LogRunFinished(results.Count, _diagnostics.Count);
 
-        return Result.Success(new DiagnosticRunResult(startedAtUtc, completedAtUtc, results));
+        IReadOnlyList<DiagnosticResult> orderedResults = results
+            .OrderBy(result => StatusRank(result.Status))
+            .ThenBy(result => result.Category)
+            .ThenBy(result => result.DiagnosticId, StringComparer.Ordinal)
+            .ThenBy(result => result.Title, StringComparer.Ordinal)
+            .ToList();
+
+        return Result.Success(new DiagnosticRunResult(startedAtUtc, completedAtUtc, orderedResults));
     }
+
+    internal static int StatusRank(DiagnosticStatus status) => status switch
+    {
+        DiagnosticStatus.Fail => 0,
+        DiagnosticStatus.Warning => 1,
+        DiagnosticStatus.NotRun => 2,
+        DiagnosticStatus.Pass => 3,
+        _ => 4,
+    };
 
     [LoggerMessage(
         Level = LogLevel.Information,

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DiagnosticResult, DiagnosticRunResult } from '../../shared/api-types';
-import { DiagnosticsPage } from './DiagnosticsPage';
+import { CategorySections, DiagnosticsPage, RunSummary } from './DiagnosticsPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
@@ -67,5 +67,64 @@ describe('DiagnosticsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Run diagnostics' }));
 
     expect(await screen.findByText('bridge down')).toBeDefined();
+  });
+
+  it('orders categories and checks by operational urgency', () => {
+    render(
+      <CategorySections
+        results={[
+          diagnostic({ title: 'Network pass', status: 'PASS', category: 'NETWORK' }),
+          diagnostic({ title: 'Domain not run', status: 'NOT_RUN', category: 'DOMAIN' }),
+          diagnostic({ title: 'Event warning', status: 'WARNING', category: 'EVENT_LOG' }),
+          diagnostic({ title: 'DNS warning', status: 'WARNING', category: 'DNS' }),
+          diagnostic({ title: 'DNS failure', status: 'FAIL', category: 'DNS' }),
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      expect.stringContaining('DNS'),
+      expect.stringContaining('Event logs'),
+      expect.stringContaining('Domain'),
+      expect.stringContaining('Network'),
+    ]);
+    expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      'DNS failure',
+      'DNS warning',
+      'Event warning',
+      'Domain not run',
+      'Network pass',
+    ]);
+  });
+
+  it('keeps pass evidence collapsed and puts not-run guidance first', () => {
+    render(
+      <CategorySections
+        results={[
+          diagnostic({ title: 'Healthy adapter', status: 'PASS', evidence: { adapter: 'Ethernet' } }),
+          diagnostic({
+            title: 'Provider unavailable',
+            status: 'NOT_RUN',
+            suggestedNextSteps: ['Restore provider access'],
+          }),
+        ]}
+      />,
+    );
+
+    const healthyRow = screen.getByText('Healthy adapter').closest('li');
+    expect(healthyRow?.querySelector('details')?.hasAttribute('open')).toBe(false);
+    const notRunRow = screen.getByText('Provider unavailable').closest('li');
+    expect(notRunRow?.querySelector('ul')?.textContent).toContain('Restore provider access');
+  });
+
+  it('orders summary metrics fail, warning, not run, then pass', () => {
+    render(<RunSummary results={run.results} />);
+
+    expect(screen.getAllByText(/^(Fail|Warning|Not run|Pass)$/).map((label) => label.textContent)).toEqual([
+      'Fail',
+      'Warning',
+      'Not run',
+      'Pass',
+    ]);
   });
 });
