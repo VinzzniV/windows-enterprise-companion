@@ -255,6 +255,7 @@ internal static partial class Program
         builder.Services.AddSingleton<IElevatedProcessLauncher, ShellElevatedProcessLauncher>();
         builder.Services.AddSingleton<IAppShutdown, MainWindowShutdown>();
         builder.Services.AddSingleton<IActionHandler, RestartElevatedHandler>();
+        builder.Services.AddSingleton<IBridgeExecutionTimeoutPolicy, BridgeExecutionTimeoutPolicy>();
         builder.Services.AddSingleton<ActionDispatcher>();
         builder.Services.AddSingleton<WebViewBridge>();
         builder.Services.AddSingleton<WebViewBridgeEventPublisher>();

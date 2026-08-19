@@ -99,7 +99,7 @@ export function ComparePage() {
   const [comparison, setComparison] = useState<Comparison | null>(null);
 
   useEffect(() => {
-    invoke<AdComputerSearchResult>('activedirectory', 'searchComputers', { nameFilter: null, includeDisabled: false }, 120_000)
+    invoke<AdComputerSearchResult>('activedirectory', 'searchComputers', { nameFilter: null, includeDisabled: false })
       .then(setAdResult)
       .catch(() => setAdResult(null));
     invoke<ListInventoryHostsResult>('inventory', 'listHosts')

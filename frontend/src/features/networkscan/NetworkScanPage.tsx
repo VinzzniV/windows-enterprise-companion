@@ -82,7 +82,7 @@ export function NetworkScanPage() {
     };
     setScanning(true);
     setError(null);
-    invoke<NetworkScanResult>('networkscan', 'scan', request, 600_000)
+    invoke<NetworkScanResult>('networkscan', 'scan', request)
       .then(setResult)
       .catch((caught: unknown) => setError(errorText(caught)))
       .finally(() => setScanning(false));

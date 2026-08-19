@@ -24,6 +24,5 @@ export function openPsSession(
       domain: admin?.domain ?? null,
       password: admin?.password ?? null,
     },
-    30_000,
   );
 }

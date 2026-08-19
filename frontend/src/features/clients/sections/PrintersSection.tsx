@@ -54,7 +54,7 @@ export function PrintersSection({ target }: { target: TargetRequest | null }) {
 
   const run = useCallback(() => {
     setState({ kind: 'running' });
-    invoke<ClientPrinterScan>('printmanagement', 'scanClientPrinters', { target }, 120_000)
+    invoke<ClientPrinterScan>('printmanagement', 'scanClientPrinters', { target })
       .then((scan) => setState({ kind: 'done', scan }))
       .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
   }, [target]);

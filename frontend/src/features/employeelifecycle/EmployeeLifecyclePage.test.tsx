@@ -139,7 +139,6 @@ describe('EmployeeLifecyclePage IT hygiene MVP', () => {
       'employeelifecycle',
       'getHygiene',
       expect.any(Object),
-      180_000,
     );
   });
 

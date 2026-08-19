@@ -163,7 +163,6 @@ export function ActiveDirectoryPage() {
       'activedirectory',
       'testConnection',
       { connection: toConnectionRequest(connectionForm, adminCredentials) },
-      120_000,
     )
       .then((result) => {
         setTestBindState({ kind: 'ok', result });
@@ -180,7 +179,6 @@ export function ActiveDirectoryPage() {
       'activedirectory',
       'getOverview',
       { connection: toConnectionRequest(connectionForm, adminCredentials) },
-      120_000,
     )
       .then((overview) => {
         setState({ kind: 'loaded', overview });
@@ -211,7 +209,6 @@ export function ActiveDirectoryPage() {
       'activedirectory',
       'getHygiene',
       { connection: toConnectionRequest(connectionForm, adminCredentials) },
-      120_000,
     )
       .then((hygiene) => setHygieneState({ kind: 'loaded', hygiene }))
       .catch((error: unknown) => setHygieneState({ kind: 'error', ...adError(error) }));

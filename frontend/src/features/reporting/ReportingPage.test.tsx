@@ -49,7 +49,6 @@ describe('ReportingPage', () => {
       'reporting',
       'exportHtml',
       { openAfterExport: true, host: null },
-      expect.any(Number),
     );
   });
 

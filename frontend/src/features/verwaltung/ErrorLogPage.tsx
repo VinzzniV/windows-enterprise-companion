@@ -39,7 +39,7 @@ export function ErrorLogPage() {
 
   const load = useCallback(() => {
     setState({ kind: 'loading' });
-    invoke<RecentLogEntriesResult>('logs', 'recent', { limit: 500 }, 30_000)
+    invoke<RecentLogEntriesResult>('logs', 'recent', { limit: 500 })
       .then((result) => setState({ kind: 'loaded', result }))
       .catch((error: unknown) =>
         setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) }),

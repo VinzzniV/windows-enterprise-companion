@@ -9,11 +9,16 @@ namespace Wec.Host.Bridge;
 internal sealed partial class ActionDispatcher
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBridgeExecutionTimeoutPolicy _timeoutPolicy;
     private readonly ILogger<ActionDispatcher> _logger;
 
-    public ActionDispatcher(IServiceScopeFactory scopeFactory, ILogger<ActionDispatcher> logger)
+    public ActionDispatcher(
+        IServiceScopeFactory scopeFactory,
+        IBridgeExecutionTimeoutPolicy timeoutPolicy,
+        ILogger<ActionDispatcher> logger)
     {
         _scopeFactory = scopeFactory;
+        _timeoutPolicy = timeoutPolicy;
         _logger = logger;
     }
 
@@ -41,10 +46,14 @@ internal sealed partial class ActionDispatcher
                 $"No handler registered for '{request.Module}/{request.Action}'."));
         }
 
+        TimeSpan timeout = _timeoutPolicy.Resolve(request);
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+
         try
         {
             BridgeResponse response = await HandlerRegistration.Create(handler)
-                .InvokeAsync(request, cancellationToken);
+                .InvokeAsync(request, timeoutSource.Token);
             LogRequestHandled(response.Success);
             return response;
         }
@@ -54,6 +63,20 @@ internal sealed partial class ActionDispatcher
             return BridgeResponse.ForFailure(request.Id, new Error(
                 ErrorCode.InvalidRequest,
                 "The request payload does not match the expected shape."));
+        }
+        catch (OperationCanceledException) when (
+            timeoutSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            LogRequestTimedOut(timeout.TotalSeconds);
+            return BridgeResponse.ForFailure(request.Id, new Error(
+                ErrorCode.ConnectionTimeout,
+                $"The operation did not finish within {timeout.TotalSeconds:0} seconds."));
+        }
+        catch (OperationCanceledException)
+        {
+            return BridgeResponse.ForFailure(request.Id, new Error(
+                ErrorCode.ServiceUnavailable,
+                "The operation was cancelled before it completed."));
         }
         catch (Exception exception)
         {
@@ -67,4 +90,7 @@ internal sealed partial class ActionDispatcher
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Bridge request handled, success: {Success}")]
     private partial void LogRequestHandled(bool success);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Bridge request exceeded its {TimeoutSeconds}-second execution limit")]
+    private partial void LogRequestTimedOut(double timeoutSeconds);
 }

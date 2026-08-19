@@ -124,7 +124,7 @@ export function ClientsPage() {
     const hosts = filtered.map((client) => client.host);
     if (!hosts.length) return;
     setProbing(true);
-    invoke<ProbeHostsResult>('connectivity', 'probeHosts', { hosts }, 120_000)
+    invoke<ProbeHostsResult>('connectivity', 'probeHosts', { hosts })
       .then((value) => setProbes((current) => ({ ...current, ...Object.fromEntries(value.results.map((probe) => [probe.host.toUpperCase(), probe])) })))
       .catch(() => {}).finally(() => setProbing(false));
   };

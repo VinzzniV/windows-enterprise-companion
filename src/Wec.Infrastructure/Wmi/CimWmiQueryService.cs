@@ -55,8 +55,13 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
                 ? ToSecureString(credentials.Password!)
                 : null;
             using CimSession session = CreateSession(target, credentials, connection, explicitPassword);
+            using var operationOptions = new CimOperationOptions { Timeout = connection.Timeout };
             var instances = new List<WmiInstance>();
-            foreach (CimInstance cimInstance in session.QueryInstances(wmiNamespace, QueryDialect, wqlQuery))
+            foreach (CimInstance cimInstance in session.QueryInstances(
+                         wmiNamespace,
+                         QueryDialect,
+                         wqlQuery,
+                         operationOptions))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 using (cimInstance)
@@ -120,13 +125,19 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
                 ? ToSecureString(credentials.Password!)
                 : null;
             using CimSession session = CreateSession(target, credentials, connection, explicitPassword);
+            using var operationOptions = new CimOperationOptions { Timeout = connection.Timeout };
             using var parameters = new CimMethodParametersCollection();
             foreach ((string parameterName, object? parameterValue) in inputParameters)
             {
                 parameters.Add(CimMethodParameter.Create(parameterName, parameterValue, CimFlags.In));
             }
 
-            using CimMethodResult methodResult = session.InvokeMethod(wmiNamespace, className, methodName, parameters);
+            using CimMethodResult methodResult = session.InvokeMethod(
+                wmiNamespace,
+                className,
+                methodName,
+                parameters,
+                operationOptions);
             var properties = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
             {
                 ["ReturnValue"] = NormalizeValue(methodResult.ReturnValue?.Value),

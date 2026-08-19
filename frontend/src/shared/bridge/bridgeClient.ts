@@ -4,6 +4,8 @@
  * and subscription support for unsolicited backend events.
  */
 
+import { bridgeResponseTimeoutMs } from './actionTimeouts';
+
 export interface BridgeError {
   code: string;
   message: string;
@@ -62,8 +64,6 @@ interface PendingRequest {
   reject(reason: Error): void;
   timeoutHandle: ReturnType<typeof setTimeout>;
 }
-
-const DEFAULT_TIMEOUT_MS = 10_000;
 
 const pendingRequests = new Map<string, PendingRequest>();
 const eventSubscribers = new Map<string, Set<(payload: unknown) => void>>();
@@ -124,7 +124,7 @@ export function invoke<TResponse>(
   module: string,
   action: string,
   payload?: unknown,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  timeoutOverrideMs?: number,
 ): Promise<TResponse> {
   // Always reject instead of throwing synchronously: callers use promise
   // .catch() paths, and a synchronous throw inside a React effect would tear
@@ -139,6 +139,7 @@ export function invoke<TResponse>(
   ensureListener(messenger);
 
   const id = crypto.randomUUID();
+  const timeoutMs = timeoutOverrideMs ?? bridgeResponseTimeoutMs(module, action, payload);
 
   return new Promise<TResponse>((resolve, reject) => {
     const timeoutHandle = setTimeout(() => {

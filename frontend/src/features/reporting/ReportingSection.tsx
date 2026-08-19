@@ -53,7 +53,7 @@ export function ReportingSection({ host }: { host: string | null }) {
     (action: 'exportHtml' | 'exportJson') => {
       setExportState({ kind: 'exporting' });
       const payload: ExportReportRequest = { openAfterExport, host };
-      invoke<ReportExportResult>('reporting', action, payload, 120_000)
+      invoke<ReportExportResult>('reporting', action, payload)
         .then((result) =>
           setExportState(
             result.cancelled || result.filePath === null

@@ -111,7 +111,7 @@ export function DashboardPage() {
         setPatch(derivePatchTile(status));
         if (!status.connected) return;
         // Only reachable with an active opsi session — chart the product states.
-        invoke<PatchDashboardResult>('patchmanagement', 'getDashboard', { depotFilter: null }, 120_000)
+        invoke<PatchDashboardResult>('patchmanagement', 'getDashboard', { depotFilter: null })
           .then((dashboard) => setPatchChart(derivePatchStatusChart(dashboard.products)))
           .catch(() => setPatchChart(null));
       })

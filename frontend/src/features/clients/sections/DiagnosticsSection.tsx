@@ -34,7 +34,7 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
 
   const run = useCallback(() => {
     setState({ kind: 'running' });
-    invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target }, 120_000)
+    invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target })
       .then((result) => setState({ kind: 'done', run: result }))
       .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
   }, [target]);

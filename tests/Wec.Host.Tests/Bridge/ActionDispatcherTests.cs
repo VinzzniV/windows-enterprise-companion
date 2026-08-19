@@ -43,15 +43,37 @@ public sealed class ActionDispatcherTests
             throw new InvalidOperationException("bug with secret internals");
     }
 
-    private static ActionDispatcher CreateDispatcher()
+    private sealed class BlockingHandler : IActionHandler<EchoPayload, EchoResult>
+    {
+        public string Module => "test";
+
+        public string Action => "block";
+
+        public async Task<Result<EchoResult>> HandleAsync(
+            EchoPayload payload,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return Result.Success(new EchoResult(payload.Text));
+        }
+    }
+
+    private sealed class TestTimeoutPolicy(TimeSpan timeout) : IBridgeExecutionTimeoutPolicy
+    {
+        public TimeSpan Resolve(BridgeRequest request) => timeout;
+    }
+
+    private static ActionDispatcher CreateDispatcher(TimeSpan? timeout = null)
     {
         var services = new ServiceCollection();
         services.AddScoped<IActionHandler, EchoHandler>();
         services.AddScoped<IActionHandler, FailingHandler>();
         services.AddScoped<IActionHandler, ThrowingHandler>();
+        services.AddScoped<IActionHandler, BlockingHandler>();
         ServiceProvider provider = services.BuildServiceProvider();
         return new ActionDispatcher(
             provider.GetRequiredService<IServiceScopeFactory>(),
+            new TestTimeoutPolicy(timeout ?? TimeSpan.FromSeconds(5)),
             NullLogger<ActionDispatcher>.Instance);
     }
 
@@ -120,5 +142,16 @@ public sealed class ActionDispatcherTests
         // The exception message must never cross the bridge (ADR 0002/0003)
         Assert.DoesNotContain("secret internals", response.Error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Null(response.Error.Details);
+    }
+
+    [Fact]
+    public async Task ExecutionLimit_CancelsHandlerAndReturnsTypedTimeout()
+    {
+        BridgeResponse response = await CreateDispatcher(TimeSpan.FromMilliseconds(20))
+            .DispatchAsync(Request("block", new EchoPayload("x")), CancellationToken.None);
+
+        Assert.False(response.Success);
+        Assert.Equal(ErrorCode.ConnectionTimeout, response.Error!.Code);
+        Assert.DoesNotContain("TaskCanceledException", response.Error.Message, StringComparison.Ordinal);
     }
 }
