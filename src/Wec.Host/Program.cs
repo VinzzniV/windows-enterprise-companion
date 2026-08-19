@@ -14,6 +14,7 @@ using Wec.Core.Privileges;
 using Wec.Host.Bridge;
 using Wec.Host.Dialogs;
 using Wec.Host.Options;
+using Wec.Host.Runtime;
 using Wec.Infrastructure.Logging;
 using Wec.Infrastructure.Persistence;
 using Wec.Infrastructure.Privileges;
@@ -91,6 +92,15 @@ internal static partial class Program
             "usersettings.json");
         builder.Configuration.AddJsonFile(userSettingsPath, optional: true, reloadOnChange: false);
         builder.Services.AddSingleton(new UserSettingsStore(userSettingsPath));
+
+        RuntimeInstanceProfile runtimeProfile = RuntimeInstanceProfile.Resolve(
+            builder.Configuration,
+            builder.Environment.EnvironmentName,
+            builder.Environment.ContentRootPath,
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetEnvironmentVariable(RuntimeInstanceProfile.EnvironmentVariableName));
+        builder.Configuration.AddInMemoryCollection(runtimeProfile.ConfigurationOverrides);
+        builder.Services.AddSingleton(runtimeProfile);
 
         builder.Services
             .AddOptions<LoggingOptions>()
