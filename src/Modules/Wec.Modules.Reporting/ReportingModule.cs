@@ -8,8 +8,6 @@ namespace Wec.Modules.Reporting;
 
 public sealed class ReportingModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("reporting", "Reporting");
-
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<ReportExportService>();

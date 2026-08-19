@@ -8,8 +8,6 @@ namespace Wec.Modules.Targets;
 
 public sealed class TargetsModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("targets", "Saved Targets");
-
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<ISavedTargetRepository, EfSavedTargetRepository>();

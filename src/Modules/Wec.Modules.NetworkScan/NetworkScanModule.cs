@@ -8,8 +8,6 @@ namespace Wec.Modules.NetworkScan;
 
 public sealed class NetworkScanModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("networkscan", "Network Scan");
-
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<NetworkScanService>();

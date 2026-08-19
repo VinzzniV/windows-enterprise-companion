@@ -11,8 +11,6 @@ namespace Wec.Modules.Security;
 
 public sealed class SecurityModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("security", "Security");
-
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<ISecurityScanRepository, EfSecurityScanRepository>();

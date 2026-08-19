@@ -8,8 +8,6 @@ namespace Wec.Modules.EmployeeLifecycle;
 
 public sealed class EmployeeLifecycleModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("employeelifecycle", "IT Lifecycle");
-
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<KasperskySecurityCenterClient>();

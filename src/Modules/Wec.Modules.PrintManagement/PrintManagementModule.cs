@@ -9,8 +9,6 @@ namespace Wec.Modules.PrintManagement;
 
 public sealed class PrintManagementModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("printmanagement", "Print Management");
-
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<IPrintSnapshotRepository, EfPrintSnapshotRepository>();

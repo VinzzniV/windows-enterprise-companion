@@ -10,8 +10,6 @@ namespace Wec.Modules.Inventory;
 
 public sealed class InventoryModule : IModule
 {
-    public ModuleDescriptor Descriptor { get; } = new("inventory", "Inventory");
-
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<IHardwareSnapshotRepository, EfHardwareSnapshotRepository>();
