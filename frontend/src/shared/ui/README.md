@@ -35,8 +35,8 @@ feature pages — build pages from these, don't re-style ad-hoc.
   + AD computer picker) and the `runWithConcurrencyLimit` pool.
 - Every icon-only control has an `aria-label`; focus is visible everywhere
   (`:focus-visible` accent ring); `prefers-reduced-motion` is respected.
-- `api-types.ts` is hand-mirrored from the C# DTOs — update it on every DTO
-  change.
+- `api-types.generated.ts` is generated from the C# bridge DTOs;
+  `api-types.ts` only retains intentional UI aliases and event documentation.
 
 Master/detail is now the **Clients** workspace (ADR 0010):
 `features/clients` lists AD-sourced clients and opens a per-client detail whose

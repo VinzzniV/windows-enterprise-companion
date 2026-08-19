@@ -15,6 +15,8 @@ const ad = (over: Partial<AdComputer>): AdComputer => ({
   operatingSystem: null,
   enabled: true,
   description: null,
+  distinguishedName: null,
+  lastLogonDate: null,
   ...over,
 });
 

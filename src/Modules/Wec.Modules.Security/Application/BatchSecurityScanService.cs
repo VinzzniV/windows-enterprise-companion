@@ -9,6 +9,9 @@ using Wec.Modules.Security.Domain;
 
 namespace Wec.Modules.Security.Application;
 
+[BridgeContract]
+public sealed record BatchScanProgress(string Host, HostScanStatus Status);
+
 /// <summary>
 /// Scans several remote hosts in parallel (bounded by
 /// Wec:Remote:MaxParallelScans). A cheap connectivity gate per host turns
@@ -149,7 +152,7 @@ public sealed partial class BatchSecurityScanService
         _eventPublisher.Publish(new BridgeEvent(
             "security",
             "batchScanProgress",
-            new { Host = host, Status = status }));
+            new BatchScanProgress(host, status)));
 
     [LoggerMessage(
         Level = LogLevel.Information,

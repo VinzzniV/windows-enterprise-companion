@@ -14,6 +14,8 @@ vi.mock('../../shared/bridge/bridgeClient', () => ({
 const snapshotDenkingen: PrintServerSnapshot = {
   server: 'PRSRV-DENKINGEN',
   capturedAtUtc: '2026-07-03T12:00:00Z',
+  unusedPorts: [],
+  unusedDrivers: [],
   printers: [
     {
       queueName: 'Denkingen-EG',
@@ -38,6 +40,7 @@ const snapshotDenkingen: PrintServerSnapshot = {
         ],
       },
       deviceError: null,
+      deviceDataFromUtc: null,
     },
     {
       queueName: 'Denkingen-OG',
@@ -51,6 +54,7 @@ const snapshotDenkingen: PrintServerSnapshot = {
       comment: null,
       device: null,
       deviceError: { code: 'CONNECTION_TIMEOUT', message: 'no answer' },
+      deviceDataFromUtc: null,
     },
   ],
 };
@@ -58,6 +62,8 @@ const snapshotDenkingen: PrintServerSnapshot = {
 const snapshotOther: PrintServerSnapshot = {
   server: 'PRSRV-ROTTWEIL',
   capturedAtUtc: '2026-07-03T12:05:00Z',
+  unusedPorts: [],
+  unusedDrivers: [],
   printers: [
     {
       queueName: 'Rottweil-1',
@@ -71,6 +77,7 @@ const snapshotOther: PrintServerSnapshot = {
       comment: null,
       device: null,
       deviceError: null,
+      deviceDataFromUtc: null,
     },
   ],
 };

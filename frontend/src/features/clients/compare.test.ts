@@ -24,6 +24,10 @@ function snapshot(over: Partial<HardwareSnapshot>): HardwareSnapshot {
     disks: [{ model: 'SSD', sizeBytes: 256 * 1024 ** 3, interfaceType: null, mediaType: null }],
     operatingSystem: { caption: 'Windows 11 Pro', version: '10.0.22631', buildNumber: '22631', architecture: '64-bit' },
     installedSoftware: [{ name: 'Firefox', version: '1', publisher: null }],
+    networkAdapters: null,
+    gpus: null,
+    monitors: null,
+    installedSoftwareError: null,
     ...over,
   };
 }

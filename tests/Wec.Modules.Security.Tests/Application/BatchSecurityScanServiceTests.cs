@@ -153,6 +153,7 @@ public sealed class BatchSecurityScanServiceTests
         {
             Assert.Equal("security", bridgeEvent.Module);
             Assert.Equal("batchScanProgress", bridgeEvent.EventName);
+            Assert.Equal("pc-01", Assert.IsType<BatchScanProgress>(bridgeEvent.Payload).Host);
         });
         Assert.Equal(4, events.Count);
     }

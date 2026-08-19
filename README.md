@@ -199,8 +199,9 @@ The command timeout defaults to 30 minutes. WEC verifies the resulting
   `opsi-package-updater` runs over Windows OpenSSH (ADR 0015). SSH uses
   key/agent authentication, strict host-key checking and a test-depot approval
   gate; package operations and rollout requests are audited per target.
-- TypeScript API types are mirrored manually from the C# DTOs
-  (`frontend/src/shared/api-types.ts`) — review on every DTO change.
+- TypeScript bridge DTOs are generated from the C# action and event contracts.
+  Run `dotnet run --project tools/Wec.ContractGenerator` after a contract change;
+  CI rejects stale `frontend/src/shared/api-types.generated.ts` output.
 - Artifacts are not code-signed (no certificate yet) — SmartScreen warns on
   first run of downloaded builds. See
   [ADR 0005](docs/adr/0005-packaging-and-distribution.md).

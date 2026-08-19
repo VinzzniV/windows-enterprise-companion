@@ -26,6 +26,7 @@ const connectedStatus: OpsiConnectionStatusResult = {
   userName: 'admin',
   opsiVersion: '4.3.1.2',
   defaultDepotFilter: '',
+  connectionError: null,
 };
 
 const disconnectedStatus: OpsiConnectionStatusResult = {
@@ -34,6 +35,7 @@ const disconnectedStatus: OpsiConnectionStatusResult = {
   userName: null,
   opsiVersion: null,
   defaultDepotFilter: '',
+  connectionError: null,
 };
 
 const dashboard: PatchDashboardResult = {
