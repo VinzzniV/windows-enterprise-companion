@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Wec.Core.Configuration;
 
 namespace Wec.Modules.ActiveDirectory;
 
@@ -9,9 +10,11 @@ public sealed class ActiveDirectoryOptions
     [Range(1, 10_000)]
     public int PageSize { get; set; } = 500;
 
+    [PositiveTimeSpan]
     public TimeSpan SearchTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Accounts whose lastLogonTimestamp is older than this count as inactive.</summary>
+    [PositiveTimeSpan]
     public TimeSpan InactivityThreshold { get; set; } = TimeSpan.FromDays(90);
 
     /// <summary>Upper bound for example accounts per hygiene rule; counts stay exact.</summary>

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Wec.Core.Configuration;
 
 namespace Wec.Modules.PrintManagement;
 
@@ -7,11 +8,13 @@ public sealed class PrintManagementOptions
     public const string SectionName = "Wec:PrintManagement";
 
     /// <summary>SNMP read community — configuration only, never logged (ADR 0009).</summary>
+    [Required]
     public string SnmpCommunity { get; set; } = "public";
 
     [Range(1, 65_535)]
     public int SnmpPort { get; set; } = 161;
 
+    [PositiveTimeSpan]
     public TimeSpan SnmpTimeout { get; set; } = TimeSpan.FromSeconds(3);
 
     /// <summary>Snapshots kept per print server (lease diffs need history).</summary>
@@ -37,6 +40,7 @@ public sealed class PrintManagementOptions
     public string? ExpectedEventRecipient { get; set; }
 
     /// <summary>Subnets (CIDR) printers are allowed to live in — anything else is flagged.</summary>
+    [MinLength(1)]
     public IReadOnlyList<string> PrinterSubnets { get; set; } =
         ["172.20.20.0/24", "172.21.18.0/24", "172.21.20.0/24"];
 
@@ -55,5 +59,6 @@ public sealed class PrintManagementOptions
     public string? DhcpServer { get; set; }
 
     /// <summary>How long a single DHCP reservation query may run before it is cancelled.</summary>
+    [PositiveTimeSpan]
     public TimeSpan DhcpQueryTimeout { get; set; } = TimeSpan.FromSeconds(30);
 }

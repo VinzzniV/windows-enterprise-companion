@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Wec.Core.Configuration;
 
 namespace Wec.Modules.EmployeeLifecycle;
 
@@ -29,6 +30,20 @@ public sealed class ItLifecycleOptions : IValidatableObject
                 "StaleCriticalDays must be greater than StaleWarningDays.",
                 [nameof(StaleCriticalDays), nameof(StaleWarningDays)]);
         }
+
+        if (Kaspersky.RequestTimeout <= TimeSpan.Zero)
+        {
+            yield return new ValidationResult(
+                "Kaspersky RequestTimeout must be greater than zero.",
+                [nameof(Kaspersky)]);
+        }
+
+        if (Kaspersky.Port is < 1 or > 65_535)
+        {
+            yield return new ValidationResult(
+                "Kaspersky Port must be between 1 and 65535.",
+                [nameof(Kaspersky)]);
+        }
     }
 }
 
@@ -42,6 +57,7 @@ public sealed class KasperskyOptions
     [Range(1, 65_535)]
     public int Port { get; set; } = 13_299;
 
+    [PositiveTimeSpan]
     public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(60);
 
     /// <summary>
