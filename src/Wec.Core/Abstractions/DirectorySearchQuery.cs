@@ -28,4 +28,5 @@ public sealed record DirectorySearchQuery(
     int PageSize,
     TimeSpan TimeLimit,
     string? Server = null,
-    ScanCredentials? Credentials = null);
+    ScanCredentials? Credentials = null,
+    string? SortAttribute = null);

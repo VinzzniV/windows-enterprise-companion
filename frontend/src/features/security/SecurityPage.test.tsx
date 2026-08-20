@@ -7,7 +7,13 @@ import type {
   SecurityCoverage,
   SecurityFinding,
 } from '../../shared/api-types';
-import { FindingCard, SecurityPage } from './SecurityPage';
+import { semanticStatusPresentation } from '../../shared/ui/SemanticStatusBadge';
+import {
+  FindingCard,
+  ResultContext,
+  SecurityPage,
+  securityCoverageSemanticStatus,
+} from './SecurityPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
@@ -86,6 +92,38 @@ describe('SecurityPage', () => {
   beforeEach(() => {
     invokeMock.mockReset();
   });
+
+  it.each<[
+    Partial<SecurityCoverage>,
+    string,
+    string,
+    string,
+  ]>([
+    [{ isKnown: true, isComplete: true }, 'Available', 'Coverage complete', 'ok'],
+    [{ isKnown: true, isComplete: false }, 'Partial', 'Coverage incomplete', 'warn'],
+    [{ isKnown: false, isComplete: false }, 'Unknown', 'Coverage unavailable', 'neutral'],
+  ])(
+    'maps Security coverage to %s with explicit context',
+    (coverageOverrides, label, context, tone) => {
+      const scanCoverage = coverage(coverageOverrides);
+      expect(semanticStatusPresentation(securityCoverageSemanticStatus(scanCoverage))).toEqual({
+        label,
+        tone,
+      });
+
+      render(
+        <ResultContext
+          scan={{ ...latestScan.scan!, coverage: scanCoverage }}
+          problemCount={latestScan.scan!.findings.length}
+        />,
+      );
+
+      expect(screen.getByText(label).className).toContain(
+        `border-${tone === 'neutral' ? 'slate' : tone}-`,
+      );
+      expect(screen.getByText(context)).toBeDefined();
+    },
+  );
 
   it('keeps administrator guidance visible and raw evidence collapsed', async () => {
     render(
@@ -217,4 +255,5 @@ describe('SecurityPage', () => {
     expect(await screen.findByText('No findings observed — scan coverage is incomplete.')).toBeDefined();
     expect(screen.queryByText(/all applicable checks completed/i)).toBeNull();
   });
+
 });

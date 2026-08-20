@@ -127,6 +127,24 @@ describe('invoke', () => {
     vi.advanceTimersByTime(5_001);
 
     await assertion;
+    expect(postedMessages[1]).toEqual({ type: 'cancel', id: postedMessages[0].id });
+  });
+
+  it('cancels a correlated request once and ignores a later host response', async () => {
+    installMessenger();
+    const { invokeCancellable, BridgeCancelledError } = await importBridge();
+
+    const invocation = invokeCancellable('employeelifecycle', 'getHygiene');
+    const request = postedMessages[0];
+    invocation.cancel();
+    invocation.cancel();
+
+    await expect(invocation.promise).rejects.toBeInstanceOf(BridgeCancelledError);
+    expect(postedMessages).toEqual([
+      request,
+      { type: 'cancel', id: request.id },
+    ]);
+    emitFromHost({ id: request.id, success: true, data: { tooLate: true } });
   });
 
   it('does not time out a request that was already answered', async () => {

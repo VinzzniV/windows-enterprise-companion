@@ -21,14 +21,31 @@ function Invoke-ExternalCommand {
         [string[]]$Arguments
     )
 
-    & $FilePath @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+    # Windows PowerShell 5 surfaces native stderr as a PowerShell error record.
+    # Tools such as Vite use stderr for warnings even when they exit successfully,
+    # so let the native exit code decide whether the command failed.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $FilePath @Arguments
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($exitCode -ne 0) {
+        throw "Command failed with exit code ${exitCode}: $FilePath $($Arguments -join ' ')"
     }
 }
 
 $repositoryRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
-$publishDirectory = [System.IO.Path]::GetFullPath($OutputPath, $repositoryRoot)
+$publishDirectory = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
+    [System.IO.Path]::GetFullPath($OutputPath)
+}
+else {
+    [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputPath))
+}
 
 if ($publishDirectory -eq $repositoryRoot) {
     throw 'The publish output directory must not be the repository root.'

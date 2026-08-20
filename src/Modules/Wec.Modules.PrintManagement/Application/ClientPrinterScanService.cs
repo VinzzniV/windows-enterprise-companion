@@ -35,11 +35,11 @@ public sealed class ClientPrinterScanService
 
         Result<IReadOnlyList<WmiInstance>> printers = await _wmiQueryService.QueryAsync(
             target, credentials, connection, StandardCimV2Namespace,
-            "SELECT Name, ShareName, DriverName, PortName, Location, Shared, Network FROM MSFT_Printer",
+            "SELECT Name, ShareName, DriverName, PortName, Location, Shared, Type FROM MSFT_Printer",
             cancellationToken);
         if (printers.IsFailure)
         {
-            return Result.Failure<ClientPrinterScan>(printers.Error!);
+            return Result.Failure<ClientPrinterScan>(ContextualizeQueryError(printers.Error!));
         }
 
         List<ClientPrinter> mapped = [.. printers.Value
@@ -67,15 +67,34 @@ public sealed class ClientPrinterScanService
     }
 
     /// <summary>
-    /// Prefer the authoritative MSFT_Printer.Network flag; fall back to the
-    /// \\server\queue name heuristic only when the provider omits it.
+    /// Prefer the authoritative MSFT_Printer.Type value (0 = local,
+    /// 1 = connection); fall back to the \\server\queue name heuristic only
+    /// when the provider omits or returns an unknown value.
     /// </summary>
-    internal static bool IsNetwork(WmiInstance instance, string name) => instance.GetRawValue("Network") switch
+    internal static bool IsNetwork(WmiInstance instance, string name)
     {
-        bool value => value,
-        string text when bool.TryParse(text, out bool parsed) => parsed,
-        _ => IsNetworkName(name),
-    };
+        long? type = instance.GetInteger("Type");
+        if (type == 0)
+        {
+            return false;
+        }
+        if (type == 1)
+        {
+            return true;
+        }
+        if (instance.GetRawValue("Type") is string text && long.TryParse(text, out long parsed))
+        {
+            if (parsed == 0)
+            {
+                return false;
+            }
+            if (parsed == 1)
+            {
+                return true;
+            }
+        }
+        return IsNetworkName(name);
+    }
 
     /// <summary>A network connection is named \\server\queue; a local printer is not.</summary>
     internal static bool IsNetworkName(string name) => name.StartsWith(@"\\", StringComparison.Ordinal);
@@ -88,4 +107,10 @@ public sealed class ClientPrinterScanService
     };
 
     private static string? NonEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static Error ContextualizeQueryError(Error error) => error.Code == ErrorCode.WmiUnavailable
+        ? Error.WmiUnavailable(
+            "Installed printers could not be read from the Windows PrintManagement provider.",
+            error.Details ?? error.Message)
+        : error;
 }

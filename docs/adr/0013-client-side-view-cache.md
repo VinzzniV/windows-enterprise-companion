@@ -31,8 +31,15 @@ migration, no handler, no bridge round trip.
 The stored view *is* the initial React state (lazy `useState` initializer), so a
 restart paints the last dashboard with no flash of an empty form.
 
-- **Patch Management** caches `{server, userName, depotFilter, dashboard}`.
+- **Patch Management** caches `{server, userName, depotFilter, dashboard}`. Since
+  the paging migration, `dashboard` is the client-free overview; full opsi
+  product/client states stay only in the process-local host snapshot and never
+  enter `localStorage`.
 - **Active Directory** caches `{form, overview, hygiene}`.
+- **Client comparison** caches only a versioned, bounded order of up to eight
+  recently compared host identifiers. It contains no snapshots, results,
+  credentials or automatic selection; unavailable hosts are ignored by the
+  picker.
 
 ### What this is not
 
@@ -46,10 +53,12 @@ restart paints the last dashboard with no flash of an empty form.
 ### Restored views are read-only
 
 A cached Patch dashboard renders while disconnected, marked "Stored view from
-&lt;time&gt;", with Refresh, the depot filter, rollout preview and package
-planning **disabled**. Mapping edits stay enabled (a local-database write) but no
-longer trigger a dashboard refresh, which without a session would fail and drop
-the restored view. Nothing may act on, or silently re-query, a stale view.
+&lt;time&gt;", with Refresh, the depot filter, rollout preview and package planning
+**disabled**. Package metadata remains readable; client-state tables explicitly
+require a live connection because their bounded pages come from the host
+snapshot. Mapping edits stay enabled (a local-database write) but no longer
+trigger a dashboard refresh, which without a session would fail and drop the
+restored view. Nothing may act on, or silently re-query, a stale view.
 
 ## Consequences
 

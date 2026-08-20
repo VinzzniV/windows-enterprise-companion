@@ -36,6 +36,11 @@ Statuses: `PASS`, `WARNING` (ran, negative), `FAIL` (broken), `NOT_RUN`
 (could not read — carries the error). A crashing diagnostic becomes a
 visible `FAIL` result; the run continues.
 
+The UI maps these persisted raw states to the canonical presentation semantics
+`Healthy`, `Warning`, `Critical` and `Unknown`, respectively. This does not
+alter the bridge or persistence contract, and operational ordering continues to
+use the raw states.
+
 Results and category sections are ordered `FAIL -> WARNING -> NOT_RUN -> PASS`.
 Suggested actions for every non-pass result are shown before raw evidence;
 successful evidence stays collapsed. Network adapter fixtures include captured

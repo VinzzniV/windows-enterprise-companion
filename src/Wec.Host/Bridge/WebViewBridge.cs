@@ -9,11 +9,16 @@ namespace Wec.Host.Bridge;
 internal sealed class WebViewBridge
 {
     private readonly ActionDispatcher _dispatcher;
+    private readonly BridgeRequestCancellationRegistry _cancellations;
     private readonly ILogger<WebViewBridge> _logger;
 
-    public WebViewBridge(ActionDispatcher dispatcher, ILogger<WebViewBridge> logger)
+    public WebViewBridge(
+        ActionDispatcher dispatcher,
+        BridgeRequestCancellationRegistry cancellations,
+        ILogger<WebViewBridge> logger)
     {
         _dispatcher = dispatcher;
+        _cancellations = cancellations;
         _logger = logger;
     }
 
@@ -30,6 +35,12 @@ internal sealed class WebViewBridge
         var coreWebView = (CoreWebView2)sender!;
         try
         {
+            if (TryParseCancellation(e.WebMessageAsJson, out string? cancelledRequestId))
+            {
+                _cancellations.Cancel(cancelledRequestId);
+                return;
+            }
+
             BridgeRequest? request = ParseRequest(e.WebMessageAsJson);
             if (request is null || string.IsNullOrWhiteSpace(request.Id))
             {
@@ -37,18 +48,60 @@ internal sealed class WebViewBridge
                 return;
             }
 
-            BridgeResponse response =
-                string.IsNullOrWhiteSpace(request.Module) || string.IsNullOrWhiteSpace(request.Action)
+            if (!_cancellations.TryRegister(request.Id, out CancellationTokenSource requestCancellation))
+            {
+                coreWebView.PostWebMessageAsJson(JsonSerializer.Serialize(
+                    BridgeResponse.ForFailure(request.Id, new Error(
+                        ErrorCode.InvalidRequest,
+                        "A request with the same correlation id is already running.")),
+                    BridgeJson.Options));
+                return;
+            }
+
+            BridgeResponse response;
+            try
+            {
+                response = string.IsNullOrWhiteSpace(request.Module) || string.IsNullOrWhiteSpace(request.Action)
                     ? BridgeResponse.ForFailure(request.Id, new Error(
                         ErrorCode.InvalidRequest,
                         "Envelope fields 'module' and 'action' are required."))
-                    : await _dispatcher.DispatchAsync(request, CancellationToken.None);
+                    : await _dispatcher.DispatchAsync(request, requestCancellation.Token);
+            }
+            finally
+            {
+                _cancellations.Complete(request.Id);
+            }
 
             coreWebView.PostWebMessageAsJson(JsonSerializer.Serialize(response, BridgeJson.Options));
         }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Bridge message handling failed");
+        }
+    }
+
+    private static bool TryParseCancellation(string webMessageJson, out string requestId)
+    {
+        requestId = string.Empty;
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(webMessageJson);
+            JsonElement root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("type", out JsonElement type)
+                || !string.Equals(type.GetString(), "cancel", StringComparison.Ordinal)
+                || !root.TryGetProperty("id", out JsonElement id)
+                || string.IsNullOrWhiteSpace(id.GetString()))
+            {
+                return false;
+            }
+
+            requestId = id.GetString()!;
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

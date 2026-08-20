@@ -23,7 +23,7 @@ public sealed class ClientPrinterScanServiceTests
 
     private static WmiInstance Printer(
         string name, string? driver = null, string? port = null, string? location = null,
-        object? shared = null, object? network = null) =>
+        object? shared = null, object? type = null) =>
         new(new Dictionary<string, object?>
         {
             ["Name"] = name,
@@ -31,7 +31,7 @@ public sealed class ClientPrinterScanServiceTests
             ["PortName"] = port,
             ["Location"] = location,
             ["Shared"] = shared,
-            ["Network"] = network,
+            ["Type"] = type,
         });
 
     private void SetUpPrinters(params WmiInstance[] printers) =>
@@ -39,6 +39,25 @@ public sealed class ClientPrinterScanServiceTests
                 Arg.Any<ScanTarget>(), Arg.Any<ScanCredentials>(), Arg.Any<ConnectionOptions>(),
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<WmiInstance>>(printers));
+
+    [Fact]
+    public async Task Capture_UsesSupportedMsftPrinterProjection()
+    {
+        SetUpPrinters();
+
+        Result<ClientPrinterScan> result = await CreateService().CaptureAsync(
+            ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _wmiQueryService.Received(1).QueryAsync(
+            Arg.Any<ScanTarget>(),
+            Arg.Any<ScanCredentials>(),
+            Arg.Any<ConnectionOptions>(),
+            @"root\StandardCimv2",
+            Arg.Is<string>(query => query.Contains(" Type FROM MSFT_Printer", StringComparison.Ordinal)
+                                    && !query.Contains("Network", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+    }
 
     [Fact]
     public async Task Capture_MapsLocalAndNetworkPrinters()
@@ -64,11 +83,11 @@ public sealed class ClientPrinterScanServiceTests
     }
 
     [Fact]
-    public async Task Capture_PrefersNetworkPropertyOverNameHeuristic()
+    public async Task Capture_PrefersTypePropertyOverNameHeuristic()
     {
         SetUpPrinters(
-            Printer("Reception", network: true), // local-looking name, but MSFT says network
-            Printer(@"\\PRSRV\legacy", network: false)); // UNC name, but MSFT says local
+            Printer("Reception", type: 1u), // local-looking name, but MSFT says connection
+            Printer(@"\\PRSRV\legacy", type: 0u)); // UNC name, but MSFT says local
 
         Result<ClientPrinterScan> result = await CreateService().CaptureAsync(
             ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
@@ -76,6 +95,24 @@ public sealed class ClientPrinterScanServiceTests
         Assert.True(result.IsSuccess);
         Assert.True(result.Value.Printers.Single(p => p.Name == "Reception").IsNetwork);
         Assert.False(result.Value.Printers.Single(p => p.Name == @"\\PRSRV\legacy").IsNetwork);
+    }
+
+    [Fact]
+    public async Task Capture_ContextualizesWmiProviderFailure()
+    {
+        _wmiQueryService.QueryAsync(
+                Arg.Any<ScanTarget>(), Arg.Any<ScanCredentials>(), Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(
+                Error.WmiUnavailable("The WMI query failed.", "Provider detail")));
+
+        Result<ClientPrinterScan> result = await CreateService().CaptureAsync(
+            ScanTarget.Local, ScanCredentials.CurrentUser, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.WmiUnavailable, result.Error!.Code);
+        Assert.Equal("Installed printers could not be read from the Windows PrintManagement provider.", result.Error.Message);
+        Assert.Equal("Provider detail", result.Error.Details);
     }
 
     [Fact]

@@ -95,7 +95,7 @@ export function ScanHistory({ refreshToken, target = null }: ScanHistoryProps) {
                 <span className="w-40 text-slate-300">
                   {new Date(scan.completedAtUtc).toLocaleString()}
                 </span>
-                <span className="text-xs text-slate-500">{scan.status.replaceAll('_', ' ')}</span>
+                <span className="text-xs text-muted">{scan.status.replaceAll('_', ' ')}</span>
                 <span className="text-xs text-slate-400">
                   {scan.findingCount} finding{scan.findingCount === 1 ? '' : 's'}
                 </span>

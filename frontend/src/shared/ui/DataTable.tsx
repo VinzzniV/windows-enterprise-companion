@@ -1,7 +1,27 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { compareSortKeys, type SortKey } from '../sort';
+import { Button } from './Button';
+import { Select } from './Select';
+
+export type DataTableSortDirection = 'asc' | 'desc';
+
+export interface DataTableSort {
+  column: string;
+  direction: DataTableSortDirection;
+}
+
+export interface DataTablePagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange(page: number): void;
+  onPageSizeChange?(pageSize: number): void;
+  pageSizeOptions?: readonly number[];
+}
 
 export interface DataColumn<T> {
+  /** Stable identifier used by controlled server sorting. */
+  id?: string;
   header: string;
   cell(row: T): ReactNode;
   align?: 'left' | 'right' | 'center';
@@ -13,11 +33,14 @@ export interface DataColumn<T> {
    * they provide this.
    */
   sortValue?(row: T): SortKey;
+  /** Enable this column in controlled sorting mode. */
+  sortable?: boolean;
 }
 
 interface DataTableProps<T> {
-  columns: DataColumn<T>[];
-  rows: T[];
+  columns: readonly DataColumn<T>[];
+  /** The rows for the current page. DataTable never fetches or slices them. */
+  rows: readonly T[];
   emptyMessage: string;
   getRowKey?: (row: T, index: number) => string | number;
   onRowClick?: (row: T) => void;
@@ -26,6 +49,12 @@ interface DataTableProps<T> {
   zebra?: boolean;
   /** Keep the header visible while the body scrolls (long tables). */
   stickyHeader?: boolean;
+  /** Controlled server sorting. Omit both props to retain local sorting. */
+  sort?: DataTableSort | null;
+  onSortChange?: (sort: DataTableSort) => void;
+  /** Controlled page metadata and navigation. */
+  pagination?: DataTablePagination;
+  loading?: boolean;
 }
 
 const alignClass: Record<NonNullable<DataColumn<unknown>['align']>, string> = {
@@ -44,12 +73,13 @@ export function DataTable<T>({
   isRowActive,
   zebra = true,
   stickyHeader = false,
+  sort: controlledSort,
+  onSortChange,
+  pagination,
+  loading = false,
 }: DataTableProps<T>) {
-  const [sort, setSort] = useState<{ index: number; dir: 'asc' | 'desc' } | null>(null);
-
-  if (rows.length === 0) {
-    return <p className="text-sm text-slate-400">{emptyMessage}</p>;
-  }
+  const [localSort, setLocalSort] = useState<{ index: number; dir: DataTableSortDirection } | null>(null);
+  const isControlledSort = onSortChange !== undefined;
 
   const sortKeyOf = (column: DataColumn<T>, row: T): SortKey => {
     if (column.sortValue) return column.sortValue(row);
@@ -57,21 +87,33 @@ export function DataTable<T>({
     return typeof value === 'string' || typeof value === 'number' ? value : null;
   };
 
-  const sortable = columns.map(
-    (column) => Boolean(column.sortValue) || rows.some((row) => sortKeyOf(column, row) != null),
+  const sortable = columns.map((column) =>
+    isControlledSort
+      ? Boolean(column.sortable)
+      : Boolean(column.sortValue) || rows.some((row) => sortKeyOf(column, row) != null),
   );
 
-  const sortedRows = sort
+  const sortedRows = !isControlledSort && localSort
     ? [...rows].sort((a, b) =>
-        compareSortKeys(sortKeyOf(columns[sort.index], a), sortKeyOf(columns[sort.index], b), sort.dir),
+        compareSortKeys(sortKeyOf(columns[localSort.index], a), sortKeyOf(columns[localSort.index], b), localSort.dir),
       )
     : rows;
 
-  const toggleSort = (index: number) =>
-    setSort((current) =>
+  const toggleSort = (index: number) => {
+    const columnId = columns[index].id ?? columns[index].header;
+    if (isControlledSort) {
+      onSortChange({
+        column: columnId,
+        direction: controlledSort?.column === columnId && controlledSort.direction === 'asc' ? 'desc' : 'asc',
+      });
+      return;
+    }
+    setLocalSort((current) =>
       current && current.index === index
         ? { index, dir: current.dir === 'asc' ? 'desc' : 'asc' }
-        : { index, dir: 'asc' });
+        : { index, dir: 'asc' },
+    );
+  };
 
   const handleKey = (event: KeyboardEvent<HTMLTableRowElement>, row: T) => {
     if (onRowClick && (event.key === 'Enter' || event.key === ' ')) {
@@ -80,45 +122,51 @@ export function DataTable<T>({
     }
   };
 
+  const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize)) : 1;
+  const rangeStart = pagination?.total
+    ? Math.min((pagination.page - 1) * pagination.pageSize + 1, pagination.total)
+    : 0;
+  const rangeEnd = pagination ? Math.min(rangeStart + rows.length - 1, pagination.total) : 0;
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-left text-sm">
+    <div aria-busy={loading}>
+      <div className="overflow-x-auto">
+      {rows.length === 0 ? (
+        <p className="text-sm text-slate-400" role={loading ? 'status' : undefined}>
+          {loading ? 'Loading table data…' : emptyMessage}
+        </p>
+      ) : <table className="w-full border-collapse text-left text-sm">
         <thead>
           <tr>
             {columns.map((column, index) => {
               const canSort = sortable[index];
-              const isSorted = sort?.index === index;
+              const columnId = column.id ?? column.header;
+              const isSorted = isControlledSort
+                ? controlledSort?.column === columnId
+                : localSort?.index === index;
+              const sortDirection = isControlledSort ? controlledSort?.direction : localSort?.dir;
               return (
                 <th
                   key={column.header}
                   scope="col"
-                  aria-sort={isSorted ? (sort!.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                  onClick={canSort ? () => toggleSort(index) : undefined}
-                  onKeyDown={
-                    canSort
-                      ? (event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            toggleSort(index);
-                          }
-                        }
-                      : undefined
-                  }
-                  tabIndex={canSort ? 0 : undefined}
-                  className={`border-b border-slate-800 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-slate-500 ${
+                  aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
+                  className={`border-b border-slate-800 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted ${
                     column.align ? alignClass[column.align] : 'text-left'
-                  } ${stickyHeader ? 'sticky top-0 z-10 bg-slate-900' : ''} ${
-                    canSort ? 'cursor-pointer select-none hover:text-slate-300' : ''
-                  }`}
+                  } ${stickyHeader ? 'sticky top-0 z-10 bg-slate-900' : ''}`}
                 >
-                  <span className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={!canSort}
+                    onClick={canSort ? () => toggleSort(index) : undefined}
+                    className={`inline-flex items-center gap-1 text-inherit ${canSort ? 'cursor-pointer select-none hover:text-slate-300' : 'cursor-default'}`}
+                  >
                     {column.header}
                     {canSort && (
                       <span aria-hidden className="text-[10px] text-slate-600">
-                        {isSorted ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕'}
+                        {isSorted ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
                       </span>
                     )}
-                  </span>
+                  </button>
                 </th>
               );
             })}
@@ -155,7 +203,49 @@ export function DataTable<T>({
             );
           })}
         </tbody>
-      </table>
+      </table>}
+      </div>
+      {pagination && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3 text-sm text-slate-400">
+          <span aria-live="polite">
+            {rangeStart}–{Math.max(rangeStart, rangeEnd)} of {pagination.total}
+            {loading && <span className="ml-2" role="status">Loading…</span>}
+          </span>
+          <div className="flex items-center gap-2">
+            {pagination.onPageSizeChange && (
+              <label className="flex items-center gap-2">
+                <span>Rows per page</span>
+                <Select
+                  fullWidth={false}
+                  aria-label="Rows per page"
+                  value={pagination.pageSize}
+                  disabled={loading}
+                  onChange={(event) => pagination.onPageSizeChange?.(Number(event.target.value))}
+                >
+                  {(pagination.pageSizeOptions ?? [25, 50, 100]).map((value) => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </Select>
+              </label>
+            )}
+            <Button
+              variant="ghost"
+              disabled={loading || pagination.page <= 1}
+              onClick={() => pagination.onPageChange(pagination.page - 1)}
+            >
+              Previous
+            </Button>
+            <span>Page {pagination.page} of {pageCount}</span>
+            <Button
+              variant="ghost"
+              disabled={loading || pagination.page >= pageCount}
+              onClick={() => pagination.onPageChange(pagination.page + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

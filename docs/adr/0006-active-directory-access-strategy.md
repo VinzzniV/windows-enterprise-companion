@@ -1,7 +1,8 @@
 # ADR 0006: Active Directory Access Strategy
 
 - **Status:** Accepted (2026-07-02) · Revised 2026-07-03 (credentials & target
-  selection, together with ADR 0007)
+  selection, together with ADR 0007) · Revised 2026-08-19 (bounded result pages
+  and direct privileged-group member browsing)
 - **Date:** 2026-07-02
 - **Deciders:** Vinz
 - **Supersedes:** —
@@ -70,6 +71,22 @@ existing architecture:
    explicit attribute allowlists per check (never `*`), client- and
    server-side time limits from options (`Wec:ActiveDirectory:*` — page
    size, timeouts, inactivity threshold days). No tunables in code.
+7. **Full hygiene rule browsing remains bounded** *(revised 2026-08-19)*:
+   an offset page read still traverses every LDAP page for an exact filtered
+   count, but decodes and retains only the requested result window. The query
+   carries an explicit server-side sort attribute (`sAMAccountName`) so
+   independent requests do not create unstable page boundaries. The public
+   bridge allowlists known hygiene Rule IDs and name/account search text;
+   callers cannot submit arbitrary LDAP filters.
+8. **Privileged-group membership uses the direct `memberOf` backlink**
+   *(revised 2026-08-19)*: the four well-known groups remain resolved by SID,
+   independent of localized names. Overview counts/examples and on-demand
+   member pages use the same escaped group-DN filter instead of materializing
+   the group's ranged `member` attribute. A page request must name one of the
+   currently SID-resolved groups, is capped at 100 rows, sorts on the single
+   AD-supported `sAMAccountName` key and exposes only allowlisted identity,
+   status and activity attributes. This is direct membership only; nested
+   groups and primary-group reconstruction are deliberately separate concerns.
 
 ## Consequences
 
@@ -79,9 +96,11 @@ existing architecture:
 - A future "connect to another forest with explicit credentials" feature
   would extend the seam and needs an ADR revision (credential handling
   policy).
-- Large directories are handled by paging; M4 checks aggregate counts and
-  bounded lists (top-N) instead of materializing entire user tables in the
-  UI.
+- Large directories are handled by paging; overview checks aggregate counts
+  and bounded top-N examples. On-demand hygiene rule pages preserve the same
+  memory bound instead of materializing entire user tables in the UI or host.
+  Privileged-group member pages use the same bounded offset mechanism and do
+  not depend on AD's multi-valued-attribute range retrieval.
 - `Wec.Modules.ActiveDirectory` + `frontend/src/features/activedirectory`
   mirror the established module layout; no schema/persistence in slice 1
   (live analysis first — persistence only if reporting needs it later,

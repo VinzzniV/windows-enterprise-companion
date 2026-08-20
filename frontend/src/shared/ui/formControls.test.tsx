@@ -16,7 +16,7 @@ describe('form primitives', () => {
 
     const input = screen.getByLabelText('opsi server') as HTMLInputElement;
     expect(input.value).toBe('opsi.local');
-    expect(screen.getByText('host or full URL')).toBeDefined();
+    expect(screen.getByText('host or full URL').className).toContain('text-muted');
   });
 
   it('Field shows the error instead of the hint and marks it', () => {

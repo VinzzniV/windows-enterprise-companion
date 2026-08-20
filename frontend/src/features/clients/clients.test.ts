@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AdComputer, SavedTarget, StoredInventoryHost } from '../../shared/api-types';
+import type { AdComputer, SavedTarget, StoredInventoryHost, StoredSecurityScanHost } from '../../shared/api-types';
 import {
   buildClientList,
   filterClients,
@@ -35,11 +35,12 @@ describe('buildClientList', () => {
   it('merges AD, scan history and saved targets into one entry per host', () => {
     const adComputers = [ad({ name: 'KF-PC1', dnsHostName: 'kf-pc1.corp.local', operatingSystem: 'Windows 11' })];
     const scanned: StoredInventoryHost[] = [{ host: 'KF-PC1', capturedAtUtc: '2026-07-06T08:00:00Z' }];
+    const security: StoredSecurityScanHost[] = [{ host: 'kf-pc1', completedAtUtc: '2026-07-06T09:00:00Z' }];
     const saved: SavedTarget[] = [
       { id: 1, label: 'KF-PC1', host: 'kf-pc1', role: 'Client', userName: null, createdAtUtc: 'x' },
     ];
 
-    const list = buildClientList(adComputers, scanned, saved);
+    const list = buildClientList(adComputers, scanned, saved, security);
     expect(list).toHaveLength(1); // FQDN, short, saved all fold to one
     expect(list[0]).toMatchObject({
       host: 'kf-pc1.corp.local', // FQDN kept for scanning
@@ -49,6 +50,8 @@ describe('buildClientList', () => {
       saved: true,
       inAd: true,
       capturedAtUtc: '2026-07-06T08:00:00Z',
+      securityScanned: true,
+      securityCompletedAtUtc: '2026-07-06T09:00:00Z',
     });
   });
 
@@ -57,9 +60,15 @@ describe('buildClientList', () => {
       [],
       [{ host: 'OLD-PC', capturedAtUtc: '2026-07-01T00:00:00Z' }],
       [{ id: 2, label: 'opsi', host: 'opsi.corp.local', role: 'OpsiServer', userName: null, createdAtUtc: 'x' }],
+      [{ host: 'SECURITY-ONLY', completedAtUtc: '2026-07-02T00:00:00Z' }],
     );
-    expect(list.map((c) => c.name).sort()).toEqual(['OLD-PC', 'opsi']);
+    expect(list.map((c) => c.name).sort()).toEqual(['OLD-PC', 'SECURITY-ONLY', 'opsi']);
     expect(list.find((c) => c.name === 'OLD-PC')).toMatchObject({ scanned: true, inAd: false });
+    expect(list.find((c) => c.name === 'SECURITY-ONLY')).toMatchObject({
+      securityScanned: true,
+      securityCompletedAtUtc: '2026-07-02T00:00:00Z',
+      inAd: false,
+    });
   });
 });
 

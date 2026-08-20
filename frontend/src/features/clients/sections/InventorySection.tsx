@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
-import { errorText } from '../../../shared/bridge/errorText';
+import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import type { GetHardwareInfoRequest, HardwareInfoResult, TargetRequest } from '../../../shared/api-types';
 import { SnapshotGrid } from '../../inventory/HardwareInfoPage';
 import { Button } from '../../../shared/ui/Button';
@@ -11,22 +11,36 @@ type State =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; result: HardwareInfoResult }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 /** Inventory section of a client: cached snapshot on open, scan on demand. */
-export function InventorySection({ target }: { target: TargetRequest | null }) {
+export function InventorySection({
+  target,
+  onDataChanged,
+}: {
+  target: TargetRequest | null;
+  onDataChanged?: () => void;
+}) {
   const [state, setState] = useState<State>({ kind: 'idle' });
 
   const load = useCallback((forceRefresh: boolean, cacheOnly: boolean) => {
     setState({ kind: 'loading' });
     const payload: GetHardwareInfoRequest = { target, forceRefresh, cacheOnly };
     invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', payload)
-      .then((result) => setState({ kind: 'loaded', result }))
+      .then((result) => {
+        setState({ kind: 'loaded', result });
+        if (!cacheOnly) onDataChanged?.();
+      })
       .catch((error: unknown) =>
         // No cached snapshot yet is not an error — offer to scan
-        cacheOnly ? setState({ kind: 'idle' }) : setState({ kind: 'error', message: errorText(error) }),
+        cacheOnly
+          ? setState({ kind: 'idle' })
+          : setState({
+              kind: 'error',
+              error: presentError(error, { message: 'Hardware inventory could not be captured.' }),
+            }),
       );
-  }, [target]);
+  }, [target, onDataChanged]);
 
   // Show the stored snapshot on open without hitting the network
   useEffect(() => {
@@ -39,15 +53,10 @@ export function InventorySection({ target }: { target: TargetRequest | null }) {
 
   if (state.kind === 'error') {
     return (
-      <div className="flex flex-col gap-3">
-        <ErrorState
-          message={state.message}
-          hint="Check the host is reachable, WinRM is enabled and the account has remote management rights."
-        />
-        <div>
-          <Button onClick={() => load(true, false)}>Retry scan</Button>
-        </div>
-      </div>
+      <ErrorState
+        {...state.error}
+        controls={<Button onClick={() => load(true, false)}>Retry scan</Button>}
+      />
     );
   }
 

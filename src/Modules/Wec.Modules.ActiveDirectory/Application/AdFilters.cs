@@ -46,6 +46,24 @@ internal static class AdFilters
         return $"(&(objectCategory=person)(objectClass=user)({UacBitAnd}2)(|{memberOfClauses}))";
     }
 
+    public static string DirectMembersOfGroup(string groupDistinguishedName) =>
+        $"(&(objectClass=*)(memberOf={EscapeFilterValue(groupDistinguishedName)}))";
+
+    public static string WithDirectoryIdentitySearch(string baseFilter, string? query) =>
+        WithAccountNameSearch(baseFilter, query);
+
+    public static string WithAccountNameSearch(string baseFilter, string? query)
+    {
+        string trimmed = query?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0)
+        {
+            return baseFilter;
+        }
+
+        string escaped = EscapeFilterValue(trimmed);
+        return $"(&{baseFilter}(|(sAMAccountName=*{escaped}*)(cn=*{escaped}*)))";
+    }
+
     /// <summary>
     /// Computer search by name/DNS name. A pattern without wildcards becomes
     /// a substring match (search-box semantics); user-typed '*' wildcards

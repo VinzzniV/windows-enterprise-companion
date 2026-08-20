@@ -114,7 +114,9 @@ export interface KasperskySettingsValue {
 export interface LogEntry {
   timestamp: string;
   level: string;
-  message: string;
+  source: string;
+  summary: string;
+  technicalDetails: string;
 }
 
 export interface NessusSettingsResult {
@@ -294,6 +296,15 @@ export interface AdHygieneRule {
   recommendation: string;
 }
 
+export interface AdHygieneRulePage {
+  ruleId: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  items: AdAccountInfo[];
+  evaluatedAtUtc: string;
+}
+
 export interface AdOverviewResult {
   domainJoined: boolean;
   domainName: string | null;
@@ -304,6 +315,23 @@ export interface AdOverviewResult {
   groupCount: number;
   computerCount: number;
   capturedAtUtc: string;
+}
+
+export interface AdPrivilegedGroupMember {
+  accountName: string | null;
+  distinguishedName: string;
+  entityType: string;
+  accountStatus: string | null;
+  lastLogonUtc: string | null;
+}
+
+export interface AdPrivilegedGroupMemberPage {
+  groupName: string;
+  groupDistinguishedName: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  items: AdPrivilegedGroupMember[];
 }
 
 export interface DomainControllerInfo {
@@ -322,7 +350,24 @@ export interface GetAdHygieneRequest {
   connection?: DirectoryConnectionRequest | null;
 }
 
+export interface GetAdHygieneRulePageRequest {
+  ruleId: string;
+  evaluatedAtUtc: string;
+  query?: string | null;
+  page?: number;
+  pageSize?: number;
+  connection?: DirectoryConnectionRequest | null;
+}
+
 export interface GetAdOverviewRequest {
+  connection?: DirectoryConnectionRequest | null;
+}
+
+export interface GetAdPrivilegedGroupMemberPageRequest {
+  groupDistinguishedName: string;
+  query?: string | null;
+  page?: number;
+  pageSize?: number;
   connection?: DirectoryConnectionRequest | null;
 }
 
@@ -435,6 +480,35 @@ export interface CaseResult {
   employee: EmployeeDetails;
 }
 
+export interface ClientWorkspaceListItem {
+  host: string;
+  key: string;
+  name: string;
+  os: string | null;
+  description: string | null;
+  enabled: boolean;
+  scanned: boolean;
+  capturedAtUtc: string | null;
+  saved: boolean;
+  inAd: boolean;
+  environment: HygieneDevice | null;
+  groupLabel: string | null;
+  groupTotal: number | null;
+}
+
+export interface ClientWorkspacePage {
+  items: ClientWorkspaceListItem[];
+  total: number;
+  scannedTotal: number;
+  snapshotTotal: number;
+  page: number;
+  pageSize: number;
+  assessedAtUtc: string;
+  domainName: string | null;
+  summary: HygieneSummary;
+  sources: EnvironmentSourceStates;
+}
+
 export interface DepartmentInfo {
   id: number;
   name: string;
@@ -522,6 +596,13 @@ export interface EnvironmentSourceStates {
   nessus: InventorySourceState;
 }
 
+export interface GetItHygieneOverviewRequest {
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+  force?: boolean;
+  operationId?: string | null;
+}
+
 export interface HygieneAssessment {
   status: HygieneStatus;
   findings: HygieneFinding[];
@@ -537,6 +618,13 @@ export interface HygieneDevice {
   assessment: HygieneAssessment;
 }
 
+export interface HygieneDevicePage {
+  items: HygieneDevice[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface HygieneFinding {
   code: HygieneFindingCode;
   severity: HygieneFindingSeverity;
@@ -546,6 +634,28 @@ export interface HygieneFinding {
 export type HygieneFindingCode = 'MISSING_KASPERSKY' | 'ORPHAN_KASPERSKY' | 'STALE_AD' | 'STALE_KASPERSKY' | 'OUTDATED_AGENT' | 'OUTDATED_KES' | 'MISSING_OPSI' | 'ORPHAN_OPSI' | 'STALE_OPSI' | 'MISSING_NESSUS' | 'STALE_NESSUS' | 'NESSUS_CRITICAL_VULNERABILITIES' | 'NESSUS_HIGH_VULNERABILITIES';
 
 export type HygieneFindingSeverity = 'WARNING' | 'CRITICAL';
+
+export type HygieneLoadPhase = 'LOADING_SOURCES' | 'CORRELATING' | 'COMPLETED' | 'CANCELLED';
+
+export interface HygieneLoadProgress {
+  operationId: string;
+  phase: HygieneLoadPhase;
+  startedAtUtc: string;
+  completedSources: number;
+  totalSources: number;
+  partialDeviceCount: number;
+  partialSummary: HygieneSummary | null;
+  sources: HygieneSourceProgress[];
+}
+
+export interface HygieneSourceProgress {
+  source: string;
+  status: HygieneSourceProgressStatus;
+  itemCount: number | null;
+  message: string | null;
+}
+
+export type HygieneSourceProgressStatus = 'RUNNING' | 'AVAILABLE' | 'PARTIAL' | 'NOT_CONNECTED' | 'UNAVAILABLE' | 'TRUNCATED';
 
 export type HygieneStatus = 'HEALTHY' | 'WARNING' | 'CLEANUP_CANDIDATE' | 'INCOMPLETE' | 'CRITICAL';
 
@@ -577,9 +687,18 @@ export interface InventorySourceState {
   error: string | null;
 }
 
+export interface ItHygieneOverview {
+  assessedAtUtc: string;
+  domainName: string | null;
+  sources: EnvironmentSourceStates;
+  summary: HygieneSummary;
+  knownHosts: string[];
+}
+
 export interface ItHygieneRequest {
   activeDirectory?: DirectoryInventoryConnection | null;
   kaspersky?: KasperskyInventoryConnection | null;
+  operationId?: string | null;
 }
 
 export interface ItHygieneResult {
@@ -617,6 +736,33 @@ export interface LifecycleAuditEntry {
   oldValue: string | null;
   newValue: string | null;
   detail: string | null;
+}
+
+export interface ListClientWorkspaceRequest {
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+  search?: string | null;
+  statusFilter?: string | null;
+  sourceFilter?: string | null;
+  groupMode?: string | null;
+  page?: number;
+  pageSize?: number;
+  sortColumn?: string | null;
+  sortDirection?: string | null;
+  force?: boolean;
+  operationId?: string | null;
+}
+
+export interface ListHygieneDevicesRequest {
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+  search?: string | null;
+  filter?: string | null;
+  page?: number;
+  pageSize?: number;
+  sortColumn?: string | null;
+  sortDirection?: string | null;
+  operationId?: string | null;
 }
 
 export interface NessusDeviceData {
@@ -895,6 +1041,19 @@ export interface InventoryDetection {
   version: string | null;
 }
 
+export interface ListPatchClientStatesRequest {
+  depotFilter?: string | null;
+  productId?: string | null;
+  clientSearch?: string | null;
+  productSearch?: string | null;
+  state?: PatchWorkflowState | null;
+  installationStatus?: string | null;
+  page?: number;
+  pageSize?: number;
+  sortColumn?: string | null;
+  sortDirection?: string | null;
+}
+
 export interface PackageUpdateOutcome {
   productId: string;
   stage: string;
@@ -931,6 +1090,12 @@ export interface PackageWorkflowStatus {
   lastError: string | null;
 }
 
+export interface PatchClientListItem {
+  productId: string;
+  productName: string | null;
+  client: PatchClientState;
+}
+
 export interface PatchClientState {
   clientId: string;
   depotId: string | null;
@@ -942,13 +1107,21 @@ export interface PatchClientState {
   state: PatchWorkflowState;
 }
 
-export interface PatchDashboardResult {
+export interface PatchClientStatePage {
+  items: PatchClientListItem[];
+  total: number;
+  snapshotTotal: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface PatchDashboardOverview {
   serverUrl: string;
   depotFilter: string | null;
   generatedAtUtc: string;
   summary: PatchDashboardSummary;
   depots: PatchDepotSummary[];
-  products: PatchProductRow[];
+  products: PatchProductOverviewRow[];
   unmappedSoftware: UnmappedSoftware[];
 }
 
@@ -979,7 +1152,7 @@ export interface PatchDepotVersion {
 
 export type PatchPackageStatus = 'CURRENT' | 'UPDATE_AVAILABLE' | 'DEPOT_DEVIATION' | 'MISSING_ON_DEPOT' | 'CHECK_FAILED' | 'DEPLOYMENT_PENDING';
 
-export interface PatchProductRow {
+export interface PatchProductOverviewRow {
   productId: string;
   name: string | null;
   availableVersion: string | null;
@@ -998,7 +1171,6 @@ export interface PatchProductRow {
   failedClientCount: number;
   pendingActionCount: number;
   lastError: string | null;
-  clients: PatchClientState[];
   mappedSoftwareNames: string[];
   inventoryDetections: InventoryDetection[];
 }
@@ -1444,6 +1616,7 @@ export interface ReportExportResult {
 }
 
 export interface ReportOverview {
+  subjectHost: string;
   inventoryCapturedAtUtc: string | null;
   securityScanCompletedAtUtc: string | null;
   securityScanStatus: string | null;
@@ -1480,6 +1653,14 @@ export interface ExportJsonReportRequest {
 
 export interface GetReportOverviewRequest {
   host?: string | null;
+}
+
+export interface GetReportReadinessPolicyRequest {
+}
+
+export interface ReportReadinessPolicy {
+  maximumInventoryAgeSeconds: number;
+  maximumSecurityScanAgeSeconds: number;
 }
 
 export interface BatchScanProgress {
@@ -1598,6 +1779,13 @@ export interface GetScanHistoryRequest {
   target?: TargetRequest | null;
 }
 
+export interface ListSecurityScanHostsRequest {
+}
+
+export interface ListSecurityScanHostsResult {
+  hosts: StoredSecurityScanHost[];
+}
+
 export interface RunBatchSecurityScanRequest {
   hosts?: string[] | null;
   userName?: string | null;
@@ -1607,6 +1795,11 @@ export interface RunBatchSecurityScanRequest {
 
 export interface RunSecurityScanRequest {
   target?: TargetRequest | null;
+}
+
+export interface StoredSecurityScanHost {
+  host: string;
+  completedAtUtc: string;
 }
 
 export interface DeleteSavedTargetRequest {
@@ -1782,6 +1975,8 @@ export interface ListAssetsRequest {
   knownHosts?: string[] | null;
   page?: number;
   pageSize?: number;
+  sortColumn?: string | null;
+  sortDirection?: string | null;
 }
 
 export interface ListFindingsRequest {
@@ -1790,6 +1985,8 @@ export interface ListFindingsRequest {
   asset?: string | null;
   page?: number;
   pageSize?: number;
+  sortColumn?: string | null;
+  sortDirection?: string | null;
 }
 
 export interface NessusCertificateResult {

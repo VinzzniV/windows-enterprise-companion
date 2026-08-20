@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
+using Wec.Core.Messaging;
 using Wec.Core.Results;
 using Wec.Core.Targets;
 
@@ -161,7 +162,43 @@ public sealed record KasperskyInventoryConnection(
 
 public sealed record ItHygieneRequest(
     DirectoryInventoryConnection? ActiveDirectory = null,
-    KasperskyInventoryConnection? Kaspersky = null);
+    KasperskyInventoryConnection? Kaspersky = null,
+    string? OperationId = null);
+
+public enum HygieneLoadPhase
+{
+    LoadingSources = 0,
+    Correlating,
+    Completed,
+    Cancelled,
+}
+
+public enum HygieneSourceProgressStatus
+{
+    Running = 0,
+    Available,
+    Partial,
+    NotConnected,
+    Unavailable,
+    Truncated,
+}
+
+public sealed record HygieneSourceProgress(
+    string Source,
+    HygieneSourceProgressStatus Status,
+    int? ItemCount = null,
+    string? Message = null);
+
+[BridgeContract]
+public sealed record HygieneLoadProgress(
+    string OperationId,
+    HygieneLoadPhase Phase,
+    DateTimeOffset StartedAtUtc,
+    int CompletedSources,
+    int TotalSources,
+    int PartialDeviceCount,
+    HygieneSummary? PartialSummary,
+    IReadOnlyList<HygieneSourceProgress> Sources);
 
 internal sealed class ItHygieneService
 {
@@ -170,6 +207,7 @@ internal sealed class ItHygieneService
     private readonly IOpsiComputerInventoryProvider _opsi;
     private readonly INessusComputerInventoryProvider _nessus;
     private readonly IServiceCredentialStore _credentials;
+    private readonly IBridgeEventPublisher _events;
     private readonly IClock _clock;
     private readonly ItLifecycleOptions _options;
 
@@ -179,6 +217,7 @@ internal sealed class ItHygieneService
         IOpsiComputerInventoryProvider opsi,
         INessusComputerInventoryProvider nessus,
         IServiceCredentialStore credentials,
+        IBridgeEventPublisher events,
         IClock clock,
         IOptions<ItLifecycleOptions> options)
     {
@@ -187,6 +226,7 @@ internal sealed class ItHygieneService
         _opsi = opsi;
         _nessus = nessus;
         _credentials = credentials;
+        _events = events;
         _clock = clock;
         _options = options.Value;
     }
@@ -195,44 +235,60 @@ internal sealed class ItHygieneService
         ItHygieneRequest request,
         CancellationToken cancellationToken)
     {
+        DateTimeOffset startedAtUtc = _clock.UtcNow;
+        var progress = new HygieneLoadProgressTracker(
+            request.OperationId,
+            startedAtUtc,
+            _events,
+            _options);
+        progress.Start();
         Result<AdComputerInventoryQuery> adQuery = BuildAdQuery(request.ActiveDirectory);
         Result<KasperskyInventoryConnection?> kscInput = KasperskyInput(request.Kaspersky);
         Result<KasperskyConnection> kscConnection = kscInput.IsFailure
             ? Result.Failure<KasperskyConnection>(kscInput.Error!)
             : BuildKasperskyConnection(kscInput.Value, request.ActiveDirectory);
-        Task<Result<AdComputerInventory>> adTask =
+        Task<Result<AdComputerInventory>> adTask = progress.TrackAdAsync(
             adQuery.IsSuccess
                 ? LoadSourceAsync(
                     () => _activeDirectory.LoadAsync(adQuery.Value, cancellationToken),
                     "Active Directory",
                     cancellationToken)
-                : Task.FromResult(Result.Failure<AdComputerInventory>(adQuery.Error!));
-        Task<Result<KasperskyInventory>> kscTask =
+                : Task.FromResult(Result.Failure<AdComputerInventory>(adQuery.Error!)));
+        Task<Result<KasperskyInventory>> kscTask = progress.TrackKasperskyAsync(
             kscConnection.IsSuccess
                 ? LoadSourceAsync(
                     () => _kaspersky.LoadAsync(kscConnection.Value, cancellationToken),
                     "Kaspersky Security Center",
                     cancellationToken)
-                : Task.FromResult(Result.Failure<KasperskyInventory>(kscConnection.Error!));
-        Task<Result<OpsiComputerInventory>> opsiTask =
+                : Task.FromResult(Result.Failure<KasperskyInventory>(kscConnection.Error!)));
+        Task<Result<OpsiComputerInventory>> opsiTask = progress.TrackOpsiAsync(
             LoadSourceAsync(
                 () => _opsi.LoadAsync(_options.InventoryLimit, cancellationToken),
                 "opsi",
-                cancellationToken);
-        Task<Result<NessusComputerInventory>> nessusTask = LoadSourceAsync(
+                cancellationToken));
+        Task<Result<NessusComputerInventory>> nessusTask = progress.TrackNessusAsync(LoadSourceAsync(
             () => _nessus.LoadAsync(cancellationToken),
             "Nessus",
-            cancellationToken);
-        await Task.WhenAll(adTask, kscTask, opsiTask, nessusTask);
+            cancellationToken));
+        try
+        {
+            await Task.WhenAll(adTask, kscTask, opsiTask, nessusTask);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            progress.Cancel();
+            throw;
+        }
 
         Result<AdComputerInventory> ad = await adTask;
         Result<KasperskyInventory> ksc = await kscTask;
         Result<OpsiComputerInventory> opsi = await opsiTask;
         Result<NessusComputerInventory> nessus = await nessusTask;
+        progress.Correlating();
 
         InventorySourceState adState = AdState(ad);
-        InventorySourceState kscState = SourceState(ksc, notConnectedOnInvalidRequest: true);
-        InventorySourceState opsiState = SourceState(opsi, notConnectedOnInvalidRequest: true);
+        InventorySourceState kscState = KasperskyState(ksc);
+        InventorySourceState opsiState = OpsiState(opsi);
         InventorySourceState nessusState = NessusState(nessus);
         var sources = new EnvironmentSourceStates(adState, kscState, opsiState, nessusState);
 
@@ -246,15 +302,17 @@ internal sealed class ItHygieneService
             now,
             _options);
 
+        HygieneSummary summary = Summarize(devices);
+        progress.Complete(summary);
         return Result.Success(new ItHygieneResult(
             now,
             ad.IsSuccess ? ad.Value.DomainName : null,
             sources,
-            Summarize(devices),
+            summary,
             devices));
     }
 
-    private static InventorySourceState NessusState(Result<NessusComputerInventory> result)
+    internal static InventorySourceState NessusState(Result<NessusComputerInventory> result)
     {
         if (result.IsFailure)
         {
@@ -317,7 +375,7 @@ internal sealed class ItHygieneService
         }
     }
 
-    private static InventorySourceState AdState(Result<AdComputerInventory> result)
+    internal static InventorySourceState AdState(Result<AdComputerInventory> result)
     {
         if (result.IsFailure)
         {
@@ -335,7 +393,7 @@ internal sealed class ItHygieneService
             result.Value.Truncated ? InventorySourceAvailability.Truncated : InventorySourceAvailability.Available);
     }
 
-    private static InventorySourceState SourceState<T>(Result<T> result, bool notConnectedOnInvalidRequest)
+    internal static InventorySourceState SourceState<T>(Result<T> result, bool notConnectedOnInvalidRequest)
     {
         if (result.IsFailure)
         {
@@ -354,6 +412,22 @@ internal sealed class ItHygieneService
         };
         return new InventorySourceState(
             truncated ? InventorySourceAvailability.Truncated : InventorySourceAvailability.Available);
+    }
+
+    internal static InventorySourceState KasperskyState(Result<KasperskyInventory> result)
+    {
+        InventorySourceState state = SourceState(result, notConnectedOnInvalidRequest: true);
+        return result.IsSuccess && result.Value.Truncated
+            ? new InventorySourceState(InventorySourceAvailability.Truncated)
+            : state;
+    }
+
+    internal static InventorySourceState OpsiState(Result<OpsiComputerInventory> result)
+    {
+        InventorySourceState state = SourceState(result, notConnectedOnInvalidRequest: true);
+        return result.IsSuccess && result.Value.Truncated
+            ? new InventorySourceState(InventorySourceAvailability.Truncated)
+            : state;
     }
 
     private static string ErrorText(Error error) =>
@@ -698,7 +772,7 @@ internal sealed class ItHygieneService
         }
     }
 
-    private static HygieneSummary Summarize(IReadOnlyList<HygieneDevice> devices)
+    internal static HygieneSummary Summarize(IReadOnlyList<HygieneDevice> devices)
     {
         static bool Has(HygieneDevice device, params HygieneFindingCode[] codes) =>
             device.Assessment.Findings.Any(finding => codes.Contains(finding.Code));

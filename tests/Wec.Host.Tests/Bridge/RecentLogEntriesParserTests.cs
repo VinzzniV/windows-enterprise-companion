@@ -31,9 +31,11 @@ public sealed class RecentLogEntriesParserTests
         IReadOnlyList<LogEntry> entries = RecentLogEntriesHandler.ParseWarnAndError(Sample, 100);
 
         LogEntry error = entries[0];
-        Assert.Contains("scan failed", error.Message);
-        Assert.Contains("WinRM not reachable", error.Message); // multi-line entry stays together
-        Assert.Contains("at Wec.Scan()", error.Message);
+        Assert.Equal("Wec.Infrastructure.Wmi", error.Source);
+        Assert.Equal("scan failed", error.Summary);
+        Assert.Contains("WinRM not reachable", error.TechnicalDetails);
+        Assert.Contains("at Wec.Scan()", error.TechnicalDetails);
+        Assert.StartsWith("Wec.Infrastructure.Wmi: scan failed", error.TechnicalDetails);
     }
 
     [Fact]
@@ -43,6 +45,20 @@ public sealed class RecentLogEntriesParserTests
 
         Assert.Single(entries);
         Assert.Equal("ERR", entries[0].Level); // the newest kept
+    }
+
+    [Fact]
+    public void ParseWarnAndError_RemovesStructuredMetadataFromTheSummaryOnly()
+    {
+        string[] lines =
+        [
+            "2026-08-19 16:15:28.662 +02:00 [WRN] Microsoft.EntityFrameworkCore.Query: Query may be slow. {\"EventId\":20504,\"Module\":\"security\"}",
+        ];
+
+        LogEntry entry = Assert.Single(RecentLogEntriesHandler.ParseWarnAndError(lines, 10));
+
+        Assert.Equal("Query may be slow.", entry.Summary);
+        Assert.Contains("\"Module\":\"security\"", entry.TechnicalDetails);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Wec.Core.Messaging;
 using Wec.Core.Results;
 using Wec.Modules.Reporting.Application;
@@ -6,6 +7,34 @@ namespace Wec.Modules.Reporting.Handlers;
 
 /// <param name="Host">null = the local machine; otherwise the scanned remote client.</param>
 public sealed record GetReportOverviewRequest(string? Host = null);
+
+public sealed record GetReportReadinessPolicyRequest;
+
+public sealed record ReportReadinessPolicy(
+    long MaximumInventoryAgeSeconds,
+    long MaximumSecurityScanAgeSeconds);
+
+internal sealed class GetReportReadinessPolicyHandler :
+    IActionHandler<GetReportReadinessPolicyRequest, ReportReadinessPolicy>
+{
+    private readonly ReportingOptions _options;
+
+    public GetReportReadinessPolicyHandler(IOptions<ReportingOptions> options)
+    {
+        _options = options.Value;
+    }
+
+    public string Module => "reporting";
+
+    public string Action => "getReadinessPolicy";
+
+    public Task<Result<ReportReadinessPolicy>> HandleAsync(
+        GetReportReadinessPolicyRequest payload,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Success(new ReportReadinessPolicy(
+            checked((long)_options.MaximumInventoryAge.TotalSeconds),
+            checked((long)_options.MaximumSecurityScanAge.TotalSeconds))));
+}
 
 internal sealed class GetReportOverviewHandler : IActionHandler<GetReportOverviewRequest, ReportOverview>
 {

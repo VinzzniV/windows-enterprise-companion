@@ -33,6 +33,13 @@ const batchOperations = new Set([
   'security/runBatchScan',
 ]);
 
+const environmentAnalysisOperations = new Set([
+  'employeelifecycle/getHygiene',
+  'employeelifecycle/getHygieneOverview',
+  'employeelifecycle/listHygieneDevices',
+  'employeelifecycle/listClientWorkspace',
+]);
+
 function targetCount(payload: unknown): number {
   if (typeof payload !== 'object' || payload === null) return 1;
   const depotIds = (payload as { depotIds?: unknown }).depotIds;
@@ -49,7 +56,7 @@ export function bridgeResponseTimeoutMs(module: string, action: string, payload?
   if (key === 'patchmanagement/executePackageUpdate') {
     return targetCount(payload) * PACKAGE_TARGET_TIMEOUT_MS;
   }
-  if (key === 'employeelifecycle/getHygiene') return ENVIRONMENT_ANALYSIS_TIMEOUT_MS;
+  if (environmentAnalysisOperations.has(key)) return ENVIRONMENT_ANALYSIS_TIMEOUT_MS;
   if (key === 'logs/recent' || key === 'system/openPsSession') return LOG_READ_TIMEOUT_MS;
   if (batchOperations.has(key)) return BATCH_OPERATION_TIMEOUT_MS;
   if (standardOperations.has(key)) return STANDARD_OPERATION_TIMEOUT_MS;

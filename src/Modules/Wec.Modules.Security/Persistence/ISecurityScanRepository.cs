@@ -2,6 +2,8 @@ using Wec.Modules.Security.Domain;
 
 namespace Wec.Modules.Security.Persistence;
 
+public sealed record StoredSecurityScanHost(string Host, DateTimeOffset CompletedAtUtc);
+
 public interface ISecurityScanRepository
 {
     Task<long> SaveScanAsync(
@@ -22,6 +24,9 @@ public interface ISecurityScanRepository
         CancellationToken cancellationToken);
 
     Task<SecurityScanResult?> GetLatestScanAsync(string hostKey, CancellationToken cancellationToken);
+
+    /// <summary>One latest persisted scan stamp per host, without findings or check details.</summary>
+    Task<IReadOnlyList<StoredSecurityScanHost>> ListHostsAsync(CancellationToken cancellationToken);
 
     /// <summary>Most recent scans of one host first, including findings.</summary>
     Task<IReadOnlyList<SecurityScanResult>> GetRecentScansAsync(

@@ -59,16 +59,31 @@ public sealed class KasperskySecurityCenterClientTests
     [Fact]
     public async Task Load_ReportsAuthenticationFailure()
     {
-        var handler = new QueueHandler(new HttpResponseMessage(HttpStatusCode.Unauthorized)
-        {
-            Content = new StringContent("invalid credentials", Encoding.UTF8, "text/plain"),
-        });
+        var handler = new QueueHandler(Unauthorized(), Unauthorized());
         var client = new KasperskySecurityCenterClient(handler);
 
         Result<KasperskyInventory> result = await client.LoadAsync(Connection(), CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.AuthenticationFailed, result.Error!.Code);
+        Assert.Equal(["login", "login"], handler.RequestPaths);
+    }
+
+    [Fact]
+    public async Task Load_RetriesOneTransientAuthenticationFailure()
+    {
+        var handler = new QueueHandler(
+            Unauthorized(),
+            Json(HttpStatusCode.OK, "{}"),
+            Json(HttpStatusCode.OK, """{"PxgRetVal":0,"strAccessor":"hosts-1"}"""),
+            Json(HttpStatusCode.OK, "{}"));
+        var client = new KasperskySecurityCenterClient(handler);
+
+        Result<KasperskyInventory> result = await client.LoadAsync(Connection(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Computers);
+        Assert.Equal(["login", "login", "HostGroup.FindHosts", "ChunkAccessor.Release"], handler.RequestPaths);
     }
 
     [Fact]
@@ -145,6 +160,11 @@ public sealed class KasperskySecurityCenterClientTests
     private static HttpResponseMessage Json(HttpStatusCode status, string content) => new(status)
     {
         Content = new StringContent(content, Encoding.UTF8, "application/json"),
+    };
+
+    private static HttpResponseMessage Unauthorized() => new(HttpStatusCode.Unauthorized)
+    {
+        Content = new StringContent("invalid credentials", Encoding.UTF8, "text/plain"),
     };
 
     private sealed class QueueHandler(params HttpResponseMessage[] responses) : HttpMessageHandler

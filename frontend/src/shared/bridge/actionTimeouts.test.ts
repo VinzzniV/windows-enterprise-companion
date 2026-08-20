@@ -11,6 +11,13 @@ describe('bridgeResponseTimeoutMs', () => {
     expect(bridgeResponseTimeoutMs('targets', 'list')).toBe(10_000);
   });
 
+  it.each(['getHygiene', 'getHygieneOverview', 'listHygieneDevices', 'listClientWorkspace'])(
+    'allows a full environment analysis for %s',
+    (action) => {
+      expect(bridgeResponseTimeoutMs('employeelifecycle', action)).toBe(180_000);
+    },
+  );
+
   it('scales package execution by the number of target depots', () => {
     expect(bridgeResponseTimeoutMs('patchmanagement', 'executePackageUpdate', {
       depotIds: ['test', 'production'],

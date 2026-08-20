@@ -8,44 +8,38 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { DirectoryConnectionRequest, ItHygieneResult } from '../api-types';
-import { invoke } from '../bridge/bridgeClient';
-import { errorText } from '../bridge/errorText';
+import type { DirectoryInventoryConnection, HygieneLoadProgress, ItHygieneRequest, ItHygieneResult } from '../api-types';
+import { BridgeCancelledError, invokeCancellable, type CancellableBridgeInvocation } from '../bridge/bridgeClient';
+import { presentError, type ErrorPresentation } from '../bridge/errorPresentation';
 import { useTargets } from '../targets/TargetContext';
-
-interface EnvironmentRequest {
-  activeDirectory: DirectoryConnectionRequest;
-  kaspersky: { userName: string; domain: string | null; password: string } | null;
-}
+import { useHygieneOperation } from './useHygieneOperation';
 
 interface EnvironmentContextValue {
   result: ItHygieneResult | null;
   loading: boolean;
-  error: string | null;
+  error: ErrorPresentation | null;
+  progress: HygieneLoadProgress | null;
+  elapsedSeconds: number;
+  cancelled: boolean;
   ensureLoaded(): Promise<ItHygieneResult | null>;
   refresh(): Promise<ItHygieneResult | null>;
+  cancel(): void;
   invalidate(): void;
 }
 
 const EnvironmentContext = createContext<EnvironmentContextValue | null>(null);
 
-export function EnvironmentProvider({ children }: { children: ReactNode }) {
+/** Connection-scoped request shared by the full environment and paged views. */
+export function useEnvironmentRequest(): ItHygieneRequest {
   const targets = useTargets();
-  const [result, setResult] = useState<ItHygieneResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const resultRef = useRef<ItHygieneResult | null>(null);
-  const inFlight = useRef<Promise<ItHygieneResult | null> | null>(null);
-  const generation = useRef(0);
-  const previousRequest = useRef<EnvironmentRequest | null>(null);
   const admin = targets.adminCredentials;
   const ksc = targets.kasperskyCredentials ?? admin;
   const savedDc = targets.savedTargets
     .filter((target) => target.role === 'DomainController')
     .at(-1);
 
-  const request = useMemo<EnvironmentRequest>(() => {
-    const activeDirectory: DirectoryConnectionRequest = {};
+  return useMemo<ItHygieneRequest>(() => {
+    const activeDirectory: DirectoryInventoryConnection = {};
     if (savedDc) activeDirectory.server = savedDc.host;
 
     const userName = admin?.userName.trim() ?? '';
@@ -72,14 +66,32 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
     ksc?.userName,
     savedDc?.host,
   ]);
+}
+
+export function EnvironmentProvider({ children }: { children: ReactNode }) {
+  const request = useEnvironmentRequest();
+  const hygieneOperation = useHygieneOperation();
+  const [result, setResult] = useState<ItHygieneResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<ErrorPresentation | null>(null);
+  const [cancelled, setCancelled] = useState(false);
+  const resultRef = useRef<ItHygieneResult | null>(null);
+  const inFlight = useRef<Promise<ItHygieneResult | null> | null>(null);
+  const generation = useRef(0);
+  const activeLoad = useRef<CancellableBridgeInvocation<ItHygieneResult> | null>(null);
+  const previousRequest = useRef<ItHygieneRequest | null>(null);
 
   const invalidate = useCallback(() => {
     generation.current += 1;
     resultRef.current = null;
     inFlight.current = null;
+    activeLoad.current?.cancel();
+    activeLoad.current = null;
+    hygieneOperation.end();
     setResult(null);
     setError(null);
-  }, []);
+    setCancelled(false);
+  }, [hygieneOperation.end]);
 
   useLayoutEffect(() => {
     // The first request is the initial provider state, not a credential change. Invalidating
@@ -98,13 +110,17 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
     if (!force && inFlight.current) return inFlight.current;
 
     const loadGeneration = generation.current;
+    const operationId = hygieneOperation.begin();
     setLoading(true);
     setError(null);
-    const promise = invoke<ItHygieneResult>(
+    setCancelled(false);
+    const invocation = invokeCancellable<ItHygieneResult>(
       'employeelifecycle',
       'getHygiene',
-      request,
-    )
+      { ...request, operationId },
+    );
+    activeLoad.current = invocation;
+    const promise = invocation.promise
       .then((next) => {
         if (generation.current === loadGeneration) {
           resultRef.current = next;
@@ -113,29 +129,42 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
         return next;
       })
       .catch((caught: unknown) => {
-        if (generation.current === loadGeneration) setError(errorText(caught));
+        if (generation.current === loadGeneration && !(caught instanceof BridgeCancelledError)) {
+          setError(presentError(caught, { message: 'The shared environment data could not be loaded.' }));
+        }
         return null;
       })
       .finally(() => {
         if (generation.current === loadGeneration) {
           inFlight.current = null;
+          activeLoad.current = null;
+          hygieneOperation.end();
           setLoading(false);
         }
       });
     inFlight.current = promise;
     return promise;
-  }, [request]);
+  }, [request, hygieneOperation.begin, hygieneOperation.end]);
 
   const ensureLoaded = useCallback(() => load(false), [load]);
   const refresh = useCallback(() => load(true), [load]);
+  const cancel = useCallback(() => {
+    if (!activeLoad.current) return;
+    setCancelled(true);
+    activeLoad.current.cancel();
+  }, []);
   const value = useMemo<EnvironmentContextValue>(() => ({
     result,
     loading,
     error,
+    progress: hygieneOperation.progress,
+    elapsedSeconds: hygieneOperation.elapsedSeconds,
+    cancelled,
     ensureLoaded,
     refresh,
+    cancel,
     invalidate,
-  }), [result, loading, error, ensureLoaded, refresh, invalidate]);
+  }), [result, loading, error, hygieneOperation.progress, hygieneOperation.elapsedSeconds, cancelled, ensureLoaded, refresh, cancel, invalidate]);
 
   return <EnvironmentContext.Provider value={value}>{children}</EnvironmentContext.Provider>;
 }

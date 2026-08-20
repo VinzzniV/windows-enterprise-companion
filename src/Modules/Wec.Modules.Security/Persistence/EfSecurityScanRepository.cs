@@ -103,6 +103,15 @@ public sealed class EfSecurityScanRepository : ISecurityScanRepository
         return scanRecord is null ? null : ToScanResult(scanRecord);
     }
 
+    public async Task<IReadOnlyList<StoredSecurityScanHost>> ListHostsAsync(
+        CancellationToken cancellationToken) =>
+        await _dbContext.Set<SecurityScanRecord>()
+            .Where(scan => !_dbContext.Set<SecurityScanRecord>().Any(newer =>
+                newer.Host == scan.Host && newer.Id > scan.Id))
+            .OrderBy(scan => scan.Host)
+            .Select(scan => new StoredSecurityScanHost(scan.Host, scan.CompletedAtUtc))
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<SecurityScanResult>> GetRecentScansAsync(
         string hostKey,
         int limit,

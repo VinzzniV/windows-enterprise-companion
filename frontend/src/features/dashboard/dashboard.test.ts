@@ -11,6 +11,7 @@ import {
   derivePatchTile,
   derivePrintTile,
   deriveSecurityTile,
+  deriveVulnerabilityTile,
 } from './dashboard';
 
 function finding(overrides: Partial<SecurityFinding>): SecurityFinding {
@@ -41,19 +42,30 @@ const completeCoverage = {
 
 describe('dashboard tile derivation', () => {
   it('inventory: empty vs populated with the newest capture', () => {
-    expect(deriveInventoryTile([])).toMatchObject({ value: 'No hosts', tone: 'neutral' });
+    expect(deriveInventoryTile([], 86_400, new Date('2026-07-03T09:00:00Z'))).toMatchObject({
+      value: 'No data',
+      state: 'missing',
+      coverage: '0 hosts with stored inventory',
+    });
 
     const hosts: StoredInventoryHost[] = [
-      { host: 'PC1', capturedAtUtc: '2026-07-01T08:00:00Z' },
+      { host: 'PC1', capturedAtUtc: '2026-07-02T08:00:00Z' },
       { host: 'PC2', capturedAtUtc: '2026-07-03T08:00:00Z' },
     ];
-    const tile = deriveInventoryTile(hosts);
+    const tile = deriveInventoryTile(hosts, 86_400, new Date('2026-07-03T09:00:00Z'));
     expect(tile.value).toBe('2 hosts');
+    expect(tile.state).toBe('partial');
+    expect(tile.capturedAtUtc).toBe('2026-07-03T08:00:00Z');
+    expect(tile.coverage).toBe('1 of 2 hosts within 24h freshness window');
     expect(tile.note).toContain(new Date('2026-07-03T08:00:00Z').toLocaleString());
   });
 
   it('security: critical findings drive the danger tone', () => {
-    expect(deriveSecurityTile(null)).toMatchObject({ value: 'No scan' });
+    expect(deriveSecurityTile(null, 86_400, new Date('2026-07-03T09:00:00Z'))).toMatchObject({
+      value: 'No data',
+      state: 'missing',
+      coverage: 'No security checks evaluated',
+    });
 
     const scan: SecurityScanResult = {
       scanId: 1,
@@ -69,9 +81,11 @@ describe('dashboard tile derivation', () => {
       coverageVersion: 1,
       coverage: completeCoverage,
     };
-    const tile = deriveSecurityTile(scan);
+    const tile = deriveSecurityTile(scan, 86_400, new Date('2026-07-03T09:00:00Z'));
     expect(tile.value).toBe('2 critical/high');
     expect(tile.tone).toBe('danger');
+    expect(tile.state).toBe('fresh');
+    expect(tile.coverage).toBe('13 of 13 applicable checks evaluated');
   });
 
   it('security: clean scan is success', () => {
@@ -85,9 +99,10 @@ describe('dashboard tile derivation', () => {
       checkResults: [],
       coverageVersion: 1,
       coverage: completeCoverage,
-    });
+    }, 86_400, new Date('2026-07-03T09:00:00Z'));
     expect(tile.value).toBe('1 findings');
     expect(tile.tone).toBe('success');
+    expect(tile.state).toBe('fresh');
   });
 
   it('security: incomplete coverage is never a success tile', () => {
@@ -106,11 +121,112 @@ describe('dashboard tile derivation', () => {
         failedChecks: 1,
         isComplete: false,
       },
-    });
+    }, 86_400, new Date('2026-07-03T09:00:00Z'));
 
     expect(tile.value).toBe('0 findings');
     expect(tile.tone).toBe('warning');
+    expect(tile.state).toBe('partial');
     expect(tile.note).toContain('coverage incomplete');
+  });
+
+  it('security: stale clean scan is not presented as healthy', () => {
+    const tile = deriveSecurityTile({
+      scanId: 1,
+      host: 'PC1',
+      startedAtUtc: '2026-07-01T08:00:00Z',
+      completedAtUtc: '2026-07-01T08:01:00Z',
+      status: 'COMPLETED',
+      findings: [],
+      checkResults: [],
+      coverageVersion: 1,
+      coverage: completeCoverage,
+    }, 86_400, new Date('2026-07-03T09:00:00Z'));
+
+    expect(tile).toMatchObject({ value: '0 findings', state: 'stale', tone: 'warning' });
+    expect(tile.note).toContain('older than the 24h freshness window');
+  });
+
+  it('vulnerabilities: sync and failed sources never expose a healthy zero', () => {
+    const overview = {
+      sync: {
+        phase: 'IMPORTING_CURRENT_RUNS',
+        running: true,
+        startedAtUtc: '2026-07-03T08:00:00Z',
+        lastSuccessfulSyncUtc: null,
+        error: null,
+        completedScans: 2,
+        totalScans: 5,
+        historySupported: true,
+        serverVersion: '10.8',
+      },
+      includedScans: 0,
+      excludedScans: 0,
+      assets: 0,
+      matchedAssets: 0,
+      unmatchedAssets: 0,
+      criticalAssets: 0,
+      highAssets: 0,
+      criticalInstances: 0,
+      highInstances: 0,
+      staleScans: 0,
+    } as const;
+
+    expect(deriveVulnerabilityTile(overview, null)).toMatchObject({
+      value: 'Syncing',
+      state: 'loading',
+      coverage: '2 of 5 scans imported',
+    });
+
+    expect(deriveVulnerabilityTile({
+      ...overview,
+      sync: { ...overview.sync, phase: 'FAILED', running: false, error: 'Nessus unavailable' },
+    }, null)).toMatchObject({ value: 'Unavailable', state: 'error', tone: 'danger' });
+  });
+
+  it('vulnerabilities: zero is healthy only with a successful, covered source', () => {
+    const overview = {
+      sync: {
+        phase: 'COMPLETED' as const,
+        running: false,
+        startedAtUtc: '2026-07-03T08:00:00Z',
+        lastSuccessfulSyncUtc: '2026-07-03T08:05:00Z',
+        error: null,
+        completedScans: 5,
+        totalScans: 5,
+        historySupported: true,
+        serverVersion: '10.8',
+      },
+      includedScans: 5,
+      excludedScans: 0,
+      assets: 20,
+      matchedAssets: 20,
+      unmatchedAssets: 0,
+      criticalAssets: 0,
+      highAssets: 0,
+      criticalInstances: 0,
+      highInstances: 0,
+      staleScans: 0,
+    };
+    const trend = {
+      verdict: 'STABLE' as const,
+      points: [],
+      commonAssets: 20,
+      newAssets: 0,
+      removedAssets: 0,
+    };
+
+    expect(deriveVulnerabilityTile(overview, trend)).toMatchObject({
+      value: '0',
+      state: 'fresh',
+      tone: 'success',
+      capturedAtUtc: '2026-07-03T08:05:00Z',
+      coverage: '5 included scans · 0 stale',
+    });
+    expect(deriveVulnerabilityTile({ ...overview, staleScans: 5 }, trend)).toMatchObject({
+      value: '0',
+      state: 'stale',
+      tone: 'warning',
+    });
   });
 
   it('print: counts toner-low across snapshots and warns', () => {
@@ -154,11 +270,11 @@ describe('dashboard tile derivation', () => {
     expect(tile.tone).toBe('warning');
     expect(tile.note).toContain('1 printer(s) low on toner');
 
-    expect(derivePrintTile([], [])).toMatchObject({ value: 'No servers' });
+    expect(derivePrintTile([], [])).toMatchObject({ value: 'No data', state: 'missing' });
   });
 
   it('patch: reflects the opsi connection state', () => {
-    expect(derivePatchTile(null)).toMatchObject({ value: 'Not connected' });
+    expect(derivePatchTile(null)).toMatchObject({ value: 'Unavailable', state: 'error' });
     expect(
       derivePatchTile({
         connected: true,

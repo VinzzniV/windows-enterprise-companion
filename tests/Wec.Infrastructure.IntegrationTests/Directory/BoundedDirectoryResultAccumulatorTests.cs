@@ -50,4 +50,32 @@ public sealed class BoundedDirectoryResultAccumulatorTests
         Assert.Equal(10_000, result.TotalCount);
         Assert.Empty(result.Entries);
     }
+
+    [Fact]
+    public void OffsetFixture_KeepsExactCountButMaterializesOnlyRequestedPage()
+    {
+        const int totalEntries = 25_000;
+        const int entryOffset = 1_200;
+        const int pageSize = 50;
+        var accumulator = new BoundedDirectoryResultAccumulator(entryOffset, pageSize);
+        int decodedEntries = 0;
+
+        for (int index = 0; index < totalEntries; index++)
+        {
+            if (accumulator.CountAndShouldRetain())
+            {
+                decodedEntries++;
+                accumulator.Retain(new DirectoryEntryData(
+                    $"CN=user-{index},DC=corp,DC=example",
+                    new Dictionary<string, IReadOnlyList<string>>()));
+            }
+        }
+
+        BoundedDirectorySearchResult result = accumulator.Build();
+
+        Assert.Equal(totalEntries, result.TotalCount);
+        Assert.Equal(pageSize, decodedEntries);
+        Assert.Equal($"CN=user-{entryOffset},DC=corp,DC=example", result.Entries[0].DistinguishedName);
+        Assert.Equal($"CN=user-{entryOffset + pageSize - 1},DC=corp,DC=example", result.Entries[^1].DistinguishedName);
+    }
 }

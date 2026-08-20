@@ -160,21 +160,26 @@ public sealed class DirectoryHygieneServiceTests
     }
 
     [Fact]
-    public async Task PrivilegedGroups_AreResolvedBySidAndAbsentGroupsAreSkipped()
+    public async Task PrivilegedGroups_AreResolvedBySidAndUseBoundedDirectMemberCoverage()
     {
         SetUpDomainScaffolding();
+        string groupDn = $"CN=Domänen-Admins,CN=Users,{NamingContext}";
         _directoryReader.SearchAsync(
                 Arg.Is<DirectorySearchQuery>(query =>
                     query.LdapFilter == AdFilters.GroupBySid($"{DomainSid}-512")),
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([
-                new DirectoryEntryData($"CN=Domänen-Admins,CN=Users,{NamingContext}",
-                    new Dictionary<string, IReadOnlyList<string>>
-                    {
-                        ["sAMAccountName"] = ["Domänen-Admins"],
-                        ["member"] = [$"CN=Admin,{NamingContext}", $"CN=Break Glass,{NamingContext}", $"CN=Svc,{NamingContext}"],
-                    }),
+                Entry(groupDn, ("sAMAccountName", "Domänen-Admins")),
             ]));
+        _directoryReader.SearchBoundedAsync(
+                Arg.Is<DirectorySearchQuery>(query =>
+                    query.LdapFilter == AdFilters.DirectMembersOfGroup(groupDn)),
+                _options.ExampleLimit,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(3, [
+                Entry($"CN=Admin,{NamingContext}"),
+                Entry($"CN=Break Glass,{NamingContext}"),
+            ])));
 
         Result<AdHygieneResult> result = await CreateService().GetHygieneAsync(DirectoryConnection.Default, CancellationToken.None);
 
@@ -227,5 +232,129 @@ public sealed class DirectoryHygieneServiceTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.AccessDenied, result.Error!.Code);
+    }
+
+    [Fact]
+    public async Task RulePage_UsesOriginalEvaluationTimeEscapedSearchAndBoundedOffset()
+    {
+        SetUpDomainScaffolding();
+        DateTimeOffset evaluatedAt = Now.AddDays(-2);
+        long expectedCutoff = evaluatedAt.Subtract(_options.InactivityThreshold).UtcDateTime.ToFileTimeUtc();
+        _directoryReader.SearchPageAsync(
+                Arg.Any<DirectorySearchQuery>(),
+                entryOffset: 50,
+                entryLimit: 50,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(51, [
+                Entry("CN=ops-admin", ("sAMAccountName", "ops-admin")),
+            ])));
+
+        Result<AdHygieneRulePage> result = await CreateService().GetRulePageAsync(
+            DirectoryConnection.Default,
+            "WEC-AD-INACTIVE-USERS",
+            evaluatedAt,
+            "ops*(admin)",
+            page: 2,
+            pageSize: 50,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(51, result.Value.TotalCount);
+        Assert.Equal("ops-admin", Assert.Single(result.Value.Items).Name);
+        await _directoryReader.Received(1).SearchPageAsync(
+            Arg.Is<DirectorySearchQuery>(query =>
+                query.LdapFilter.Contains($"lastLogonTimestamp<={expectedCutoff}") &&
+                query.LdapFilter.Contains(@"(sAMAccountName=*ops\2a\28admin\29*)") &&
+                query.SortAttribute == "sAMAccountName"),
+            entryOffset: 50,
+            entryLimit: 50,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RulePage_RejectsUnknownRuleBeforeSearching()
+    {
+        Result<AdHygieneRulePage> result = await CreateService().GetRulePageAsync(
+            DirectoryConnection.Default,
+            "CUSTOM-LDAP-RULE",
+            Now,
+            query: null,
+            page: 1,
+            pageSize: 50,
+            CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+        await _directoryReader.DidNotReceiveWithAnyArgs().SearchPageAsync(default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task PrivilegedGroupMemberPage_ValidatesGroupAndReturnsTypedStatusRows()
+    {
+        SetUpDomainScaffolding();
+        string groupDn = $"CN=Admins (Tier 0),CN=Users,{NamingContext}";
+        _directoryReader.SearchAsync(
+                Arg.Is<DirectorySearchQuery>(query =>
+                    query.LdapFilter == AdFilters.GroupBySid($"{DomainSid}-512")),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([
+                Entry(groupDn, ("sAMAccountName", "Domain Admins")),
+            ]));
+        _directoryReader.SearchPageAsync(
+                Arg.Any<DirectorySearchQuery>(),
+                entryOffset: 50,
+                entryLimit: 50,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(51, [
+                new DirectoryEntryData(
+                    $"CN=Ops Admin,{NamingContext}",
+                    new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["sAMAccountName"] = ["ops.admin"],
+                        ["objectClass"] = ["top", "person", "organizationalPerson", "user"],
+                        ["userAccountControl"] = ["514"],
+                    }),
+            ])));
+
+        Result<AdPrivilegedGroupMemberPage> result = await CreateService().GetPrivilegedGroupMemberPageAsync(
+            DirectoryConnection.Default,
+            groupDn,
+            "ops*(admin)",
+            page: 2,
+            pageSize: 50,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Domain Admins", result.Value.GroupName);
+        AdPrivilegedGroupMember member = Assert.Single(result.Value.Items);
+        Assert.Equal("ops.admin", member.AccountName);
+        Assert.Equal("User", member.EntityType);
+        Assert.Equal("Disabled", member.AccountStatus);
+        await _directoryReader.Received(1).SearchPageAsync(
+            Arg.Is<DirectorySearchQuery>(query =>
+                query.LdapFilter.Contains(@"(memberOf=CN=Admins \28Tier 0\29", StringComparison.Ordinal) &&
+                query.LdapFilter.Contains(@"(cn=*ops\2a\28admin\29*)", StringComparison.Ordinal) &&
+                query.SortAttribute == "sAMAccountName"),
+            entryOffset: 50,
+            entryLimit: 50,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PrivilegedGroupMemberPage_RejectsGroupOutsideSidAllowlistBeforePageSearch()
+    {
+        SetUpDomainScaffolding();
+
+        Result<AdPrivilegedGroupMemberPage> result = await CreateService().GetPrivilegedGroupMemberPageAsync(
+            DirectoryConnection.Default,
+            $"CN=Arbitrary Group,CN=Users,{NamingContext}",
+            query: null,
+            page: 1,
+            pageSize: 50,
+            CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+        await _directoryReader.DidNotReceiveWithAnyArgs().SearchPageAsync(default!, default, default, default);
     }
 }

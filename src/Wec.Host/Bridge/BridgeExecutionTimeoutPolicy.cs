@@ -52,6 +52,14 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
         "security/runBatchScan",
     ];
 
+    private static readonly HashSet<string> EnvironmentAnalysisOperations =
+    [
+        "employeelifecycle/getHygiene",
+        "employeelifecycle/getHygieneOverview",
+        "employeelifecycle/listHygieneDevices",
+        "employeelifecycle/listClientWorkspace",
+    ];
+
     public TimeSpan Resolve(BridgeRequest request)
     {
         string key = $"{request.Module}/{request.Action}";
@@ -60,7 +68,7 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
             return TimeSpan.FromTicks(PackageTargetTimeout.Ticks * ReadTargetCount(request.Payload));
         }
 
-        if (key == "employeelifecycle/getHygiene")
+        if (EnvironmentAnalysisOperations.Contains(key))
         {
             return EnvironmentAnalysisTimeout;
         }

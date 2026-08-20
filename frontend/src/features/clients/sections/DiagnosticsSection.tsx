@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
-import { errorText } from '../../../shared/bridge/errorText';
+import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import type {
   DiagnosticRunResult,
   LatestDiagnosticRunResult,
@@ -16,7 +16,7 @@ type State =
   | { kind: 'idle' }
   | { kind: 'running' }
   | { kind: 'done'; run: DiagnosticRunResult }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 /** Diagnostics section of a client: latest saved run on open, new runs only on demand. */
 export function DiagnosticsSection({ target }: { target: TargetRequest | null }) {
@@ -36,7 +36,10 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
     setState({ kind: 'running' });
     invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target })
       .then((result) => setState({ kind: 'done', run: result }))
-      .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
+      .catch((error: unknown) => setState({
+        kind: 'error',
+        error: presentError(error, { message: 'Diagnostics could not be completed.' }),
+      }));
   }, [target]);
 
   if (state.kind === 'loading') {
@@ -49,12 +52,10 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
 
   if (state.kind === 'error') {
     return (
-      <div className="flex flex-col gap-3">
-        <ErrorState message={state.message} />
-        <div>
-          <Button onClick={run}>Retry</Button>
-        </div>
-      </div>
+      <ErrorState
+        {...state.error}
+        controls={<Button onClick={run}>Retry diagnostics</Button>}
+      />
     );
   }
 

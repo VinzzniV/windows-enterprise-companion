@@ -1,16 +1,20 @@
 # IT Lifecycle / Environment Health MVP
 
 The existing `Wec.Modules.EmployeeLifecycle` project and bridge module name are
-retained to keep host composition, navigation and existing installations
-compatible. The registered feature is now a read-only device hygiene view that
-correlates Active Directory with Kaspersky Security Center (KSC).
+retained to keep host composition, contracts and existing installations
+compatible. Its read-only device hygiene data is presented as **Fleet posture**
+inside the canonical Clients workspace and correlates Active Directory with
+Kaspersky Security Center (KSC), opsi and Nessus.
 
 ## Data flow
 
 ```text
-Active Directory -- IAdComputerInventoryProvider --\
-                                                ItHygieneService -> UI
-KSC OpenAPI ------ KasperskySecurityCenterClient /
+Active Directory -- IAdComputerInventoryProvider ---\
+KSC OpenAPI ------ KasperskySecurityCenterClient ----+
+opsi ------------- IOpsiComputerInventoryProvider ---+-> ItHygieneService -> request-bound snapshot
+Nessus ----------- INessusComputerInventoryProvider -/                       |- overview -> UI
+Inventory history - IInventoryClientSnapshotProvider --\                     |- filtered/sorted device page -> UI
+Saved targets ----- ISavedClientTargetProvider ---------+-> client merge -----`- filtered/sorted client page -> UI
 ```
 
 - AD reuses the existing LDAP reader, domain discovery, credentials and paging.
@@ -45,7 +49,70 @@ The existing bridge module name remains `employeelifecycle`.
 
 | Action | Payload | Result |
 |---|---|---|
-| `getHygiene` | optional AD and KSC connection/credential overrides | correlated `ItHygieneResult` |
+| `getHygiene` | optional AD and KSC connection/credential overrides plus optional `operationId` | correlated `ItHygieneResult` |
+| `getHygieneOverview` | optional AD/KSC overrides, optional `operationId` and explicit `force` refresh | sources, summary, assessment time and known hosts without device rows |
+| `listHygieneDevices` | optional AD/KSC overrides and `operationId` plus search, filter, page, page size and allowlisted sort | at most 100 correlated device rows plus filtered total |
+| `listClientWorkspace` | optional AD/KSC overrides and `operationId` plus client search, posture/source filter, grouping, page, page size, allowlisted sort and explicit `force` refresh | at most 100 de-duplicated Hygiene/scan-history/saved-target rows, exact filtered and snapshot totals, source/time/domain metadata and a summary recalculated over those canonical de-duplicated hygiene rows |
+
+Cold loads with an `operationId` publish the typed event
+`employeelifecycle/hygieneProgress`. It reports the current load phase, elapsed
+start time, completed source count, per-source state and item count, and a
+partial correlated device count/summary after each AD, Kaspersky, opsi or Nessus
+source completes. The UI uses these events for progress presentation only. A
+generic bridge cancel envelope cancels the correlated request and propagates the
+request token into all four parallel providers.
+
+The frontend presents these source states through the shared semantic status
+contract in load progress, Fleet posture and the client Overview. `Available`
+is availability, `Running` is execution, partial or truncated results are
+partial execution, a source that is not connected is not configured, and an
+unavailable source is failed execution. The concrete `Not connected`, `Source
+unavailable` and `Result truncated` distinctions remain adjacent context; this
+presentation mapping does not alter the source or progress bridge values.
+
+Client presentation keeps assessment separate from source status. `Healthy`
+and `Warning` are health, while both a critical assessment and a cleanup
+candidate use Health `Critical`; the latter retains `Cleanup candidate` as
+context. An incomplete assessment is Execution `Partial`, and an unmanaged
+client is Availability `Unknown`. Source presence is `Available`, `Missing` or
+`Not applicable`; a present source is `Fresh`, `Stale` or `Unknown` when no
+timestamp is known. Disabled AD objects and outdated Kaspersky components are
+Lifecycle `Disabled` and `Update available`. The Compare picker independently
+labels stored Inventory and Security snapshots as `Available` or `Missing`.
+These are frontend presentation mappings only: findings, stale thresholds,
+assessment enums, timestamps and bridge payloads remain unchanged.
+
+The Clients master also exposes a manual read-only connectivity check for the
+currently visible page. Its existing host-bridge response contains separate
+ICMP `reachable` and TCP/5985 `manageable` evidence. The frontend shows the
+request as Execution `Running`, a transport failure as Execution `Failed`, at
+least one responding channel as Availability `Available`, and no response (or
+an omitted host result) as Availability `Unknown`; it never derives a
+definitive `Offline` claim from a missing ping reply. Concrete channel evidence
+and the local check time remain visible per row. This does not alter source
+collection, hygiene evaluation, paging, probe limits, timeouts or the bridge
+contract.
+
+The host retains only the latest successful assessment for the matching
+connection request. The request is identified by a SHA-256 fingerprint; raw
+credentials and the presentation-only operation ID are not retained as cache-key
+text. Paging therefore does not
+repeat the external AD/KSC/opsi/Nessus reads. An explicit overview refresh
+loads the sources once and atomically replaces the snapshot after success.
+The cache is process-local, not persisted, and failures or cancelled loads never
+replace the latest successful snapshot.
+Client-workspace pages additionally read narrow host/timestamp and client-target
+projections through the cross-module contracts from ADR 0004. They do not
+reference Inventory or Targets projects, repositories or persistence entities.
+
+Fleet-posture summary metrics in Clients are direct drill-downs into the shared
+server-side hygiene filters. The active filter is stored as
+`#/clients?posture=<FILTER>` and is shared with the filter select, so a problem
+view can be linked, restored and navigated with browser history. KPI buttons
+expose the active state through `aria-pressed`; `Assessed devices` removes the
+parameter and returns to `ALL`. The legacy
+`#/employeelifecycle?filter=<FILTER>` route remains a small allowlist-based
+redirect to the canonical URL; it no longer renders a second device table.
 
 Credentials are request-scoped and held in memory only. KSC has a separate
 session sign-in under Settings so it does not replace the global Windows/AD
@@ -53,7 +120,10 @@ administrator. The frontend uses the newest saved domain controller. KSC server,
 thresholds, target versions and an optional private-certificate thumbprint are
 edited under **Settings → IT Lifecycle / Environment Health**. Saving merges
 the values into `%APPDATA%\Wec\usersettings.json`; they apply after restart.
-Passwords are never part of the saved settings.
+Ignored KSC administration groups are comma-separated provider entity names:
+the Settings example hint uses the English product language, but configured
+group names are loaded and saved verbatim. Passwords are never part of the
+saved settings.
 
 ## Options (`Wec:ItLifecycle`)
 
@@ -68,17 +138,23 @@ Passwords are never part of the saved settings.
 | `Kaspersky:Port` | 13299 | KSC OpenAPI TLS port |
 | `Kaspersky:RequestTimeout` | 60 seconds | per-request timeout |
 | `Kaspersky:TrustedCertificateThumbprint` | empty | exact SHA-1/SHA-256 thumbprint accepted in addition to platform trust |
+| `Kaspersky:ExcludedAdministrationGroups` | `Nicht für Kaspersky geeignete Geräte` | provider group names excluded from inventory and orphan checks; values are not translated |
 
 ## Legacy data
 
 The former employee/case/task handlers are no longer registered and their UI
-route is removed. Existing SQLite tables and source types are intentionally not
-dropped by this MVP, so installing the read-only replacement cannot destroy
-previous lifecycle data. The new hygiene feature adds no database tables.
+screen is removed. Existing SQLite tables and source types are intentionally
+not dropped by this MVP, so installing the read-only replacement cannot destroy
+previous lifecycle data. The legacy route is redirect-only. The hygiene feature
+adds no database tables.
 
 ## Tests
 
 - AD inventory mapping and LDAP contract tests
 - KSC OpenAPI login, chunk parsing, limit and authentication-error tests
 - name correlation, independent stale rules and version comparison tests
-- frontend summary, search/filter and explanatory detail tests
+- request-bound snapshot reuse and force-refresh tests
+- correlated source-progress, partial-summary and cancellation tests
+- server-side device search/filter/sort/page tests
+- server-side three-source client merge, search/filter/group/sort/page tests
+- frontend Fleet-posture KPI deep-links, summary, canonical Clients paging/search/filter and legacy-route tests

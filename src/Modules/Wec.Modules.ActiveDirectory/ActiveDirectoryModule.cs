@@ -19,6 +19,8 @@ public sealed class ActiveDirectoryModule : IModule
             serviceProvider.GetRequiredService<ComputerSearchService>());
         services.AddScoped<IActionHandler, GetAdOverviewHandler>();
         services.AddScoped<IActionHandler, GetAdHygieneHandler>();
+        services.AddScoped<IActionHandler, GetAdHygieneRulePageHandler>();
+        services.AddScoped<IActionHandler, GetAdPrivilegedGroupMemberPageHandler>();
         services.AddScoped<IActionHandler, TestDirectoryConnectionHandler>();
         services.AddScoped<IActionHandler, SearchAdComputersHandler>();
         services.AddScoped<UserSearchService>();

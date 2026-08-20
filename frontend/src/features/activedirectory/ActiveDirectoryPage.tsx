@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
+import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 import type {
   AdHygieneResult,
   AdOverviewResult,
@@ -12,11 +13,14 @@ import { Spinner } from '../../shared/ui/Spinner';
 import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
-import { EmptyState, ErrorState } from '../../shared/ui/States';
+import { CompactErrorState, EmptyState, ErrorState } from '../../shared/ui/States';
 import type { CredentialValues } from '../../shared/targets/TargetSelector';
 import { useTargets } from '../../shared/targets/TargetContext';
 import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
 import { loadView, saveView } from '../../shared/viewCache';
+import { DirectoryIdentityTable, privilegedIdentityRows, ruleIdentityRows } from './directoryIdentity';
+import { DirectoryRuleBrowser } from './DirectoryRuleBrowser';
+import { DirectoryPrivilegedGroupBrowser } from './DirectoryPrivilegedGroupBrowser';
 
 /** What survives an app restart for this page — never the password. */
 interface CachedAdView {
@@ -28,7 +32,7 @@ interface CachedAdView {
 const adViewKey = 'activedirectory';
 
 /** What the admin should do next, per typed directory error. */
-const adErrorHints: Record<string, string> = {
+const adErrorActions: Record<string, string> = {
   DNS_RESOLUTION_FAILED:
     "Point this machine's DNS at a server that knows the domain (usually a domain controller), or enter a specific DC above.",
   AUTHENTICATION_FAILED:
@@ -43,15 +47,9 @@ const adErrorHints: Record<string, string> = {
     'The account authenticated but was refused read access — use an account with directory read rights.',
 };
 
-function adError(error: unknown): { message: string; hint?: string } {
-  if (error instanceof BridgeInvokeError) {
-    const details = error.error.details ? ` — ${error.error.details}` : '';
-    return {
-      message: `${error.error.code}: ${error.error.message}${details}`,
-      hint: adErrorHints[error.error.code],
-    };
-  }
-  return { message: error instanceof Error ? error.message : String(error) };
+function directoryError(error: unknown, message: string): ErrorPresentation {
+  const action = error instanceof BridgeInvokeError ? adErrorActions[error.error.code] : undefined;
+  return presentError(error, { message, action });
 }
 
 interface ConnectionFormState {
@@ -85,13 +83,13 @@ type OverviewState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; overview: AdOverviewResult }
-  | { kind: 'error'; message: string; hint?: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 type HygieneState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; hygiene: AdHygieneResult }
-  | { kind: 'error'; message: string; hint?: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 function OverviewStat({ label, value }: { label: string; value: number }) {
   return (
@@ -139,7 +137,7 @@ type TestBindState =
   | { kind: 'idle' }
   | { kind: 'testing' }
   | { kind: 'ok'; result: TestDirectoryConnectionResult }
-  | { kind: 'error'; message: string; hint?: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 export function ActiveDirectoryPage() {
   const { adminCredentials, savedTargets, saveTarget, savedTargetsReady } = useTargets();
@@ -156,6 +154,7 @@ export function ActiveDirectoryPage() {
     () => cached?.form ?? emptyConnectionForm,
   );
   const [testBindState, setTestBindState] = useState<TestBindState>({ kind: 'idle' });
+  const [hygieneSearch, setHygieneSearch] = useState('');
 
   const testConnection = useCallback(() => {
     setTestBindState({ kind: 'testing' });
@@ -170,7 +169,12 @@ export function ActiveDirectoryPage() {
           setHygieneState({ kind: 'idle' });
         }
       })
-      .catch((error: unknown) => setTestBindState({ kind: 'error', ...adError(error) }));
+      .catch((error: unknown) =>
+        setTestBindState({
+          kind: 'error',
+          error: directoryError(error, 'The directory connection could not be verified.'),
+        }),
+      );
   }, [connectionForm, adminCredentials]);
 
   const loadOverview = useCallback(() => {
@@ -200,7 +204,12 @@ export function ActiveDirectoryPage() {
           });
         }
       })
-      .catch((error: unknown) => setState({ kind: 'error', ...adError(error) }));
+      .catch((error: unknown) =>
+        setState({
+          kind: 'error',
+          error: directoryError(error, 'The directory overview could not be loaded.'),
+        }),
+      );
   }, [connectionForm, adminCredentials, savedTargets, saveTarget]);
 
   const loadHygiene = useCallback(() => {
@@ -210,8 +219,16 @@ export function ActiveDirectoryPage() {
       'getHygiene',
       { connection: toConnectionRequest(connectionForm, adminCredentials) },
     )
-      .then((hygiene) => setHygieneState({ kind: 'loaded', hygiene }))
-      .catch((error: unknown) => setHygieneState({ kind: 'error', ...adError(error) }));
+      .then((hygiene) => {
+        setHygieneSearch('');
+        setHygieneState({ kind: 'loaded', hygiene });
+      })
+      .catch((error: unknown) =>
+        setHygieneState({
+          kind: 'error',
+          error: directoryError(error, 'The directory hygiene checks could not be completed.'),
+        }),
+      );
   }, [connectionForm, adminCredentials]);
 
   const setForm = (patch: Partial<ConnectionFormState>) => {
@@ -252,6 +269,10 @@ export function ActiveDirectoryPage() {
     ((overview !== null && !overview.domainJoined) ||
       (hygiene !== null && !hygiene.domainJoined) ||
       (testBindState.kind === 'ok' && !testBindState.result.domainJoined));
+  const privilegedRows = useMemo(
+    () => privilegedIdentityRows(hygiene?.privilegedGroups ?? []),
+    [hygiene?.privilegedGroups],
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -278,7 +299,7 @@ export function ActiveDirectoryPage() {
         <legend className="px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
           Directory connection
         </legend>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted">
           Empty analyzes this machine's own domain. Enter a domain to analyze a different directory
           and a DC to pin the connection. The bind runs as the signed-in admin (top right), or the
           current user when not signed in.
@@ -317,10 +338,7 @@ export function ActiveDirectoryPage() {
           )}
         </div>
         {testBindState.kind === 'error' && (
-          <div role="alert" className="flex flex-col gap-1">
-            <p className="break-words text-sm text-fail-400">{testBindState.message}</p>
-            {testBindState.hint && <p className="text-xs text-slate-400">{testBindState.hint}</p>}
-          </div>
+          <CompactErrorState {...testBindState.error} />
         )}
       </fieldset>
 
@@ -334,7 +352,11 @@ export function ActiveDirectoryPage() {
       {state.kind === 'loading' && <Spinner label="Querying the directory …" />}
 
       {state.kind === 'error' && (
-        <ErrorState title="Directory analysis failed" message={state.message} hint={state.hint} />
+        <ErrorState
+          title="Directory analysis failed"
+          {...state.error}
+          controls={<Button onClick={loadOverview}>Retry directory analysis</Button>}
+        />
       )}
 
       {knownWorkgroup && (
@@ -381,7 +403,7 @@ export function ActiveDirectoryPage() {
                 {overview.domainControllers.map((dc) => (
                   <li key={dc.distinguishedName} className="flex flex-col">
                     <span>{dc.hostName}</span>
-                    <span className="font-mono text-xs text-slate-500">{dc.distinguishedName}</span>
+                    <span className="font-mono text-xs text-muted">{dc.distinguishedName}</span>
                   </li>
                 ))}
               </ul>
@@ -393,8 +415,8 @@ export function ActiveDirectoryPage() {
       {hygieneState.kind === 'error' && (
         <ErrorState
           title="Hygiene checks failed"
-          message={hygieneState.message}
-          hint={hygieneState.hint}
+          {...hygieneState.error}
+          controls={<Button onClick={loadHygiene}>Retry hygiene checks</Button>}
         />
       )}
 
@@ -403,63 +425,63 @@ export function ActiveDirectoryPage() {
           <h2 className="border-b border-slate-800 pb-1 text-sm font-medium uppercase tracking-wide text-slate-400">
             Hygiene
           </h2>
+          <div className="rounded border border-slate-800 bg-slate-900/40 p-3">
+            <Input
+              type="search"
+              value={hygieneSearch}
+              onChange={(event) => setHygieneSearch(event.target.value)}
+              placeholder="Search loaded name, account, path, finding or DN"
+              aria-label="Search loaded hygiene identities"
+              className="max-w-xl"
+            />
+            <p className="mt-2 text-xs text-slate-400">
+              This searches only the bounded examples loaded with this hygiene result. Exact finding totals remain visible on each category.
+            </p>
+          </div>
           <ResultCategory
             title="Privileged groups"
             count={hygiene.privilegedGroups.length}
             tone="info"
             summary={`${hygiene.privilegedGroups.reduce((sum, group) => sum + group.directMemberCount, 0)} direct members in total`}
           >
-            <ul className="flex flex-col gap-3 text-sm">
-              {hygiene.privilegedGroups.map((group) => (
-                <li key={group.distinguishedName} className="flex flex-col gap-0.5">
-                  <span className="font-medium">
-                    {group.groupName}
-                    <span className="ml-2 text-xs font-normal text-slate-400">
-                      {group.directMemberCount} direct member{group.directMemberCount === 1 ? '' : 's'}
-                    </span>
-                  </span>
-                  {group.memberDistinguishedNames.map((member) => (
-                    <span key={member} className="font-mono text-xs text-slate-500">
-                      {member}
-                    </span>
-                  ))}
-                  {group.directMemberCount > group.memberDistinguishedNames.length && (
-                    <span className="text-xs text-slate-500">
-                      … and {group.directMemberCount - group.memberDistinguishedNames.length} more
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <DirectoryIdentityTable
+              rows={privilegedRows}
+              totalCount={hygiene.privilegedGroups.reduce((sum, group) => sum + group.directMemberCount, 0)}
+              totalLabel="direct members"
+              query={hygieneSearch}
+            />
+            <div className="flex flex-col gap-2">
+              {hygiene.privilegedGroups
+                .filter((group) => group.directMemberCount > 0)
+                .map((group) => <DirectoryPrivilegedGroupBrowser
+                  key={`${hygiene.capturedAtUtc}-${group.distinguishedName}`}
+                  group={group}
+                  connection={toConnectionRequest(connectionForm, adminCredentials)}
+                />)}
+            </div>
           </ResultCategory>
 
           {hygiene.rules.map((rule) => (
             <ResultCategory
-              key={rule.ruleId}
+              key={`${hygiene.capturedAtUtc}-${rule.ruleId}`}
               title={rule.title}
               count={rule.matchCount}
               tone={rule.matchCount > 0 ? 'warn' : 'ok'}
             >
               <div className="flex flex-col gap-2 text-sm">
                 <p className="text-slate-400">{rule.recommendation}</p>
-                {rule.examples.length > 0 && (
-                  <ul className="flex flex-col gap-1">
-                    {rule.examples.map((account) => (
-                      <li key={account.distinguishedName} className="flex items-baseline gap-2">
-                        <span>{account.name}</span>
-                        {account.lastLogonUtc && (
-                          <span className="text-xs text-slate-500">
-                            last logon {new Date(account.lastLogonUtc).toLocaleDateString()}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <DirectoryIdentityTable
+                  rows={ruleIdentityRows(rule)}
+                  totalCount={rule.matchCount}
+                  totalLabel="matches"
+                  query={hygieneSearch}
+                />
                 {rule.matchCount > rule.examples.length && (
-                  <p className="text-xs text-slate-500">
-                    Showing {rule.examples.length} of {rule.matchCount} matches.
-                  </p>
+                  <DirectoryRuleBrowser
+                    rule={rule}
+                    evaluatedAtUtc={hygiene.capturedAtUtc}
+                    connection={toConnectionRequest(connectionForm, adminCredentials)}
+                  />
                 )}
               </div>
             </ResultCategory>

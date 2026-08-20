@@ -27,15 +27,23 @@ pain points:
 Pivot the information architecture to be **client-centric**, as a Strangler
 migration (build alongside, then flip the default nav — no big-bang rewrite):
 
-1. **Clients workspace** (`/clients`). Clients come from Active Directory
-   (`searchComputers`), merged with already-scanned hosts and saved Client
-   targets, and are **not** scanned until opened. A client detail
+1. **Clients workspace** (`/clients`). Clients come from the shared environment
+   hygiene snapshot, merged with already-scanned hosts and saved Client targets,
+   and are **not** scanned until opened. The list is also the canonical Fleet
+   posture view: source availability, assessment metadata, summary KPIs and
+   server-side posture filters all use the same request-bound snapshot and the
+   allowlisted `posture` query parameter. The former IT Lifecycle route is a
+   bookmark-compatible redirect and no longer owns a parallel device table. A client detail
    (`/clients/:host`) runs Inventory / Security / Diagnostics / Printers on
    demand and reuses the existing feature views. Reporting is available per
    client: the executive summary reads whatever inventory/security data was
    already captured for that host (local or remote) and never starts a scan —
    no faked data, just an empty overview until the sections have been run. Two
-   clients can be compared (inventory + security diff).
+   clients can be compared (inventory + security diff). Comparison reads stored
+   data only: Inventory `NOT_FOUND` and a successfully returned empty Security
+   result mean missing data, while transport or provider failures remain explicit
+   errors and must not be presented as missing. The local machine identity must
+   be verified before either comparison target can be classified as local.
 
 2. **Shared target/credential context.** A React `TargetProvider` holds the
    loaded saved targets and, per host, the explicit credentials entered this
@@ -75,5 +83,8 @@ migration (build alongside, then flip the default nav — no big-bang rewrite):
   capture). No new workflow special-cases, no free-form technical automation.
 - Fleet views remain fully usable throughout; the per-module pages are
   reframed, not removed, so multi-host batch scanning is preserved.
+- Device hygiene is the exception to retaining a parallel module page: its
+  narrower IT Lifecycle list duplicated Clients, so Fleet posture is composed
+  directly into Clients while the old URL remains redirect-compatible.
 - Remote per-client Reporting remains a known gap (marked NOT_RUN), tracked as
   a follow-up rather than faked.

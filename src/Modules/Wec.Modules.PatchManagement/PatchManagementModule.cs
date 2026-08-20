@@ -15,6 +15,7 @@ public sealed class PatchManagementModule : IModule
         // The live session is process-local; its credential can be restored from the Windows vault.
         services.AddSingleton<OpsiSessionState>();
         services.AddSingleton<OpsiSessionConnector>();
+        services.AddSingleton<PatchDashboardSnapshotCache>();
         services.AddScoped<IOpsiComputerInventoryProvider, OpsiComputerInventoryProvider>();
         services.AddScoped<IPatchMappingRepository, EfPatchMappingRepository>();
         services.AddScoped<IPatchAuditRepository, EfPatchAuditRepository>();
@@ -26,6 +27,7 @@ public sealed class PatchManagementModule : IModule
         services.AddScoped<IActionHandler, DisconnectOpsiHandler>();
         services.AddScoped<IActionHandler, GetOpsiConnectionStatusHandler>();
         services.AddScoped<IActionHandler, GetPatchDashboardHandler>();
+        services.AddScoped<IActionHandler, ListPatchClientStatesHandler>();
         services.AddScoped<IActionHandler, GetRolloutPreviewHandler>();
         services.AddScoped<IActionHandler, RequestRolloutHandler>();
         services.AddScoped<IActionHandler, PreparePackagesHandler>();

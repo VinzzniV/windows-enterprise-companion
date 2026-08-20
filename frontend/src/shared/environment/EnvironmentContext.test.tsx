@@ -9,7 +9,12 @@ const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
 vi.mock('../bridge/bridgeClient', () => ({
   invoke: invokeMock,
+  invokeCancellable: (module: string, action: string, payload: unknown) => ({ requestId: 'request-id', promise: invokeMock(module, action, payload), cancel: vi.fn() }),
+  subscribe: vi.fn(() => () => {}),
   BridgeInvokeError: class extends Error {},
+  BridgeCancelledError: class extends Error {},
+  BridgeTimeoutError: class extends Error {},
+  BridgeUnavailableError: class extends Error {},
 }));
 
 const result: ItHygieneResult = {

@@ -28,3 +28,26 @@ public sealed record AdHygieneResult(
     IReadOnlyList<PrivilegedGroupInfo> PrivilegedGroups,
     IReadOnlyList<AdHygieneRule> Rules,
     DateTimeOffset CapturedAtUtc);
+
+public sealed record AdHygieneRulePage(
+    string RuleId,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    IReadOnlyList<AdAccountInfo> Items,
+    DateTimeOffset EvaluatedAtUtc);
+
+public sealed record AdPrivilegedGroupMember(
+    string? AccountName,
+    string DistinguishedName,
+    string EntityType,
+    string? AccountStatus,
+    DateTimeOffset? LastLogonUtc);
+
+public sealed record AdPrivilegedGroupMemberPage(
+    string GroupName,
+    string GroupDistinguishedName,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    IReadOnlyList<AdPrivilegedGroupMember> Items);

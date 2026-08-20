@@ -245,7 +245,7 @@ export function TargetSelector({ selection, onChange, disabled, allowMultiple, h
       )}
 
       {selection.mode !== 'local' && hideCredentials && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted">
           Runs as the signed-in admin (top right), or the current user when not signed in.
         </p>
       )}
@@ -388,7 +388,7 @@ function AdComputerPicker({
                           {host}
                           {!computer.enabled && <span className="ml-1.5 text-xs text-warn-400">disabled</span>}
                           {computer.operatingSystem && (
-                            <span className="ml-1.5 text-xs text-slate-500">{computer.operatingSystem}</span>
+                            <span className="ml-1.5 text-xs text-muted">{computer.operatingSystem}</span>
                           )}
                         </span>
                       </label>

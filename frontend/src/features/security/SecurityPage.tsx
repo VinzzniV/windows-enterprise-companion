@@ -9,11 +9,13 @@ import type {
   LatestScanResult,
   RunBatchSecurityScanRequest,
   SecurityCheckResult,
+  SecurityCoverage,
   SecurityFinding,
   SecurityScanResult,
 } from '../../shared/api-types';
 import { Card } from '../../shared/ui/Card';
 import { StatusBadge, type StatusBadgeVariant } from '../../shared/ui/StatusBadge';
+import { SemanticStatusBadge, type SemanticStatus } from '../../shared/ui/SemanticStatusBadge';
 import { Spinner } from '../../shared/ui/Spinner';
 import { Button } from '../../shared/ui/Button';
 import { PageHeader } from '../../shared/ui/PageHeader';
@@ -78,7 +80,7 @@ export function FindingCard({ finding }: { finding: SecurityFinding }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">{finding.title}</h3>
-          <p className="break-words text-xs text-slate-500">{finding.affectedResource}</p>
+          <p className="break-words text-xs text-muted">{finding.affectedResource}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {finding.requiredPrivilege && (
@@ -124,12 +126,28 @@ export function CoverageNotes({ results }: { results: SecurityCheckResult[] }) {
               {checkStatusLabels[result.status]}
             </StatusBadge>
             <span className="font-mono text-xs text-slate-300">{result.checkId}</span>
-            {result.failure && <span className="text-xs text-slate-500">{result.failure.message}</span>}
+            {result.failure && <span className="text-xs text-muted">{result.failure.message}</span>}
           </li>
         ))}
       </ul>
     </Card>
   );
+}
+
+export function securityCoverageSemanticStatus(coverage: SecurityCoverage): SemanticStatus {
+  if (coverage.isComplete) {
+    return { dimension: 'availability', value: 'available' };
+  }
+  return coverage.isKnown
+    ? { dimension: 'execution', value: 'partial' }
+    : { dimension: 'availability', value: 'unknown' };
+}
+
+function securityCoverageContext(coverage: SecurityCoverage): string {
+  if (coverage.isComplete) {
+    return 'Coverage complete';
+  }
+  return coverage.isKnown ? 'Coverage incomplete' : 'Coverage unavailable';
 }
 
 /** Host + status + timestamp line every result view hangs off of. */
@@ -140,21 +158,10 @@ export function ResultContext({ scan, problemCount }: {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm">
       <span className="font-medium">{scan.host}</span>
-      <StatusBadge
-        variant={
-          scan.coverage.isComplete
-            ? 'success'
-            : scan.coverage.isKnown
-              ? 'elevation'
-              : 'neutral'
-        }
-      >
-        {scan.coverage.isComplete
-          ? 'COVERAGE COMPLETE'
-          : scan.coverage.isKnown
-            ? 'COVERAGE INCOMPLETE'
-            : 'COVERAGE UNAVAILABLE'}
-      </StatusBadge>
+      <span className="inline-flex items-center gap-2">
+        <SemanticStatusBadge status={securityCoverageSemanticStatus(scan.coverage)} />
+        <span className="text-slate-400">{securityCoverageContext(scan.coverage)}</span>
+      </span>
       <span className="text-slate-400">{new Date(scan.completedAtUtc).toLocaleString()}</span>
       <span className="text-slate-400">
         {problemCount} finding{problemCount === 1 ? '' : 's'}
@@ -201,7 +208,7 @@ function BatchHostRow({ outcome }: { outcome: BatchScanResult['hosts'][number] }
           </span>
         )}
         {outcome.scan && (
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-muted">
             {new Date(outcome.scan.completedAtUtc).toLocaleString()}
           </span>
         )}
@@ -458,7 +465,7 @@ export function SecurityPage() {
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-slate-500">Severity:</span>
+                <span className="text-muted">Severity:</span>
                 {allSeverities.map((severity) => (
                   <button
                     key={severity}
@@ -473,7 +480,7 @@ export function SecurityPage() {
                     {severity}
                   </button>
                 ))}
-                <span className="ml-4 text-slate-500">Category:</span>
+                <span className="ml-4 text-muted">Category:</span>
                 <Select
                   fullWidth={false}
                   value={categoryFilter}

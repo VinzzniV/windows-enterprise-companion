@@ -1,11 +1,14 @@
 import { useEffect } from 'react';
 import type { HygieneDevice, InventorySourceState } from '../../../shared/api-types';
 import { useEnvironment } from '../../../shared/environment/EnvironmentContext';
-import { Badge } from '../../../shared/ui/Badge';
+import { HygieneLoadStatus } from '../../../shared/environment/HygieneLoadStatus';
+import { inventorySourceStatus } from '../../../shared/environment/inventorySourceStatus';
+import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';
-import { Spinner } from '../../../shared/ui/Spinner';
 import { clientKey } from '../clients';
+import { ClientSemanticStatus, hygieneAssessmentStatus, sourcePresenceStatus } from '../clientStatus';
+import { ClientIntegrationMap } from '../ClientIntegrationMap';
 
 function value(value: string | boolean | null | undefined): string {
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
@@ -24,8 +27,12 @@ function Rows({ entries }: { entries: Array<[string, string]> }) {
 
 function SourceHeader({ name, state, present, missingApplies }: { name: string; state: InventorySourceState; present: boolean; missingApplies: boolean }) {
   const unavailable = state.availability !== 'AVAILABLE';
+  const presentation = unavailable ? inventorySourceStatus(state.availability) : null;
   return <div className="mb-3 flex flex-wrap items-center gap-2"><h3 className="font-semibold text-slate-200">{name}</h3>
-    <Badge tone={unavailable || (!present && !missingApplies) ? 'neutral' : present ? 'ok' : 'warn'}>{unavailable ? state.availability.replace('_', ' ') : present ? 'Present' : missingApplies ? 'Missing' : 'N/A'}</Badge></div>;
+    {presentation
+      ? <ClientSemanticStatus {...presentation} />
+      : <ClientSemanticStatus status={sourcePresenceStatus(present, missingApplies)} />}
+  </div>;
 }
 
 function SourceError({ state }: { state: InventorySourceState }) {
@@ -38,10 +45,10 @@ function DeviceOverview({ device }: { device: HygieneDevice }) {
   const nessus = device.nessus ?? { exists: false, assetId: null, ipAddress: null, lastCompletedScanUtc: null, critical: 0, high: 0, medium: 0, low: 0, info: 0, ports: [], scanSources: [] };
   const nessusSource = sources.nessus ?? { availability: 'NOT_CONNECTED' as const, error: 'Nessus is not configured.' };
   const hasFinding = (...codes: string[]) => device.assessment.findings.some((finding) => codes.includes(finding.code));
-  const statusTone = device.assessment.status === 'HEALTHY' ? 'ok' : ['CLEANUP_CANDIDATE', 'CRITICAL'].includes(device.assessment.status) ? 'fail' : device.assessment.status === 'INCOMPLETE' ? 'neutral' : 'warn';
   return <div className="flex flex-col gap-4">
+    <ClientIntegrationMap device={device} sources={{ ...sources, nessus: nessusSource }} />
     <Card title="Environment assessment">
-      <div className="mb-3"><Badge tone={statusTone}>{device.assessment.status.replace('_', ' ')}</Badge></div>
+      <div className="mb-3"><ClientSemanticStatus {...hygieneAssessmentStatus(device.assessment.status)} /></div>
       {device.assessment.findings.length ? <ul className="space-y-2">{device.assessment.findings.map((finding) => <li key={finding.code} className="rounded border border-slate-800 px-3 py-2 text-sm text-slate-300">
         <span className={finding.severity === 'CRITICAL' ? 'text-danger-300' : 'text-warn-300'}>{finding.code.replaceAll('_', ' ')}</span> — {finding.message}
       </li>)}</ul> : <p className="text-sm text-slate-400">No hygiene findings from the available sources.</p>}
@@ -63,8 +70,14 @@ function DeviceOverview({ device }: { device: HygieneDevice }) {
 export function OverviewSection({ host }: { host: string }) {
   const environment = useEnvironment();
   useEffect(() => { void environment.ensureLoaded(); }, [environment.ensureLoaded]);
-  if (environment.loading && !environment.result) return <Spinner label="Loading environment overview …" />;
-  if (environment.error && !environment.result) return <ErrorState title="Environment overview failed" message={environment.error} />;
+  if (environment.loading && !environment.result) return <HygieneLoadStatus progress={environment.progress} elapsedSeconds={environment.elapsedSeconds} onCancel={environment.cancel} />;
+  if (environment.cancelled && !environment.result) return <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-4"><p className="text-sm text-slate-300">Environment load cancelled.</p><Button variant="secondary" onClick={() => { void environment.refresh(); }}>Retry</Button></div>;
+  if (environment.error && !environment.result) return <ErrorState
+    title="Environment overview failed"
+    {...environment.error}
+    message="The environment overview could not be loaded."
+    controls={<Button variant="secondary" onClick={() => { void environment.refresh(); }}>Retry environment load</Button>}
+  />;
   const device = environment.result?.devices.find((entry) => clientKey(entry.hostName) === clientKey(host) || clientKey(entry.computerName) === clientKey(host));
   return device ? <DeviceOverview device={device} /> : <EmptyState title="Unmanaged device" message="This saved or scanned device was not found in AD, Kaspersky, opsi or Nessus." />;
 }

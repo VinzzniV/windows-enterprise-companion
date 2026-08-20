@@ -52,6 +52,13 @@ export class BridgeTimeoutError extends Error {
   }
 }
 
+export class BridgeCancelledError extends Error {
+  constructor(module: string, action: string) {
+    super(`Bridge request ${module}/${action} was cancelled`);
+    this.name = 'BridgeCancelledError';
+  }
+}
+
 export class BridgeUnavailableError extends Error {
   constructor() {
     super('WebView2 bridge is not available; the app is not running inside the WEC host');
@@ -63,6 +70,12 @@ interface PendingRequest {
   resolve(data: unknown): void;
   reject(reason: Error): void;
   timeoutHandle: ReturnType<typeof setTimeout>;
+}
+
+export interface CancellableBridgeInvocation<TResponse> {
+  requestId: string;
+  promise: Promise<TResponse>;
+  cancel(): void;
 }
 
 const pendingRequests = new Map<string, PendingRequest>();
@@ -126,24 +139,38 @@ export function invoke<TResponse>(
   payload?: unknown,
   timeoutOverrideMs?: number,
 ): Promise<TResponse> {
+  return invokeCancellable<TResponse>(module, action, payload, timeoutOverrideMs).promise;
+}
+
+export function invokeCancellable<TResponse>(
+  module: string,
+  action: string,
+  payload?: unknown,
+  timeoutOverrideMs?: number,
+): CancellableBridgeInvocation<TResponse> {
   // Always reject instead of throwing synchronously: callers use promise
   // .catch() paths, and a synchronous throw inside a React effect would tear
   // down the whole component tree instead of showing the page's error state.
+  const id = crypto.randomUUID();
   let messenger: WebView2Messenger;
   try {
     messenger = getMessenger();
   } catch (error) {
-    return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    return {
+      requestId: id,
+      promise: Promise.reject(error instanceof Error ? error : new Error(String(error))),
+      cancel: () => {},
+    };
   }
 
   ensureListener(messenger);
 
-  const id = crypto.randomUUID();
   const timeoutMs = timeoutOverrideMs ?? bridgeResponseTimeoutMs(module, action, payload);
 
-  return new Promise<TResponse>((resolve, reject) => {
+  const promise = new Promise<TResponse>((resolve, reject) => {
     const timeoutHandle = setTimeout(() => {
       pendingRequests.delete(id);
+      messenger.postMessage({ type: 'cancel', id });
       reject(new BridgeTimeoutError(module, action, timeoutMs));
     }, timeoutMs);
 
@@ -155,6 +182,19 @@ export function invoke<TResponse>(
 
     messenger.postMessage({ id, module, action, payload: payload ?? null });
   });
+
+  return {
+    requestId: id,
+    promise,
+    cancel: () => {
+      const pending = pendingRequests.get(id);
+      if (!pending) return;
+      pendingRequests.delete(id);
+      clearTimeout(pending.timeoutHandle);
+      messenger.postMessage({ type: 'cancel', id });
+      pending.reject(new BridgeCancelledError(module, action));
+    },
+  };
 }
 
 export function subscribe(
