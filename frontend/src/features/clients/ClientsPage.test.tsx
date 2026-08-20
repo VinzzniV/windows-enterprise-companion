@@ -56,9 +56,9 @@ function device(name: string, options: { enabled?: boolean; opsi?: boolean } = {
   return {
     computerName: name,
     hostName: host,
-    activeDirectory: { exists: true, enabled: options.enabled ?? true, dnsHostName: host, operatingSystem: 'Windows 11 Pro', description: null, distinguishedName: `CN=${name},DC=corp,DC=local`, organizationalUnit: 'DC=corp,DC=local', lastLogonDate: null },
-    kaspersky: { exists: name === 'PC01', lastSeen: null, agentVersion: name === 'PC01' ? '16.0' : null, kesVersion: name === 'PC01' ? '21.25' : null, administrationGroup: name === 'PC01' ? 'Clients' : null },
-    opsi: { exists: options.opsi ?? false, clientId: options.opsi ? host : null, description: null, depotId: options.opsi ? 'depot01' : null, lastSeen: null, clientAgentVersion: options.opsi ? '4.3.8' : null },
+    activeDirectory: { exists: true, enabled: options.enabled ?? true, dnsHostName: host, operatingSystem: 'Windows 11 Pro', description: null, distinguishedName: `CN=${name},DC=corp,DC=local`, organizationalUnit: 'DC=corp,DC=local', lastLogonDate: '2026-08-19T08:30:00Z' },
+    kaspersky: { exists: name === 'PC01', lastSeen: name === 'PC01' ? '2026-08-18T07:15:00Z' : null, agentVersion: name === 'PC01' ? '16.0' : null, kesVersion: name === 'PC01' ? '21.25' : null, administrationGroup: name === 'PC01' ? 'Clients' : null },
+    opsi: { exists: options.opsi ?? false, clientId: options.opsi ? host : null, description: null, depotId: options.opsi ? 'depot01' : null, lastSeen: options.opsi ? '2026-08-17T06:45:00Z' : null, clientAgentVersion: options.opsi ? '4.3.8' : null },
     nessus: { exists: name === 'PC01', assetId: name === 'PC01' ? 'asset-1' : null, ipAddress: name === 'PC01' ? '10.0.0.1' : null, lastCompletedScanUtc: name === 'PC01' ? '2026-08-18T05:00:00Z' : null, critical: 0, high: 0, medium: name === 'PC01' ? 1 : 0, low: name === 'PC01' ? 2 : 0, info: 0, ports: name === 'PC01' ? [443] : [], scanSources: name === 'PC01' ? ['Clients'] : [] },
     assessment: { status: 'HEALTHY', findings: [] },
   };
@@ -189,6 +189,16 @@ describe('ClientsPage', () => {
     expect(within(row!).getByText('Accounting workstation')).toBeTruthy();
   });
 
+  it('shows the Active Directory last-seen value without a connectivity probe', async () => {
+    renderPage();
+
+    const row = (await screen.findByText('PC01')).closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText(/^AD Last seen /)).toBeTruthy();
+    expect(within(row!).getByText(/^Kaspersky Last seen /)).toBeTruthy();
+    expect(within(row!).getByText(/^opsi Last seen /)).toBeTruthy();
+  });
+
   it('keeps showing known per-client Nessus data while the global sync is partial', async () => {
     invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) => {
       if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
@@ -207,7 +217,7 @@ describe('ClientsPage', () => {
     const disabledRow = screen.getByText('DISABLED-PC').closest('tr');
     expect(pcRow).not.toBeNull();
     expect(disabledRow).not.toBeNull();
-    expect(within(pcRow!).getByText('Fresh')).toBeTruthy();
+    expect(within(pcRow!).getAllByText('Fresh')).toHaveLength(4);
     expect(within(pcRow!).queryByText('Partial')).toBeNull();
     expect(within(disabledRow!).getByText('Partial')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Nessus: Partial' })).toBeTruthy();
@@ -317,7 +327,7 @@ describe('ClientsPage', () => {
     expect(screen.getByText('WinRM 5985 open · No ping response')).toBeTruthy();
     expect(screen.getByText('No ping or WinRM response')).toBeTruthy();
     expect(screen.queryByText('Offline')).toBeNull();
-    expect(screen.getAllByText(/^Checked /)).toHaveLength(3);
+    expect(screen.getAllByText(/Last seen /)).toHaveLength(4);
   });
 
   it('shows failed host states and an actionable error when the connectivity request fails', async () => {

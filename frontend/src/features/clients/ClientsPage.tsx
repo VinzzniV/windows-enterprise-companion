@@ -104,8 +104,12 @@ function ClientConnectivityStatus({ value }: { value: ClientProbeViewState }) {
   const presentation = clientConnectivityStatus(value.state);
   return <span className="inline-flex flex-col items-start gap-0.5">
     <ClientSemanticStatus {...presentation} />
-    {value.checkedAtUtc && <span className="text-xs text-muted">Checked {new Date(value.checkedAtUtc).toLocaleString()}</span>}
   </span>;
+}
+
+function SourceLastSeen({ source, value }: { source: string; value: string | null }) {
+  if (!value) return null;
+  return <span className="text-xs text-muted">{source} Last seen {new Date(value).toLocaleString()}</span>;
 }
 
 export function ClientsPage() {
@@ -228,8 +232,17 @@ export function ClientsPage() {
       { id: 'device', header: 'Device', sortable: true, cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
         {client.os && <span className="text-xs text-muted">{client.os}</span>}
         {client.description && <span className="text-xs text-slate-400">{client.description}</span>}
-        <div className="flex flex-wrap gap-1">{probeStates[client.host.toUpperCase()] && <ClientConnectivityStatus value={probeStates[client.host.toUpperCase()]} />}
-          {client.scanned && <Badge tone="info">Scanned</Badge>}{client.saved && <Badge tone="accent">Saved</Badge>}</div></div> },
+        <div className="flex flex-col items-start gap-1">
+          <div className="flex flex-col items-start gap-0.5">
+            <SourceLastSeen source="AD" value={client.environment?.activeDirectory.lastLogonDate ?? null} />
+            <SourceLastSeen source="Kaspersky" value={client.environment?.kaspersky.lastSeen ?? null} />
+            <SourceLastSeen source="opsi" value={client.environment?.opsi.lastSeen ?? null} />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {probeStates[client.host.toUpperCase()] && <ClientConnectivityStatus value={probeStates[client.host.toUpperCase()]} />}
+            {client.scanned && <Badge tone="info">Scanned</Badge>}{client.saved && <Badge tone="accent">Saved</Badge>}
+          </div>
+        </div></div> },
       { header: 'AD', cell: (client) => <SourceBadge client={client} state={sources?.activeDirectory ?? unavailableSource} source="ad" /> },
       { header: 'Kaspersky', cell: (client) => <SourceBadge client={client} state={sources?.kaspersky ?? unavailableSource} source="ksc" /> },
       { header: 'opsi', cell: (client) => <SourceBadge client={client} state={sources?.opsi ?? unavailableSource} source="opsi" /> },
