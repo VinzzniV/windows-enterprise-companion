@@ -461,7 +461,9 @@ export function ActiveDirectoryPage() {
             </div>
           </ResultCategory>
 
-          {hygiene.rules.map((rule) => (
+          {[...hygiene.rules]
+            .sort((left, right) => Number(right.matchCount > 0) - Number(left.matchCount > 0))
+            .map((rule) => (
             <ResultCategory
               key={`${hygiene.capturedAtUtc}-${rule.ruleId}`}
               title={rule.title}
@@ -485,7 +487,7 @@ export function ActiveDirectoryPage() {
                 )}
               </div>
             </ResultCategory>
-          ))}
+            ))}
         </section>
       )}
     </div>

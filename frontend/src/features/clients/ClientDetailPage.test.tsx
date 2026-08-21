@@ -233,6 +233,9 @@ describe('ClientDetailPage', () => {
       if (module === 'security' && action === 'getLatestScan') {
         return Promise.resolve({ scan: null });
       }
+      if (module === 'security' && action === 'getScanHistory') {
+        return Promise.resolve({ scans: [], changesSinceLastScan: null });
+      }
       if (module === 'security' && action === 'runScan') {
         securityAvailable = true;
         return Promise.resolve(completedSecurityScan);

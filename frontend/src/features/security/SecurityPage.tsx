@@ -184,6 +184,92 @@ export function SeveritySummary({ problems }: { problems: SecurityFinding[] }) {
   );
 }
 
+/** Accessible filters and findings shared by standalone and client-detail security views. */
+export function FindingList({ findings }: { findings: SecurityFinding[] }) {
+  const [hiddenSeverities, setHiddenSeverities] = useState<Set<FindingSeverity>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<FindingCategory | 'ALL'>('ALL');
+  const availableCategories = useMemo(
+    () => [...new Set(findings.map((finding) => finding.category))],
+    [findings],
+  );
+  const visibleFindings = useMemo(
+    () =>
+      findings.filter(
+        (finding) =>
+          !hiddenSeverities.has(finding.severity) &&
+          (categoryFilter === 'ALL' || finding.category === categoryFilter),
+      ),
+    [findings, hiddenSeverities, categoryFilter],
+  );
+
+  const toggleSeverity = (severity: FindingSeverity) => {
+    setHiddenSeverities((current) => {
+      const next = new Set(current);
+      if (next.has(severity)) next.delete(severity);
+      else next.add(severity);
+      return next;
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div
+        className="flex flex-wrap items-center gap-2 text-xs"
+        role="group"
+        aria-label="Filter findings by severity"
+      >
+        <span className="text-slate-500" aria-hidden="true">
+          Severity:
+        </span>
+        {allSeverities.map((severity) => {
+          const count = severityCount(findings, severity);
+          return (
+            <button
+              key={severity}
+              type="button"
+              onClick={() => toggleSeverity(severity)}
+              aria-pressed={!hiddenSeverities.has(severity)}
+              aria-label={`${severity}: ${count} ${count === 1 ? 'finding' : 'findings'}`}
+              className={`cursor-pointer rounded border px-2 py-0.5 transition-colors ${
+                hiddenSeverities.has(severity)
+                  ? 'border-slate-800 text-slate-600'
+                  : 'border-slate-600 text-slate-200'
+              }`}
+            >
+              {severity} ({count})
+            </button>
+          );
+        })}
+        <span className="ml-4 text-slate-500" aria-hidden="true">
+          Category:
+        </span>
+        <Select
+          fullWidth={false}
+          value={categoryFilter}
+          onChange={(event) => setCategoryFilter(event.target.value as FindingCategory | 'ALL')}
+          aria-label="Category filter"
+        >
+          <option value="ALL">All</option>
+          {availableCategories.map((category) => (
+            <option key={category} value={category}>
+              {categoryLabel(category)}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <ul className="flex flex-col gap-3">
+        {visibleFindings.map((finding, index) => (
+          <FindingCard key={`${finding.findingId}-${index}`} finding={finding} />
+        ))}
+        {visibleFindings.length === 0 && (
+          <li className="text-sm text-slate-400">All findings are hidden by the current filters.</li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
 function BatchHostRow({ outcome }: { outcome: BatchScanResult['hosts'][number] }) {
   const findings = outcome.scan?.findings ?? null;
   return (
@@ -244,8 +330,6 @@ export function SecurityPage() {
   const [scanning, setScanning] = useState(false);
   const [selection, setSelection] = useState<TargetSelection>(LOCAL_TARGET_SELECTION);
   const [activeTarget, setActiveTarget] = useState<ReturnType<typeof toTargetRequest>>(null);
-  const [hiddenSeverities, setHiddenSeverities] = useState<Set<FindingSeverity>>(new Set());
-  const [categoryFilter, setCategoryFilter] = useState<FindingCategory | 'ALL'>('ALL');
 
   const loadLatest = useCallback((target: ReturnType<typeof toTargetRequest>) => {
     setActiveTarget(target);
@@ -332,33 +416,6 @@ export function SecurityPage() {
 
   const scan = state.kind === 'loaded' ? state.scan : null;
   const problems = useMemo(() => scan?.findings ?? [], [scan]);
-
-  const availableCategories = useMemo(
-    () => [...new Set(problems.map((finding) => finding.category))],
-    [problems],
-  );
-
-  const visibleFindings = useMemo(
-    () =>
-      problems.filter(
-        (finding) =>
-          !hiddenSeverities.has(finding.severity) &&
-          (categoryFilter === 'ALL' || finding.category === categoryFilter),
-      ),
-    [problems, hiddenSeverities, categoryFilter],
-  );
-
-  const toggleSeverity = (severity: FindingSeverity) => {
-    setHiddenSeverities((current) => {
-      const next = new Set(current);
-      if (next.has(severity)) {
-        next.delete(severity);
-      } else {
-        next.add(severity);
-      }
-      return next;
-    });
-  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -462,50 +519,7 @@ export function SecurityPage() {
                     : 'No findings observed — legacy scan coverage is unavailable.'}
               </p>
             </Card>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-muted">Severity:</span>
-                {allSeverities.map((severity) => (
-                  <button
-                    key={severity}
-                    type="button"
-                    onClick={() => toggleSeverity(severity)}
-                    className={`cursor-pointer rounded border px-2 py-0.5 transition-colors ${
-                      hiddenSeverities.has(severity)
-                        ? 'border-slate-800 text-slate-600'
-                        : 'border-slate-600 text-slate-200'
-                    }`}
-                  >
-                    {severity}
-                  </button>
-                ))}
-                <span className="ml-4 text-muted">Category:</span>
-                <Select
-                  fullWidth={false}
-                  value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value as FindingCategory | 'ALL')}
-                  aria-label="Category filter"
-                >
-                  <option value="ALL">All</option>
-                  {availableCategories.map((category) => (
-                    <option key={category} value={category}>
-                      {categoryLabel(category)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-
-              <ul className="flex flex-col gap-3">
-                {visibleFindings.map((finding, index) => (
-                  <FindingCard key={`${finding.findingId}-${index}`} finding={finding} />
-                ))}
-                {visibleFindings.length === 0 && (
-                  <li className="text-sm text-slate-400">All findings are hidden by the current filters.</li>
-                )}
-              </ul>
-            </>
-          )}
+          ) : <FindingList key={scan.scanId} findings={problems} />}
 
           <CoverageNotes results={scan.checkResults} />
         </>

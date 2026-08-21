@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import type { GetHardwareInfoRequest, HardwareInfoResult, TargetRequest } from '../../../shared/api-types';
-import { SnapshotGrid } from '../../inventory/HardwareInfoPage';
+import { formatSnapshotAge, SnapshotGrid } from '../../inventory/HardwareInfoPage';
 import { Button } from '../../../shared/ui/Button';
 import { Spinner } from '../../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';
@@ -10,7 +10,7 @@ import { EmptyState, ErrorState } from '../../../shared/ui/States';
 type State =
   | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'loaded'; result: HardwareInfoResult }
+  | { kind: 'loaded'; result: HardwareInfoResult; refreshing: boolean; refreshError: ErrorPresentation | null }
   | { kind: 'error'; error: ErrorPresentation };
 
 /** Inventory section of a client: cached snapshot on open, scan on demand. */
@@ -24,22 +24,27 @@ export function InventorySection({
   const [state, setState] = useState<State>({ kind: 'idle' });
 
   const load = useCallback((forceRefresh: boolean, cacheOnly: boolean) => {
-    setState({ kind: 'loading' });
+    setState((current) =>
+      current.kind === 'loaded' && !cacheOnly
+        ? { ...current, refreshing: true, refreshError: null }
+        : { kind: 'loading' },
+    );
     const payload: GetHardwareInfoRequest = { target, forceRefresh, cacheOnly };
     invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', payload)
       .then((result) => {
-        setState({ kind: 'loaded', result });
+        setState({ kind: 'loaded', result, refreshing: false, refreshError: null });
         if (!cacheOnly) onDataChanged?.();
       })
-      .catch((error: unknown) =>
-        // No cached snapshot yet is not an error — offer to scan
-        cacheOnly
-          ? setState({ kind: 'idle' })
-          : setState({
-              kind: 'error',
-              error: presentError(error, { message: 'Hardware inventory could not be captured.' }),
-            }),
-      );
+      .catch((error: unknown) => {
+        const presentation = presentError(error, { message: 'Hardware inventory could not be captured.' });
+        setState((current) => {
+          if (cacheOnly) return { kind: 'idle' };
+          if (current.kind === 'loaded') {
+            return { ...current, refreshing: false, refreshError: presentation };
+          }
+          return { kind: 'error', error: presentation };
+        });
+      });
   }, [target, onDataChanged]);
 
   // Show the stored snapshot on open without hitting the network
@@ -76,12 +81,22 @@ export function InventorySection({
         <span className="font-medium">{state.result.host}</span>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-400">
-            {state.result.fromCache ? 'From cache' : 'Freshly captured'} —{' '}
-            {new Date(state.result.capturedAtUtc).toLocaleString()}
+            {state.refreshing
+              ? 'Refreshing — previous snapshot remains visible'
+              : `${state.result.fromCache ? 'From cache' : 'Freshly captured'} — ${formatSnapshotAge(state.result.capturedAtUtc)} — ${new Date(state.result.capturedAtUtc).toLocaleString()}`}
           </span>
-          <Button onClick={() => load(true, false)}>Refresh</Button>
+          <Button onClick={() => load(true, false)} disabled={state.refreshing}>
+            Refresh
+          </Button>
         </div>
       </div>
+      {state.refreshError && (
+        <ErrorState
+          {...state.refreshError}
+          title="Refresh failed; the previous snapshot is still shown."
+          controls={<Button onClick={() => load(true, false)}>Retry refresh</Button>}
+        />
+      )}
       <SnapshotGrid result={state.result} target={target} />
     </div>
   );

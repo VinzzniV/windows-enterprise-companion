@@ -57,6 +57,13 @@ const hygiene: AdHygieneResult = {
   ],
   rules: [
     {
+      ruleId: 'WEC-AD-EMPTY-GROUPS',
+      title: 'Empty groups',
+      matchCount: 0,
+      examples: [],
+      recommendation: 'No action required.',
+    },
+    {
       ruleId: 'WEC-AD-INACTIVE-USERS',
       title: 'Inactive users',
       matchCount: 250,
@@ -168,7 +175,7 @@ describe('ActiveDirectoryPage', () => {
     await userEvent.type(search, 'Jane');
     expect(screen.getByText('Doe, Jane')).toBeDefined();
     expect(screen.queryByText('Example User')).toBeNull();
-    expect(screen.getByText('No loaded identities match this search.')).toBeDefined();
+    expect(screen.getAllByText('No loaded identities match this search.')).toHaveLength(2);
   });
 
   it('opens keyboard-accessible identity details and reports clipboard outcomes', async () => {
