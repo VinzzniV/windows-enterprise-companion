@@ -101,7 +101,7 @@ function EncryptionCard({ target }: { target: TargetRequest | null }) {
         <div className="flex flex-col gap-2">
           <StatusBadge variant="elevation">Requires elevation</StatusBadge>
           <p className="text-sm text-slate-400">{state.message}</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted">
             Restart the app as administrator to run this check.
           </p>
         </div>
@@ -298,7 +298,7 @@ export function SnapshotGrid({ result, target }: { result: HardwareInfoResult; t
               <p className="break-words text-sm text-fail-400">
                 {snapshot.installedSoftwareError.code}: {snapshot.installedSoftwareError.message}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted">
                 Remote software inventory reads the registry through WMI (StdRegProv) and needs an
                 account with remote registry read rights on the target.
               </p>

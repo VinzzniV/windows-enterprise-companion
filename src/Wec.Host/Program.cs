@@ -294,6 +294,7 @@ internal static partial class Program
         builder.Services.AddSingleton<IActionHandler, RestartElevatedHandler>();
         builder.Services.AddSingleton<IBridgeExecutionTimeoutPolicy, BridgeExecutionTimeoutPolicy>();
         builder.Services.AddSingleton<ActionDispatcher>();
+        builder.Services.AddSingleton<BridgeRequestCancellationRegistry>();
         builder.Services.AddSingleton<WebViewBridge>();
         builder.Services.AddSingleton<WebViewBridgeEventPublisher>();
         builder.Services.AddSingleton<IBridgeEventPublisher>(serviceProvider =>

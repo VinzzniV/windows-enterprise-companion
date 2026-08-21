@@ -31,6 +31,13 @@ with its own ADR. This is that case.
   deliberate: it decouples the owning module's domain evolution from every
   consumer, at the cost of a mapping method per provider.
 
+The same rule now covers the paged Client Workspace (2026-08-19): Inventory
+implements `IInventoryClientSnapshotProvider`, Targets implements
+`ISavedClientTargetProvider`, and Employee Lifecycle composes those narrow
+projections with its request-bound hygiene snapshot. The contracts expose only
+host/timestamp and label/host data; credentials, unrelated target roles and
+persistence entities remain in their owning modules.
+
 ## Alternatives Considered
 
 | Option | Verdict | Reason |

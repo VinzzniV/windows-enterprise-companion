@@ -1,39 +1,58 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { invoke } from '../../shared/bridge/bridgeClient';
+import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
+import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 import type {
   AdComputerSearchResult,
   AppInfoResponse,
   HardwareInfoResult,
   LatestScanResult,
   ListInventoryHostsResult,
+  ListSecurityScanHostsResult,
   SecurityScanResult,
   StoredInventoryHost,
+  StoredSecurityScanHost,
 } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Toolbar } from '../../shared/ui/Toolbar';
-import { Select } from '../../shared/ui/Select';
 import { Button } from '../../shared/ui/Button';
 import { Badge } from '../../shared/ui/Badge';
 import { Card } from '../../shared/ui/Card';
 import { DataTable, type DataColumn } from '../../shared/ui/DataTable';
-import { EmptyState } from '../../shared/ui/States';
+import { CompactErrorState, EmptyState, ErrorState } from '../../shared/ui/States';
 import { Spinner } from '../../shared/ui/Spinner';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { buildClientList, toClientTarget } from './clients';
 import { compareFindings, compareInventory, compareSoftware, type DiffRow, type SetDiff } from './compare';
+import { ClientComparePicker } from './ClientComparePicker';
+import { loadRecentCompareHosts, recordRecentCompareHosts } from './recentCompareClients';
+
+type StoredRead<T> =
+  | { kind: 'data'; value: T }
+  | { kind: 'missing' }
+  | { kind: 'error'; error: ErrorPresentation };
 
 interface SideData {
   host: string;
-  inventory: HardwareInfoResult | null;
-  scan: SecurityScanResult | null;
+  inventory: StoredRead<HardwareInfoResult>;
+  scan: StoredRead<SecurityScanResult>;
 }
 
 interface Comparison {
   a: SideData;
   b: SideData;
 }
+
+interface SelectionSourceErrors {
+  directory?: ErrorPresentation;
+  inventory?: ErrorPresentation;
+  security?: ErrorPresentation;
+  identity?: ErrorPresentation;
+}
+
+const sourceReloadAction = 'Reload the client sources. Already loaded client choices remain available.';
+const comparisonRetryAction = 'Retry the comparison. It reads stored data only and does not start a scan.';
 
 function SetDiffCard({
   title,
@@ -58,25 +77,25 @@ function SetDiffCard({
           <DetailsDisclosure summary="Show differences">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
                   Only on {labelA}
                 </h4>
                 <ul className="flex flex-col gap-0.5 text-sm text-slate-300">
                   {diff.onlyA.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
-                  {diff.onlyA.length === 0 && <li className="text-slate-500">—</li>}
+                  {diff.onlyA.length === 0 && <li className="text-muted">—</li>}
                 </ul>
               </div>
               <div>
-                <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
+                <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
                   Only on {labelB}
                 </h4>
                 <ul className="flex flex-col gap-0.5 text-sm text-slate-300">
                   {diff.onlyB.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
-                  {diff.onlyB.length === 0 && <li className="text-slate-500">—</li>}
+                  {diff.onlyB.length === 0 && <li className="text-muted">—</li>}
                 </ul>
               </div>
             </div>
@@ -92,44 +111,131 @@ export function ComparePage() {
   const { savedTargets } = useTargets();
   const [adResult, setAdResult] = useState<AdComputerSearchResult | null>(null);
   const [scannedHosts, setScannedHosts] = useState<StoredInventoryHost[]>([]);
+  const [securityHosts, setSecurityHosts] = useState<StoredSecurityScanHost[]>([]);
   const [machineName, setMachineName] = useState<string | null>(null);
+  const [selectionSourceErrors, setSelectionSourceErrors] = useState<SelectionSourceErrors>({});
+  const [selectionSourcesLoading, setSelectionSourcesLoading] = useState(true);
   const [hostA, setHostA] = useState('');
   const [hostB, setHostB] = useState('');
+  const [recentHosts, setRecentHosts] = useState(loadRecentCompareHosts);
   const [loading, setLoading] = useState(false);
   const [comparison, setComparison] = useState<Comparison | null>(null);
 
-  useEffect(() => {
-    invoke<AdComputerSearchResult>('activedirectory', 'searchComputers', { nameFilter: null, includeDisabled: false })
-      .then(setAdResult)
-      .catch(() => setAdResult(null));
-    invoke<ListInventoryHostsResult>('inventory', 'listHosts')
-      .then((result) => setScannedHosts(result.hosts))
-      .catch(() => setScannedHosts([]));
-    invoke<AppInfoResponse>('system', 'getAppInfo')
-      .then((info) => setMachineName(info.machineName))
-      .catch(() => setMachineName(null));
+  const selectHostA = (host: string) => {
+    setHostA(host);
+    setComparison(null);
+  };
+
+  const selectHostB = (host: string) => {
+    setHostB(host);
+    setComparison(null);
+  };
+
+  const loadSelectionSources = useCallback(async () => {
+    setSelectionSourcesLoading(true);
+    const [directoryResult, inventoryResult, securityResult, appInfoResult] = await Promise.allSettled([
+      invoke<AdComputerSearchResult>(
+        'activedirectory',
+        'searchComputers',
+        { nameFilter: null, includeDisabled: false },
+      ),
+      invoke<ListInventoryHostsResult>('inventory', 'listHosts'),
+      invoke<ListSecurityScanHostsResult>('security', 'listHosts'),
+      invoke<AppInfoResponse>('system', 'getAppInfo'),
+    ]);
+
+    const errors: SelectionSourceErrors = {};
+    if (directoryResult.status === 'fulfilled') {
+      setAdResult(directoryResult.value);
+    } else {
+      errors.directory = presentError(directoryResult.reason, {
+        message: 'The Active Directory client list could not be loaded.',
+        action: sourceReloadAction,
+      });
+    }
+
+    if (inventoryResult.status === 'fulfilled') {
+      setScannedHosts(inventoryResult.value.hosts);
+    } else {
+      errors.inventory = presentError(inventoryResult.reason, {
+        message: 'The stored client inventory list could not be loaded.',
+        action: sourceReloadAction,
+      });
+    }
+
+    if (securityResult.status === 'fulfilled') {
+      setSecurityHosts(securityResult.value.hosts);
+    } else {
+      errors.security = presentError(securityResult.reason, {
+        message: 'The stored client security list could not be loaded.',
+        action: sourceReloadAction,
+      });
+    }
+
+    if (appInfoResult.status === 'fulfilled' && appInfoResult.value.machineName.trim() !== '') {
+      setMachineName(appInfoResult.value.machineName);
+    } else {
+      const reason = appInfoResult.status === 'rejected'
+        ? appInfoResult.reason
+        : new Error('The desktop host returned an empty machine name.');
+      setMachineName(null);
+      errors.identity = presentError(reason, {
+        message: 'The local machine identity could not be verified.',
+        cause: 'The comparison cannot safely distinguish the local device from a remote target.',
+        action: 'Reload the client sources before comparing devices.',
+      });
+    }
+
+    setSelectionSourceErrors(errors);
+    setSelectionSourcesLoading(false);
   }, []);
+
+  useEffect(() => {
+    void loadSelectionSources();
+  }, [loadSelectionSources]);
 
   const savedClients = useMemo(
     () => savedTargets.filter((target) => target.role === 'Client'),
     [savedTargets],
   );
   const clients = useMemo(
-    () => buildClientList(adResult?.computers ?? [], scannedHosts, savedClients),
-    [adResult, scannedHosts, savedClients],
+    () => buildClientList(adResult?.computers ?? [], scannedHosts, savedClients, securityHosts),
+    [adResult, scannedHosts, savedClients, securityHosts],
   );
 
   const loadSide = useCallback(
     async (host: string): Promise<SideData> => {
       const target = toClientTarget(host, machineName, undefined);
-      const inventory = await invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', {
-        target,
-        forceRefresh: false,
-        cacheOnly: true,
-      }).catch(() => null);
-      const scan = await invoke<LatestScanResult>('security', 'getLatestScan', { target })
-        .then((result) => result.scan)
-        .catch(() => null);
+      const [inventory, scan] = await Promise.all([
+        invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', {
+          target,
+          forceRefresh: false,
+          cacheOnly: true,
+        })
+          .then<StoredRead<HardwareInfoResult>>((value) => ({ kind: 'data', value }))
+          .catch((error: unknown): StoredRead<HardwareInfoResult> =>
+            error instanceof BridgeInvokeError && error.error.code === 'NOT_FOUND'
+              ? { kind: 'missing' }
+              : {
+                  kind: 'error',
+                  error: presentError(error, {
+                    message: `Stored hardware inventory for ${host} could not be read.`,
+                    action: comparisonRetryAction,
+                  }),
+                }),
+        invoke<LatestScanResult>('security', 'getLatestScan', { target })
+          .then<StoredRead<SecurityScanResult>>((result) =>
+            result.scan === null
+              ? { kind: 'missing' }
+              : { kind: 'data', value: result.scan })
+          .catch((error: unknown): StoredRead<SecurityScanResult> => ({
+            kind: 'error',
+            error: presentError(error, {
+              message: `Stored security scan for ${host} could not be read.`,
+              action: comparisonRetryAction,
+            }),
+          })),
+      ]);
       return { host, inventory, scan };
     },
     [machineName],
@@ -140,14 +246,15 @@ export function ComparePage() {
     try {
       const [a, b] = await Promise.all([loadSide(hostA), loadSide(hostB)]);
       setComparison({ a, b });
+      setRecentHosts(recordRecentCompareHosts([hostA, hostB]));
     } finally {
       setLoading(false);
     }
   }, [hostA, hostB, loadSide]);
 
   const invDiff: DiffRow[] | null =
-    comparison?.a.inventory && comparison.b.inventory
-      ? compareInventory(comparison.a.inventory.snapshot, comparison.b.inventory.snapshot)
+    comparison?.a.inventory.kind === 'data' && comparison.b.inventory.kind === 'data'
+      ? compareInventory(comparison.a.inventory.value.snapshot, comparison.b.inventory.value.snapshot)
       : null;
 
   const columns: DataColumn<DiffRow>[] = comparison
@@ -163,7 +270,36 @@ export function ComparePage() {
       ]
     : [];
 
-  const canCompare = hostA !== '' && hostB !== '' && hostA !== hostB && !loading;
+  const selectionErrors = Object.entries(selectionSourceErrors) as [keyof SelectionSourceErrors, ErrorPresentation][];
+  const inventoryErrors = comparison
+    ? [comparison.a, comparison.b].filter(
+        (side): side is SideData & { inventory: { kind: 'error'; error: ErrorPresentation } } =>
+          side.inventory.kind === 'error',
+      )
+    : [];
+  const securityErrors = comparison
+    ? [comparison.a, comparison.b].filter(
+        (side): side is SideData & { scan: { kind: 'error'; error: ErrorPresentation } } =>
+          side.scan.kind === 'error',
+      )
+    : [];
+  const missingInventoryHosts = comparison
+    ? [comparison.a, comparison.b]
+        .filter((side) => side.inventory.kind === 'missing')
+        .map((side) => side.host)
+    : [];
+  const missingSecurityHosts = comparison
+    ? [comparison.a, comparison.b]
+        .filter((side) => side.scan.kind === 'missing')
+        .map((side) => side.host)
+    : [];
+  const comparisonHasErrors = inventoryErrors.length > 0 || securityErrors.length > 0;
+  const canCompare = hostA !== ''
+    && hostB !== ''
+    && hostA !== hostB
+    && !loading
+    && !selectionSourcesLoading
+    && selectionSourceErrors.identity === undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -180,31 +316,59 @@ export function ComparePage() {
           </Button>
         }
       >
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          A
-          <Select fullWidth={false} value={hostA} onChange={(event) => setHostA(event.target.value)} aria-label="First client">
-            <option value="">Select a client…</option>
-            {clients.map((client) => (
-              <option key={client.key} value={client.host}>
-                {client.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          B
-          <Select fullWidth={false} value={hostB} onChange={(event) => setHostB(event.target.value)} aria-label="Second client">
-            <option value="">Select a client…</option>
-            {clients.map((client) => (
-              <option key={client.key} value={client.host}>
-                {client.name}
-              </option>
-            ))}
-          </Select>
-        </label>
+        <ClientComparePicker
+          label="A"
+          ariaLabel="First client"
+          clients={clients}
+          recentHosts={recentHosts}
+          value={hostA}
+          onChange={selectHostA}
+          disabled={selectionSourcesLoading || loading}
+        />
+        <ClientComparePicker
+          label="B"
+          ariaLabel="Second client"
+          clients={clients}
+          recentHosts={recentHosts}
+          value={hostB}
+          onChange={selectHostB}
+          disabled={selectionSourcesLoading || loading}
+        />
       </Toolbar>
 
+      <p className="text-xs text-slate-400">
+        Availability reflects the latest stored Inventory and Security timestamps. The stored data is read and verified only
+        when you compare; comparison never starts a scan.
+      </p>
+
+      {selectionSourcesLoading && <Spinner label="Loading client sources …" />}
+
+      {selectionErrors.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {selectionErrors.map(([source, error]) => (
+            <ErrorState
+              key={source}
+              title={source === 'identity' ? 'Target identity unavailable' : 'Client selection incomplete'}
+              {...error}
+            />
+          ))}
+          <div>
+            <Button variant="secondary" onClick={() => void loadSelectionSources()} disabled={selectionSourcesLoading}>
+              Reload client sources
+            </Button>
+          </div>
+        </div>
+      )}
+
       {loading && <Spinner label="Loading stored scans for both clients …" />}
+
+      {comparison && !loading && comparisonHasErrors && (
+        <div>
+          <Button variant="secondary" onClick={() => void compare()} disabled={!canCompare}>
+            Retry comparison
+          </Button>
+        </div>
+      )}
 
       {!loading && !comparison && (
         <EmptyState
@@ -216,28 +380,50 @@ export function ComparePage() {
       {comparison && !loading && (
         <>
           <Card title="Hardware inventory">
-            {invDiff ? (
+            {inventoryErrors.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {inventoryErrors.map((side) => (
+                  <CompactErrorState
+                    key={side.host}
+                    title={`Inventory unavailable — ${side.host}`}
+                    {...side.inventory.error}
+                  />
+                ))}
+              </div>
+            ) : invDiff ? (
               <DataTable columns={columns} rows={invDiff} emptyMessage="No inventory to compare." />
             ) : (
               <p className="text-sm text-slate-400">
-                {comparison.a.inventory ? comparison.b.host : comparison.a.host} has no stored inventory
+                {missingInventoryHosts.join(', ')} {missingInventoryHosts.length === 1 ? 'has' : 'have'} no stored inventory
                 snapshot. Open it and run an inventory scan first.
               </p>
             )}
           </Card>
 
-          {comparison.a.inventory && comparison.b.inventory && (
+          {comparison.a.inventory.kind === 'data' && comparison.b.inventory.kind === 'data' && (
             <SetDiffCard
               title="Installed software"
-              diff={compareSoftware(comparison.a.inventory.snapshot, comparison.b.inventory.snapshot)}
+              diff={compareSoftware(comparison.a.inventory.value.snapshot, comparison.b.inventory.value.snapshot)}
               labelA={comparison.a.host}
               labelB={comparison.b.host}
             />
           )}
 
-          {comparison.a.scan && comparison.b.scan ? (
+          {securityErrors.length > 0 ? (
+            <Card title="Security findings">
+              <div className="flex flex-col gap-3">
+                {securityErrors.map((side) => (
+                  <CompactErrorState
+                    key={side.host}
+                    title={`Security scan unavailable — ${side.host}`}
+                    {...side.scan.error}
+                  />
+                ))}
+              </div>
+            </Card>
+          ) : comparison.a.scan.kind === 'data' && comparison.b.scan.kind === 'data' ? (
             <>
-              {(!comparison.a.scan.coverage.isComplete || !comparison.b.scan.coverage.isComplete) && (
+              {(!comparison.a.scan.value.coverage.isComplete || !comparison.b.scan.value.coverage.isComplete) && (
                 <Card title="Security comparison coverage">
                   <p className="text-sm text-warn-400">
                     The finding comparison is observational only: at least one scan has incomplete or legacy
@@ -247,7 +433,7 @@ export function ComparePage() {
               )}
               <SetDiffCard
                 title="Security findings"
-                diff={compareFindings(comparison.a.scan.findings, comparison.b.scan.findings)}
+                diff={compareFindings(comparison.a.scan.value.findings, comparison.b.scan.value.findings)}
                 labelA={comparison.a.host}
                 labelB={comparison.b.host}
               />
@@ -255,7 +441,7 @@ export function ComparePage() {
           ) : (
             <Card title="Security findings">
               <p className="text-sm text-slate-400">
-                {comparison.a.scan ? comparison.b.host : comparison.a.host} has no stored security scan.
+                {missingSecurityHosts.join(', ')} {missingSecurityHosts.length === 1 ? 'has' : 'have'} no stored security scan.
                 Open it and run a security scan to compare findings.
               </p>
             </Card>

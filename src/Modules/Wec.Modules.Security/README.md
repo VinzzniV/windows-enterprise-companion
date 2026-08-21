@@ -11,6 +11,7 @@ remote Windows clients, single or in a parallel batch.
 | `security/runScan` | `{ target?: TargetRequest }` | `SecurityScanResult` — host, process status, findings, per-check outcomes and coverage; persisted |
 | `security/runBatchScan` | `{ hosts: string[], userName?, domain?, password? }` | `BatchScanResult` — per-host status/scan/error |
 | `security/getLatestScan` | `{ target?: TargetRequest }` | `LatestScanResult` for that host |
+| `security/listHosts` | `{}` | Latest persisted scan timestamp per host; no findings/check details |
 | `security/getScanHistory` | `{ target?: TargetRequest }` | `ScanHistoryResult` (summaries + diff latest↔previous) for that host |
 
 `TargetRequest` = `{ host?, userName?, domain?, password? }`; empty = local
@@ -49,6 +50,12 @@ describe observed conditions only.
   scan loop ended; it does not mean every applicable check ran or that the
   machine has no findings. Unexpected/provider failures produce
   `COMPLETED_WITH_ERRORS`.
+- The result UI preserves that separation. Known complete coverage is presented
+  as Availability `Available`, known incomplete coverage as Execution
+  `Partial`, and legacy/unknown coverage as Availability `Unknown`; the
+  concrete coverage wording remains adjacent to the canonical badge. This
+  mapping is shared by the routed Clients Security tab and the reusable result
+  context and does not alter stored values.
 - Coverage is derived from persisted `SecurityCheckResult` rows. It records the
   total and the counts of `SUCCEEDED`, `FAILED`, `REQUIRES_ELEVATION` and
   `NOT_APPLICABLE`. Coverage is complete only when it is known and every

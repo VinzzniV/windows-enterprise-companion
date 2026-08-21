@@ -8,7 +8,8 @@ import type {
   DiagnosticStatus,
   TargetRequest,
 } from '../../shared/api-types';
-import { StatusBadge, type StatusBadgeVariant } from '../../shared/ui/StatusBadge';
+import { SemanticStatusBadge, type SemanticStatus } from '../../shared/ui/SemanticStatusBadge';
+import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { Spinner } from '../../shared/ui/Spinner';
 import { Button } from '../../shared/ui/Button';
 import { PageHeader } from '../../shared/ui/PageHeader';
@@ -48,11 +49,11 @@ const categoryLabels: Record<DiagnosticCategory, string> = {
   SYSTEM: 'System',
 };
 
-const statusVariants: Record<DiagnosticStatus, StatusBadgeVariant> = {
-  PASS: 'success',
-  WARNING: 'elevation',
-  FAIL: 'error',
-  NOT_RUN: 'neutral',
+const statusSemantics: Record<DiagnosticStatus, SemanticStatus> = {
+  PASS: { dimension: 'health', value: 'healthy' },
+  WARNING: { dimension: 'health', value: 'warning' },
+  FAIL: { dimension: 'health', value: 'critical' },
+  NOT_RUN: { dimension: 'availability', value: 'unknown' },
 };
 
 const statusOrder: Record<DiagnosticStatus, number> = {
@@ -63,7 +64,7 @@ const statusOrder: Record<DiagnosticStatus, number> = {
 };
 
 function DiagnosticStatusBadge({ status }: { status: DiagnosticStatus }) {
-  return <StatusBadge variant={statusVariants[status]}>{status.replace('_', ' ')}</StatusBadge>;
+  return <SemanticStatusBadge status={statusSemantics[status]} />;
 }
 
 function countByStatus(results: DiagnosticResult[], status: DiagnosticStatus): number {
@@ -79,7 +80,7 @@ function DiagnosticRow({ result }: { result: DiagnosticResult }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">{result.title}</h3>
-          <p className="break-words text-xs text-slate-500">{result.affectedResource}</p>
+          <p className="break-words text-xs text-muted">{result.affectedResource}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {result.requiredPrivilege && <StatusBadge variant="elevation">Requires elevation</StatusBadge>}
@@ -111,10 +112,10 @@ export function RunSummary({ results }: { results: DiagnosticResult[] }) {
   const failCount = countByStatus(results, 'FAIL');
   return (
     <div className="flex flex-wrap gap-2">
-      <SummaryMetric label="Fail" value={failCount} tone={failCount > 0 ? 'danger' : 'neutral'} />
+      <SummaryMetric label="Critical" value={failCount} tone={failCount > 0 ? 'danger' : 'neutral'} />
       <SummaryMetric label="Warning" value={warningCount} tone={warningCount > 0 ? 'warning' : 'neutral'} />
-      <SummaryMetric label="Not run" value={countByStatus(results, 'NOT_RUN')} tone="neutral" />
-      <SummaryMetric label="Pass" value={countByStatus(results, 'PASS')} tone="success" />
+      <SummaryMetric label="Unknown" value={countByStatus(results, 'NOT_RUN')} tone="neutral" />
+      <SummaryMetric label="Healthy" value={countByStatus(results, 'PASS')} tone="success" />
     </div>
   );
 }
@@ -143,7 +144,7 @@ export function CategorySections({ results }: { results: DiagnosticResult[] }) {
             <section key={group.category} aria-label={categoryLabels[group.category]}>
               <h2 className="mb-2 flex items-baseline gap-2 border-b border-slate-800 pb-1 text-sm font-medium uppercase tracking-wide text-slate-400">
                 {categoryLabels[group.category]}
-                <span className="text-xs font-normal normal-case tracking-normal text-slate-500">
+                <span className="text-xs font-normal normal-case tracking-normal text-muted">
                   {group.results.length} check{group.results.length === 1 ? '' : 's'}
                   {attention > 0 && ` · ${attention} need${attention === 1 ? 's' : ''} attention`}
                 </span>

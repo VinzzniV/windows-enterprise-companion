@@ -120,6 +120,44 @@ public sealed class SecurityScanPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task ListHosts_ReturnsOnlyTheNewestScanStampForEachHost()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        var repository = new EfSecurityScanRepository(
+            context, NullLogger<EfSecurityScanRepository>.Instance);
+
+        await repository.SaveScanAsync(
+            "PC-B",
+            StartedAt.AddHours(-2), StartedAt.AddHours(-2).AddSeconds(2),
+            ScanStatus.Completed, [], CancellationToken.None);
+        await repository.SaveScanAsync(
+            "PC-A",
+            StartedAt.AddHours(-1), StartedAt.AddHours(-1).AddSeconds(2),
+            ScanStatus.Completed, [], CancellationToken.None);
+        await repository.SaveScanAsync(
+            "PC-A",
+            StartedAt, StartedAt.AddSeconds(3),
+            ScanStatus.CompletedWithErrors, [BuildFinding()], CancellationToken.None);
+
+        IReadOnlyList<StoredSecurityScanHost> hosts =
+            await repository.ListHostsAsync(CancellationToken.None);
+
+        Assert.Collection(
+            hosts,
+            host =>
+            {
+                Assert.Equal("PC-A", host.Host);
+                Assert.Equal(StartedAt.AddSeconds(3), host.CompletedAtUtc);
+            },
+            host =>
+            {
+                Assert.Equal("PC-B", host.Host);
+                Assert.Equal(StartedAt.AddHours(-2).AddSeconds(2), host.CompletedAtUtc);
+            });
+    }
+
+    [Fact]
     public async Task CheckCoverage_SurvivesRoundTripThroughRealMigrationAndNewContext()
     {
         long scanId;

@@ -31,8 +31,8 @@ export function SavedTargetsBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2">
-      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
-      {forRole.length === 0 && <span className="text-xs text-slate-500">none yet</span>}
+      <span className="text-xs font-medium uppercase tracking-wide text-muted">{label}</span>
+      {forRole.length === 0 && <span className="text-xs text-muted">none yet</span>}
       {forRole.map((target) => (
         <span
           key={target.id}

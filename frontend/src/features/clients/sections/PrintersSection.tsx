@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
-import { errorText } from '../../../shared/bridge/errorText';
+import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import type {
   ClientPrinter,
   ClientPrinterScan,
@@ -18,7 +18,7 @@ type State =
   | { kind: 'idle' }
   | { kind: 'running' }
   | { kind: 'done'; scan: ClientPrinterScan }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 const columns: DataColumn<ClientPrinter>[] = [
   { header: 'Printer', cell: (printer) => <span className="font-medium text-slate-100">{printer.name}</span> },
@@ -56,7 +56,10 @@ export function PrintersSection({ target }: { target: TargetRequest | null }) {
     setState({ kind: 'running' });
     invoke<ClientPrinterScan>('printmanagement', 'scanClientPrinters', { target })
       .then((scan) => setState({ kind: 'done', scan }))
-      .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
+      .catch((error: unknown) => setState({
+        kind: 'error',
+        error: presentError(error, { message: 'Installed printers could not be read.' }),
+      }));
   }, [target]);
 
   if (state.kind === 'loading') {
@@ -69,12 +72,10 @@ export function PrintersSection({ target }: { target: TargetRequest | null }) {
 
   if (state.kind === 'error') {
     return (
-      <div className="flex flex-col gap-3">
-        <ErrorState message={state.message} />
-        <div>
-          <Button onClick={run}>Retry</Button>
-        </div>
-      </div>
+      <ErrorState
+        {...state.error}
+        controls={<Button onClick={run}>Retry scan</Button>}
+      />
     );
   }
 

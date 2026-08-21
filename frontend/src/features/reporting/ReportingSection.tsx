@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type {
   ExportReportRequest,
@@ -11,20 +12,20 @@ import { Spinner } from '../../shared/ui/Spinner';
 import { Button } from '../../shared/ui/Button';
 import { ErrorState } from '../../shared/ui/States';
 import { Checkbox } from '../../shared/ui/Checkbox';
-import { StatusBadge } from '../../shared/ui/StatusBadge';
-import { errorText } from '../../shared/bridge/errorText';
+import { SemanticStatusBadge, type SemanticStatus } from '../../shared/ui/SemanticStatusBadge';
+import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 
 type OverviewState =
   | { kind: 'loading' }
   | { kind: 'loaded'; overview: ReportOverview }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 type ExportState =
   | { kind: 'idle' }
   | { kind: 'exporting' }
-  | { kind: 'exported'; filePath: string; openError: string | null }
+  | { kind: 'exported'; filePath: string; openError: ErrorPresentation | null }
   | { kind: 'cancelled' }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 export function formatDataAge(ageSeconds: number | null): string {
   if (ageSeconds === null) return 'Unavailable';
@@ -36,10 +37,20 @@ export function formatDataAge(ageSeconds: number | null): string {
   return `${minutes}m old`;
 }
 
-function readinessVariant(state: ReportOverview['readiness']['sources'][number]['state']) {
-  if (state === 'READY') return 'success' as const;
-  if (state === 'MISSING') return 'neutral' as const;
-  return 'warning' as const;
+function reportSourceStatus(state: ReportOverview['readiness']['sources'][number]['state']): SemanticStatus {
+  switch (state) {
+    case 'READY': return { dimension: 'freshness', value: 'fresh' };
+    case 'MISSING': return { dimension: 'availability', value: 'missing' };
+    case 'STALE': return { dimension: 'freshness', value: 'stale' };
+    case 'INCOMPLETE': return { dimension: 'execution', value: 'partial' };
+    default: return { dimension: 'availability', value: 'unknown' };
+  }
+}
+
+function reportReadinessStatus(isReady: boolean): SemanticStatus {
+  return isReady
+    ? { dimension: 'availability', value: 'available' }
+    : { dimension: 'execution', value: 'partial' };
 }
 
 /**
@@ -48,7 +59,13 @@ function readinessVariant(state: ReportOverview['readiness']['sources'][number][
  * reads whatever inventory/security data was already captured for that host —
  * it never triggers a live scan.
  */
-export function ReportingSection({ host }: { host: string | null }) {
+export function ReportingSection({
+  host,
+  refreshKey = 0,
+}: {
+  host: string | null;
+  refreshKey?: number;
+}) {
   const [overviewState, setOverviewState] = useState<OverviewState>({ kind: 'loading' });
   const [exportState, setExportState] = useState<ExportState>({ kind: 'idle' });
   const [openAfterExport, setOpenAfterExport] = useState(true);
@@ -56,12 +73,25 @@ export function ReportingSection({ host }: { host: string | null }) {
   const subject = host === null ? 'this machine' : host;
 
   useEffect(() => {
+    let active = true;
     setOverviewState({ kind: 'loading' });
     const payload: ReportOverviewRequest = { host };
     invoke<ReportOverview>('reporting', 'getOverview', payload)
-      .then((overview) => setOverviewState({ kind: 'loaded', overview }))
-      .catch((error: unknown) => setOverviewState({ kind: 'error', message: errorText(error) }));
-  }, [host]);
+      .then((overview) => {
+        if (active) setOverviewState({ kind: 'loaded', overview });
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setOverviewState({
+            kind: 'error',
+            error: presentError(error, { message: 'The report overview could not be loaded.' }),
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [host, refreshKey]);
 
   const exportReport = useCallback(
     (action: 'exportHtml' | 'exportJson') => {
@@ -72,10 +102,23 @@ export function ReportingSection({ host }: { host: string | null }) {
           setExportState(
             result.cancelled || result.filePath === null
               ? { kind: 'cancelled' }
-              : { kind: 'exported', filePath: result.filePath, openError: result.openError },
+              : {
+                  kind: 'exported',
+                  filePath: result.filePath,
+                  openError: result.openError
+                    ? presentError(new Error(result.openError), {
+                        message: 'The saved report could not be opened.',
+                        cause: 'Windows could not open the exported file with its associated application.',
+                        action: `Open ${result.filePath} manually or check the default application for this file type.`,
+                      })
+                    : null,
+                },
           ),
         )
-        .catch((error: unknown) => setExportState({ kind: 'error', message: errorText(error) }));
+        .catch((error: unknown) => setExportState({
+          kind: 'error',
+          error: presentError(error, { message: 'The report could not be exported.' }),
+        }));
     },
     [openAfterExport, host],
   );
@@ -84,10 +127,15 @@ export function ReportingSection({ host }: { host: string | null }) {
     return <Spinner label="Loading overview …" />;
   }
   if (overviewState.kind === 'error') {
-    return <ErrorState message={overviewState.message} />;
+    return <ErrorState title="Report overview unavailable" {...overviewState.error} />;
   }
 
   const { overview } = overviewState;
+  const subjectPath = `/clients/${encodeURIComponent(overview.subjectHost)}`;
+  const sourceLinks = {
+    inventory: `${subjectPath}?section=inventory`,
+    security: `${subjectPath}?section=security`,
+  };
   const hasAnyData =
     overview.inventoryCapturedAtUtc !== null || overview.securityScanCompletedAtUtc !== null;
 
@@ -96,9 +144,7 @@ export function ReportingSection({ host }: { host: string | null }) {
       <Card title="Report readiness">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
-            <StatusBadge variant={overview.readiness.isReady ? 'success' : 'warning'}>
-              {overview.readiness.isReady ? 'READY' : 'REFRESH REQUIRED'}
-            </StatusBadge>
+            <SemanticStatusBadge status={reportReadinessStatus(overview.readiness.isReady)} />
             <p className="text-sm text-slate-300">
               {overview.readiness.isReady
                 ? 'All report sources are current and complete.'
@@ -106,23 +152,43 @@ export function ReportingSection({ host }: { host: string | null }) {
             </p>
           </div>
           <ul className="grid gap-2 xl:grid-cols-2">
-            {overview.readiness.sources.map((source) => (
-              <li key={source.source} className="rounded border border-slate-800 bg-slate-950/40 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium text-slate-200">{source.source}</span>
-                  <StatusBadge variant={readinessVariant(source.state)}>{source.state}</StatusBadge>
-                </div>
-                <p className="mt-1 text-sm text-slate-300">{source.summary}</p>
-                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 text-xs text-slate-400">
-                  <dt>Age</dt>
-                  <dd>{formatDataAge(source.ageSeconds)}</dd>
-                  <dt>Captured</dt>
-                  <dd>{source.capturedAtUtc ? new Date(source.capturedAtUtc).toLocaleString() : 'Unavailable'}</dd>
-                  <dt>Provenance</dt>
-                  <dd>{source.provenance}</dd>
-                </dl>
-              </li>
-            ))}
+            {overview.readiness.sources.map((source) => {
+              const sourceLink = source.source === 'Hardware inventory'
+                ? sourceLinks?.inventory
+                : source.source === 'Security posture'
+                  ? sourceLinks?.security
+                  : undefined;
+              const sourceLinkLabel = source.source === 'Hardware inventory'
+                ? 'Open Inventory'
+                : source.source === 'Security posture'
+                  ? 'Open Security'
+                  : null;
+              return (
+                <li key={source.source} className="rounded border border-slate-800 bg-slate-950/40 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-slate-200">{source.source}</span>
+                    <SemanticStatusBadge status={reportSourceStatus(source.state)} />
+                  </div>
+                  <p className="mt-1 text-sm text-slate-300">{source.summary}</p>
+                  <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 text-xs text-slate-400">
+                    <dt>Age</dt>
+                    <dd>{formatDataAge(source.ageSeconds)}</dd>
+                    <dt>Captured</dt>
+                    <dd>{source.capturedAtUtc ? new Date(source.capturedAtUtc).toLocaleString() : 'Unavailable'}</dd>
+                    <dt>Provenance</dt>
+                    <dd>{source.provenance}</dd>
+                  </dl>
+                  {source.state !== 'READY' && sourceLink && sourceLinkLabel && (
+                    <Link
+                      to={sourceLink}
+                      className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent-400 hover:text-accent-300"
+                    >
+                      {sourceLinkLabel} <span aria-hidden="true">→</span>
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       </Card>
@@ -164,7 +230,7 @@ export function ReportingSection({ host }: { host: string | null }) {
             Not included — diagnostics are outside the report read contract. Export does not run checks or include the saved latest diagnostics run.
           </dd>
         </dl>
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-muted">
           The report reflects the data already captured for {subject}; it never starts a scan.
         </p>
       </Card>
@@ -210,11 +276,17 @@ export function ReportingSection({ host }: { host: string | null }) {
               <p className="text-sm text-ok-400">
                 Report written to <span className="font-mono text-ok-300">{exportState.filePath}</span>
               </p>
-              {exportState.openError && <p role="alert" className="mt-1 text-sm text-warn-400">{exportState.openError}</p>}
+              {exportState.openError && (
+                <div className="mt-3">
+                  <ErrorState title="Report saved, but opening failed" {...exportState.openError} />
+                </div>
+              )}
             </div>
           )}
           {exportState.kind === 'cancelled' && <p className="text-sm text-slate-400">Export cancelled.</p>}
-          {exportState.kind === 'error' && <p className="text-sm text-fail-400">{exportState.message}</p>}
+          {exportState.kind === 'error' && (
+            <ErrorState title="Report export failed" {...exportState.error} />
+          )}
         </div>
       </Card>
     </div>

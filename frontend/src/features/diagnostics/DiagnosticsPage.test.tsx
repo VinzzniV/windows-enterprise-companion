@@ -54,8 +54,8 @@ describe('DiagnosticsPage', () => {
     expect(await screen.findByText('Gateway reachable')).toBeDefined();
     expect(screen.getByText('DNS server unreachable')).toBeDefined();
     // Summary strip counts
-    expect(screen.getByText('Pass')).toBeDefined();
-    expect(screen.getByText('Fail')).toBeDefined();
+    expect(screen.getAllByText('Healthy').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Critical').length).toBeGreaterThanOrEqual(2);
     // Failing checks put the way forward first
     expect(screen.getByText('Check the configured DNS servers')).toBeDefined();
     const failedRow = screen.getByText('DNS server unreachable').closest('li');
@@ -98,6 +98,10 @@ describe('DiagnosticsPage', () => {
       'Domain not run',
       'Network pass',
     ]);
+    expect(screen.getByText('Critical').className).toContain('border-fail-700');
+    expect(screen.getAllByText('Warning').every((badge) => badge.className.includes('border-warn-700'))).toBe(true);
+    expect(screen.getByText('Unknown').className).toContain('border-slate-700');
+    expect(screen.getByText('Healthy').className).toContain('border-ok-700');
   });
 
   it('keeps pass evidence collapsed and puts not-run guidance first', () => {
@@ -121,14 +125,14 @@ describe('DiagnosticsPage', () => {
     expect(notRunRow?.querySelector('ul')?.textContent).toContain('Restore provider access');
   });
 
-  it('orders summary metrics fail, warning, not run, then pass', () => {
+  it('orders summary metrics critical, warning, unknown, then healthy', () => {
     render(<RunSummary results={run.results} />);
 
-    expect(screen.getAllByText(/^(Fail|Warning|Not run|Pass)$/).map((label) => label.textContent)).toEqual([
-      'Fail',
+    expect(screen.getAllByText(/^(Critical|Warning|Unknown|Healthy)$/).map((label) => label.textContent)).toEqual([
+      'Critical',
       'Warning',
-      'Not run',
-      'Pass',
+      'Unknown',
+      'Healthy',
     ]);
   });
 });

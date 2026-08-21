@@ -1,4 +1,11 @@
-import type { AdComputer, HygieneDevice, SavedTarget, StoredInventoryHost, TargetRequest } from '../../shared/api-types';
+import type {
+  AdComputer,
+  HygieneDevice,
+  SavedTarget,
+  StoredInventoryHost,
+  StoredSecurityScanHost,
+  TargetRequest,
+} from '../../shared/api-types';
 import type { CredentialValues } from '../../shared/targets/TargetSelector';
 
 /** A client in the workspace list, merged from AD, scan history and saved targets. */
@@ -17,6 +24,9 @@ export interface ClientEntry {
   /** Has a stored inventory snapshot. */
   scanned: boolean;
   capturedAtUtc: string | null;
+  /** Has a persisted security scan. */
+  securityScanned: boolean;
+  securityCompletedAtUtc: string | null;
   /** Is a saved target. */
   saved: boolean;
   inAd: boolean;
@@ -47,6 +57,7 @@ export function buildClientList(
   environmentDevices: readonly HygieneDevice[] | readonly AdComputer[],
   scannedHosts: readonly StoredInventoryHost[],
   savedClients: readonly SavedTarget[],
+  securityHosts: readonly StoredSecurityScanHost[] = [],
 ): ClientEntry[] {
   const byKey = new Map<string, ClientEntry>();
 
@@ -63,6 +74,8 @@ export function buildClientList(
       enabled: device ? device.activeDirectory.enabled ?? true : legacy!.enabled,
       scanned: false,
       capturedAtUtc: null,
+      securityScanned: false,
+      securityCompletedAtUtc: null,
       saved: false,
       inAd: device ? device.activeDirectory.exists : true,
       environment: device,
@@ -85,6 +98,8 @@ export function buildClientList(
         enabled: true,
         scanned: true,
         capturedAtUtc: stored.capturedAtUtc,
+        securityScanned: false,
+        securityCompletedAtUtc: null,
         saved: false,
         inAd: false,
         environment: null,
@@ -107,7 +122,34 @@ export function buildClientList(
         enabled: true,
         scanned: false,
         capturedAtUtc: null,
+        securityScanned: false,
+        securityCompletedAtUtc: null,
         saved: true,
+        inAd: false,
+        environment: null,
+      });
+    }
+  }
+
+  for (const stored of securityHosts) {
+    const key = clientKey(stored.host);
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.securityScanned = true;
+      existing.securityCompletedAtUtc = stored.completedAtUtc;
+    } else {
+      byKey.set(key, {
+        host: stored.host,
+        key,
+        name: stored.host,
+        os: null,
+        description: null,
+        enabled: true,
+        scanned: false,
+        capturedAtUtc: null,
+        securityScanned: true,
+        securityCompletedAtUtc: stored.completedAtUtc,
+        saved: false,
         inAd: false,
         environment: null,
       });

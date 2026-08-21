@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wec.Core.Messaging;
@@ -11,7 +12,12 @@ namespace Wec.Host.Bridge;
 
 public sealed record RecentLogEntriesRequest(int? Limit);
 
-public sealed record LogEntry(string Timestamp, string Level, string Message);
+public sealed record LogEntry(
+    string Timestamp,
+    string Level,
+    string Source,
+    string Summary,
+    string TechnicalDetails);
 
 public sealed record RecentLogEntriesResponse(
     IReadOnlyList<LogEntry> Entries,
@@ -35,6 +41,7 @@ internal sealed partial class RecentLogEntriesHandler
 
     // Serilog outputTemplate: "yyyy-MM-dd HH:mm:ss.fff zzz [LVL] Source: message …"
     private static readonly Regex HeaderPattern = BuildHeaderPattern();
+    private static readonly Regex LoggerSourcePattern = BuildLoggerSourcePattern();
 
     private static readonly HashSet<string> KeptLevels = new(StringComparer.Ordinal) { "WRN", "ERR", "FTL" };
 
@@ -125,7 +132,7 @@ internal sealed partial class RecentLogEntriesHandler
         {
             if (level is not null && KeptLevels.Contains(level) && IsAfterClearMarker(timestamp, clearedAtUtc))
             {
-                kept.Add(new LogEntry(timestamp ?? string.Empty, level, string.Join('\n', message).TrimEnd()));
+                kept.Add(ToLogEntry(timestamp ?? string.Empty, level, message));
             }
         }
 
@@ -152,6 +159,52 @@ internal sealed partial class RecentLogEntriesHandler
         return kept.Count > limit ? kept.GetRange(0, limit) : kept;
     }
 
+    private static LogEntry ToLogEntry(string timestamp, string level, List<string> message)
+    {
+        string technicalDetails = string.Join('\n', message).TrimEnd();
+        string firstLine = message.Count > 0 ? message[0].Trim() : string.Empty;
+        string source = "Application";
+        string summary = firstLine;
+
+        int separator = firstLine.IndexOf(": ", StringComparison.Ordinal);
+        if (separator > 0)
+        {
+            string candidateSource = firstLine[..separator];
+            if (LoggerSourcePattern.IsMatch(candidateSource))
+            {
+                source = candidateSource;
+                summary = WithoutStructuredMetadata(firstLine[(separator + 2)..].Trim());
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            summary = "No summary available.";
+        }
+
+        return new LogEntry(timestamp, level, source, summary, technicalDetails);
+    }
+
+    private static string WithoutStructuredMetadata(string summary)
+    {
+        int metadataStart = summary.LastIndexOf(" {", StringComparison.Ordinal);
+        if (metadataStart < 0)
+        {
+            return summary;
+        }
+
+        string candidate = summary[(metadataStart + 1)..];
+        try
+        {
+            using JsonDocument _ = JsonDocument.Parse(candidate);
+            return summary[..metadataStart].TrimEnd();
+        }
+        catch (JsonException)
+        {
+            return summary;
+        }
+    }
+
     // Unparseable timestamps stay visible — hiding them would silently drop entries.
     private static bool IsAfterClearMarker(string? timestamp, DateTimeOffset? clearedAtUtc) =>
         clearedAtUtc is null
@@ -161,6 +214,9 @@ internal sealed partial class RecentLogEntriesHandler
 
     [GeneratedRegex(@"^(?<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \S+) \[(?<lvl>[A-Z]{3})\] (?<msg>.*)$")]
     private static partial Regex BuildHeaderPattern();
+
+    [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_.+`]+$")]
+    private static partial Regex BuildLoggerSourcePattern();
 }
 
 public sealed record ClearRecentLogEntriesRequest;

@@ -11,6 +11,7 @@ public sealed class ReportingModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<ReportExportService>();
+        services.AddScoped<IActionHandler, GetReportReadinessPolicyHandler>();
         services.AddScoped<IActionHandler, GetReportOverviewHandler>();
         services.AddScoped<IActionHandler, ExportHtmlReportHandler>();
         services.AddScoped<IActionHandler, ExportJsonReportHandler>();

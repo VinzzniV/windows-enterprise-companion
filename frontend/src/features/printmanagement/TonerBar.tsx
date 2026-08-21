@@ -16,7 +16,7 @@ function tonerColor(description: string): string {
 /** Compact multi-segment toner gauge: one bar per supply + the lowest %/low flag. */
 export function TonerBar({ supplies }: { supplies: TonerSupply[] }) {
   if (supplies.length === 0) {
-    return <span className="text-xs text-slate-500">—</span>;
+    return <span className="text-xs text-muted">—</span>;
   }
   const min = lowestTonerPercent(supplies);
   const low = hasLowToner(supplies);
@@ -41,7 +41,7 @@ export function TonerBar({ supplies }: { supplies: TonerSupply[] }) {
       ) : min != null ? (
         <span className="text-xs text-slate-400">{min}%</span>
       ) : (
-        <span className="text-xs text-slate-500">n/a</span>
+        <span className="text-xs text-muted">n/a</span>
       )}
     </div>
   );

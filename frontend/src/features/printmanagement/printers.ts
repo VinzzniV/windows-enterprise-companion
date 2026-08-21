@@ -4,6 +4,7 @@ import type {
   PrinterEntry,
   TonerSupply,
 } from '../../shared/api-types';
+import { printerObservationGroupLabel } from './printStatus';
 
 /**
  * Strip the variant suffixes a print queue name carries after its running number
@@ -182,7 +183,7 @@ export function locationFlag(
     return server === '' ? null : { reason: 'missing', serverLocation: server };
   }
   if (device.toLowerCase() !== server.toLowerCase()) {
-    return { reason: 'mismatch', serverLocation: server === '' ? '(leer)' : server };
+    return { reason: 'mismatch', serverLocation: server === '' ? '(empty)' : server };
   }
   return null;
 }
@@ -199,7 +200,7 @@ function groupLabel(printer: MergedPrinter, mode: PrinterGroupMode): string {
     case 'site':
       return printer.site;
     case 'status':
-      return printer.deviceError ? 'Not answering' : printer.status ?? 'Unknown';
+      return printerObservationGroupLabel(printer.deviceError?.code ?? null, printer.status);
     case 'server':
       // A device merged across servers forms its own combined group — rare and honest.
       return printer.servers.join(' + ');

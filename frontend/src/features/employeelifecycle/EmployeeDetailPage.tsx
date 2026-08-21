@@ -50,7 +50,7 @@ interface TaskDraft {
 function MasterDataRow({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="flex flex-col">
-      <span className="text-xs uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-muted">{label}</span>
       <span className="text-sm text-slate-200">{value ?? '—'}</span>
     </div>
   );

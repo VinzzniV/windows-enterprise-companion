@@ -43,6 +43,8 @@ internal interface IKasperskyInventoryReader
 
 internal sealed class KasperskySecurityCenterClient : IKasperskyInventoryReader
 {
+    private static readonly TimeSpan LoginRetryDelay = TimeSpan.FromMilliseconds(350);
+
     private static readonly string[] HostFields =
     [
         "KLHST_WKS_DN",
@@ -85,12 +87,26 @@ internal sealed class KasperskySecurityCenterClient : IKasperskyInventoryReader
             Timeout = connection.Timeout,
         };
 
+        string authorization = BuildAuthorization(connection);
         Result<JsonElement> login = await PostAsync(
             client,
             "login",
             new { },
-            BuildAuthorization(connection),
+            authorization,
             cancellationToken);
+        if (login.IsFailure && login.Error!.Code == ErrorCode.AuthenticationFailed)
+        {
+            // KSC occasionally rejects the first login while its OpenAPI endpoint
+            // is becoming ready. Retry once; persistent bad credentials still fail.
+            await Task.Delay(LoginRetryDelay, cancellationToken);
+            login = await PostAsync(
+                client,
+                "login",
+                new { },
+                authorization,
+                cancellationToken);
+        }
+
         if (login.IsFailure)
         {
             return Result.Failure<KasperskyInventory>(login.Error!);

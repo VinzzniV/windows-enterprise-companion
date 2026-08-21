@@ -22,6 +22,16 @@ public interface IDirectoryReader
         DirectorySearchQuery query,
         int entryLimit,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Counts every LDAP match while retaining only one offset-based result
+    /// window. Callers must provide a stable server-side sort on the query.
+    /// </summary>
+    Task<Result<BoundedDirectorySearchResult>> SearchPageAsync(
+        DirectorySearchQuery query,
+        int entryOffset,
+        int entryLimit,
+        CancellationToken cancellationToken);
 }
 
 public sealed record BoundedDirectorySearchResult(

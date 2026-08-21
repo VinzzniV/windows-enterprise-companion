@@ -16,14 +16,32 @@ interface SummaryMetricProps {
   label: string;
   value: ReactNode;
   tone?: MetricTone;
+  onClick?: () => void;
+  active?: boolean;
+  ariaLabel?: string;
 }
 
 /** One number-over-label tile for the summary strip on top of result views. */
-export function SummaryMetric({ label, value, tone = 'neutral' }: SummaryMetricProps) {
-  return (
-    <div className="min-w-24 rounded border border-slate-800 bg-slate-900/50 px-3 py-2">
+export function SummaryMetric({ label, value, tone = 'neutral', onClick, active = false, ariaLabel }: SummaryMetricProps) {
+  const content = <>
       <div className={`text-xl font-semibold tabular-nums ${toneStyles[tone]}`}>{value}</div>
       <div className="text-xs text-slate-400">{label}</div>
-    </div>
-  );
+    </>;
+  const baseClass = 'min-w-24 rounded border bg-slate-900/50 px-3 py-2';
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={ariaLabel}
+        aria-pressed={active}
+        className={`${baseClass} cursor-pointer text-left transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500 ${active ? 'border-accent-500 bg-accent-500/10' : 'border-slate-800 hover:border-slate-600 hover:bg-slate-800/60'}`}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={`${baseClass} border-slate-800`}>{content}</div>;
 }

@@ -207,7 +207,25 @@ describe('filterPrinters / groupPrinters', () => {
   it('groups by model, server and status with honest unknown labels', () => {
     expect(groupPrinters(merged, 'model').map((g) => g.label)).toEqual(['Kyocera', 'Unknown model', 'UTAX']);
     expect(groupPrinters(merged, 'server').map((g) => g.label)).toEqual(['OTHERSRV', 'PRSRV']);
-    expect(groupPrinters(merged, 'status').map((g) => g.label)).toEqual(['Not answering', 'Unknown']);
+    expect(groupPrinters(merged, 'status').map((g) => g.label)).toEqual(['Unknown']);
+  });
+  it('groups provider states by their canonical semantic status family', () => {
+    const printers = mergePrinters([
+      { server: 'PRSRV', entry: withDevice({ queueName: 'KF-NETPRT011' }, { status: 'Idle' }) },
+      { server: 'PRSRV', entry: withDevice({ queueName: 'KF-NETPRT012' }, { status: 'Printing' }) },
+      { server: 'PRSRV', entry: withDevice({ queueName: 'KF-NETPRT013' }, { status: 'Warmup' }) },
+      { server: 'PRSRV', entry: withDevice({ queueName: 'KF-NETPRT014' }, { status: 'Other' }) },
+      { server: 'PRSRV', entry: entry({ queueName: 'KF-NETPRT015', deviceError: { code: 'CONNECTION_TIMEOUT', message: 'no answer' } }) },
+    ]);
+
+    expect(groupPrinters(printers, 'status').map((group) => ({
+      label: group.label,
+      count: group.printers.length,
+    }))).toEqual([
+      { label: 'Idle', count: 1 },
+      { label: 'Running', count: 2 },
+      { label: 'Unknown', count: 2 },
+    ]);
   });
   it("'none' keeps a single flat group", () => {
     const flat = groupPrinters(merged, 'none');

@@ -6,12 +6,14 @@ import type {
   ListInventoryHostsResult,
   ListPrintServersResult,
   OpsiConnectionStatusResult,
-  PatchDashboardResult,
+  PatchDashboardOverview,
   PrintServerSnapshot,
+  ReportReadinessPolicy,
   VulnerabilityOverview,
   VulnerabilityTrend,
 } from '../../shared/api-types';
 import type { MetricTone } from '../../shared/ui/SummaryMetric';
+import { SemanticStatusBadge, type SemanticStatus } from '../../shared/ui/SemanticStatusBadge';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { navIcons } from '../../app/navIcons';
 import {
@@ -20,6 +22,10 @@ import {
   derivePatchTile,
   derivePrintTile,
   deriveSecurityTile,
+  deriveVulnerabilityTile,
+  errorTile,
+  loadingTile,
+  type DashboardDataState,
   type PatchChartSegment,
   type TileMetric,
 } from './dashboard';
@@ -31,6 +37,20 @@ const toneText: Record<MetricTone, string> = {
   danger: 'text-fail-400',
   info: 'text-info-400',
 };
+
+const stateStatus: Record<DashboardDataState, SemanticStatus> = {
+  loading: { dimension: 'execution', value: 'running' },
+  fresh: { dimension: 'freshness', value: 'fresh' },
+  stale: { dimension: 'freshness', value: 'stale' },
+  missing: { dimension: 'availability', value: 'missing' },
+  partial: { dimension: 'execution', value: 'partial' },
+  error: { dimension: 'execution', value: 'failed' },
+  unknown: { dimension: 'availability', value: 'unknown' },
+};
+
+function formatTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString();
+}
 
 interface TileProps {
   to: string;
@@ -61,11 +81,24 @@ function ModuleTile({ to, icon, title, description, metric }: TileProps) {
         </svg>
       </div>
       {metric ? (
-        <div>
-          <div className={`text-2xl font-semibold tabular-nums ${toneText[metric.tone]}`}>
-            {metric.value}
+        <div className="flex flex-1 flex-col gap-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className={`text-2xl font-semibold tabular-nums ${toneText[metric.tone]}`}>
+              {metric.value}
+            </div>
+            <SemanticStatusBadge status={stateStatus[metric.state]} />
           </div>
-          {metric.note && <div className="mt-0.5 text-xs text-slate-500">{metric.note}</div>}
+          <div className="text-xs text-slate-400">{metric.note}</div>
+          <dl className="mt-auto grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 border-t border-slate-800 pt-2 text-[11px] leading-4 text-muted">
+            <dt>Source</dt>
+            <dd className="min-w-0 truncate text-right text-slate-400" title={metric.source}>{metric.source}</dd>
+            <dt>Captured</dt>
+            <dd className="text-right text-slate-400">
+              {metric.capturedAtUtc ? formatTimestamp(metric.capturedAtUtc) : '—'}
+            </dd>
+            <dt>Coverage</dt>
+            <dd className="text-right text-slate-400">{metric.coverage}</dd>
+          </dl>
         </div>
       ) : (
         <p className="text-sm text-slate-400">{description}</p>
@@ -75,56 +108,109 @@ function ModuleTile({ to, icon, title, description, metric }: TileProps) {
 }
 
 export function DashboardPage() {
-  const [inventory, setInventory] = useState<TileMetric | null>(null);
-  const [security, setSecurity] = useState<TileMetric | null>(null);
-  const [print, setPrint] = useState<TileMetric | null>(null);
-  const [patch, setPatch] = useState<TileMetric | null>(null);
+  const [inventory, setInventory] = useState<TileMetric>(() => loadingTile('Stored WMI/CIM inventory snapshots'));
+  const [security, setSecurity] = useState<TileMetric>(() => loadingTile('Persisted Security scan and per-check outcomes'));
+  const [print, setPrint] = useState<TileMetric>(() => loadingTile('Stored print-server snapshots'));
+  const [patch, setPatch] = useState<TileMetric>(() => loadingTile('Live opsi connection status'));
   const [patchChart, setPatchChart] = useState<PatchChartSegment[] | null>(null);
-  const [vulnerabilities, setVulnerabilities] = useState<TileMetric | null>(null);
+  const [vulnerabilities, setVulnerabilities] = useState<TileMetric>(() => loadingTile('Persisted Nessus scan inventory'));
 
   useEffect(() => {
-    invoke<ListInventoryHostsResult>('inventory', 'listHosts', {})
-      .then((result) => setInventory(deriveInventoryTile(result.hosts)))
-      .catch(() => setInventory(deriveInventoryTile([])));
+    let active = true;
+    let vulnerabilityTimer: ReturnType<typeof setTimeout> | undefined;
+    const policy = invoke<ReportReadinessPolicy>('reporting', 'getReadinessPolicy', {});
 
-    invoke<LatestScanResult>('security', 'getLatestScan', {})
-      .then((result) => setSecurity(deriveSecurityTile(result.scan)))
-      .catch(() => setSecurity(deriveSecurityTile(null)));
+    Promise.all([
+      invoke<ListInventoryHostsResult>('inventory', 'listHosts', {}),
+      policy,
+    ])
+      .then(([result, readiness]) => {
+        if (active) setInventory(deriveInventoryTile(result.hosts, readiness.maximumInventoryAgeSeconds));
+      })
+      .catch(() => {
+        if (active) setInventory(errorTile('Stored WMI/CIM inventory snapshots', 'Could not read stored inventory'));
+      });
+
+    Promise.all([
+      invoke<LatestScanResult>('security', 'getLatestScan', {}),
+      policy,
+    ])
+      .then(([result, readiness]) => {
+        if (active) setSecurity(deriveSecurityTile(result.scan, readiness.maximumSecurityScanAgeSeconds));
+      })
+      .catch(() => {
+        if (active) setSecurity(errorTile('Persisted Security scan and per-check outcomes', 'Could not read the latest Security scan'));
+      });
 
     invoke<ListPrintServersResult>('printmanagement', 'listServers', {})
       .then(async (result) => {
-        const snapshots = (
-          await Promise.all(
-            result.servers.map((server) =>
-              invoke<PrintServerSnapshot>('printmanagement', 'getLatest', { server: server.server })
-                .then((snapshot) => snapshot)
-                .catch(() => null),
-            ),
-          )
-        ).filter((snapshot): snapshot is PrintServerSnapshot => snapshot !== null);
-        setPrint(derivePrintTile(result.servers, snapshots));
+        const loaded = await Promise.all(
+          result.servers.map((server) =>
+            invoke<PrintServerSnapshot>('printmanagement', 'getLatest', { server: server.server })
+              .then((snapshot) => snapshot)
+              .catch(() => null),
+          ),
+        );
+        const snapshots = loaded.filter((snapshot): snapshot is PrintServerSnapshot => snapshot !== null);
+        if (active) setPrint(derivePrintTile(result.servers, snapshots, loaded.length - snapshots.length));
       })
-      .catch(() => setPrint(derivePrintTile([], [])));
+      .catch(() => {
+        if (active) setPrint(errorTile('Stored print-server snapshots', 'Could not read registered print servers'));
+      });
 
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'getConnectionStatus', {})
       .then((status) => {
+        if (!active) return;
         setPatch(derivePatchTile(status));
         if (!status.connected) return;
         // Only reachable with an active opsi session — chart the product states.
-        invoke<PatchDashboardResult>('patchmanagement', 'getDashboard', { depotFilter: null })
-          .then((dashboard) => setPatchChart(derivePatchStatusChart(dashboard.products)))
-          .catch(() => setPatchChart(null));
+        invoke<PatchDashboardOverview>('patchmanagement', 'getDashboard', { depotFilter: null })
+          .then((dashboard) => {
+            if (active) setPatchChart(derivePatchStatusChart(dashboard.products));
+          })
+          .catch(() => {
+            if (!active) return;
+            setPatch((current) => ({
+              ...current,
+              state: 'partial',
+              tone: 'warning',
+              note: 'Connected; product status unavailable',
+              coverage: 'Connection verified; product states not evaluated',
+            }));
+            setPatchChart(null);
+          });
       })
-      .catch(() => setPatch(derivePatchTile(null)));
+      .catch(() => {
+        if (active) setPatch(errorTile('Live opsi connection status', 'Could not read the opsi connection state'));
+      });
 
-    Promise.all([
-      invoke<VulnerabilityOverview>('vulnerabilitymanagement', 'getOverview', { knownHosts: [] }),
-      invoke<VulnerabilityTrend>('vulnerabilitymanagement', 'getTrend', { days: 30 }),
-    ]).then(([overview, trend]) => setVulnerabilities({
-      value: String(overview.criticalAssets),
-      tone: overview.criticalAssets ? 'danger' : 'success',
-      note: `${overview.highAssets} high · ${trend.verdict === 'BETTER' ? '↓' : trend.verdict === 'WORSE' ? '↑' : '→'} ${trend.verdict.replace('_', ' ').toLowerCase()}`,
-    })).catch(() => setVulnerabilities({ value: '—', tone: 'neutral', note: 'Nessus not configured' }));
+    const loadVulnerabilities = async () => {
+      try {
+        const overview = await invoke<VulnerabilityOverview>(
+          'vulnerabilitymanagement',
+          'getOverview',
+          { knownHosts: [] },
+        );
+        const trend = overview.sync.running
+          ? null
+          : await invoke<VulnerabilityTrend>(
+            'vulnerabilitymanagement',
+            'getTrend',
+            { days: 30 },
+          ).catch(() => null);
+        if (!active) return;
+        setVulnerabilities(deriveVulnerabilityTile(overview, trend));
+        if (overview.sync.running) vulnerabilityTimer = setTimeout(loadVulnerabilities, 2_000);
+      } catch {
+        if (active) setVulnerabilities(errorTile('Persisted Nessus scan inventory', 'Could not read Nessus source data'));
+      }
+    };
+    void loadVulnerabilities();
+
+    return () => {
+      active = false;
+      if (vulnerabilityTimer) clearTimeout(vulnerabilityTimer);
+    };
   }, []);
 
   return (
@@ -139,35 +225,35 @@ export function DashboardPage() {
           icon={navIcons.vulnerabilities}
           title="Vulnerabilities"
           description="Deduplicated Nessus findings and security trend."
-          metric={vulnerabilities ?? undefined}
+          metric={vulnerabilities}
         />
         <ModuleTile
           to="/clients"
           icon={navIcons.clients}
           title="Clients"
           description="Per-host inventory, security and diagnostics — scanned on demand."
-          metric={inventory ?? undefined}
+          metric={inventory}
         />
         <ModuleTile
           to="/clients"
           icon={navIcons.security}
           title="Security"
           description="Read-only security posture from the last per-client scan."
-          metric={security ?? undefined}
+          metric={security}
         />
         <ModuleTile
           to="/printmanagement"
           icon={navIcons.printmanagement}
           title="Print Management"
           description="Printer inventory and toner levels."
-          metric={print ?? undefined}
+          metric={print}
         />
         <ModuleTile
           to="/patchmanagement"
           icon={navIcons.patchmanagement}
           title="Patch Management"
           description="opsi patch workflow and rollout."
-          metric={patch ?? undefined}
+          metric={patch}
         />
         <ModuleTile
           to="/activedirectory"
@@ -200,7 +286,7 @@ function PatchStatusChart({ segments }: { segments: PatchChartSegment[] }) {
       <div className="flex items-center gap-2.5 text-sm font-semibold text-slate-300 group-hover:text-slate-100">
         <span className="text-accent-400">{navIcons.patchmanagement}</span>
         Patch status
-        <span className="ml-auto text-xs font-normal text-slate-500">
+        <span className="ml-auto text-xs font-normal text-muted">
           {total} product{total === 1 ? '' : 's'}
         </span>
       </div>

@@ -114,6 +114,34 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task ListHostsAsync_RemovesLegacySnapshotsWithoutAHost()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        context.Set<HardwareSnapshotRecord>().AddRange(
+            new HardwareSnapshotRecord
+            {
+                Host = string.Empty,
+                CapturedAtUtc = DateTimeOffset.UtcNow,
+                PayloadJson = "{}",
+            },
+            new HardwareSnapshotRecord
+            {
+                Host = "   ",
+                CapturedAtUtc = DateTimeOffset.UtcNow,
+                PayloadJson = "{}",
+            });
+        await context.SaveChangesAsync();
+        var repository = new EfHardwareSnapshotRepository(
+            context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+
+        IReadOnlyList<StoredInventoryHost> hosts = await repository.ListHostsAsync(CancellationToken.None);
+
+        Assert.Empty(hosts);
+        Assert.Equal(0, await context.Set<HardwareSnapshotRecord>().CountAsync());
+    }
+
+    [Fact]
     public async Task GetLatestAsync_ForUnknownHost_ReturnsNull()
     {
         using WecDbContext context = CreateContext();

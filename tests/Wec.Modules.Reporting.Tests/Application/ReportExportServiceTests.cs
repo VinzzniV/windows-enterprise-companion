@@ -156,6 +156,7 @@ public sealed class ReportExportServiceTests : IDisposable
         Result<ReportOverview> overview = await CreateService().GetOverviewAsync(host: null, CancellationToken.None);
 
         Assert.True(overview.IsSuccess);
+        Assert.Equal(Environment.MachineName, overview.Value.SubjectHost);
         Assert.Equal(Now, overview.Value.InventoryCapturedAtUtc);
         Assert.Null(overview.Value.SecurityScanCompletedAtUtc);
         Assert.Null(overview.Value.SecurityCoverage);
@@ -250,8 +251,10 @@ public sealed class ReportExportServiceTests : IDisposable
     {
         SetUpData();
 
-        await CreateService().GetOverviewAsync(host: "PC-42.contoso.local", CancellationToken.None);
+        Result<ReportOverview> overview = await CreateService().GetOverviewAsync(
+            host: "PC-42.contoso.local", CancellationToken.None);
 
+        Assert.Equal("PC-42.contoso.local", overview.Value.SubjectHost);
         await _inventoryProvider.Received(1).GetLatestAsync("PC-42.contoso.local", Arg.Any<CancellationToken>());
         await _securityProvider.Received(1).GetLatestScanAsync("PC-42.contoso.local", Arg.Any<CancellationToken>());
     }

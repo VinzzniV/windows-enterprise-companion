@@ -24,6 +24,18 @@ public sealed class AdFiltersTests
     }
 
     [Fact]
+    public void DirectMembersOfGroup_UsesEscapedBacklinkAndIdentitySearch()
+    {
+        string filter = AdFilters.WithDirectoryIdentitySearch(
+            AdFilters.DirectMembersOfGroup("CN=Admins (Tier 0),DC=x"),
+            "ops*(admin)");
+
+        Assert.Contains(@"(memberOf=CN=Admins \28Tier 0\29,DC=x)", filter, StringComparison.Ordinal);
+        Assert.Contains(@"(cn=*ops\2a\28admin\29*)", filter, StringComparison.Ordinal);
+        Assert.Contains(@"(sAMAccountName=*ops\2a\28admin\29*)", filter, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InactiveUsers_ExcludesDisabledAccountsAndUsesInvariantFileTime()
     {
         string filter = AdFilters.InactiveUsers(133_800_000_000_000_000);

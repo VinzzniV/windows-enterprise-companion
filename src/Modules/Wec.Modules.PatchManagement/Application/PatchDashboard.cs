@@ -11,6 +11,15 @@ public sealed record PatchDashboardResult(
     IReadOnlyList<PatchProductRow> Products,
     IReadOnlyList<UnmappedSoftware> UnmappedSoftware);
 
+public sealed record PatchDashboardOverview(
+    string ServerUrl,
+    string? DepotFilter,
+    DateTimeOffset GeneratedAtUtc,
+    PatchDashboardSummary Summary,
+    IReadOnlyList<PatchDepotSummary> Depots,
+    IReadOnlyList<PatchProductOverviewRow> Products,
+    IReadOnlyList<UnmappedSoftware> UnmappedSoftware);
+
 public sealed record PatchDashboardSummary(
     int ProductCount,
     int ProductsWithUpdates,
@@ -48,6 +57,28 @@ public sealed record PatchProductRow(
     IReadOnlyList<string> MappedSoftwareNames,
     IReadOnlyList<InventoryDetection> InventoryDetections);
 
+public sealed record PatchProductOverviewRow(
+    string ProductId,
+    string? Name,
+    string? AvailableVersion,
+    string? ReferenceVersion,
+    string? ManufacturerVersion,
+    string ManufacturerCheckStatus,
+    DateTimeOffset? ManufacturerCheckedAtUtc,
+    string? ManufacturerCheckError,
+    bool ManufacturerUpdateAvailable,
+    IReadOnlyList<PatchDepotVersion> DepotVersions,
+    IReadOnlyList<string> MissingDepotIds,
+    PatchPackageStatus PackageStatus,
+    PatchWorkflowState State,
+    int InstalledClientCount,
+    int OutdatedClientCount,
+    int FailedClientCount,
+    int PendingActionCount,
+    string? LastError,
+    IReadOnlyList<string> MappedSoftwareNames,
+    IReadOnlyList<InventoryDetection> InventoryDetections);
+
 public sealed record PatchDepotVersion(string DepotId, string Version);
 
 public enum PatchPackageStatus
@@ -69,6 +100,18 @@ public sealed record PatchClientState(
     string? ActionRequest,
     string? ActionResult,
     PatchWorkflowState State);
+
+public sealed record PatchClientListItem(
+    string ProductId,
+    string? ProductName,
+    PatchClientState Client);
+
+public sealed record PatchClientStatePage(
+    IReadOnlyList<PatchClientListItem> Items,
+    int Total,
+    int SnapshotTotal,
+    int Page,
+    int PageSize);
 
 public sealed record InventoryDetection(string Host, string? Version);
 

@@ -12,7 +12,8 @@ a host string targets the already-scanned remote client with that cache key.
 
 | Action | Payload | Result |
 |---|---|---|
-| `reporting/getOverview` | `{ host?: string \| null }` | `ReportOverview` — available data plus Security coverage/readiness |
+| `reporting/getReadinessPolicy` | `{}` | `ReportReadinessPolicy` — configured Inventory/Security freshness windows in seconds |
+| `reporting/getOverview` | `{ host?: string \| null }` | `ReportOverview` — resolved `subjectHost`, available data plus Security coverage/readiness |
 | `reporting/exportHtml` | `{ openAfterExport?: boolean, host?: string \| null }` | `ReportExportResult` — save-dialog flow, self-contained HTML |
 | `reporting/exportJson` | `{ openAfterExport?: boolean, host?: string \| null }` | `ReportExportResult` — same data set as camelCase JSON |
 
@@ -37,10 +38,16 @@ a host string targets the already-scanned remote client with that cache key.
   `INCOMPLETE`, with capture time, age, and provenance. Readiness is advisory:
   a partial export remains possible, but the report records why it must not be
   treated as current or complete.
+- `ReportOverview.subjectHost` is the exact report subject used for client
+  navigation: `Environment.MachineName` for a local request and the unchanged
+  requested host for a remote report. The frontend does not guess this identity
+  from a separate request.
 - The default freshness window is 24 hours for Inventory and Security. Override
   `Wec:Reporting:MaximumInventoryAge` or
   `Wec:Reporting:MaximumSecurityScanAge` with a positive `TimeSpan` when the
-  operating procedure requires a different window.
+  operating procedure requires a different window. The Dashboard reads the
+  same values through `getReadinessPolicy`; it does not duplicate these
+  thresholds in TypeScript.
 - Dialog cancel is a success (`cancelled: true`), not an error. Nothing to
   export ⇒ `NOT_FOUND` before any dialog. `openAfterExport` opens only the
   file just written — no path ever crosses the bridge inbound.

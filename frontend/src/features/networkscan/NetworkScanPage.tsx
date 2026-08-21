@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
-import { errorText } from '../../shared/bridge/errorText';
+import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 import type {
   DeviceKind,
   NetworkHostRow,
@@ -16,15 +16,9 @@ import { Input } from '../../shared/ui/Input';
 import { Card } from '../../shared/ui/Card';
 import { DataTable, type DataColumn } from '../../shared/ui/DataTable';
 import { StatusBadge, type StatusBadgeVariant } from '../../shared/ui/StatusBadge';
+import { SemanticStatusBadge } from '../../shared/ui/SemanticStatusBadge';
 import { ErrorState } from '../../shared/ui/States';
-import { deviceKindLabel, hostStatus, type HostStatus } from './network';
-
-const statusMeta: Record<HostStatus, { variant: StatusBadgeVariant; label: string }> = {
-  ok: { variant: 'success', label: 'Reserviert' },
-  rogue: { variant: 'error', label: 'Keine Reservierung' },
-  stale: { variant: 'elevation', label: 'Karteileiche' },
-  up: { variant: 'neutral', label: 'Aktiv' },
-};
+import { deviceKindLabel, hostStatus, hostStatusPresentation } from './network';
 
 const kindVariant: Record<DeviceKind, StatusBadgeVariant> = {
   PRINTER: 'info',
@@ -37,7 +31,7 @@ function Metric({ label, value, tone }: { label: string; value: number; tone?: s
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-2">
       <div className={`text-lg font-semibold ${tone ?? 'text-slate-200'}`}>{value}</div>
-      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-xs text-muted">{label}</div>
     </div>
   );
 }
@@ -51,7 +45,7 @@ export function NetworkScanPage() {
   const [dhcpServer, setDhcpServer] = useState('');
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<NetworkScanResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorPresentation | null>(null);
 
   // The DHCP server usually sits on a domain controller and needs an admin token;
   // carry the session admin identity when one is signed in (never persisted).
@@ -71,7 +65,12 @@ export function NetworkScanPage() {
   const scan = useCallback(() => {
     const trimmedTarget = target.trim();
     if (trimmedTarget === '') {
-      setError('Bitte ein Ziel angeben (z. B. 172.20.20.0/24).');
+      setError({
+        message: 'The network scan requires a target.',
+        cause: 'The CIDR, IP range, or individual IP field is empty.',
+        action: 'Enter a target such as 172.20.20.0/24 and start the scan again.',
+        technicalDetails: 'Validation: network scan target is empty.',
+      });
       return;
     }
     const trimmedDhcp = dhcpServer.trim();
@@ -84,7 +83,9 @@ export function NetworkScanPage() {
     setError(null);
     invoke<NetworkScanResult>('networkscan', 'scan', request)
       .then(setResult)
-      .catch((caught: unknown) => setError(errorText(caught)))
+      .catch((caught: unknown) => setError(presentError(caught, {
+        message: 'The network scan could not be completed.',
+      })))
       .finally(() => setScanning(false));
   }, [target, scanPorts, dhcpServer, dhcpRequest]);
 
@@ -113,7 +114,7 @@ export function NetworkScanPage() {
         sortValue: (host) => host.hostname,
       },
       {
-        header: 'Typ',
+        header: 'Type',
         cell: (host) => <StatusBadge variant={kindVariant[host.kind]}>{deviceKindLabel[host.kind]}</StatusBadge>,
         sortValue: (host) => deviceKindLabel[host.kind],
       },
@@ -121,23 +122,24 @@ export function NetworkScanPage() {
         header: 'Status',
         cell: (host) => {
           const status = hostStatus(host, metrics.dhcpChecked);
-          const meta = statusMeta[status];
+          const presentation = hostStatusPresentation(status);
           return (
-            <span title={host.reservationName ?? undefined}>
-              <StatusBadge variant={meta.variant}>{meta.label}</StatusBadge>
+            <span className="flex flex-wrap items-center gap-2" title={host.reservationName ?? undefined}>
+              <SemanticStatusBadge status={presentation.status} />
+              <span className="text-xs text-slate-400">{presentation.context}</span>
             </span>
           );
         },
         sortValue: (host) => hostStatus(host, metrics.dhcpChecked),
       },
       {
-        header: 'Offene Ports',
+        header: 'Open ports',
         mono: true,
         cell: (host) => (host.openPorts.length > 0 ? host.openPorts.join(', ') : '—'),
         sortValue: (host) => host.openPorts.length,
       },
       {
-        header: 'MAC-Hersteller',
+        header: 'MAC vendor',
         cell: (host) => host.macVendor ?? '—',
         sortValue: (host) => host.macVendor,
       },
@@ -148,19 +150,19 @@ export function NetworkScanPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Netzwerkscan"
-        subtitle="nmap-Discovery eines Subnetzes: lebende Hosts, Gerätetyp, offene Ports und optional DHCP-Reservierungen."
+        title="Network Scan"
+        subtitle="Discover live hosts, device types, open ports, and optional DHCP reservations in a subnet with nmap."
       />
 
       <Toolbar
         actions={
           <Button variant="primary" onClick={scan} disabled={scanning}>
-            {scanning ? 'Scanne…' : 'Scannen'}
+            {scanning ? 'Scanning…' : 'Scan'}
           </Button>
         }
       >
         <label className="flex flex-col gap-0.5">
-          <span className="text-xs text-slate-500">Ziel (CIDR, Bereich oder IP)</span>
+          <span className="text-xs text-muted">Target (CIDR, range, or IP)</span>
           <Input
             className="w-56"
             value={target}
@@ -170,11 +172,11 @@ export function NetworkScanPage() {
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-xs text-slate-500">DHCP-Server (optional)</span>
+          <span className="text-xs text-muted">DHCP server (optional)</span>
           <Input
             className="w-48"
             value={dhcpServer}
-            placeholder="z. B. PK-SRVDC001"
+            placeholder="e.g. PK-SRVDC001"
             onChange={(event) => setDhcpServer(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && scan()}
           />
@@ -186,42 +188,48 @@ export function NetworkScanPage() {
             onChange={(event) => setScanPorts(event.target.checked)}
             className="h-4 w-4 accent-accent-500"
           />
-          Ports scannen
+          Scan ports
         </label>
       </Toolbar>
 
       {dhcpServer.trim() !== '' && !adminCredentials && (
         <p className="text-xs text-elevation-400">
-          Für die DHCP-Prüfung oben rechts „Sign in as admin" — sonst läuft die Abfrage als aktueller Benutzer und
-          scheitert meist.
+          For the DHCP check, use “Sign in as admin” in the top right. Otherwise the query runs as the current
+          Windows user and will usually fail.
         </p>
       )}
 
-      {error && <ErrorState message={error} />}
+      {error && (
+        <ErrorState
+          title="Network scan failed"
+          {...error}
+          controls={<Button variant="secondary" onClick={scan} disabled={scanning}>Scan again</Button>}
+        />
+      )}
 
       {result && (
         <>
           <div className="flex flex-wrap gap-3">
-            <Metric label="Aktiv" value={metrics.up} />
+            <Metric label="Active" value={metrics.up} />
             {metrics.dhcpChecked && (
-              <Metric label="Ohne Reservierung" value={metrics.rogue} tone={metrics.rogue > 0 ? 'text-fail-400' : undefined} />
+              <Metric label="Without reservation" value={metrics.rogue} tone={metrics.rogue > 0 ? 'text-fail-400' : undefined} />
             )}
             {metrics.dhcpChecked && (
               <Metric
-                label="Karteileichen"
+                label="Stale reservations"
                 value={metrics.stale}
                 tone={metrics.stale > 0 ? 'text-elevation-400' : undefined}
               />
             )}
           </div>
 
-          <Card title={`Ergebnis für ${result.target}`}>
+          <Card title={`Result for ${result.target}`}>
             <DataTable
               columns={columns}
               rows={rows}
               getRowKey={(host) => host.ip}
               stickyHeader
-              emptyMessage="Keine Hosts gefunden."
+              emptyMessage="No hosts found."
             />
           </Card>
         </>

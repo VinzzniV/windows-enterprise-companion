@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
@@ -8,7 +8,7 @@ import { PageHeader } from '../../shared/ui/PageHeader';
 import { Button } from '../../shared/ui/Button';
 import { Badge } from '../../shared/ui/Badge';
 import { Spinner } from '../../shared/ui/Spinner';
-import { EmptyState } from '../../shared/ui/States';
+import { EmptyState, ErrorState } from '../../shared/ui/States';
 import { clientKey, isLocalClient, toClientTarget } from './clients';
 import { InventorySection } from './sections/InventorySection';
 import { SecuritySection } from './sections/SecuritySection';
@@ -18,7 +18,7 @@ import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
 import { OverviewSection } from './sections/OverviewSection';
 import { openPsSession } from '../../shared/ps/openPsSession';
-import { errorText } from '../../shared/bridge/errorText';
+import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 
 type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
 
@@ -31,6 +31,10 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'printers', label: 'Printers' },
   { key: 'reporting', label: 'Report export' },
 ];
+
+function isSectionKey(value: string | null): value is SectionKey {
+  return SECTIONS.some((section) => section.key === value);
+}
 
 /** Read-only reminder of which identity remote sections scan as (the global admin sign-in). */
 function ClientScanIdentity({ credentials }: { credentials: CredentialValues | undefined }) {
@@ -54,14 +58,17 @@ function ClientScanIdentity({ credentials }: { credentials: CredentialValues | u
 export function ClientDetailPage() {
   const navigate = useNavigate();
   const { host: rawHost } = useParams<{ host: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const host = decodeURIComponent(rawHost ?? '');
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
   // undefined = getAppInfo not resolved yet; string|null once known. Sections
   // must wait for this so the local machine is never scanned as a remote target.
   const [machineName, setMachineName] = useState<string | null | undefined>(undefined);
-  const [section, setSection] = useState<SectionKey>('overview');
-  const [powerShellError, setPowerShellError] = useState<string | null>(null);
+  const requestedSection = searchParams.get('section');
+  const section: SectionKey = isSectionKey(requestedSection) ? requestedSection : 'overview';
+  const [powerShellError, setPowerShellError] = useState<ErrorPresentation | null>(null);
+  const [reportRevision, setReportRevision] = useState(0);
 
   useEffect(() => {
     invoke<AppInfoResponse>('system', 'getAppInfo')
@@ -77,6 +84,7 @@ export function ClientDetailPage() {
     () => toClientTarget(host, resolvedMachineName, credentials),
     [host, resolvedMachineName, credentials],
   );
+  const refreshReport = useCallback(() => setReportRevision((revision) => revision + 1), []);
 
   const savedEntry = useMemo(
     // Match by the same short-name key the Clients list merges on, so a client
@@ -85,12 +93,22 @@ export function ClientDetailPage() {
     [savedTargets, host],
   );
 
+  const selectSection = useCallback((nextSection: SectionKey) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextSection === 'overview') {
+      nextParams.delete('section');
+    } else {
+      nextParams.set('section', nextSection);
+    }
+    setSearchParams(nextParams);
+  }, [searchParams, setSearchParams]);
+
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();
     const delta = event.key === 'ArrowRight' ? 1 : -1;
     const next = SECTIONS[(index + delta + SECTIONS.length) % SECTIONS.length];
-    setSection(next.key);
+    selectSection(next.key);
     document.getElementById(`clienttab-${next.key}`)?.focus();
   };
 
@@ -111,7 +129,9 @@ export function ClientDetailPage() {
               onClick={() => {
                 setPowerShellError(null);
                 void openPsSession(host, credentials ?? null).catch((caught: unknown) =>
-                  setPowerShellError(errorText(caught)),
+                  setPowerShellError(presentError(caught, {
+                    message: 'The PowerShell session could not be opened.',
+                  })),
                 );
               }}
               title={`Open a PowerShell session to ${host}`}
@@ -136,9 +156,7 @@ export function ClientDetailPage() {
         </div>
       </PageHeader>
       {powerShellError && (
-        <p role="alert" className="rounded border border-fail-700/60 bg-fail-950/30 px-3 py-2 text-sm text-fail-300">
-          PowerShell session could not be opened: {powerShellError}
-        </p>
+        <ErrorState title="PowerShell session unavailable" {...powerShellError} />
       )}
 
       {!local && <ClientScanIdentity credentials={credentials} />}
@@ -153,7 +171,7 @@ export function ClientDetailPage() {
             aria-controls={`clientpanel-${entry.key}`}
             tabIndex={section === entry.key ? 0 : -1}
             type="button"
-            onClick={() => setSection(entry.key)}
+            onClick={() => selectSection(entry.key)}
             onKeyDown={(event) => onTabKeyDown(event, index)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm transition-colors ${
               section === entry.key
@@ -176,10 +194,10 @@ export function ClientDetailPage() {
             <OverviewSection host={host} />
           </div>
           <div role="tabpanel" id="clientpanel-inventory" aria-labelledby="clienttab-inventory" hidden={section !== 'inventory'}>
-            <InventorySection key={host} target={target} />
+            <InventorySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-security" aria-labelledby="clienttab-security" hidden={section !== 'security'}>
-            <SecuritySection key={host} target={target} />
+            <SecuritySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-diagnostics" aria-labelledby="clienttab-diagnostics" hidden={section !== 'diagnostics'}>
             <DiagnosticsSection key={host} target={target} />
@@ -191,7 +209,10 @@ export function ClientDetailPage() {
             <PrintersSection key={host} target={target} />
           </div>
           <div role="tabpanel" id="clientpanel-reporting" aria-labelledby="clienttab-reporting" hidden={section !== 'reporting'}>
-            <ReportingSection host={local ? null : host} />
+            <ReportingSection
+              host={local ? null : host}
+              refreshKey={reportRevision}
+            />
           </div>
         </>
       )}

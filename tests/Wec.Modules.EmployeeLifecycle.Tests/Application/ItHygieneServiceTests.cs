@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
+using Wec.Core.Messaging;
 using Wec.Core.Results;
 using Wec.Modules.EmployeeLifecycle.Application;
 
@@ -228,6 +229,7 @@ public sealed class ItHygieneServiceTests
             new OpsiProvider(Result.Success(new OpsiComputerInventory([Opsi("PC001")]))),
             new NessusProvider(),
             new CredentialStore(),
+            new EventPublisher(),
             new TestClock(),
             Microsoft.Extensions.Options.Options.Create(Options));
 
@@ -260,6 +262,7 @@ public sealed class ItHygieneServiceTests
             new OpsiProvider(Result.Success(new OpsiComputerInventory([Opsi("PC001")]))),
             new NessusProvider(),
             new CredentialStore(),
+            new EventPublisher(),
             new TestClock(),
             Microsoft.Extensions.Options.Options.Create(Options));
 
@@ -287,6 +290,7 @@ public sealed class ItHygieneServiceTests
             new OpsiProvider(Result.Success(new OpsiComputerInventory([]))),
             new NessusProvider(),
             credentials,
+            new EventPublisher(),
             new TestClock(),
             Microsoft.Extensions.Options.Options.Create(Options));
 
@@ -298,6 +302,70 @@ public sealed class ItHygieneServiceTests
         Assert.Equal("ksc-reader", kaspersky.Connection.UserName);
         Assert.Equal("CORP", kaspersky.Connection.Domain);
         Assert.Equal("stored-secret", kaspersky.Connection.Password);
+    }
+
+    [Fact]
+    public async Task LoadAsync_PublishesCorrelatedSourceProgressAndPartialSummaries()
+    {
+        var events = new EventPublisher();
+        var service = new ItHygieneService(
+            new AdProvider(Result.Success(new AdComputerInventory(
+                true, "example.test", [Ad("PC001")], false))),
+            new KasperskyProvider(Result.Success(new KasperskyInventory([Ksc("PC001")], false))),
+            new OpsiProvider(Result.Success(new OpsiComputerInventory([Opsi("PC001")]))),
+            new NessusProvider(),
+            new CredentialStore(),
+            events,
+            new TestClock(),
+            Microsoft.Extensions.Options.Options.Create(Options));
+
+        Result<ItHygieneResult> loaded = await service.LoadAsync(
+            new ItHygieneRequest(
+                Kaspersky: new KasperskyInventoryConnection(UserName: "reader", Password: "secret"),
+                OperationId: "operation-1"),
+            CancellationToken.None);
+
+        Assert.True(loaded.IsSuccess);
+        HygieneLoadProgress[] progress = events.Progress.ToArray();
+        Assert.NotEmpty(progress);
+        Assert.All(progress, item => Assert.Equal("operation-1", item.OperationId));
+        Assert.Equal(HygieneLoadPhase.LoadingSources, progress[0].Phase);
+        Assert.Equal(0, progress[0].CompletedSources);
+        Assert.Contains(progress, item => item.CompletedSources is > 0 and < 4 && item.PartialDeviceCount > 0);
+        Assert.Contains(progress, item => item.Phase == HygieneLoadPhase.Correlating && item.CompletedSources == 4);
+        HygieneLoadProgress completed = Assert.Single(progress, item => item.Phase == HygieneLoadPhase.Completed);
+        Assert.Equal(4, completed.CompletedSources);
+        Assert.Equal(loaded.Value.Summary, completed.PartialSummary);
+        Assert.All(completed.Sources, source => Assert.NotEqual(HygieneSourceProgressStatus.Running, source.Status));
+    }
+
+    [Fact]
+    public async Task LoadAsync_PublishesCancelledAndPropagatesCancellationToAProvider()
+    {
+        var events = new EventPublisher();
+        var blocking = new BlockingKasperskyProvider();
+        var service = new ItHygieneService(
+            new AdProvider(Result.Success(new AdComputerInventory(true, "example.test", [], false))),
+            blocking,
+            new OpsiProvider(Result.Success(new OpsiComputerInventory([]))),
+            new NessusProvider(),
+            new CredentialStore(),
+            events,
+            new TestClock(),
+            Microsoft.Extensions.Options.Options.Create(Options));
+        using var cancellation = new CancellationTokenSource();
+
+        Task<Result<ItHygieneResult>> load = service.LoadAsync(
+            new ItHygieneRequest(
+                Kaspersky: new KasperskyInventoryConnection(UserName: "reader", Password: "secret"),
+                OperationId: "cancel-me"),
+            cancellation.Token);
+        await blocking.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => load);
+        Assert.True(blocking.ObservedCancellation);
+        Assert.Contains(events.Progress, item => item.OperationId == "cancel-me" && item.Phase == HygieneLoadPhase.Cancelled);
     }
 
     private static readonly InventorySourceState Available =
@@ -386,6 +454,29 @@ public sealed class ItHygieneServiceTests
         }
     }
 
+    private sealed class BlockingKasperskyProvider : IKasperskyInventoryReader
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool ObservedCancellation { get; private set; }
+
+        public async Task<Result<KasperskyInventory>> LoadAsync(
+            KasperskyConnection connection,
+            CancellationToken cancellationToken)
+        {
+            Started.SetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                return Result.Success(new KasperskyInventory([], false));
+            }
+            catch (OperationCanceledException)
+            {
+                ObservedCancellation = true;
+                throw;
+            }
+        }
+    }
+
     private sealed class OpsiProvider(Result<OpsiComputerInventory> result) : IOpsiComputerInventoryProvider
     {
         public Task<Result<OpsiComputerInventory>> LoadAsync(
@@ -405,6 +496,34 @@ public sealed class ItHygieneServiceTests
     private sealed class TestClock : IClock
     {
         public DateTimeOffset UtcNow => Now;
+    }
+
+    private sealed class EventPublisher : IBridgeEventPublisher
+    {
+        private readonly List<HygieneLoadProgress> _progress = [];
+        public IReadOnlyList<HygieneLoadProgress> Progress
+        {
+            get
+            {
+                lock (_progress)
+                {
+                    return _progress.ToArray();
+                }
+            }
+        }
+
+        public void Publish(BridgeEvent bridgeEvent)
+        {
+            if (bridgeEvent.Payload is not HygieneLoadProgress progress)
+            {
+                return;
+            }
+
+            lock (_progress)
+            {
+                _progress.Add(progress);
+            }
+        }
     }
 
     private sealed class CredentialStore(StoredServiceCredential? stored = null) : IServiceCredentialStore

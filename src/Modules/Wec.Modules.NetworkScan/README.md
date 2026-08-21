@@ -11,6 +11,19 @@ or a space-separated list). Answers three questions per host:
    the scanned range that answered nothing → **stale** reservation.
 3. **What is its reverse-DNS name?** — taken straight from nmap's own resolution.
 
+## Presentation semantics
+
+The routed result table maps the existing four reconciliation states to the
+shared UI status contract without changing their backend values. A live host
+with a reservation is Availability `Available` plus `Reserved`; a live host
+without a reservation is Availability `Missing` plus `No reservation`; a
+reserved address that did not answer is Freshness `Stale` plus `Reservation did
+not answer`; and a live host without a DHCP check is Availability `Available`
+plus `Active`. Device kind remains a separate heuristic classification, not a
+Health or Availability status. Reservation names remain technical tooltip
+details. Discovery, DHCP reconciliation, credentials, metrics and bridge
+contracts are unchanged by this presentation mapping.
+
 ## Boundaries
 
 - **Read-only.** nmap never writes; the DHCP path only reads reservations.

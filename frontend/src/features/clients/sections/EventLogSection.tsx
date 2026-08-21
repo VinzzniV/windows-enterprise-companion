@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
-import { errorText } from '../../../shared/bridge/errorText';
+import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import type { EventLogQueryResult, RemoteEventLogEntry, TargetRequest } from '../../../shared/api-types';
 import { Button } from '../../../shared/ui/Button';
 import { Badge, type BadgeTone } from '../../../shared/ui/Badge';
@@ -24,7 +24,7 @@ type State =
   | { kind: 'idle' }
   | { kind: 'running' }
   | { kind: 'done'; result: EventLogQueryResult }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 function levelTone(level: string): BadgeTone {
   if (level === 'Error' || level === 'Audit Failure') return 'fail';
@@ -60,7 +60,10 @@ export function EventLogSection({ target }: { target: TargetRequest | null }) {
     setState({ kind: 'running' });
     invoke<EventLogQueryResult>('diagnostics', 'queryEventLog', { preset, target })
       .then((result) => setState({ kind: 'done', result }))
-      .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
+      .catch((error: unknown) => setState({
+        kind: 'error',
+        error: presentError(error, { message: 'The event log query could not be completed.' }),
+      }));
   }, [preset, target]);
 
   return (
@@ -79,11 +82,16 @@ export function EventLogSection({ target }: { target: TargetRequest | null }) {
         <Button variant="primary" onClick={run} disabled={state.kind === 'running'}>
           Run query
         </Button>
-        <span className="text-xs text-slate-500">Live view — results are not saved.</span>
+        <span className="text-xs text-muted">Live view — results are not saved.</span>
       </div>
 
       {state.kind === 'running' && <Spinner label="Querying event log …" />}
-      {state.kind === 'error' && <ErrorState message={state.message} />}
+      {state.kind === 'error' && (
+        <ErrorState
+          {...state.error}
+          controls={<Button onClick={run}>Retry query</Button>}
+        />
+      )}
       {state.kind === 'idle' && (
         <EmptyState
           title="Event logs"

@@ -36,12 +36,28 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(entryLimit);
-        return Task.Run(() => ExecuteBoundedSearch(query, entryLimit), cancellationToken);
+        return Task.Run(() => ExecuteBoundedSearch(query, entryOffset: 0, entryLimit), cancellationToken);
+    }
+
+    public Task<Result<BoundedDirectorySearchResult>> SearchPageAsync(
+        DirectorySearchQuery query,
+        int entryOffset,
+        int entryLimit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(entryOffset);
+        ArgumentOutOfRangeException.ThrowIfNegative(entryLimit);
+        if (string.IsNullOrWhiteSpace(query.SortAttribute))
+        {
+            throw new ArgumentException("Paged directory searches require a stable sort attribute.", nameof(query));
+        }
+
+        return Task.Run(() => ExecuteBoundedSearch(query, entryOffset, entryLimit), cancellationToken);
     }
 
     private Result<IReadOnlyList<DirectoryEntryData>> ExecuteSearch(DirectorySearchQuery query)
     {
-        Result<BoundedDirectorySearchResult> result = ExecuteBoundedSearch(query, int.MaxValue);
+        Result<BoundedDirectorySearchResult> result = ExecuteBoundedSearch(query, entryOffset: 0, int.MaxValue);
         return result.IsFailure
             ? Result.Failure<IReadOnlyList<DirectoryEntryData>>(result.Error!)
             : Result.Success(result.Value.Entries);
@@ -49,6 +65,7 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
 
     private Result<BoundedDirectorySearchResult> ExecuteBoundedSearch(
         DirectorySearchQuery query,
+        int entryOffset,
         int entryLimit)
     {
         string connectionTarget = query.Server ?? query.DomainDnsName;
@@ -86,11 +103,28 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
                 attributes);
             var pageControl = new PageResultRequestControl(query.PageSize);
             request.Controls.Add(pageControl);
+            if (!string.IsNullOrWhiteSpace(query.SortAttribute))
+            {
+                request.Controls.Add(new SortRequestControl(query.SortAttribute, reverseOrder: false));
+            }
 
-            var accumulator = new BoundedDirectoryResultAccumulator(entryLimit);
+            var accumulator = new BoundedDirectoryResultAccumulator(entryOffset, entryLimit);
             while (true)
             {
                 var response = (SearchResponse)connection.SendRequest(request, query.TimeLimit);
+                SortResponseControl? sortResponse = response.Controls
+                    .OfType<SortResponseControl>()
+                    .FirstOrDefault();
+                if (sortResponse is { Result: not ResultCode.Success })
+                {
+                    return Result.Failure<BoundedDirectorySearchResult>(new Error(
+                        ErrorCode.DirectoryUnavailable,
+                        $"The directory could not sort results by '{query.SortAttribute}'.")
+                    {
+                        Details = $"LDAP sort result: {sortResponse.Result}.",
+                    });
+                }
+
                 foreach (SearchResultEntry entry in response.Entries)
                 {
                     if (accumulator.CountAndShouldRetain())
@@ -222,13 +256,21 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
 
 internal sealed class BoundedDirectoryResultAccumulator
 {
+    private readonly int _entryOffset;
     private readonly int _entryLimit;
     private readonly List<DirectoryEntryData> _entries;
     private int _totalCount;
 
     public BoundedDirectoryResultAccumulator(int entryLimit)
+        : this(entryOffset: 0, entryLimit)
     {
+    }
+
+    public BoundedDirectoryResultAccumulator(int entryOffset, int entryLimit)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(entryOffset);
         ArgumentOutOfRangeException.ThrowIfNegative(entryLimit);
+        _entryOffset = entryOffset;
         _entryLimit = entryLimit;
         _entries = new List<DirectoryEntryData>(Math.Min(entryLimit, 1_024));
     }
@@ -236,7 +278,7 @@ internal sealed class BoundedDirectoryResultAccumulator
     public bool CountAndShouldRetain()
     {
         _totalCount = checked(_totalCount + 1);
-        return _entries.Count < _entryLimit;
+        return _totalCount > _entryOffset && _entries.Count < _entryLimit;
     }
 
     public void Retain(DirectoryEntryData entry)

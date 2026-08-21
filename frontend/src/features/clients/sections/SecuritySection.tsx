@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
-import { errorText } from '../../../shared/bridge/errorText';
+import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import type { LatestScanResult, SecurityScanResult, TargetRequest } from '../../../shared/api-types';
 import {
   CoverageNotes,
@@ -17,10 +17,16 @@ type State =
   | { kind: 'idle' }
   | { kind: 'loading'; scanning: boolean }
   | { kind: 'loaded'; scan: SecurityScanResult }
-  | { kind: 'error'; message: string };
+  | { kind: 'error'; error: ErrorPresentation };
 
 /** Security section of a client: last saved scan on open, run on demand. */
-export function SecuritySection({ target }: { target: TargetRequest | null }) {
+export function SecuritySection({
+  target,
+  onDataChanged,
+}: {
+  target: TargetRequest | null;
+  onDataChanged?: () => void;
+}) {
   const [state, setState] = useState<State>({ kind: 'loading', scanning: false });
 
   // Load the latest stored scan on open (no network)
@@ -36,9 +42,15 @@ export function SecuritySection({ target }: { target: TargetRequest | null }) {
   const runScan = useCallback(() => {
     setState({ kind: 'loading', scanning: true });
     invoke<SecurityScanResult>('security', 'runScan', { target })
-      .then((scan) => setState({ kind: 'loaded', scan }))
-      .catch((error: unknown) => setState({ kind: 'error', message: errorText(error) }));
-  }, [target]);
+      .then((scan) => {
+        setState({ kind: 'loaded', scan });
+        onDataChanged?.();
+      })
+      .catch((error: unknown) => setState({
+        kind: 'error',
+        error: presentError(error, { message: 'Security checks could not be completed.' }),
+      }));
+  }, [target, onDataChanged]);
 
   if (state.kind === 'loading') {
     return <Spinner label={state.scanning ? 'Running security checks …' : 'Loading last scan …'} />;
@@ -46,12 +58,10 @@ export function SecuritySection({ target }: { target: TargetRequest | null }) {
 
   if (state.kind === 'error') {
     return (
-      <div className="flex flex-col gap-3">
-        <ErrorState message={state.message} />
-        <div>
-          <Button onClick={runScan}>Retry scan</Button>
-        </div>
-      </div>
+      <ErrorState
+        {...state.error}
+        controls={<Button onClick={runScan}>Retry scan</Button>}
+      />
     );
   }
 

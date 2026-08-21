@@ -48,6 +48,12 @@ describe('DashboardPage', () => {
           },
         });
       }
+      if (module === 'reporting' && action === 'getReadinessPolicy') {
+        return Promise.resolve({
+          maximumInventoryAgeSeconds: 86_400,
+          maximumSecurityScanAgeSeconds: 86_400,
+        });
+      }
       if (module === 'printmanagement' && action === 'listServers') {
         return Promise.resolve({ servers: [] });
       }
@@ -91,7 +97,23 @@ describe('DashboardPage', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('No hosts')).toBeDefined();
-    expect(await screen.findByText('No scan')).toBeDefined();
+    expect((await screen.findAllByText('Unavailable')).length).toBeGreaterThanOrEqual(5);
+    expect(screen.queryByText('No hosts')).toBeNull();
+    expect(screen.queryByText('No scan')).toBeNull();
+    expect(screen.getAllByText('Failed').length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('shows explicit loading states instead of empty or healthy values while sources resolve', () => {
+    invokeMock.mockImplementation(() => new Promise(() => {}));
+
+    render(
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText('Running').length).toBeGreaterThanOrEqual(5);
+    expect(screen.queryByText('No hosts')).toBeNull();
+    expect(screen.queryByText('No scan')).toBeNull();
   });
 });

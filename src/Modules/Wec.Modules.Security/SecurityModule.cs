@@ -34,6 +34,7 @@ public sealed class SecurityModule : IModule
         services.AddScoped<IActionHandler, RunSecurityScanHandler>();
         services.AddScoped<IActionHandler, RunBatchSecurityScanHandler>();
         services.AddScoped<IActionHandler, GetLatestSecurityScanHandler>();
+        services.AddScoped<IActionHandler, ListSecurityScanHostsHandler>();
         services.AddScoped<IActionHandler, GetScanHistoryHandler>();
     }
 }

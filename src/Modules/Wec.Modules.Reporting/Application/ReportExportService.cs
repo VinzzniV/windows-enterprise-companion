@@ -11,6 +11,7 @@ using Wec.Core.Targets;
 namespace Wec.Modules.Reporting.Application;
 
 public sealed record ReportOverview(
+    string SubjectHost,
     DateTimeOffset? InventoryCapturedAtUtc,
     DateTimeOffset? SecurityScanCompletedAtUtc,
     string? SecurityScanStatus,
@@ -74,6 +75,7 @@ internal sealed partial class ReportExportService
         ReportReadiness readiness = BuildReadiness(inventory, scan, _clock.UtcNow);
 
         return Result.Success(new ReportOverview(
+            string.IsNullOrWhiteSpace(host) ? Environment.MachineName : host,
             inventory?.CapturedAtUtc,
             scan?.CompletedAtUtc,
             scan?.Status,
