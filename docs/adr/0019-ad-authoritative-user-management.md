@@ -1,6 +1,6 @@
 # ADR 0019: AD-Authoritative User Management
 
-- **Status:** Accepted
+- **Status:** Accepted · revised 2026-08-27 (device relationship evidence)
 - **Date:** 2026-08-26
 - **Deciders:** Vinz
 - **Supersedes:** The former Employee Lifecycle employee record as a future
@@ -80,6 +80,54 @@ inventory remains device-scoped.
     later ADR covering authorization, preview, confirmation, audit, partial
     failure and rollback.
 11. Do not build a generic workflow/checklist engine for the read-only phases.
+
+### Device relationship evidence boundary
+
+The approved Inventory evidence is deliberately smaller than a user-activity
+or endpoint-monitoring model:
+
+- A fresh, explicitly started Inventory scan may add one optional
+  `DeviceUserEvidence` section to the host's existing latest snapshot. Cache
+  reads never collect evidence, and saving a new snapshot replaces the previous
+  observation under the existing one-row-per-host retention rule.
+- The only collection sources are the allowlisted WMI properties
+  `Win32_ComputerSystem.UserName` and `Win32_UserProfile.SID`, `Special` and
+  `LastUseTime`. `LocalPath`, profile contents, registry contents, session
+  history, logon events and file activity are not read or stored.
+- The interactive account is split into domain and account name. A SID may be
+  attached only when an exact `Win32_UserAccount` lookup resolves that account;
+  an unresolved name remains visible source evidence but is not automatically
+  joined to a directory user.
+- Local profiles retain only SID, available last-use time and an optional exact
+  identity resolved from the same observation. The collection is bounded by a
+  validated Inventory option and exposes truncation instead of silently
+  claiming complete coverage.
+- Filtering rejects WMI profiles marked `Special`, malformed/non-user SIDs,
+  well-known system identities (`S-1-5-18`, `S-1-5-19`, `S-1-5-20`), service
+  SID authorities (`S-1-5-80-*`, `S-1-5-82-*`) and built-in account RIDs 500,
+  501, 503 and 504. These rules are characterized by unit tests; arbitrary
+  name-pattern filtering is prohibited.
+- Interactive-user and profile queries are optional enrichments. Each source
+  records `Available`, `Unavailable` or `NotCaptured` coverage. A source
+  failure does not fail the hardware snapshot and is never represented as an
+  empty successful result. Snapshots created by older versions deserialize as
+  `NotCaptured`.
+- Inventory implements a narrow Core read provider that returns only evidence
+  matching a requested directory SID. User Management composes this with its
+  existing device posture, software, Health and Security read projections; no
+  module reference or generic relationship repository is introduced.
+- Current relationship types are `Last interactive user` and `Profile present`.
+  An exact SID match gives high confidence in the observed interactive account
+  and medium confidence in profile presence. Neither confidence level means
+  ownership, assignment, primary use or device return. `Assigned`, `Managed
+  by` and `Local administrator` remain unavailable until an authoritative
+  source exists.
+- Every returned relationship carries host, source (`WEC Inventory`), snapshot
+  observation time, relationship type, confidence and an explanation. User 360
+  displays at most the existing bounded relationship-map limit and links to
+  Client 360 for detail.
+- Logs may contain the host and aggregate evidence counts, but never account
+  names, SIDs, profile timestamps or serialized evidence payloads.
 
 ## Alternatives Considered
 

@@ -5,6 +5,10 @@ operating system, physical network adapters, GPUs, monitors, installed
 software and BitLocker protection status. Targets are the local machine or —
 via WinRM (ADR 0007) — remote Windows clients.
 
+Fresh, explicitly started Inventory scans may also capture the narrowly
+allowlisted user/device relationship evidence from ADR 0019. It is part of the
+latest host snapshot, not a separate activity history.
+
 ## Bridge actions
 
 | Action | Payload | Result | Notes |
@@ -51,6 +55,11 @@ machine as the current user.
   failed snapshot.
 - Snapshot sections added later are nullable — cache entries written by
   older versions deserialize with those sections as "not captured".
+- **User relationship evidence** is limited to the interactive domain account
+  and filtered local-profile SID/presence/available last-use data. It never
+  reads profile paths or contents and never claims device ownership. Coverage,
+  truncation and source failures remain explicit; built-in/system/service
+  profiles are removed by tested SID and WMI `Special` rules.
 - The executive summary report uses the stored snapshot for the selected host;
   omitting the report host selects the local machine.
 
