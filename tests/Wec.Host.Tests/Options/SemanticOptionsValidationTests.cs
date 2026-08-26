@@ -22,7 +22,6 @@ public sealed class SemanticOptionsValidationTests
     {
         var options = new DiagnosticsOptions
         {
-            DnsProbeHostname = "example.test",
             EventLogNames = [],
             MonitoredServices = [],
         };

@@ -7,12 +7,6 @@ public sealed class DiagnosticsOptions
 {
     public const string SectionName = "Wec:Diagnostics";
 
-    [Required]
-    public string DnsProbeHostname { get; set; } = string.Empty;
-
-    [PositiveTimeSpan]
-    public TimeSpan ProbeTimeout { get; set; } = TimeSpan.FromSeconds(3);
-
     [MinLength(1)]
     public string[] EventLogNames { get; set; } = [];
 
