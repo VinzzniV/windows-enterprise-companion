@@ -67,7 +67,10 @@ machine as the current user.
 
 ```jsonc
 "Wec": {
-  "Inventory": { "CacheTtl": "00:15:00" },
+  "Inventory": {
+    "CacheTtl": "00:15:00",
+    "MaxUserProfiles": 100
+  },
   "Remote": { "ConnectionTimeout": "00:00:30" }
 }
 ```

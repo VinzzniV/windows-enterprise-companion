@@ -97,6 +97,7 @@ function hardware(host: string): HardwareInfoResult {
       monitors: null,
       installedSoftware: [],
       installedSoftwareError: null,
+      userEvidence: null,
     },
   };
 }

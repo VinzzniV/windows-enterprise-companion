@@ -1034,6 +1034,16 @@ export interface CpuInfo {
   maxClockSpeedMhz: number;
 }
 
+export interface DeviceUserEvidence {
+  interactiveUserState: UserEvidenceSourceState;
+  interactiveUser: InteractiveDomainUserEvidence | null;
+  interactiveUserError: UserEvidenceCaptureError | null;
+  localProfilesState: UserEvidenceSourceState;
+  localProfiles: LocalUserProfileEvidence[] | null;
+  localProfilesError: UserEvidenceCaptureError | null;
+  localProfilesTruncated: boolean;
+}
+
 export interface DiskDrive {
   model: string;
   sizeBytes: number;
@@ -1062,12 +1072,24 @@ export interface HardwareSnapshot {
   monitors: MonitorInfo[] | null;
   installedSoftware: InstalledSoftwareEntry[] | null;
   installedSoftwareError: SoftwareCaptureError | null;
+  userEvidence: DeviceUserEvidence | null;
 }
 
 export interface InstalledSoftwareEntry {
   name: string;
   version: string | null;
   publisher: string | null;
+}
+
+export interface InteractiveDomainUserEvidence {
+  sid: string;
+  domain: string;
+  accountName: string;
+}
+
+export interface LocalUserProfileEvidence {
+  sid: string;
+  lastUseAtUtc: string | null;
 }
 
 export interface MemoryBank {
@@ -1103,6 +1125,13 @@ export interface SoftwareCaptureError {
   code: string;
   message: string;
 }
+
+export interface UserEvidenceCaptureError {
+  code: string;
+  message: string;
+}
+
+export type UserEvidenceSourceState = 'NOT_CAPTURED' | 'AVAILABLE' | 'UNAVAILABLE';
 
 export type VolumeProtectionStatus = 'UNPROTECTED' | 'PROTECTED' | 'UNKNOWN';
 

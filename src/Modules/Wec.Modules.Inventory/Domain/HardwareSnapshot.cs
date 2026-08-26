@@ -15,7 +15,8 @@ public sealed record HardwareSnapshot(
     IReadOnlyList<GpuInfo>? Gpus = null,
     IReadOnlyList<MonitorInfo>? Monitors = null,
     IReadOnlyList<InstalledSoftwareEntry>? InstalledSoftware = null,
-    SoftwareCaptureError? InstalledSoftwareError = null);
+    SoftwareCaptureError? InstalledSoftwareError = null,
+    DeviceUserEvidence? UserEvidence = null);
 
 /// <summary>Why the installed-software capture failed (wire-format error code + message).</summary>
 public sealed record SoftwareCaptureError(string Code, string Message);

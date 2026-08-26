@@ -53,6 +53,7 @@ const capturedInventory: HardwareInfoResult = {
     monitors: [],
     installedSoftware: [],
     installedSoftwareError: null,
+    userEvidence: null,
   },
 };
 

@@ -35,6 +35,7 @@ const snapshotResult: HardwareInfoResult = {
       { name: 'Management Agent', version: '1.0', publisher: 'Example' },
     ],
     installedSoftwareError: null,
+    userEvidence: null,
   },
 };
 

@@ -17,6 +17,7 @@ public sealed partial class HardwareInfoService
     private readonly IHardwareSnapshotRepository _repository;
     private readonly InstalledSoftwareReader _installedSoftwareReader;
     private readonly RemoteInstalledSoftwareReader _remoteInstalledSoftwareReader;
+    private readonly DeviceUserEvidenceCollector _deviceUserEvidenceCollector;
     private readonly IClock _clock;
     private readonly InventoryOptions _options;
     private readonly ConnectionOptions _connectionOptions;
@@ -27,6 +28,7 @@ public sealed partial class HardwareInfoService
         IHardwareSnapshotRepository repository,
         InstalledSoftwareReader installedSoftwareReader,
         RemoteInstalledSoftwareReader remoteInstalledSoftwareReader,
+        DeviceUserEvidenceCollector deviceUserEvidenceCollector,
         IClock clock,
         IOptions<InventoryOptions> options,
         IOptions<RemoteScanOptions> remoteScanOptions,
@@ -36,6 +38,7 @@ public sealed partial class HardwareInfoService
         _repository = repository;
         _installedSoftwareReader = installedSoftwareReader;
         _remoteInstalledSoftwareReader = remoteInstalledSoftwareReader;
+        _deviceUserEvidenceCollector = deviceUserEvidenceCollector;
         _clock = clock;
         _options = options.Value;
         _connectionOptions = remoteScanOptions.Value.ToConnectionOptions();
@@ -223,6 +226,11 @@ public sealed partial class HardwareInfoService
             }
         }
 
+        DeviceUserEvidence userEvidence = await _deviceUserEvidenceCollector.CollectAsync(
+            target,
+            credentials,
+            cancellationToken);
+
         WmiInstance? processor = processors.Value.Count > 0 ? processors.Value[0] : null;
         WmiInstance? operatingSystem = operatingSystems.Value.Count > 0 ? operatingSystems.Value[0] : null;
         if (processor is null || operatingSystem is null)
@@ -244,7 +252,8 @@ public sealed partial class HardwareInfoService
             videoControllers.Value.Select(ToGpuInfo).ToList(),
             monitorInfos,
             installedSoftware,
-            installedSoftwareError));
+            installedSoftwareError,
+            userEvidence));
     }
 
     private static CpuInfo ToCpuInfo(WmiInstance instance) => new(
