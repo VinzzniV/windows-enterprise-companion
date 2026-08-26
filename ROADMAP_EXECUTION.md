@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 4 — Route-based lazy loading and route registry
+Current phase: Phase 5 — Relationship Map foundation
 
-Current slice: Extract route and navigation metadata without changing behavior
+Current slice: Characterize the current client relationship-state mapping
 
 ## Done
 
@@ -89,6 +89,18 @@ Current slice: Extract route and navigation metadata without changing behavior
 - Phase 3 full gates passed: Release build without warnings, 665 backend tests,
   418 frontend tests, 320 generated contracts current, production build, zero
   NPM findings, module dependency check and production credential scan.
+- One authoritative route registry now owns route, navigation, section-label
+  and future navigation-search metadata without changing existing URLs.
+- All route workspaces, including client detail and legacy compatibility
+  routes, load through React lazy imports behind one Suspense state and the
+  existing per-path Error Boundary. No manual chunk configuration was needed.
+- Phase 4 tests cover route metadata, lazy navigation, the shared loading state
+  and rejected chunk imports. The initial JavaScript chunk fell from 547.28 kB
+  (157.47 kB gzip) to 271.56 kB (86.57 kB gzip).
+- Phase 4 full gates passed: Release build without warnings, 665 backend tests,
+  423 frontend tests, 320 generated contracts current, production build, zero
+  NPM findings, module dependency check, production credential scan and a real
+  Release desktop Dashboard-to-Clients lazy-route smoke test.
 
 ## Blocked
 
@@ -133,6 +145,14 @@ Current slice: Extract route and navigation metadata without changing behavior
   workspace without startup, layout or navigation failures. The local profile
   contains no client, so the Client 360 rendering gate is covered by frontend
   tests with complete, stale, partial and missing stored evidence.
+- Phase 4 frontend suite: 423 passed. The route-split production build emits a
+  271.56 kB initial JavaScript chunk (86.57 kB gzip), down 50.4% and 45.0%
+  respectively from the Phase 3 baseline; feature chunks range from 0.31 kB to
+  59.73 kB.
+- Phase 4 Release desktop smoke loaded Dashboard and then Clients from the
+  built local assets without a blank screen or route error. The home profile
+  reported all four management sources as not configured and ran no explicit
+  connectivity action.
 - Release desktop smoke reached Dashboard and Clients without starting any
   company or remote query. The Health tab itself could not be opened on this
   home profile because the Clients list contains no device; its tab navigation
@@ -145,9 +165,11 @@ Current slice: Extract route and navigation metadata without changing behavior
 
 ## Next
 
-1. Extract one authoritative route/navigation registry.
-2. Lazy-load top-level workspaces behind shared Suspense and Error Boundary
-   behavior without manual chunk configuration.
-3. Verify navigation, rejected lazy imports and initial-bundle reduction.
-4. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Characterize current Client Integration Map source-state behavior.
+2. Introduce bounded relationship node and edge view models without creating a
+   generic graph framework.
+3. Add accessible map and list presentations with explicit actions and deep
+   links; keep connectivity checks manual.
+4. Migrate Client 360 to the relationship presentation and run Phase 5 gates.
+5. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
