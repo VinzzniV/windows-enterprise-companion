@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 3 — Build Client 360 Overview
+Current phase: Phase 4 — Route-based lazy loading and route registry
 
-Current slice: Define the narrow Client 360 overview read model
+Current slice: Extract route and navigation metadata without changing behavior
 
 ## Done
 
@@ -78,6 +78,17 @@ Current slice: Define the narrow Client 360 overview read model
 - Phase 2 full gates passed: Release build without warnings, 656 backend tests,
   415 frontend tests, 308 generated contracts current, production build, zero
   NPM findings, module dependency check and production credential scan.
+- PR CI run `33016855845` passed for the Phase 2 milestone commit `733a919`.
+- Narrow Core projections now expose the latest persisted hardware, installed
+  software, Health and Security evidence without introducing module references.
+- Client 360 composes those projections through `clients/getOverview` and shows
+  source freshness, completeness, coverage, hardware/OS, software, Health and
+  Security summaries with detail-tab links.
+- Opening Client 360 starts no remote scan. AD/Kaspersky/opsi/Nessus context and
+  relationship-map connectivity are both explicit read-only actions.
+- Phase 3 full gates passed: Release build without warnings, 665 backend tests,
+  418 frontend tests, 320 generated contracts current, production build, zero
+  NPM findings, module dependency check and production credential scan.
 
 ## Blocked
 
@@ -115,6 +126,13 @@ Current slice: Define the narrow Client 360 overview read model
   and historical-payload coverage.
 - Phase 2 final frontend suite: 415 passed. Production bundle: 535.82 kB
   JavaScript, 155.55 kB gzip. NPM audit reports zero vulnerabilities.
+- Phase 3 final backend suite: 665 passed. Phase 3 frontend suite: 418 passed.
+  The pre-lazy-loading production bundle is 547.28 kB JavaScript and 157.47 kB
+  gzip; this is the Phase 4 comparison baseline.
+- Phase 3 Release desktop smoke reached Dashboard and the empty Clients
+  workspace without startup, layout or navigation failures. The local profile
+  contains no client, so the Client 360 rendering gate is covered by frontend
+  tests with complete, stale, partial and missing stored evidence.
 - Release desktop smoke reached Dashboard and Clients without starting any
   company or remote query. The Health tab itself could not be opened on this
   home profile because the Clients list contains no device; its tab navigation
@@ -127,9 +145,9 @@ Current slice: Define the narrow Client 360 overview read model
 
 ## Next
 
-1. Define concrete read-only Core projections for Client 360 source summaries.
-2. Compose stored Inventory, software, Health and Security context without
-   triggering remote work on open.
-3. Add freshness, coverage and deep links to the Client 360 Overview.
+1. Extract one authoritative route/navigation registry.
+2. Lazy-load top-level workspaces behind shared Suspense and Error Boundary
+   behavior without manual chunk configuration.
+3. Verify navigation, rejected lazy imports and initial-bundle reduction.
 4. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
