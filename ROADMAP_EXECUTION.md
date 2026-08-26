@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Phase 0 — Stabilize the delivery baseline
 
-Current slice: Restore GitHub Actions artifact uploads and reduce retention
+Current slice: Verify ZIP, installer and release workflow behavior
 
 ## Done
 
@@ -27,6 +27,12 @@ Current slice: Restore GitHub Actions artifact uploads and reduce retention
   zero-finding NPM audit passed.
 - CI now fails on High- or Critical-Severity NPM findings after the locked
   frontend install; the gate passes against the updated lockfile.
+- Removed 82 obsolete GitHub Actions artifacts (5.14 GiB) and retained the ZIP
+  and installer from the latest successful master packaging run. Release
+  `v0.1.0` and its two published assets were verified unchanged.
+- Master package artifacts now expire after three days; tag runs publish the
+  versioned files directly as GitHub Release assets instead of duplicating
+  them in Actions storage.
 
 ## Blocked
 
@@ -59,6 +65,5 @@ Current slice: Restore GitHub Actions artifact uploads and reduce retention
 
 ## Next
 
-1. Restore GitHub Actions artifact uploads and reduce short-lived retention.
-2. Verify ZIP, installer and release workflow behavior without publishing a
+1. Verify ZIP, installer and release workflow behavior without publishing a
    release.
