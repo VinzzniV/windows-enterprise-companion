@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Phase 1 — Record the revised product decisions
 
-Current slice: ADR 0019 — AD-authoritative User Management
+Current slice: Run the complete Phase 1 verification gates
 
 ## Done
 
@@ -50,6 +50,10 @@ Current slice: ADR 0019 — AD-authoritative User Management
 - ADR 0018 records the reduced Device Health scope, Client 360 read behavior,
   historical Diagnostics retention, Network Scan separation and the bounded
   multi-host move into Clients.
+- ADR 0019 records AD-authoritative read-only User Management, stable
+  `objectGUID` identity, evidence-aware user/client correlation, the Leaver-first
+  lifecycle sequence and preservation of all five legacy Employee Lifecycle
+  tables.
 
 ## Blocked
 
@@ -88,8 +92,8 @@ Current slice: ADR 0019 — AD-authoritative User Management
 
 ## Next
 
-1. Add ADR 0018 for Device Health and Client 360.
-2. Add ADR 0019 for AD-authoritative User Management and preserved legacy
-   Employee Lifecycle data.
-3. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Run the complete Phase 1 verification gates.
+2. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
+3. Begin Phase 2 with characterization tests for the retained Health checks
+   and Event Log query.

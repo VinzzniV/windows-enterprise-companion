@@ -159,6 +159,10 @@ not dropped by this MVP, so installing the read-only replacement cannot destroy
 previous lifecycle data. The legacy route is redirect-only. The hygiene feature
 adds no database tables.
 
+ADR 0019 assigns future User Management to an AD-authoritative read-only module.
+The five legacy tables are frozen: WEC does not write or automatically import
+them, and deleting them requires a separately approved destructive migration.
+
 ## Tests
 
 - AD inventory mapping and LDAP contract tests

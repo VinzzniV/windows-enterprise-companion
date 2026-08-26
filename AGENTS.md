@@ -67,6 +67,13 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
   and timeouts. C# bridge DTOs generate
   `frontend/src/shared/api-types.generated.ts`; CI verifies the generated file.
   `shared/api-types.ts` is only a compatibility facade for stable UI names.
+- Client detail converges on Client 360. Its visible Diagnostics tab is
+  **Health** and keeps only update age, selected service state, Event Log
+  summary and free disk space; detailed Event Log queries and historical
+  `diagnostics_runs` remain (ADR 0018).
+- User Management is AD-authoritative and read-only first. Stable identity uses
+  `objectGUID`; old Employee Lifecycle tables remain frozen and preserved.
+  Directory or lifecycle writes require a later ADR (ADR 0019).
 
 ## Current program
 
