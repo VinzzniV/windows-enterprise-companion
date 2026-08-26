@@ -39,6 +39,7 @@ using Wec.Modules.PrintManagement;
 using Wec.Modules.Reporting;
 using Wec.Modules.Security;
 using Wec.Modules.Targets;
+using Wec.Modules.UserManagement;
 using Wec.Modules.VulnerabilityManagement;
 
 using HostFactory = Microsoft.Extensions.Hosting.Host;
@@ -232,6 +233,7 @@ internal static partial class Program
             new DiagnosticsModule(),
             new ReportingModule(),
             new ActiveDirectoryModule(),
+            new UserManagementModule(),
             new PatchManagementModule(),
             new PrintManagementModule(),
             new NetworkScanModule(),

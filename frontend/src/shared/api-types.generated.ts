@@ -5,6 +5,19 @@
  * These declarations are generated from every payload/result type reachable
  * from IActionHandler<TPayload, TResult> implementations.
  */
+export type DirectoryUserAccessCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'UNAVAILABLE';
+
+export type DirectoryUserAccountStateFilter = 'ALL' | 'ENABLED' | 'DISABLED';
+
+export interface DirectoryUserGroup {
+  distinguishedName: string;
+  name: string;
+}
+
+export type DirectoryUserSortDirection = 'ASCENDING' | 'DESCENDING';
+
+export type DirectoryUserSortField = 'DISPLAY_NAME' | 'SAM_ACCOUNT_NAME' | 'DEPARTMENT' | 'CREATED_AT' | 'LAST_LOGON';
+
 export interface SecurityCoverageReportData {
   isKnown: boolean;
   isComplete: boolean;
@@ -1872,6 +1885,92 @@ export interface SavedTarget {
   role: string;
   userName: string | null;
   createdAtUtc: string;
+}
+
+export interface UserDirectoryConnectionRequest {
+  domain?: string | null;
+  server?: string | null;
+  userName?: string | null;
+  userDomain?: string | null;
+  password?: string | null;
+}
+
+export interface UserAccessProfile {
+  directGroups: DirectoryUserGroup[];
+  privilegedCoverage: DirectoryUserAccessCoverage;
+  privilegedCoverageExplanation: string;
+  directPrivilegedGroups: DirectoryUserGroup[];
+}
+
+export interface UserIdentityProfile {
+  objectId: string;
+  sid: string | null;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  mail: string | null;
+  employeeId: string | null;
+  department: string | null;
+  title: string | null;
+  managerDistinguishedName: string | null;
+  distinguishedName: string;
+  organizationalUnitPath: string;
+}
+
+export interface UserLifecycleProfile {
+  enabled: boolean | null;
+  createdAtUtc: string | null;
+  accountExpiresAtUtc: string | null;
+  replicatedLastLogonAtUtc: string | null;
+  passwordLastSetAtUtc: string | null;
+  passwordExpiresAtUtc: string | null;
+  passwordNeverExpires: boolean | null;
+}
+
+export interface UserPageResult {
+  domainJoined: boolean;
+  domainName: string | null;
+  baseDistinguishedName: string | null;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  users: UserSummary[];
+}
+
+export interface UserProfileResult {
+  identity: UserIdentityProfile;
+  lifecycle: UserLifecycleProfile;
+  access: UserAccessProfile;
+}
+
+export interface UserSummary {
+  objectId: string;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  employeeId: string | null;
+  department: string | null;
+  title: string | null;
+  organizationalUnitPath: string;
+  enabled: boolean | null;
+  replicatedLastLogonAtUtc: string | null;
+}
+
+export interface GetUserProfileRequest {
+  objectId: string;
+  connection?: UserDirectoryConnectionRequest | null;
+}
+
+export interface ListUsersRequest {
+  search?: string | null;
+  baseDistinguishedName?: string | null;
+  department?: string | null;
+  accountState?: DirectoryUserAccountStateFilter;
+  page?: number;
+  pageSize?: number;
+  sortField?: DirectoryUserSortField;
+  sortDirection?: DirectoryUserSortDirection;
+  connection?: UserDirectoryConnectionRequest | null;
 }
 
 export interface PageResult<T> {

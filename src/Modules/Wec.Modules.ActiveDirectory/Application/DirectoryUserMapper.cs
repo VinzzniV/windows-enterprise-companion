@@ -32,7 +32,9 @@ internal static class DirectoryUserMapper
         return Result.Success<IReadOnlyList<DirectoryUserRecord>>(users);
     }
 
-    public static Result<DirectoryUserRecord> Map(DirectoryEntryData entry)
+    public static Result<DirectoryUserRecord> Map(
+        DirectoryEntryData entry,
+        DirectoryUserPrivilegedAccess? privilegedAccess = null)
     {
         byte[]? objectGuidBytes = entry.GetBytes("objectGUID");
         if (objectGuidBytes is not { Length: 16 })
@@ -72,7 +74,11 @@ internal static class DirectoryUserMapper
             userAccountControl is { } passwordUac
                 ? (passwordUac & AdFilters.UacPasswordNeverExpires) != 0
                 : null,
-            groups));
+            groups,
+            privilegedAccess ?? new DirectoryUserPrivilegedAccess(
+                DirectoryUserAccessCoverage.NotEvaluated,
+                "Privileged access is evaluated only for an individual user profile.",
+                [])));
     }
 
     private static string? ParseSid(byte[]? bytes)

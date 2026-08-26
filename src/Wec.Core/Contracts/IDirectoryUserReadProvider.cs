@@ -49,6 +49,18 @@ public sealed record DirectoryUserGroup(
     string DistinguishedName,
     string Name);
 
+public enum DirectoryUserAccessCoverage
+{
+    NotEvaluated = 0,
+    Available,
+    Unavailable,
+}
+
+public sealed record DirectoryUserPrivilegedAccess(
+    DirectoryUserAccessCoverage Coverage,
+    string Explanation,
+    IReadOnlyList<DirectoryUserGroup> DirectMemberships);
+
 /// <summary>
 /// Allowlisted AD identity and lifecycle evidence. Mutable names are display
 /// fields; <see cref="ObjectId"/> is the stable directory identity (ADR 0019).
@@ -73,7 +85,8 @@ public sealed record DirectoryUserRecord(
     DateTimeOffset? PasswordLastSetAtUtc,
     DateTimeOffset? PasswordExpiresAtUtc,
     bool? PasswordNeverExpires,
-    IReadOnlyList<DirectoryUserGroup> DirectGroups);
+    IReadOnlyList<DirectoryUserGroup> DirectGroups,
+    DirectoryUserPrivilegedAccess PrivilegedAccess);
 
 public sealed record DirectoryUserPage(
     bool DomainJoined,

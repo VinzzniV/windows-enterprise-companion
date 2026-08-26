@@ -38,6 +38,7 @@ public sealed class UserSearchServiceTests
         return new DirectoryUserReadService(
             new DomainContextService(_wmiQueryService, _directoryReader, options),
             _directoryReader,
+            new PrivilegedGroupResolver(_directoryReader, options),
             options);
     }
 
@@ -276,5 +277,103 @@ public sealed class UserSearchServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public async Task GetById_ClassifiesDirectPrivilegedMembershipBySidValidatedGroupIdentity()
+    {
+        SetUpDomainJoined();
+        var objectId = new Guid("00112233-4455-6677-8899-aabbccddeeff");
+        const string domainSid = "S-1-5-21-1111111111-2222222222-3333333333";
+        var domainSecurityIdentifier = new SecurityIdentifier(domainSid);
+        byte[] domainSidBytes = new byte[domainSecurityIdentifier.BinaryLength];
+        domainSecurityIdentifier.GetBinaryForm(domainSidBytes, 0);
+        string privilegedGroupDn = $"CN=Domänen-Admins,CN=Users,{NamingContext}";
+        _directoryReader.SearchBoundedAsync(
+                Arg.Is<DirectorySearchQuery>(query => query.LdapFilter == AdFilters.UserByObjectGuid(objectId)),
+                1,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(1,
+            [
+                Entry($"CN=Alex,{ItOu}", new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["objectGUID"] = [Convert.ToBase64String(objectId.ToByteArray())],
+                    ["sAMAccountName"] = ["alex"],
+                    ["memberOf"] =
+                    [
+                        privilegedGroupDn,
+                        $"CN=GG-App,OU=Groups,{NamingContext}",
+                    ],
+                }),
+            ])));
+        _directoryReader.SearchAsync(
+                Arg.Is<DirectorySearchQuery>(query =>
+                    query.Scope == DirectorySearchScope.Base
+                    && query.BaseDistinguishedName == NamingContext
+                    && query.Attributes.Contains("objectSid", StringComparer.Ordinal)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([Entry(
+                NamingContext,
+                new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["objectSid"] = [Convert.ToBase64String(domainSidBytes)],
+                })]));
+        _directoryReader.SearchAsync(
+                Arg.Is<DirectorySearchQuery>(query => query.Scope == DirectorySearchScope.Subtree),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([]));
+        _directoryReader.SearchAsync(
+                Arg.Is<DirectorySearchQuery>(query =>
+                    query.LdapFilter == AdFilters.GroupBySid($"{domainSid}-512")),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<DirectoryEntryData>>([Entry(
+                privilegedGroupDn,
+                new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["sAMAccountName"] = ["Domänen-Admins"],
+                })]));
+
+        Result<DirectoryUserRecord?> result = await CreateDirectoryUserReadService().GetByIdAsync(
+            new DirectoryUserIdentityQuery(
+                new DirectoryUserReadConnection(null, null, ScanCredentials.CurrentUser),
+                objectId),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal(DirectoryUserAccessCoverage.Available, result.Value.PrivilegedAccess.Coverage);
+        DirectoryUserGroup privilegedGroup = Assert.Single(result.Value.PrivilegedAccess.DirectMemberships);
+        Assert.Equal("Domänen-Admins", privilegedGroup.Name);
+        Assert.Equal(2, result.Value.DirectGroups.Count);
+    }
+
+    [Fact]
+    public async Task GetById_KeepsIdentityAndMarksPrivilegedCoverageUnavailableWhenClassificationFails()
+    {
+        SetUpDomainJoined();
+        var objectId = new Guid("00112233-4455-6677-8899-aabbccddeeff");
+        _directoryReader.SearchBoundedAsync(
+                Arg.Is<DirectorySearchQuery>(query => query.LdapFilter == AdFilters.UserByObjectGuid(objectId)),
+                1,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(1,
+            [
+                Entry($"CN=Alex,{ItOu}", new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["objectGUID"] = [Convert.ToBase64String(objectId.ToByteArray())],
+                    ["sAMAccountName"] = ["alex"],
+                }),
+            ])));
+
+        Result<DirectoryUserRecord?> result = await CreateDirectoryUserReadService().GetByIdAsync(
+            new DirectoryUserIdentityQuery(
+                new DirectoryUserReadConnection(null, null, ScanCredentials.CurrentUser),
+                objectId),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal(DirectoryUserAccessCoverage.Unavailable, result.Value.PrivilegedAccess.Coverage);
+        Assert.Empty(result.Value.PrivilegedAccess.DirectMemberships);
     }
 }

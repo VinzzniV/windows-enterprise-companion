@@ -21,7 +21,10 @@ public sealed class CompositionRootTests
 
         Assert.NotEmpty(handlers);
         // Every module must contribute at least one handler
-        string[] expectedModules = ["system", "inventory", "security", "diagnostics", "activedirectory", "reporting"];
+        string[] expectedModules =
+        [
+            "system", "inventory", "security", "diagnostics", "activedirectory", "usermanagement", "reporting",
+        ];
         foreach (string module in expectedModules)
         {
             Assert.Contains(handlers, handler => handler.Module == module);

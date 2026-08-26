@@ -66,42 +66,7 @@ public sealed record DirectoryConnectionRequest(
         string userName,
         string? credentialDomain,
         string password,
-        string? directoryDomain)
-    {
-        string trimmedUserName = userName.Trim();
-
-        if (trimmedUserName.Contains('\\', StringComparison.Ordinal))
-        {
-            string[] parts = trimmedUserName.Split('\\', 2);
-            if (string.IsNullOrWhiteSpace(parts[0]) || string.IsNullOrWhiteSpace(parts[1]))
-            {
-                return Result.Failure<ScanCredentials>(new Error(
-                    ErrorCode.InvalidRequest,
-                    $"'{trimmedUserName}' is not a valid DOMAIN\\user name."));
-            }
-
-            return Result.Success(ScanCredentials.Explicit(parts[1], parts[0], password));
-        }
-
-        if (trimmedUserName.Contains('@', StringComparison.Ordinal))
-        {
-            // UPN: the name carries the domain — a separate credential domain
-            // would make LDAP treat it as a SAM name and break the bind
-            return Result.Success(ScanCredentials.Explicit(trimmedUserName, null, password));
-        }
-
-        if (!string.IsNullOrWhiteSpace(credentialDomain))
-        {
-            return Result.Success(ScanCredentials.Explicit(trimmedUserName, credentialDomain, password));
-        }
-
-        if (!string.IsNullOrWhiteSpace(directoryDomain))
-        {
-            return Result.Success(ScanCredentials.Explicit(trimmedUserName, directoryDomain, password));
-        }
-
-        return Result.Failure<ScanCredentials>(new Error(
-            ErrorCode.InvalidRequest,
-            "The account needs a domain: use user@domain.tld, DOMAIN\\user, or fill in the credential domain."));
-    }
+        string? directoryDomain) =>
+        DirectoryScanCredentials.NormalizeExplicit(
+            userName, credentialDomain, password, directoryDomain);
 }

@@ -12,6 +12,7 @@ public sealed class ActiveDirectoryModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<DomainContextService>();
+        services.AddScoped<PrivilegedGroupResolver>();
         services.AddScoped<DirectoryOverviewService>();
         services.AddScoped<DirectoryHygieneService>();
         services.AddScoped<ComputerSearchService>();

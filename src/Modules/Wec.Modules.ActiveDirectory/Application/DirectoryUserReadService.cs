@@ -9,15 +9,18 @@ internal sealed class DirectoryUserReadService : IDirectoryUserReadProvider
 {
     private readonly DomainContextService _domainContextService;
     private readonly IDirectoryReader _directoryReader;
+    private readonly PrivilegedGroupResolver _privilegedGroupResolver;
     private readonly ActiveDirectoryOptions _options;
 
     public DirectoryUserReadService(
         DomainContextService domainContextService,
         IDirectoryReader directoryReader,
+        PrivilegedGroupResolver privilegedGroupResolver,
         IOptions<ActiveDirectoryOptions> options)
     {
         _domainContextService = domainContextService;
         _directoryReader = directoryReader;
+        _privilegedGroupResolver = privilegedGroupResolver;
         _options = options.Value;
     }
 
@@ -124,10 +127,39 @@ internal sealed class DirectoryUserReadService : IDirectoryUserReadProvider
             return Result.Success<DirectoryUserRecord?>(null);
         }
 
-        Result<DirectoryUserRecord> mapped = DirectoryUserMapper.Map(entries.Value.Entries[0]);
+        Result<IReadOnlyList<ResolvedPrivilegedGroup>> privilegedGroups =
+            await _privilegedGroupResolver.ResolveAsync(
+                context.Value.DomainName!,
+                context.Value.DefaultNamingContext!,
+                connection,
+                cancellationToken);
+        DirectoryUserPrivilegedAccess privilegedAccess = privilegedGroups.IsSuccess
+            ? MapPrivilegedAccess(entries.Value.Entries[0], privilegedGroups.Value)
+            : new DirectoryUserPrivilegedAccess(
+                DirectoryUserAccessCoverage.Unavailable,
+                "The SID-validated privileged-group allowlist could not be evaluated.",
+                []);
+        Result<DirectoryUserRecord> mapped = DirectoryUserMapper.Map(
+            entries.Value.Entries[0], privilegedAccess);
         return mapped.IsFailure
             ? Result.Failure<DirectoryUserRecord?>(mapped.Error!)
             : Result.Success<DirectoryUserRecord?>(mapped.Value);
+    }
+
+    private static DirectoryUserPrivilegedAccess MapPrivilegedAccess(
+        DirectoryEntryData user,
+        IReadOnlyList<ResolvedPrivilegedGroup> privilegedGroups)
+    {
+        HashSet<string> directGroupDns = user.GetValues("memberOf")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<DirectoryUserGroup> memberships = [.. privilegedGroups
+            .Where(group => directGroupDns.Contains(group.DistinguishedName))
+            .Select(group => new DirectoryUserGroup(group.DistinguishedName, group.GroupName))
+            .OrderBy(group => group.Name, StringComparer.OrdinalIgnoreCase)];
+        return new DirectoryUserPrivilegedAccess(
+            DirectoryUserAccessCoverage.Available,
+            "Direct memberships were compared with the SID-validated privileged-group allowlist.",
+            memberships);
     }
 
     private static DirectoryConnection ToConnection(DirectoryUserReadConnection connection) =>
