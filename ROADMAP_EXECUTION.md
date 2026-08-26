@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 0 — Stabilize the delivery baseline
+Current phase: Phase 1 — Record the revised product decisions
 
-Current slice: Run the complete Phase 0 verification gates
+Current slice: ADR 0018 — Device Health and Client 360
 
 ## Done
 
@@ -40,10 +40,20 @@ Current slice: Run the complete Phase 0 verification gates
 - A local self-contained 0.2.0 publish produced 578 files; the portable ZIP
   was expanded, required host/frontend files were found and its SHA-256 record
   was verified. Inno Setup remains a GitHub-CI-only check on this host.
+- Phase 0 local gates passed: Release build with zero warnings/errors, 701
+  backend tests, 415 frontend tests, 308 generated contracts current,
+  production build, zero-finding NPM audit, module dependency check, committed
+  secret-pattern scan and real Desktop/Clients-route smoke test.
+- Draft PR #28 is open. Its pull-request CI run `33013654432` passed. Manual
+  packaging run `33013664987` passed publish, host smoke, ZIP validation, Inno
+  Setup installer and package checksums before the upload gate.
 
 ## Blocked
 
-- None.
+- Phase 0 artifact upload is waiting for GitHub's storage-usage recalculation.
+  Run `33013664987` reports that recalculation takes 6–12 hours after cleanup;
+  two preserved artifacts currently use 132.24 MiB. Retry the manual workflow
+  after the quota state updates.
 
 ## Deferred release gates
 
@@ -56,22 +66,27 @@ Current slice: Run the complete Phase 0 verification gates
 
 - Baseline commit: `aba4ccd57f724cb359e9ac643378bf6ada0ce559`.
 - Local `HEAD` equals `origin/master`; ahead/behind `0/0`.
-- Last verified Release build: 0 warnings, 0 errors.
-- Last verified backend tests: 701 passed.
-- Last verified frontend tests: 415 passed.
-- Last verified bridge contracts: 308 generated types current.
-- Last verified frontend production bundle: 535.98 kB JavaScript,
+- Phase 0 Release build: 0 warnings, 0 errors.
+- Phase 0 backend tests: 701 passed.
+- Phase 0 frontend tests: 415 passed.
+- Phase 0 bridge contracts: 308 generated types current.
+- Phase 0 frontend production bundle: 535.98 kB JavaScript,
   155.62 kB gzip.
-- Current known NPM audit state: four High-Severity findings with patch-level
-  fixes available.
-- GitHub CLI is authenticated; Actions storage currently contains 84 artifacts
-  using approximately 5.27 GiB.
+- Phase 0 NPM audit: zero vulnerabilities.
+- Module dependency rules, committed secret-pattern scan and latest WEC log
+  sensitive-term scan passed.
+- Local Desktop startup and Dashboard-to-Clients navigation passed against
+  the Release host.
+- GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
+  removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
   GitHub CI.
 - `%APPDATA%\Wec\usersettings.json` is not present on this host.
 
 ## Next
 
-1. Run the complete Phase 0 verification gates.
-2. Push the verified milestone, run CI and manually exercise the packaging
-   workflow without publishing a release.
+1. Add ADR 0018 for Device Health and Client 360.
+2. Add ADR 0019 for AD-authoritative User Management and preserved legacy
+   Employee Lifecycle data.
+3. Retry the Phase 0 manual package upload after GitHub recalculates storage
+   usage.
