@@ -60,6 +60,8 @@ const profile: UserProfileResult = {
       unavailableDeviceCount: 0,
       truncatedDeviceCount: 0,
     },
+    totalLinkedDeviceCount: 0,
+    linkedDevicesTruncated: false,
     linkedDevices: [],
   },
 };

@@ -38,3 +38,12 @@ public interface INessusComputerInventoryProvider
 {
     Task<Result<NessusComputerInventory>> LoadAsync(CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Reads the latest persisted Nessus projection without starting a foreground
+/// or background synchronization.
+/// </summary>
+public interface IStoredNessusComputerInventoryProvider
+{
+    Task<Result<NessusComputerInventory>> LoadStoredAsync(CancellationToken cancellationToken);
+}

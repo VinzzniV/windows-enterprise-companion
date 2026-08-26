@@ -18,3 +18,5 @@ There are no directory writes or lifecycle workflow mutations.
 Device links carry Inventory source coverage, observation time, relationship
 type and confidence. `Last interactive user` and `Profile present` are evidence,
 not ownership; missing SIDs, older snapshots and source failures remain visible.
+The bounded device list adds only persisted installed-software, Health, Security
+and Nessus summaries. Opening User 360 starts no remote scan or provider sync.

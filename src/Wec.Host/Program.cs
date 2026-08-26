@@ -168,6 +168,12 @@ internal static partial class Program
             .ValidateOnStart();
 
         builder.Services
+            .AddOptions<UserManagementOptions>()
+            .Bind(builder.Configuration.GetSection(UserManagementOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        builder.Services
             .AddOptions<DiagnosticsOptions>()
             .Bind(builder.Configuration.GetSection(DiagnosticsOptions.SectionName))
             .ValidateDataAnnotations()

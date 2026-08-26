@@ -64,7 +64,62 @@ public sealed record UserDeviceProfile(
     UserDeviceEvidenceCoverage Coverage,
     string Explanation,
     UserDeviceRelationshipCoverage SourceCoverage,
-    IReadOnlyList<UserLinkedDeviceEvidence> LinkedDevices);
+    int TotalLinkedDeviceCount,
+    bool LinkedDevicesTruncated,
+    IReadOnlyList<UserLinkedDeviceProfile> LinkedDevices);
+
+public sealed record UserLinkedDeviceProfile(
+    string Host,
+    DateTimeOffset InventoryCapturedAtUtc,
+    IReadOnlyList<UserDeviceRelationshipObservation> RelationshipEvidence,
+    UserDeviceSoftwareProfile Software,
+    UserDeviceHealthProfile Health,
+    UserDeviceSecurityProfile Security,
+    UserDeviceVulnerabilityProfile Vulnerabilities);
+
+public sealed record UserDeviceSoftwareItem(
+    string Name,
+    string? Version,
+    string? Publisher);
+
+public sealed record UserDeviceSoftwareProfile(
+    bool IsAvailable,
+    bool IsComplete,
+    DateTimeOffset? CapturedAtUtc,
+    int InstalledCount,
+    IReadOnlyList<UserDeviceSoftwareItem> Sample,
+    string Explanation);
+
+public sealed record UserDeviceHealthProfile(
+    bool IsAvailable,
+    bool IsComplete,
+    DateTimeOffset? CapturedAtUtc,
+    int CriticalCount,
+    int WarningCount,
+    int UnknownCount,
+    int HealthyCount,
+    string Explanation);
+
+public sealed record UserDeviceSecurityProfile(
+    bool IsAvailable,
+    bool IsComplete,
+    DateTimeOffset? CapturedAtUtc,
+    string? ScanStatus,
+    int CriticalCount,
+    int HighCount,
+    int MediumCount,
+    int LowCount,
+    string Explanation);
+
+public sealed record UserDeviceVulnerabilityProfile(
+    NessusInventoryAvailability Availability,
+    bool DeviceMatched,
+    DateTimeOffset? CapturedAtUtc,
+    int CriticalCount,
+    int HighCount,
+    int MediumCount,
+    int LowCount,
+    string Explanation);
 
 public sealed record UserProfileResult(
     UserIdentityProfile Identity,

@@ -18,6 +18,8 @@ export type DirectoryUserSortDirection = 'ASCENDING' | 'DESCENDING';
 
 export type DirectoryUserSortField = 'DISPLAY_NAME' | 'SAM_ACCOUNT_NAME' | 'DEPARTMENT' | 'CREATED_AT' | 'LAST_LOGON';
 
+export type NessusInventoryAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CONNECTED' | 'UNAVAILABLE';
+
 export interface SecurityCoverageReportData {
   isKnown: boolean;
   isComplete: boolean;
@@ -51,12 +53,6 @@ export interface UserDeviceRelationshipObservation {
 }
 
 export type UserDeviceRelationshipType = 'LAST_INTERACTIVE_USER' | 'PROFILE_PRESENT';
-
-export interface UserLinkedDeviceEvidence {
-  host: string;
-  inventoryCapturedAtUtc: string;
-  observations: UserDeviceRelationshipObservation[];
-}
 
 export interface TargetRequest {
   host?: string | null;
@@ -1961,11 +1957,62 @@ export interface UserAccessProfile {
 
 export type UserDeviceEvidenceCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'PARTIAL' | 'NOT_CAPTURED';
 
+export interface UserDeviceHealthProfile {
+  isAvailable: boolean;
+  isComplete: boolean;
+  capturedAtUtc: string | null;
+  criticalCount: number;
+  warningCount: number;
+  unknownCount: number;
+  healthyCount: number;
+  explanation: string;
+}
+
 export interface UserDeviceProfile {
   coverage: UserDeviceEvidenceCoverage;
   explanation: string;
   sourceCoverage: UserDeviceRelationshipCoverage;
-  linkedDevices: UserLinkedDeviceEvidence[];
+  totalLinkedDeviceCount: number;
+  linkedDevicesTruncated: boolean;
+  linkedDevices: UserLinkedDeviceProfile[];
+}
+
+export interface UserDeviceSecurityProfile {
+  isAvailable: boolean;
+  isComplete: boolean;
+  capturedAtUtc: string | null;
+  scanStatus: string | null;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  explanation: string;
+}
+
+export interface UserDeviceSoftwareItem {
+  name: string;
+  version: string | null;
+  publisher: string | null;
+}
+
+export interface UserDeviceSoftwareProfile {
+  isAvailable: boolean;
+  isComplete: boolean;
+  capturedAtUtc: string | null;
+  installedCount: number;
+  sample: UserDeviceSoftwareItem[];
+  explanation: string;
+}
+
+export interface UserDeviceVulnerabilityProfile {
+  availability: NessusInventoryAvailability;
+  deviceMatched: boolean;
+  capturedAtUtc: string | null;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  explanation: string;
 }
 
 export interface UserIdentityProfile {
@@ -1991,6 +2038,16 @@ export interface UserLifecycleProfile {
   passwordLastSetAtUtc: string | null;
   passwordExpiresAtUtc: string | null;
   passwordNeverExpires: boolean | null;
+}
+
+export interface UserLinkedDeviceProfile {
+  host: string;
+  inventoryCapturedAtUtc: string;
+  relationshipEvidence: UserDeviceRelationshipObservation[];
+  software: UserDeviceSoftwareProfile;
+  health: UserDeviceHealthProfile;
+  security: UserDeviceSecurityProfile;
+  vulnerabilities: UserDeviceVulnerabilityProfile;
 }
 
 export interface UserPageResult {
