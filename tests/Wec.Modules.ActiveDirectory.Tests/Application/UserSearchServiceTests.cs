@@ -1,7 +1,11 @@
+using System.Globalization;
+using System.Security.Principal;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Abstractions;
+using Wec.Core.Contracts;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.ActiveDirectory;
 using Wec.Modules.ActiveDirectory.Application;
 
@@ -23,6 +27,15 @@ public sealed class UserSearchServiceTests
             UserSearchLimit = userSearchLimit,
         });
         return new UserSearchService(
+            new DomainContextService(_wmiQueryService, _directoryReader, options),
+            _directoryReader,
+            options);
+    }
+
+    private DirectoryUserReadService CreateDirectoryUserReadService()
+    {
+        IOptions<ActiveDirectoryOptions> options = Options.Create(new ActiveDirectoryOptions());
+        return new DirectoryUserReadService(
             new DomainContextService(_wmiQueryService, _directoryReader, options),
             _directoryReader,
             options);
@@ -138,5 +151,130 @@ public sealed class UserSearchServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Users.Count);
         Assert.True(result.Value.Truncated);
+    }
+
+    [Fact]
+    public async Task GetPage_UsesStableServerPagingAndMapsTheAllowlistedLifecycleProjection()
+    {
+        SetUpDomainJoined();
+        var objectId = new Guid("00112233-4455-6677-8899-aabbccddeeff");
+        var sid = new SecurityIdentifier("S-1-5-21-100-200-300-1104");
+        byte[] sidBytes = new byte[sid.BinaryLength];
+        sid.GetBinaryForm(sidBytes, 0);
+        DateTimeOffset lastLogon = new(2026, 8, 18, 10, 0, 0, TimeSpan.Zero);
+        DateTimeOffset passwordSet = new(2026, 7, 1, 8, 30, 0, TimeSpan.Zero);
+        DateTimeOffset passwordExpires = new(2026, 9, 1, 8, 30, 0, TimeSpan.Zero);
+        _directoryReader.SearchPageAsync(
+                Arg.Is<DirectorySearchQuery>(query =>
+                    query.BaseDistinguishedName == ItOu
+                    && query.LdapFilter.Contains("(department=IT)", StringComparison.Ordinal)
+                    && query.LdapFilter.Contains("(displayName=*Alex\\2a*)", StringComparison.Ordinal)
+                    && query.SortAttribute == "displayName"
+                    && query.SortDescending
+                    && query.SortTieBreakerAttribute == "sAMAccountName"
+                    && query.Attributes.Contains("objectGUID", StringComparer.Ordinal)
+                    && query.Attributes.Contains("msDS-UserPasswordExpiryTimeComputed", StringComparer.Ordinal)),
+                25,
+                25,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(61,
+            [
+                Entry($"CN=Alex Example,{ItOu}", new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["objectGUID"] = [Convert.ToBase64String(objectId.ToByteArray())],
+                    ["objectSid"] = [Convert.ToBase64String(sidBytes)],
+                    ["displayName"] = ["Alex Example"],
+                    ["sAMAccountName"] = ["a.example"],
+                    ["userPrincipalName"] = ["a.example@kauth.local"],
+                    ["mail"] = ["alex@example.test"],
+                    ["employeeID"] = ["E-1042"],
+                    ["department"] = ["IT"],
+                    ["title"] = ["Administrator"],
+                    ["manager"] = [$"CN=Manager,{ItOu}"],
+                    ["userAccountControl"] = [(512 + AdFilters.UacPasswordNeverExpires).ToString(CultureInfo.InvariantCulture)],
+                    ["whenCreated"] = ["20260102130405.0Z"],
+                    ["accountExpires"] = [long.MaxValue.ToString(CultureInfo.InvariantCulture)],
+                    ["lastLogonTimestamp"] = [lastLogon.ToFileTime().ToString(CultureInfo.InvariantCulture)],
+                    ["pwdLastSet"] = [passwordSet.ToFileTime().ToString(CultureInfo.InvariantCulture)],
+                    ["msDS-UserPasswordExpiryTimeComputed"] = [passwordExpires.ToFileTime().ToString(CultureInfo.InvariantCulture)],
+                    ["memberOf"] = ["CN=GG-App,OU=Groups,DC=kauth,DC=local"],
+                }),
+            ])));
+        var query = new DirectoryUserPageQuery(
+            new DirectoryUserReadConnection(null, null, ScanCredentials.CurrentUser),
+            "Alex*",
+            ItOu,
+            "IT",
+            DirectoryUserAccountStateFilter.Enabled,
+            Page: 2,
+            PageSize: 25,
+            DirectoryUserSortField.DisplayName,
+            DirectoryUserSortDirection.Descending);
+
+        Result<DirectoryUserPage> result = await CreateDirectoryUserReadService()
+            .GetPageAsync(query, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(61, result.Value.TotalCount);
+        Assert.Equal(2, result.Value.Page);
+        DirectoryUserRecord user = Assert.Single(result.Value.Users);
+        Assert.Equal(objectId, user.ObjectId);
+        Assert.Equal(sid.Value, user.Sid);
+        Assert.Equal("Alex Example", user.DisplayName);
+        Assert.Equal("E-1042", user.EmployeeId);
+        Assert.True(user.Enabled);
+        Assert.True(user.PasswordNeverExpires);
+        Assert.Equal(new DateTimeOffset(2026, 1, 2, 13, 4, 5, TimeSpan.Zero), user.CreatedAtUtc);
+        Assert.Null(user.AccountExpiresAtUtc);
+        Assert.Equal(lastLogon, user.ReplicatedLastLogonAtUtc);
+        Assert.Equal(passwordSet, user.PasswordLastSetAtUtc);
+        Assert.Equal(passwordExpires, user.PasswordExpiresAtUtc);
+        Assert.Equal(ItOu, user.OrganizationalUnitPath);
+        Assert.Equal("GG-App", Assert.Single(user.DirectGroups).Name);
+    }
+
+    [Fact]
+    public async Task GetPage_RejectsAnUnboundedPageBeforeReadingTheDirectory()
+    {
+        var query = new DirectoryUserPageQuery(
+            new DirectoryUserReadConnection(null, null, ScanCredentials.CurrentUser),
+            null,
+            null,
+            null,
+            DirectoryUserAccountStateFilter.All,
+            Page: 1,
+            PageSize: 101,
+            DirectoryUserSortField.SamAccountName,
+            DirectoryUserSortDirection.Ascending);
+
+        Result<DirectoryUserPage> result = await CreateDirectoryUserReadService()
+            .GetPageAsync(query, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+        await _directoryReader.DidNotReceiveWithAnyArgs().SearchPageAsync(default!, 0, 0, default);
+    }
+
+    [Fact]
+    public async Task GetById_QueriesTheStableObjectGuidAndReturnsNullWhenItIsAbsent()
+    {
+        SetUpDomainJoined();
+        var objectId = new Guid("00112233-4455-6677-8899-aabbccddeeff");
+        _directoryReader.SearchBoundedAsync(
+                Arg.Is<DirectorySearchQuery>(query =>
+                    query.LdapFilter == AdFilters.UserByObjectGuid(objectId)
+                    && query.Attributes.Contains("objectGUID", StringComparer.Ordinal)),
+                1,
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(0, [])));
+
+        Result<DirectoryUserRecord?> result = await CreateDirectoryUserReadService().GetByIdAsync(
+            new DirectoryUserIdentityQuery(
+                new DirectoryUserReadConnection(null, null, ScanCredentials.CurrentUser),
+                objectId),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
     }
 }

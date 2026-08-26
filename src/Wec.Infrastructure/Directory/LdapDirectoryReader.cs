@@ -105,7 +105,13 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
             request.Controls.Add(pageControl);
             if (!string.IsNullOrWhiteSpace(query.SortAttribute))
             {
-                request.Controls.Add(new SortRequestControl(query.SortAttribute, reverseOrder: false));
+                SortKey[] sortKeys = string.IsNullOrWhiteSpace(query.SortTieBreakerAttribute)
+                    ? [new SortKey(query.SortAttribute, null, query.SortDescending)]
+                    : [
+                        new SortKey(query.SortAttribute, null, query.SortDescending),
+                        new SortKey(query.SortTieBreakerAttribute, null, query.SortDescending),
+                    ];
+                request.Controls.Add(new SortRequestControl(sortKeys));
             }
 
             var accumulator = new BoundedDirectoryResultAccumulator(entryOffset, entryLimit);

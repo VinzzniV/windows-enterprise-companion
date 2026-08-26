@@ -29,4 +29,6 @@ public sealed record DirectorySearchQuery(
     TimeSpan TimeLimit,
     string? Server = null,
     ScanCredentials? Credentials = null,
-    string? SortAttribute = null);
+    string? SortAttribute = null,
+    bool SortDescending = false,
+    string? SortTieBreakerAttribute = null);

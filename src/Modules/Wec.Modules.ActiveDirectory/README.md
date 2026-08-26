@@ -76,6 +76,11 @@ rejected as `INVALID_REQUEST` naming the accepted forms.
   never logged on are not matched); privileged group membership counts
   **direct `memberOf` backlinks** only — nested/transitive membership and the
   separate `primaryGroupID` relationship are not expanded.
+- `IDirectoryUserReadProvider` is the read-only cross-module seam for User
+  Management (ADR 0019). It pages and counts on the server with allowlisted
+  search, account-state, department and OU filters; uses AD `objectGUID` as the
+  stable identity; and exposes only the approved identity, lifecycle and direct
+  group fields. The legacy bounded `searchUsers` bridge action is unchanged.
 
 ## Options (`Wec:ActiveDirectory`)
 

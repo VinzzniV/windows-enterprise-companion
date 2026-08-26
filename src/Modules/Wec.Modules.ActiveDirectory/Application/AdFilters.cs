@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using Wec.Core.Contracts;
 
 namespace Wec.Modules.ActiveDirectory.Application;
 
@@ -48,6 +50,38 @@ internal static class AdFilters
 
     public static string DirectMembersOfGroup(string groupDistinguishedName) =>
         $"(&(objectClass=*)(memberOf={EscapeFilterValue(groupDistinguishedName)}))";
+
+    public static string DirectoryUsers(
+        string? search,
+        DirectoryUserAccountStateFilter accountState,
+        string? department)
+    {
+        string stateClause = accountState switch
+        {
+            DirectoryUserAccountStateFilter.Enabled => $"(!({UacBitAnd}2))",
+            DirectoryUserAccountStateFilter.Disabled => $"({UacBitAnd}2)",
+            _ => string.Empty,
+        };
+        string departmentClause = string.IsNullOrWhiteSpace(department)
+            ? string.Empty
+            : $"(department={EscapeFilterValue(department.Trim())})";
+        string trimmedSearch = search?.Trim() ?? string.Empty;
+        string searchClause = trimmedSearch.Length == 0
+            ? string.Empty
+            : $"(|(displayName=*{EscapeFilterValue(trimmedSearch)}*)(sAMAccountName=*{EscapeFilterValue(trimmedSearch)}*)(userPrincipalName=*{EscapeFilterValue(trimmedSearch)}*)(employeeID=*{EscapeFilterValue(trimmedSearch)}*))";
+        return $"(&(objectCategory=person)(objectClass=user){stateClause}{departmentClause}{searchClause})";
+    }
+
+    public static string UserByObjectGuid(Guid objectId)
+    {
+        var escaped = new StringBuilder(16 * 3);
+        foreach (byte value in objectId.ToByteArray())
+        {
+            escaped.Append(CultureInfo.InvariantCulture, $@"\{value:x2}");
+        }
+
+        return $"(&(objectCategory=person)(objectClass=user)(objectGUID={escaped}))";
+    }
 
     public static string WithDirectoryIdentitySearch(string baseFilter, string? query) =>
         WithAccountNameSearch(baseFilter, query);
