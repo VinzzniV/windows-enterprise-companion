@@ -23,6 +23,34 @@ describe('ClientIntegrationMap', () => {
     expect(integrationStatus('nessus', { availability: 'PARTIAL', error: null }, true, new Set())).toBe('partial');
     expect(integrationStatus('activeDirectory', { availability: 'UNAVAILABLE', error: 'Offline' }, false, new Set())).toBe('unknown');
   });
+
+  it.each([
+    ['NOT_CONNECTED', 'unknown'],
+    ['UNAVAILABLE', 'unknown'],
+    ['PARTIAL', 'partial'],
+    ['TRUNCATED', 'partial'],
+  ] as const)('maps %s source availability to %s before considering device evidence', (availability, expected) => {
+    expect(integrationStatus('kaspersky', { availability, error: 'Source detail' }, true, new Set(['STALE_KASPERSKY'])))
+      .toBe(expected);
+  });
+
+  it.each([
+    ['activeDirectory', 'STALE_AD'],
+    ['kaspersky', 'STALE_KASPERSKY'],
+    ['opsi', 'STALE_OPSI'],
+    ['nessus', 'STALE_NESSUS'],
+  ] as const)('keeps the %s stale finding ahead of missing-device evidence', (source, finding) => {
+    expect(integrationStatus(source, available, false, new Set([finding]))).toBe('stale');
+  });
+
+  it.each([
+    ['kaspersky', 'MISSING_KASPERSKY_AGENT'],
+    ['kaspersky', 'MISSING_KES'],
+    ['opsi', 'MISSING_OPSI'],
+    ['nessus', 'MISSING_NESSUS'],
+  ] as const)('maps the %s finding %s to disconnected', (source, finding) => {
+    expect(integrationStatus(source, available, true, new Set([finding]))).toBe('disconnected');
+  });
   it('renders stable animated branches and a distinct icon for every integration', () => {
     const device = { computerName: 'PC-42', hostName: 'PC-42.corp.local', activeDirectory: { exists: true }, kaspersky: { exists: true }, opsi: { exists: false }, nessus: { exists: true }, assessment: { status: 'WARNING', findings: [{ code: 'STALE_KASPERSKY', severity: 'WARNING', message: 'Old' }, { code: 'MISSING_OPSI', severity: 'WARNING', message: 'Missing' }] } } as HygieneDevice;
     render(<ClientIntegrationMap device={device} sources={{ activeDirectory: available, kaspersky: available, opsi: available, nessus: { availability: 'PARTIAL', error: 'Incomplete sync' } }} />);
