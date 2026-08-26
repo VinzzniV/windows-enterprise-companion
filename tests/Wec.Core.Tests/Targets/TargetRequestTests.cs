@@ -85,6 +85,18 @@ public sealed class TargetRequestTests
     }
 
     [Fact]
+    public void ScanCredentials_ToString_DoesNotExposeThePassword()
+    {
+        ScanCredentials credentials = ScanCredentials.Explicit("admin", "CORP", "super-secret-value");
+
+        string text = credentials.ToString();
+
+        Assert.DoesNotContain("super-secret-value", text, StringComparison.Ordinal);
+        Assert.Contains("admin", text, StringComparison.Ordinal);
+        Assert.Contains("CORP", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ScanError_FromError_MapsCodeToPhase()
     {
         var dnsError = new Error(ErrorCode.DnsResolutionFailed, "no such host");

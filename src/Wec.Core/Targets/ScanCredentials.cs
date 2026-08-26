@@ -37,6 +37,9 @@ public sealed record ScanCredentials
         return new ScanCredentials(CredentialMode.Explicit, userName.Trim(), NormalizeDomain(domain), password);
     }
 
+    public override string ToString() =>
+        $"ScanCredentials {{ Mode = {Mode}, UserName = {UserName}, Domain = {Domain} }}";
+
     private static string? NormalizeDomain(string? domain) =>
         string.IsNullOrWhiteSpace(domain) ? null : domain.Trim();
 }
