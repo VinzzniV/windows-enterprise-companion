@@ -1,18 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { DashboardPage } from '../features/dashboard/DashboardPage';
-import { ClientsPage } from '../features/clients/ClientsPage';
-import { ClientDetailPage } from '../features/clients/ClientDetailPage';
-import { ComparePage } from '../features/clients/ComparePage';
-import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
-import { EmployeeLifecyclePage } from '../features/employeelifecycle/EmployeeLifecyclePage';
-import { VulnerabilitiesPage } from '../features/vulnerabilities/VulnerabilitiesPage';
-import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
-import { PrintManagementPage } from '../features/printmanagement/PrintManagementPage';
-import { NetworkScanPage } from '../features/networkscan/NetworkScanPage';
-import { ReportingPage } from '../features/reporting/ReportingPage';
-import { SettingsPage } from '../features/verwaltung/SettingsPage';
-import { ErrorLogPage } from '../features/verwaltung/ErrorLogPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
@@ -20,53 +7,11 @@ import { LogoMark } from '../shared/ui/LogoMark';
 import { ErrorBoundary } from '../shared/ui/ErrorBoundary';
 import { Button } from '../shared/ui/Button';
 import { CompactErrorState } from '../shared/ui/States';
-import { navIcons } from './navIcons';
 import { TargetProvider } from '../shared/targets/TargetContext';
 import { EnvironmentProvider } from '../shared/environment/EnvironmentContext';
 import { AdminSignIn } from '../shared/targets/AdminSignIn';
 import { presentError, type ErrorPresentation } from '../shared/bridge/errorPresentation';
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: ReactNode;
-}
-
-// Clients is the day-to-day workspace and sits right under the Dashboard.
-// Per-host Inventory/Security/Health now live inside a client's detail, so
-// they no longer appear as standalone nav entries. Administration holds app-wide
-// settings and the error log.
-const navGroups: { label: string; items: NavItem[] }[] = [
-  {
-    label: 'Fleet',
-    items: [
-      { to: '/', label: 'Dashboard', icon: navIcons.dashboard },
-      { to: '/clients', label: 'Clients', icon: navIcons.clients },
-      { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
-      { to: '/vulnerabilities', label: 'Vulnerabilities', icon: navIcons.vulnerabilities },
-      { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
-      { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
-      { to: '/networkscan', label: 'Network Scan', icon: navIcons.networkscan },
-      { to: '/reporting', label: 'Report export', icon: navIcons.reporting },
-    ],
-  },
-  {
-    label: 'Administration',
-    items: [
-      { to: '/settings', label: 'Settings', icon: navIcons.settings },
-      { to: '/logs', label: 'Error log', icon: navIcons.logs },
-    ],
-  },
-];
-
-const allNavItems = navGroups.flatMap((group) => group.items);
-
-function sectionLabelFor(pathname: string): string {
-  if (pathname === '/') {
-    return 'Dashboard';
-  }
-  return allNavItems.find((item) => item.to !== '/' && pathname.startsWith(item.to))?.label ?? 'Overview';
-}
+import { appRoutes, navigationGroups, sectionLabelFor } from './routeRegistry';
 
 export type AppInfoState =
   | { kind: 'loading' }
@@ -246,8 +191,8 @@ function NavigationContent({ appInfoState, onNavigate, onClose }: NavigationCont
         )}
       </div>
       <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2" aria-label="Primary">
-        {navGroups.map((group) => (
-          <div key={group.label} className="flex flex-col gap-1">
+        {navigationGroups.map((group) => (
+          <div key={group.key} className="flex flex-col gap-1">
             <span className="px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
               {group.label}
             </span>
@@ -273,19 +218,7 @@ function AppRoutes() {
     <div key={location.pathname}>
       <ErrorBoundary>
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/clients" element={<ClientsPage />} />
-          <Route path="/clients/compare" element={<ComparePage />} />
-          <Route path="/clients/:host" element={<ClientDetailPage />} />
-          <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
-          <Route path="/employeelifecycle" element={<EmployeeLifecyclePage />} />
-          <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
-          <Route path="/patchmanagement" element={<PatchManagementPage />} />
-          <Route path="/printmanagement" element={<PrintManagementPage />} />
-          <Route path="/networkscan" element={<NetworkScanPage />} />
-          <Route path="/reporting" element={<ReportingPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/logs" element={<ErrorLogPage />} />
+          {appRoutes.map(({ id, path, Component }) => <Route key={id} path={path} element={<Component />} />)}
         </Routes>
       </ErrorBoundary>
     </div>
