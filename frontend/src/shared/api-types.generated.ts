@@ -410,6 +410,7 @@ export interface SearchAdComputersRequest {
   nameFilter?: string | null;
   includeDisabled?: boolean;
   connection?: DirectoryConnectionRequest | null;
+  resultLimit?: number | null;
 }
 
 export interface SearchAdUsersRequest {
