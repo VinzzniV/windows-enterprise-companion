@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { HygieneDevice, InventorySourceState, ProbeHostsResponse } from '../../shared/api-types';
+import { Button } from '../../shared/ui/Button';
 
 type IntegrationStatus = 'connected' | 'stale' | 'disconnected' | 'unknown' | 'partial';
 type IntegrationKey = 'activeDirectory' | 'kaspersky' | 'opsi' | 'nessus';
 type DraggableKey = IntegrationKey | 'client';
-type ClientReachability = 'unknown' | 'checking' | 'online' | 'offline' | 'failed';
+type ClientReachability = 'unknown' | 'checking' | 'online' | 'no-response' | 'failed';
 interface IntegrationNode { key: IntegrationKey; label: string; status: IntegrationStatus; detail: string; }
 
 const STATUS_LABELS: Record<IntegrationStatus, string> = { connected: 'Connected', stale: 'Stale', disconnected: 'Disconnected', unknown: 'Unknown', partial: 'Partial' };
@@ -89,23 +90,26 @@ export function ClientIntegrationMap({ device, sources }: { device: HygieneDevic
   const animationRef = useRef<number | null>(null);
   const springKeyRef = useRef<DraggableKey | null>(null);
   const probeRequestRef = useRef(0);
-  const lastProbedHostRef = useRef<string | null>(null);
   const [offsets, setOffsets] = useState<NodeOffsets>(EMPTY_OFFSETS);
   const [movingKey, setMovingKey] = useState<DraggableKey | null>(null);
   const [reachability, setReachability] = useState<ClientReachability>('unknown');
   useEffect(() => () => { if (animationRef.current != null) cancelAnimationFrame(animationRef.current); }, []);
   useEffect(() => {
-    if (lastProbedHostRef.current === device.hostName) return;
-    lastProbedHostRef.current = device.hostName;
+    probeRequestRef.current += 1;
+    setReachability('unknown');
+  }, [device.hostName]);
+
+  const checkConnectivity = () => {
     const request = ++probeRequestRef.current;
     setReachability('checking');
     void invoke<ProbeHostsResponse>('connectivity', 'probeHosts', { hosts: [device.hostName] })
       .then((response) => {
         if (probeRequestRef.current !== request) return;
-        setReachability(response.results[0]?.reachable ? 'online' : 'offline');
+        const result = response.results[0];
+        setReachability(result?.reachable || result?.manageable ? 'online' : 'no-response');
       })
       .catch(() => { if (probeRequestRef.current === request) setReachability('failed'); });
-  }, [device.hostName]);
+  };
 
   const updateOffset = (key: DraggableKey, x: number, y: number) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -150,10 +154,10 @@ export function ClientIntegrationMap({ device, sources }: { device: HygieneDevic
   const findingCodes = new Set(device.assessment.findings.map((finding) => finding.code));
   const definitions: Array<[IntegrationKey, string, boolean]> = [['activeDirectory', 'Active Directory', device.activeDirectory.exists], ['kaspersky', 'Kaspersky', device.kaspersky.exists], ['opsi', 'opsi', device.opsi.exists], ['nessus', 'Nessus', Boolean(device.nessus?.exists && device.nessus.lastCompletedScanUtc !== null)]];
   const nodes = definitions.map(([key, label, present]) => ({ key, label, status: integrationStatus(key, sources[key], present, findingCodes), detail: sources[key].error ?? (present ? 'Client found' : 'No matching client') }));
-  const reachabilityLabel = reachability === 'online' ? 'Online' : reachability === 'offline' ? 'Offline' : reachability === 'checking' ? 'Pinging…' : reachability === 'failed' ? 'Ping failed' : 'Not checked';
-  return <section className={`integration-map${reachability === 'offline' ? ' integration-map--offline' : ''}`} aria-labelledby="client-integration-map-title">
+  const reachabilityLabel = reachability === 'online' ? 'Ping or WinRM responded' : reachability === 'no-response' ? 'No ping or WinRM response' : reachability === 'checking' ? 'Checking…' : reachability === 'failed' ? 'Check failed' : 'Not checked';
+  return <section className="integration-map" aria-labelledby="client-integration-map-title">
     <div className="integration-map__grid" aria-hidden="true" />
-    <div className="integration-map__heading"><div><h2 id="client-integration-map-title"><span />Client integration map</h2><p>Connection state across management systems</p></div><span className="integration-map__legend"><i />Live topology</span></div>
+    <div className="integration-map__heading"><div><h2 id="client-integration-map-title"><span />Client integration map</h2><p>Stored relationship evidence across management systems</p></div><div className="flex flex-wrap items-center justify-end gap-2"><span className="integration-map__legend"><i />Stored evidence</span><Button variant="ghost" disabled={reachability === 'checking'} onClick={checkConnectivity}>{reachability === 'checking' ? 'Checking …' : 'Check connectivity'}</Button></div></div>
     <div ref={canvasRef} className="integration-map__canvas">
       <svg className="integration-map__lines" viewBox="0 0 1000 420" preserveAspectRatio="none" aria-hidden="true">{nodes.map((node) => <ConnectionBranch key={node.key} node={node} offset={offsets[node.key]} clientOffset={offsets.client} moving={movingKey === node.key || movingKey === 'client'} />)}</svg>
       <div data-testid="integration-node-client" style={{ '--drag-x': `${offsets.client.x}px`, '--drag-y': `${offsets.client.y}px` } as CSSProperties} onPointerDown={(event) => startDrag(event, 'client')} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} className={`integration-map__client integration-map__client--${reachability}${movingKey === 'client' ? ' integration-map__client--moving' : ''}`}><span className="integration-map__client-orbit" aria-hidden="true"/><span className="integration-map__client-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2" fill="none"/><path d="M8 21h8M12 17v4" fill="none"/></svg></span><span className="integration-map__client-copy"><span className="integration-map__client-label">Primary client</span><strong>{device.computerName}</strong><span className="integration-map__client-host" title={device.hostName}>{device.hostName}</span><span className="integration-map__client-presence"><i />{reachabilityLabel}</span></span></div>

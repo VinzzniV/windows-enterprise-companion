@@ -56,13 +56,15 @@ describe('ClientIntegrationMap', () => {
     expect(branch.querySelector('path')!.getAttribute('d')).not.toBe(originalPath);
   });
 
-  it('automatically probes the client exactly once when opened and marks it offline', async () => {
+  it('probes connectivity only after the explicit action and does not infer offline state', async () => {
     const device = { computerName: 'PC-42', hostName: 'PC-42.corp.local', activeDirectory: { exists: true }, kaspersky: { exists: true }, opsi: { exists: true }, nessus: { exists: true }, assessment: { status: 'HEALTHY', findings: [] } } as unknown as HygieneDevice;
     invokeMock.mockResolvedValueOnce({ results: [{ host: device.hostName, reachable: false, manageable: false }] });
     const map = <ClientIntegrationMap device={device} sources={{ activeDirectory: available, kaspersky: available, opsi: available, nessus: available }} />;
     const { rerender } = render(map);
-    expect(await screen.findByText('Offline')).toBeDefined();
-    expect(screen.getByTestId('integration-node-client').closest('section')?.classList.contains('integration-map--offline')).toBe(true);
+    expect(screen.getByText('Not checked')).toBeDefined();
+    expect(invokeMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Check connectivity' }));
+    expect(await screen.findByText('No ping or WinRM response')).toBeDefined();
     rerender(map);
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(invokeMock).toHaveBeenCalledWith('connectivity', 'probeHosts', { hosts: [device.hostName] });

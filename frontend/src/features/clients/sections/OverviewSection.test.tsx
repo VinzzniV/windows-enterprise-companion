@@ -107,6 +107,7 @@ describe('OverviewSection', () => {
     expect(opsiCard).not.toBeNull();
     expect(opsiCard!.textContent).toContain('Stale');
     await waitFor(() => expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(true));
+    expect(invokeMock.mock.calls.some((call) => call[0] === 'connectivity')).toBe(false);
   });
 
   it('keeps missing sources explicit instead of presenting them as healthy', async () => {
