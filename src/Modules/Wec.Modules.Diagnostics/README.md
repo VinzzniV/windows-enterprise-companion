@@ -5,9 +5,9 @@ existing module, bridge actions and persistence names for compatibility while
 the product surface is presented as **Health** (ADR 0018).
 
 Health runs only on demand. WMI-based checks work locally and against remote
-targets. The event-log summary is local-only because `Win32_NTLogEvent` is too
-slow for a broad remote summary; the separate preset-based Event Log view
-continues to query remote targets through WMI.
+targets. Remote Event Log summaries query only error entries in the configured
+time window and apply the configured result cap; the separate preset-based
+Event Log view continues to provide detailed remote results.
 
 The latest run is persisted per host and restored when that client is opened.
 Existing `diagnostics_runs` payloads remain readable, including results from
@@ -29,7 +29,7 @@ introduce `health/*` aliases only when compatibility requires it.
 | Category | DiagnosticId | What it checks | Remote |
 |---|---|---|---|
 | Services | `WEC-DIAG-SYS-SERVICES` | Configured Windows service states | yes |
-| Event logs | `WEC-DIAG-SYS-EVENTLOG` | Critical/error volume in configured logs | summary local-only |
+| Event logs | `WEC-DIAG-SYS-EVENTLOG` | Critical/error volume in configured logs | yes |
 | System | `WEC-DIAG-SYS-DISKSPACE` | Free space on fixed drives | yes |
 | System | `WEC-DIAG-SYS-UPDATES` | Age of the most recently installed update | yes |
 

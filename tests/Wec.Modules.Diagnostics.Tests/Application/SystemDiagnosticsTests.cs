@@ -13,11 +13,13 @@ internal static class SystemTestSetup
     public static Microsoft.Extensions.Options.IOptions<DiagnosticsOptions> Options(
         string[]? eventLogNames = null,
         int errorThreshold = 50,
-        string[]? monitoredServices = null) =>
+        string[]? monitoredServices = null,
+        int eventLogMaxEntries = 500) =>
         Microsoft.Extensions.Options.Options.Create(new DiagnosticsOptions
         {
             EventLogNames = eventLogNames ?? ["System"],
             EventLogErrorWarningThreshold = errorThreshold,
+            EventLogMaxEntries = eventLogMaxEntries,
             MonitoredServices = monitoredServices ?? ["Dhcp", "Dnscache"],
         });
 
@@ -45,11 +47,17 @@ internal static class SystemTestSetup
 public class EventLogSummaryDiagnosticTests
 {
     private readonly IEventLogReader _eventLogReader = Substitute.For<IEventLogReader>();
+    private readonly IWmiQueryService _wmiQueryService = Substitute.For<IWmiQueryService>();
 
     private EventLogSummaryDiagnostic CreateDiagnostic(
         string[]? logNames = null,
-        int errorThreshold = 50) =>
-        new(_eventLogReader, SystemTestSetup.Options(logNames, errorThreshold), TestDefaults.Clock());
+        int errorThreshold = 50,
+        int maxEntries = 500) =>
+        new(
+            _eventLogReader,
+            _wmiQueryService,
+            SystemTestSetup.Options(logNames, errorThreshold, eventLogMaxEntries: maxEntries),
+            TestDefaults.Clock());
 
     private void SetUpEntries(params EventLogEntrySummary[] entries) =>
         _eventLogReader
@@ -111,6 +119,85 @@ public class EventLogSummaryDiagnosticTests
             .EvaluateAsync(DiagnosticContext.Local, CancellationToken.None);
 
         Assert.Equal(2, results.Count);
+    }
+
+    [Fact]
+    public async Task RemoteTarget_QueriesErrorsThroughWmi()
+    {
+        _wmiQueryService.SetUpWmiQuery("Win32_NTLogEvent",
+            SystemTestSetup.Instance(
+                ("SourceName", "Service Control Manager"),
+                ("EventCode", 7031L),
+                ("EventType", 1L),
+                ("TimeGenerated", new DateTime(2026, 7, 2, 16, 0, 0, DateTimeKind.Utc))));
+        var remoteContext = new DiagnosticContext(
+            Wec.Core.Targets.ScanTarget.Remote("pc-042"),
+            Wec.Core.Targets.ScanCredentials.CurrentUser,
+            Wec.Core.Targets.ConnectionOptions.Default);
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(remoteContext, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Pass, result.Status);
+        Assert.Equal("1", result.Evidence["errorEntries"]);
+        Assert.Contains("Service Control Manager (x1)", result.Evidence["topProviders"], StringComparison.Ordinal);
+        await _wmiQueryService.Received(1).QueryAsync(
+            Arg.Is<Wec.Core.Targets.ScanTarget>(target => target.Host == "pc-042"),
+            Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+            Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+            @"root\cimv2",
+            Arg.Is<string>(query =>
+                query.Contains("Logfile='System'", StringComparison.Ordinal)
+                && query.Contains("EventType=1", StringComparison.Ordinal)),
+            Arg.Any<CancellationToken>());
+        _eventLogReader.DidNotReceiveWithAnyArgs()
+            .ReadRecentCriticalAndErrorEntries(default!, default, default);
+    }
+
+    [Fact]
+    public async Task RemoteWmiFailure_ProducesNotRunWithErrorCode()
+    {
+        _wmiQueryService.QueryAsync(
+                Arg.Any<Wec.Core.Targets.ScanTarget>(),
+                Arg.Any<Wec.Core.Targets.ScanCredentials>(),
+                Arg.Any<Wec.Core.Targets.ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<IReadOnlyList<WmiInstance>>(Error.WmiUnavailable("unreachable")));
+        var remoteContext = new DiagnosticContext(
+            Wec.Core.Targets.ScanTarget.Remote("pc-042"),
+            Wec.Core.Targets.ScanCredentials.CurrentUser,
+            Wec.Core.Targets.ConnectionOptions.Default);
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic().EvaluateAsync(remoteContext, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.NotRun, result.Status);
+        Assert.Equal(nameof(ErrorCode.WmiUnavailable), result.Evidence["errorCode"]);
+    }
+
+    [Fact]
+    public async Task RemoteResultCap_DoesNotHideAnElevatedErrorCount()
+    {
+        _wmiQueryService.SetUpWmiQuery("Win32_NTLogEvent",
+            [.. Enumerable.Range(0, 3).Select(index => SystemTestSetup.Instance(
+                ("SourceName", $"Provider {index}"),
+                ("EventType", 1L),
+                ("TimeGenerated", new DateTime(2026, 7, 2, 16, 0, 0, DateTimeKind.Utc))))]);
+        var remoteContext = new DiagnosticContext(
+            Wec.Core.Targets.ScanTarget.Remote("pc-042"),
+            Wec.Core.Targets.ScanCredentials.CurrentUser,
+            Wec.Core.Targets.ConnectionOptions.Default);
+
+        DiagnosticResult result = Assert.Single(
+            await CreateDiagnostic(errorThreshold: 2, maxEntries: 1)
+                .EvaluateAsync(remoteContext, CancellationToken.None));
+
+        Assert.Equal(DiagnosticStatus.Warning, result.Status);
+        Assert.Equal("3", result.Evidence["errorEntries"]);
+        Assert.Equal("true", result.Evidence["truncated"]);
+        Assert.Equal("3", result.Evidence["matchedEntries"]);
     }
 }
 
