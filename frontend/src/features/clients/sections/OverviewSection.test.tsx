@@ -46,18 +46,26 @@ const storedOverview: ClientOverviewResult = {
     operatingSystem: 'Windows 11 Enterprise', operatingSystemVersion: '10.0', operatingSystemBuild: '26100', architecture: '64-bit',
     disks: [{ model: 'NVMe', sizeBytes: 512000000000, interfaceType: 'NVMe' }],
   },
-  software: null,
+  software: {
+    metadata: { source: 'Installed software', provenance: 'Persisted Inventory software capture', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Complete capture with 12 installed entries.', detailSection: 'inventory' },
+    installedCount: 12,
+    sample: [{ name: 'Microsoft 365 Apps', version: '16.0', publisher: 'Microsoft' }],
+  },
   health: {
     metadata: { source: 'Health', provenance: 'Latest persisted on-demand Health run', freshness: 'STALE', capturedAtUtc: '2026-08-18T07:00:00Z', ageSeconds: 262800, isComplete: true, coverage: '4 of 4 expected checks observed.', detailSection: 'diagnostics' },
     criticalCount: 0, warningCount: 1, unknownCount: 0, healthyCount: 3,
     issues: [{ diagnosticId: 'SERVICES', title: 'Service stopped', status: 'Warning', affectedResource: 'Spooler' }],
   },
-  security: null,
+  security: {
+    metadata: { source: 'Security', provenance: 'Latest persisted Security scan and per-check coverage', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:30:00Z', ageSeconds: 1800, isComplete: true, coverage: '13 of 13 applicable checks succeeded.', detailSection: 'security' },
+    scanStatus: 'Completed', criticalCount: 1, highCount: 0, mediumCount: 1, lowCount: 0,
+    topFindings: [{ findingId: 'BITLOCKER', title: 'BitLocker protection disabled', severity: 'Critical', affectedResource: 'C:' }],
+  },
   sources: [
     { source: 'Inventory', provenance: 'Persisted WMI/CIM hardware snapshot', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Hardware and operating-system snapshot available.', detailSection: 'inventory' },
-    { source: 'Installed software', provenance: 'Persisted Inventory software capture', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored software capture.', detailSection: 'inventory' },
+    { source: 'Installed software', provenance: 'Persisted Inventory software capture', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Complete capture with 12 installed entries.', detailSection: 'inventory' },
     { source: 'Health', provenance: 'Latest persisted on-demand Health run', freshness: 'STALE', capturedAtUtc: '2026-08-18T07:00:00Z', ageSeconds: 262800, isComplete: true, coverage: '4 of 4 expected checks observed.', detailSection: 'diagnostics' },
-    { source: 'Security', provenance: 'Latest persisted Security scan and per-check coverage', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored Security scan.', detailSection: 'security' },
+    { source: 'Security', provenance: 'Latest persisted Security scan and per-check coverage', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:30:00Z', ageSeconds: 1800, isComplete: true, coverage: '13 of 13 applicable checks succeeded.', detailSection: 'security' },
   ],
 };
 
@@ -102,10 +110,36 @@ describe('OverviewSection', () => {
   });
 
   it('keeps missing sources explicit instead of presenting them as healthy', async () => {
+    invokeMock.mockImplementation((module: string, action: string) => {
+      if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (module === 'clients' && action === 'getOverview') return Promise.resolve({
+        ...storedOverview,
+        software: null,
+        security: null,
+        sources: storedOverview.sources.map((source) => source.source === 'Installed software'
+          ? { ...source, freshness: 'MISSING' as const, capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored software capture.' }
+          : source.source === 'Security'
+            ? { ...source, freshness: 'MISSING' as const, capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored Security scan.' }
+            : source),
+      });
+      return Promise.reject(new Error(`Unexpected action ${module}/${action}`));
+    });
     renderOverview();
 
     await screen.findByText('No stored software capture.');
     expect(screen.getByText('No stored Security scan.')).toBeDefined();
-    expect(screen.getAllByText('Missing')).toHaveLength(2);
+    expect(screen.getAllByText('Missing')).toHaveLength(4);
+  });
+
+  it('shows installed-software and Security context with reliable deep links', async () => {
+    renderOverview();
+
+    expect(await screen.findByText('12 installed applications')).toBeDefined();
+    expect(screen.getByText('Microsoft 365 Apps')).toBeDefined();
+    expect(screen.getByText('BitLocker protection disabled')).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Open software inventory' }).getAttribute('href'))
+      .toBe('/clients/PC-42.corp.local?section=inventory');
+    expect(screen.getByRole('link', { name: 'Open Security' }).getAttribute('href'))
+      .toBe('/clients/PC-42.corp.local?section=security');
   });
 });

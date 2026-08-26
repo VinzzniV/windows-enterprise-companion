@@ -5,6 +5,8 @@ import type {
   ClientInventoryOverview,
   ClientOverviewResult,
   ClientOverviewSourceMetadata,
+  ClientSecurityOverview,
+  ClientSoftwareOverview,
   HygieneDevice,
   InventorySourceState,
 } from '../../../shared/api-types';
@@ -166,6 +168,72 @@ function HealthSummary({ host, health, metadata }: {
   </Card>;
 }
 
+function SoftwareSummary({ host, software, metadata }: {
+  host: string;
+  software: ClientSoftwareOverview | null;
+  metadata: ClientOverviewSourceMetadata;
+}) {
+  return <Card title="Installed software">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
+        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
+      </div>
+      <DetailLink host={host} metadata={metadata}>Open software inventory</DetailLink>
+    </div>
+    {software ? <>
+      <p className="mb-3 text-lg font-semibold tabular-nums text-slate-100">{software.installedCount} installed applications</p>
+      {software.sample.length > 0 ? <ul className="divide-y divide-slate-800/80">
+        {software.sample.map((item) => <li key={`${item.name}\u0000${item.version ?? ''}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2 text-sm">
+          <span className="font-medium text-slate-200">{item.name}</span>
+          <span className="text-xs text-slate-500">{value(item.version)}{item.publisher ? ` · ${item.publisher}` : ''}</span>
+        </li>)}
+      </ul> : <p className="text-sm text-slate-400">The saved capture contains no installed applications.</p>}
+      {software.installedCount > software.sample.length && <p className="mt-3 text-xs text-slate-500">Showing {software.sample.length} of {software.installedCount}. Open Inventory for the complete list.</p>}
+    </> : <p className="text-sm text-slate-400">No stored software capture. Open Inventory to run an explicit scan.</p>}
+  </Card>;
+}
+
+function findingSeverityClass(severity: string): string {
+  switch (severity.toUpperCase()) {
+    case 'CRITICAL':
+    case 'HIGH': return 'text-fail-300';
+    case 'MEDIUM': return 'text-warn-300';
+    default: return 'text-slate-400';
+  }
+}
+
+function SecuritySummary({ host, security, metadata }: {
+  host: string;
+  security: ClientSecurityOverview | null;
+  metadata: ClientOverviewSourceMetadata;
+}) {
+  return <Card title="Security posture">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
+        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
+      </div>
+      <DetailLink host={host} metadata={metadata}>Open Security</DetailLink>
+    </div>
+    {security ? <>
+      <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm tabular-nums">
+        <span className="text-fail-300"><strong>{security.criticalCount}</strong> critical</span>
+        <span className="text-fail-300"><strong>{security.highCount}</strong> high</span>
+        <span className="text-warn-300"><strong>{security.mediumCount}</strong> medium</span>
+        <span className="text-slate-300"><strong>{security.lowCount}</strong> low</span>
+      </div>
+      {security.topFindings.length > 0 ? <ul className="space-y-2">
+        {security.topFindings.map((finding) => <li key={finding.findingId} className="rounded border border-slate-800 bg-slate-950/30 px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium text-slate-200">{finding.title}</span><span className={`text-xs font-medium uppercase tracking-wide ${findingSeverityClass(finding.severity)}`}>{finding.severity}</span></div>
+          <p className="mt-1 text-xs text-slate-400">{finding.affectedResource}</p>
+        </li>)}
+      </ul> : <p className="text-sm text-slate-400">{metadata.isComplete ? 'No findings in the latest complete Security scan.' : 'No finding detail is available from this incomplete scan.'}</p>}
+      <p className="mt-3 text-xs text-slate-500">Scan state: {value(security.scanStatus)} · {metadata.coverage}</p>
+    </> : <p className="text-sm text-slate-400">No stored Security scan. Open Security to start an explicit scan.</p>}
+  </Card>;
+}
+
 function SourceHeader({ name, state, present, missingApplies, stale = false }: { name: string; state: InventorySourceState; present: boolean; missingApplies: boolean; stale?: boolean }) {
   const unavailable = state.availability !== 'AVAILABLE';
   const presentation = unavailable ? inventorySourceStatus(state.availability) : null;
@@ -261,7 +329,9 @@ export function OverviewSection({ host }: { host: string }) {
   if (state.kind === 'error') return <ErrorState {...state.error} controls={<Button onClick={() => loadOverview(false)}>Retry overview</Button>} />;
 
   const inventoryMetadata = state.result.sources.find((source) => source.source === 'Inventory')!;
+  const softwareMetadata = state.result.sources.find((source) => source.source === 'Installed software')!;
   const healthMetadata = state.result.sources.find((source) => source.source === 'Health')!;
+  const securityMetadata = state.result.sources.find((source) => source.source === 'Security')!;
   return <div className="flex flex-col gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3">
       <div><p className="text-sm font-medium text-slate-200">Client 360 evidence snapshot</p><p className="mt-0.5 text-xs text-slate-400">Stored data is read-only and never refreshed remotely on open.</p></div>
@@ -272,6 +342,8 @@ export function OverviewSection({ host }: { host: string }) {
     <div className="grid gap-4 xl:grid-cols-2">
       <InventorySummary host={host} inventory={state.result.inventory} metadata={inventoryMetadata} />
       <HealthSummary host={host} health={state.result.health} metadata={healthMetadata} />
+      <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
+      <SecuritySummary host={host} security={state.result.security} metadata={securityMetadata} />
     </div>
     <ManagementContext host={host} />
   </div>;
