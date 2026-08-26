@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 1 — Record the revised product decisions
+Current phase: Phase 2 — Reduce Diagnostics to Device Health
 
-Current slice: Run the complete Phase 1 verification gates
+Current slice: Add remote Event Log summary support
 
 ## Done
 
@@ -54,6 +54,17 @@ Current slice: Run the complete Phase 1 verification gates
   `objectGUID` identity, evidence-aware user/client correlation, the Leaver-first
   lifecycle sequence and preservation of all five legacy Employee Lifecycle
   tables.
+- Phase 1 gates passed: Release build without warnings, 701 backend tests, 415
+  frontend tests, 308 generated contracts current, production build, zero NPM
+  findings and no production-module dependency violations. PR CI run
+  `33015033285` passed for commit `540cc08`.
+- Characterization coverage now fixes the contracts for Windows Update age,
+  service state, Event Log summary, disk free space and preset-based Event Log
+  queries.
+- Diagnostics registrations, options, implementations and tests for network,
+  DNS, domain/DC, time-synchronization and pending-reboot checks were removed.
+  The four retained Health checks, detailed Event Log action, persistence and
+  bridge names remain intact; Network Scan is unchanged.
 
 ## Blocked
 
@@ -72,18 +83,19 @@ Current slice: Run the complete Phase 1 verification gates
 ## Last verification
 
 - Baseline commit: `aba4ccd57f724cb359e9ac643378bf6ada0ce559`.
-- Local `HEAD` equals `origin/master`; ahead/behind `0/0`.
-- Phase 0 Release build: 0 warnings, 0 errors.
-- Phase 0 backend tests: 701 passed.
-- Phase 0 frontend tests: 415 passed.
-- Phase 0 bridge contracts: 308 generated types current.
-- Phase 0 frontend production bundle: 535.98 kB JavaScript,
+- Phase 1 Release build: 0 warnings, 0 errors.
+- Phase 1 backend tests: 701 passed.
+- Phase 1 frontend tests: 415 passed.
+- Phase 1 bridge contracts: 308 generated types current.
+- Phase 1 frontend production bundle: 535.98 kB JavaScript,
   155.62 kB gzip.
-- Phase 0 NPM audit: zero vulnerabilities.
+- Phase 1 NPM audit: zero vulnerabilities.
 - Module dependency rules, committed secret-pattern scan and latest WEC log
   sensitive-term scan passed.
 - Local Desktop startup and Dashboard-to-Clients navigation passed against
   the Release host.
+- Phase 2 reduction build passed without warnings; the reduced Diagnostics
+  suite has 23 passing tests and Host has 70 passing tests.
 - GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
   removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
@@ -92,8 +104,8 @@ Current slice: Run the complete Phase 1 verification gates
 
 ## Next
 
-1. Run the complete Phase 1 verification gates.
-2. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Add WMI-backed remote Event Log summaries and compatibility coverage for
+   retained historical `diagnostics_runs` payloads.
+2. Rename the user-visible Diagnostics workspace to Health.
+3. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
-3. Begin Phase 2 with characterization tests for the retained Health checks
-   and Event Log query.
