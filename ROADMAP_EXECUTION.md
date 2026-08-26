@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 2 — Reduce Diagnostics to Device Health
+Current phase: Phase 3 — Build Client 360 Overview
 
-Current slice: Add remote Event Log summary support
+Current slice: Define the narrow Client 360 overview read model
 
 ## Done
 
@@ -65,6 +65,19 @@ Current slice: Add remote Event Log summary support
   DNS, domain/DC, time-synchronization and pending-reboot checks were removed.
   The four retained Health checks, detailed Event Log action, persistence and
   bridge names remain intact; Network Scan is unchanged.
+- Remote Event Log summaries now use the existing credential-aware WMI seam,
+  retain bounded evidence and report source failures as typed `NOT_RUN`
+  results.
+- Historical `diagnostics_runs` payloads remain physically unchanged. The
+  reader returns only current Health check codes, while explicit persisted enum
+  values keep old JSON deserializable. Retired categories were removed from the
+  current generated TypeScript contract.
+- The client tab and all user-visible copy now say Health. Backend project,
+  bridge actions, persistence table and the compatible `section=diagnostics`
+  deep-link key remain unchanged as required by ADR 0018.
+- Phase 2 full gates passed: Release build without warnings, 656 backend tests,
+  415 frontend tests, 308 generated contracts current, production build, zero
+  NPM findings, module dependency check and production credential scan.
 
 ## Blocked
 
@@ -95,7 +108,17 @@ Current slice: Add remote Event Log summary support
 - Local Desktop startup and Dashboard-to-Clients navigation passed against
   the Release host.
 - Phase 2 reduction build passed without warnings; the reduced Diagnostics
-  suite has 23 passing tests and Host has 70 passing tests.
+  suite has 26 passing tests and Infrastructure has 138 passing integration
+  tests.
+- Phase 2 final backend suite: 656 passed. The intentional reduction from 701
+  removes tests for the retired checks and adds retained-check, remote Event Log
+  and historical-payload coverage.
+- Phase 2 final frontend suite: 415 passed. Production bundle: 535.82 kB
+  JavaScript, 155.55 kB gzip. NPM audit reports zero vulnerabilities.
+- Release desktop smoke reached Dashboard and Clients without starting any
+  company or remote query. The Health tab itself could not be opened on this
+  home profile because the Clients list contains no device; its tab navigation
+  and content are covered by frontend tests.
 - GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
   removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
@@ -104,8 +127,9 @@ Current slice: Add remote Event Log summary support
 
 ## Next
 
-1. Add WMI-backed remote Event Log summaries and compatibility coverage for
-   retained historical `diagnostics_runs` payloads.
-2. Rename the user-visible Diagnostics workspace to Health.
-3. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Define concrete read-only Core projections for Client 360 source summaries.
+2. Compose stored Inventory, software, Health and Security context without
+   triggering remote work on open.
+3. Add freshness, coverage and deep links to the Client 360 Overview.
+4. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
