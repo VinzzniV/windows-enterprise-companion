@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Phase 0 — Stabilize the delivery baseline
 
-Current slice: Verify ZIP, installer and release workflow behavior
+Current slice: Run the complete Phase 0 verification gates
 
 ## Done
 
@@ -33,6 +33,13 @@ Current slice: Verify ZIP, installer and release workflow behavior
 - Master package artifacts now expire after three days; tag runs publish the
   versioned files directly as GitHub Release assets instead of duplicating
   them in Actions storage.
+- The package workflow validates required ZIP contents and creates verified
+  SHA-256 files for ZIP and installer. A manual workflow dispatch can exercise
+  publish, host smoke, packaging and artifact upload without creating a tag or
+  release.
+- A local self-contained 0.2.0 publish produced 578 files; the portable ZIP
+  was expanded, required host/frontend files were found and its SHA-256 record
+  was verified. Inno Setup remains a GitHub-CI-only check on this host.
 
 ## Blocked
 
@@ -65,5 +72,6 @@ Current slice: Verify ZIP, installer and release workflow behavior
 
 ## Next
 
-1. Verify ZIP, installer and release workflow behavior without publishing a
-   release.
+1. Run the complete Phase 0 verification gates.
+2. Push the verified milestone, run CI and manually exercise the packaging
+   workflow without publishing a release.

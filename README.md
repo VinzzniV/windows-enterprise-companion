@@ -86,6 +86,10 @@ self-contained for win-x64 — no .NET runtime needed on the target machine:
   with Start menu entry and uninstaller. Uninstalling keeps the runtime
   data in `%LOCALAPPDATA%\Wec` (database, logs).
 
+Each package includes a sibling `.sha256` file. Master artifacts are retained
+for three days; version-tag builds publish the packages and checksums as GitHub
+Release assets instead of duplicating them in Actions storage.
+
 Artifacts are not code-signed yet, so SmartScreen warns on first run of
 downloaded builds.
 
@@ -252,12 +256,16 @@ Migrations are applied automatically at app startup.
 to `master`, CI publishes the host **self-contained for win-x64** (no .NET
 runtime needed on target machines, ADR 0005) and uploads a portable
 `wec-<version>-win-x64.zip` plus a per-user Inno Setup installer
-(`packaging/wec-installer.iss`).
+(`packaging/wec-installer.iss`). The workflow expands and validates the ZIP,
+generates SHA-256 checksum files for both packages and retains master artifacts
+for three days. A manual workflow run performs the same packaging path without
+creating a release.
 
 ## Releasing
 
 Releases are cut by pushing a version tag; CI runs the identical gates and
-attaches both artifacts to a GitHub release with generated notes:
+attaches both artifacts and their SHA-256 files to a GitHub release with
+generated notes:
 
 1. Bump `<Version>` in `Directory.Build.props`, commit to `master`.
 2. `git tag v<version> && git push origin v<version>`

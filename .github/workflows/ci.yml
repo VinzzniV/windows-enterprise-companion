@@ -77,16 +77,17 @@ jobs:
 
       # Packaging (ADR 0005): self-contained win-x64 so target machines need no
       # .NET runtime. Compiles for the RID, so --no-build does not apply here.
-      # Only when every gate above passed, and only for master pushes and version tags.
+      # Only when every gate above passed, and only for master pushes, version
+      # tags or an explicit manual verification run.
       - name: Publish host (self-contained win-x64)
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
         run: dotnet publish src/Wec.Host --configuration Release --runtime win-x64 --self-contained true --output publish
 
       # Startup smoke test on the published exe: catches the wiring-crash class
       # (EF model mismatch, DI ctor problems) that unit tests cannot see.
       # The runner image ships Edge, so the WebView2 Evergreen runtime exists.
       - name: Smoke-test published host
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
         shell: pwsh
         run: |
           $process = Start-Process publish\Wec.Host.exe -PassThru
@@ -104,7 +105,7 @@ jobs:
           }
 
       - name: Create portable ZIP
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
         id: package
         shell: pwsh
         run: |
@@ -113,30 +114,70 @@ jobs:
           Compress-Archive -Path publish\* -DestinationPath $zipName
           "zip-name=$zipName" >> $env:GITHUB_OUTPUT
 
+      - name: Verify portable ZIP
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'wec-portable-verify'
+          Expand-Archive -LiteralPath '${{ steps.package.outputs.zip-name }}' -DestinationPath $destination
+          @('Wec.Host.exe', 'wwwroot\index.html') | ForEach-Object {
+            $requiredFile = Join-Path $destination $_
+            if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+              throw "Portable ZIP is missing required file: $_"
+            }
+          }
+
       # Inno Setup 6 is preinstalled on the windows-latest runner image
       - name: Build per-user installer
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
         shell: pwsh
         run: |
           $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version.Trim()
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\wec-installer.iss /DAppVersion=$version /Odist /Q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Generate and verify package checksums
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem -LiteralPath dist -Filter '*.exe')
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one installer, found $($installers.Count)."
+          }
+          $packages = @(
+            (Resolve-Path -LiteralPath '${{ steps.package.outputs.zip-name }}').Path,
+            $installers[0].FullName
+          )
+          foreach ($package in $packages) {
+            $hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()
+            $checksumPath = "$package.sha256"
+            "$hash  $([System.IO.Path]::GetFileName($package))" |
+              Set-Content -LiteralPath $checksumPath -Encoding ascii
+            $recordedHash = ((Get-Content -LiteralPath $checksumPath -Raw).Trim() -split '\s+')[0]
+            if ($recordedHash -ne $hash) {
+              throw "Checksum verification failed for $package"
+            }
+          }
+
       - name: Upload ZIP artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
         uses: actions/upload-artifact@v7
         with:
           name: wec-win-x64-${{ github.sha }}
-          path: ${{ steps.package.outputs.zip-name }}
+          path: |
+            ${{ steps.package.outputs.zip-name }}
+            ${{ steps.package.outputs.zip-name }}.sha256
           if-no-files-found: error
           retention-days: 3
 
       - name: Upload installer artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
         uses: actions/upload-artifact@v7
         with:
           name: wec-setup-${{ github.sha }}
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.exe.sha256
           if-no-files-found: error
           retention-days: 3
 
@@ -147,5 +188,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $setup = (Get-ChildItem dist\*.exe | Select-Object -First 1).FullName
-          gh release create '${{ github.ref_name }}' '${{ steps.package.outputs.zip-name }}' $setup --generate-notes --verify-tag
+          gh release create '${{ github.ref_name }}' '${{ steps.package.outputs.zip-name }}' '${{ steps.package.outputs.zip-name }}.sha256' $setup "$setup.sha256" --generate-notes --verify-tag
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
