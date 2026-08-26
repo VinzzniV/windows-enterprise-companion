@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Wec.Core.Contracts;
 using Wec.Core.Messaging;
 using Wec.Core.Modules;
 using Wec.Modules.Diagnostics.Application;
@@ -14,6 +15,7 @@ public sealed class DiagnosticsModule : IModule
     {
         services.AddScoped<DiagnosticRunService>();
         services.AddScoped<IDiagnosticRunRepository, EfDiagnosticRunRepository>();
+        services.AddScoped<IDeviceHealthSnapshotProvider, DeviceHealthSnapshotProvider>();
         services.AddScoped<IDiagnostic, EventLogSummaryDiagnostic>();
         services.AddScoped<IDiagnostic, ServiceStatusDiagnostic>();
         services.AddScoped<IDiagnostic, DiskFreeSpaceDiagnostic>();
