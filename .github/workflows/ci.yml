@@ -53,6 +53,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Frontend dependency audit
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
       - name: Backend build (TreatWarningsAsErrors)
         run: dotnet build --configuration Release
 

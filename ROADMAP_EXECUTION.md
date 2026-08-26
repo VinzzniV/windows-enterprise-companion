@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Phase 0 — Stabilize the delivery baseline
 
-Current slice: Commit roadmap controls and patch vulnerable NPM packages
+Current slice: Restore GitHub Actions artifact uploads and reduce retention
 
 ## Done
 
@@ -21,6 +21,12 @@ Current slice: Commit roadmap controls and patch vulnerable NPM packages
 - `origin/master` re-fetched and verified at
   `aba4ccd57f724cb359e9ac643378bf6ada0ce559` before creating
   `codex/ultimate-admin-roadmap`.
+- Roadmap controls committed on `codex/ultimate-admin-roadmap`.
+- Frontend dependency lock updated to React Router 7.18.2, PostCSS 8.5.26
+  and nanoid 3.3.18; all 415 frontend tests, the production build and a
+  zero-finding NPM audit passed.
+- CI now fails on High- or Critical-Severity NPM findings after the locked
+  frontend install; the gate passes against the updated lockfile.
 
 ## Blocked
 
@@ -53,8 +59,6 @@ Current slice: Commit roadmap controls and patch vulnerable NPM packages
 
 ## Next
 
-1. Commit the prepared roadmap-control documents as the initial documentation
-   slice.
-2. Patch the verified High-Severity NPM findings without unnecessary major
-   upgrades.
-3. Add and verify the CI audit gate.
+1. Restore GitHub Actions artifact uploads and reduce short-lived retention.
+2. Verify ZIP, installer and release workflow behavior without publishing a
+   release.
