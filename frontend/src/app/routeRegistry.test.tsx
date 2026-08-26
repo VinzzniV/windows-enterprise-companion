@@ -11,6 +11,7 @@ describe('routeRegistry', () => {
     expect(navigationItems.map((item) => item.label)).toEqual([
       'Dashboard',
       'Clients',
+      'Users',
       'Active Directory',
       'Vulnerabilities',
       'Patch Management',
@@ -26,9 +27,11 @@ describe('routeRegistry', () => {
     const navigationPaths = navigationGroups.flatMap((group) => group.items.map((item) => item.to));
     expect(navigationPaths).not.toContain('/clients/:host');
     expect(navigationPaths).not.toContain('/clients/compare');
+    expect(navigationPaths).not.toContain('/users/:objectId');
     expect(navigationPaths).not.toContain('/employeelifecycle');
     expect(sectionLabelFor('/clients/PC-42')).toBe('Clients');
     expect(sectionLabelFor('/clients/compare')).toBe('Clients');
+    expect(sectionLabelFor('/users/00112233-4455-6677-8899-aabbccddeeff')).toBe('Users');
     expect(sectionLabelFor('/unregistered')).toBe('Overview');
   });
 });

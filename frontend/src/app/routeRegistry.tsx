@@ -9,6 +9,10 @@ const ComparePage = lazy(() => import('../features/clients/ComparePage')
   .then((module) => ({ default: module.ComparePage })));
 const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage')
   .then((module) => ({ default: module.ClientDetailPage })));
+const UsersPage = lazy(() => import('../features/users/UsersPage')
+  .then((module) => ({ default: module.UsersPage })));
+const UserDetailPage = lazy(() => import('../features/users/UserDetailPage')
+  .then((module) => ({ default: module.UserDetailPage })));
 const ActiveDirectoryPage = lazy(() => import('../features/activedirectory/ActiveDirectoryPage')
   .then((module) => ({ default: module.ActiveDirectoryPage })));
 const EmployeeLifecyclePage = lazy(() => import('../features/employeelifecycle/EmployeeLifecyclePage')
@@ -61,6 +65,8 @@ export const appRoutes: readonly AppRouteDefinition[] = [
   { id: 'clients', path: '/clients', sectionLabel: 'Clients', Component: ClientsPage, navigation: { group: 'fleet', label: 'Clients', icon: navIcons.clients, searchTerms: ['devices', 'fleet', 'computers'] } },
   { id: 'client-compare', path: '/clients/compare', sectionLabel: 'Clients', Component: ComparePage },
   { id: 'client-detail', path: '/clients/:host', sectionLabel: 'Clients', Component: ClientDetailPage },
+  { id: 'users', path: '/users', sectionLabel: 'Users', Component: UsersPage, navigation: { group: 'fleet', label: 'Users', icon: navIcons.users, searchTerms: ['people', 'accounts', 'identity', 'lifecycle'] } },
+  { id: 'user-detail', path: '/users/:objectId', sectionLabel: 'Users', Component: UserDetailPage },
   { id: 'active-directory', path: '/activedirectory', sectionLabel: 'Active Directory', Component: ActiveDirectoryPage, navigation: { group: 'fleet', label: 'Active Directory', icon: navIcons.activedirectory, searchTerms: ['ad', 'directory', 'users', 'groups'] } },
   { id: 'employee-lifecycle-legacy', path: '/employeelifecycle', sectionLabel: 'Clients', Component: EmployeeLifecyclePage },
   { id: 'vulnerabilities', path: '/vulnerabilities', sectionLabel: 'Vulnerabilities', Component: VulnerabilitiesPage, navigation: { group: 'fleet', label: 'Vulnerabilities', icon: navIcons.vulnerabilities, searchTerms: ['nessus', 'findings', 'cve'] } },
