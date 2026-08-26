@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Phase 1 — Record the revised product decisions
 
-Current slice: ADR 0018 — Device Health and Client 360
+Current slice: ADR 0019 — AD-authoritative User Management
 
 ## Done
 
@@ -47,6 +47,9 @@ Current slice: ADR 0018 — Device Health and Client 360
 - Draft PR #28 is open. Its pull-request CI run `33013654432` passed. Manual
   packaging run `33013664987` passed publish, host smoke, ZIP validation, Inno
   Setup installer and package checksums before the upload gate.
+- ADR 0018 records the reduced Device Health scope, Client 360 read behavior,
+  historical Diagnostics retention, Network Scan separation and the bounded
+  multi-host move into Clients.
 
 ## Blocked
 
