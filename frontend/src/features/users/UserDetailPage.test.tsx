@@ -50,6 +50,18 @@ const profile: UserProfileResult = {
       { name: 'Domänen-Admins', distinguishedName: 'CN=Domänen-Admins,CN=Users,DC=corp,DC=example' },
     ],
   },
+  devices: {
+    coverage: 'AVAILABLE',
+    explanation: 'No stored Inventory devices are available for relationship evaluation.',
+    sourceCoverage: {
+      storedDeviceCount: 0,
+      evidenceCapturedDeviceCount: 0,
+      notCapturedDeviceCount: 0,
+      unavailableDeviceCount: 0,
+      truncatedDeviceCount: 0,
+    },
+    linkedDevices: [],
+  },
 };
 
 function renderProfile(value: UserProfileResult = profile) {

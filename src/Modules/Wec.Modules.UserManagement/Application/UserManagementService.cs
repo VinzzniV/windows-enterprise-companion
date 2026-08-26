@@ -7,10 +7,14 @@ namespace Wec.Modules.UserManagement.Application;
 internal sealed class UserManagementService
 {
     private readonly IDirectoryUserReadProvider _directoryUsers;
+    private readonly IUserDeviceRelationshipProvider _deviceRelationships;
 
-    public UserManagementService(IDirectoryUserReadProvider directoryUsers)
+    public UserManagementService(
+        IDirectoryUserReadProvider directoryUsers,
+        IUserDeviceRelationshipProvider deviceRelationships)
     {
         _directoryUsers = directoryUsers;
+        _deviceRelationships = deviceRelationships;
     }
 
     public async Task<Result<UserPageResult>> GetPageAsync(
@@ -48,6 +52,7 @@ internal sealed class UserManagementService
         }
 
         DirectoryUserRecord user = result.Value;
+        UserDeviceProfile devices = await GetDeviceProfileAsync(user.Sid, cancellationToken);
         return Result.Success(new UserProfileResult(
             new UserIdentityProfile(
                 user.ObjectId,
@@ -74,8 +79,68 @@ internal sealed class UserManagementService
                 user.DirectGroups,
                 user.PrivilegedAccess.Coverage,
                 user.PrivilegedAccess.Explanation,
-                user.PrivilegedAccess.DirectMemberships)));
+                user.PrivilegedAccess.DirectMemberships),
+            devices));
     }
+
+    private async Task<UserDeviceProfile> GetDeviceProfileAsync(
+        string? directorySid,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(directorySid))
+        {
+            return new UserDeviceProfile(
+                UserDeviceEvidenceCoverage.NotEvaluated,
+                "The directory user has no SID, so device evidence cannot be matched safely.",
+                EmptyDeviceCoverage(),
+                []);
+        }
+
+        UserDeviceRelationshipSnapshot snapshot = await _deviceRelationships.GetForDirectorySidAsync(
+            directorySid,
+            cancellationToken);
+        UserDeviceEvidenceCoverage coverage = ToCoverage(snapshot.Coverage);
+        return new UserDeviceProfile(
+            coverage,
+            CoverageExplanation(coverage, snapshot.Coverage),
+            snapshot.Coverage,
+            snapshot.Devices);
+    }
+
+    private static UserDeviceEvidenceCoverage ToCoverage(UserDeviceRelationshipCoverage coverage)
+    {
+        if (coverage.StoredDeviceCount > 0
+            && coverage.NotCapturedDeviceCount == coverage.StoredDeviceCount
+            && coverage.UnavailableDeviceCount == 0)
+        {
+            return UserDeviceEvidenceCoverage.NotCaptured;
+        }
+
+        if (coverage.NotCapturedDeviceCount > 0
+            || coverage.UnavailableDeviceCount > 0
+            || coverage.TruncatedDeviceCount > 0)
+        {
+            return UserDeviceEvidenceCoverage.Partial;
+        }
+
+        return UserDeviceEvidenceCoverage.Available;
+    }
+
+    private static string CoverageExplanation(
+        UserDeviceEvidenceCoverage coverage,
+        UserDeviceRelationshipCoverage sourceCoverage) => coverage switch
+    {
+        UserDeviceEvidenceCoverage.Available when sourceCoverage.StoredDeviceCount == 0 =>
+            "No stored Inventory devices are available for relationship evaluation.",
+        UserDeviceEvidenceCoverage.Available =>
+            "All stored Inventory devices contain evaluated user relationship evidence.",
+        UserDeviceEvidenceCoverage.NotCaptured =>
+            "Stored Inventory snapshots predate user relationship evidence; run an explicit Inventory scan to evaluate them.",
+        _ =>
+            "Some stored devices have missing, unavailable or truncated Inventory user evidence.",
+    };
+
+    private static UserDeviceRelationshipCoverage EmptyDeviceCoverage() => new(0, 0, 0, 0, 0);
 
     private static UserSummary ToSummary(DirectoryUserRecord user) => new(
         user.ObjectId,

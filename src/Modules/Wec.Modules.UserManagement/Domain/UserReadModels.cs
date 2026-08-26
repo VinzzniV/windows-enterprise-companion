@@ -52,7 +52,22 @@ public sealed record UserAccessProfile(
     string PrivilegedCoverageExplanation,
     IReadOnlyList<DirectoryUserGroup> DirectPrivilegedGroups);
 
+public enum UserDeviceEvidenceCoverage
+{
+    NotEvaluated = 0,
+    Available,
+    Partial,
+    NotCaptured,
+}
+
+public sealed record UserDeviceProfile(
+    UserDeviceEvidenceCoverage Coverage,
+    string Explanation,
+    UserDeviceRelationshipCoverage SourceCoverage,
+    IReadOnlyList<UserLinkedDeviceEvidence> LinkedDevices);
+
 public sealed record UserProfileResult(
     UserIdentityProfile Identity,
     UserLifecycleProfile Lifecycle,
-    UserAccessProfile Access);
+    UserAccessProfile Access,
+    UserDeviceProfile Devices);

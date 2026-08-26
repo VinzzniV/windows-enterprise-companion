@@ -31,6 +31,33 @@ export interface SecurityCoverageReportData {
 
 export type ServiceCredentialKind = 'KASPERSKY' | 'OPSI' | 'NESSUS';
 
+export type UserDeviceRelationshipConfidence = 'HIGH' | 'MEDIUM';
+
+export interface UserDeviceRelationshipCoverage {
+  storedDeviceCount: number;
+  evidenceCapturedDeviceCount: number;
+  notCapturedDeviceCount: number;
+  unavailableDeviceCount: number;
+  truncatedDeviceCount: number;
+}
+
+export interface UserDeviceRelationshipObservation {
+  relationshipType: UserDeviceRelationshipType;
+  source: string;
+  observedAtUtc: string;
+  confidence: UserDeviceRelationshipConfidence;
+  explanation: string;
+  profileLastUseAtUtc: string | null;
+}
+
+export type UserDeviceRelationshipType = 'LAST_INTERACTIVE_USER' | 'PROFILE_PRESENT';
+
+export interface UserLinkedDeviceEvidence {
+  host: string;
+  inventoryCapturedAtUtc: string;
+  observations: UserDeviceRelationshipObservation[];
+}
+
 export interface TargetRequest {
   host?: string | null;
   userName?: string | null;
@@ -1932,6 +1959,15 @@ export interface UserAccessProfile {
   directPrivilegedGroups: DirectoryUserGroup[];
 }
 
+export type UserDeviceEvidenceCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'PARTIAL' | 'NOT_CAPTURED';
+
+export interface UserDeviceProfile {
+  coverage: UserDeviceEvidenceCoverage;
+  explanation: string;
+  sourceCoverage: UserDeviceRelationshipCoverage;
+  linkedDevices: UserLinkedDeviceEvidence[];
+}
+
 export interface UserIdentityProfile {
   objectId: string;
   sid: string | null;
@@ -1971,6 +2007,7 @@ export interface UserProfileResult {
   identity: UserIdentityProfile;
   lifecycle: UserLifecycleProfile;
   access: UserAccessProfile;
+  devices: UserDeviceProfile;
 }
 
 export interface UserSummary {
