@@ -343,6 +343,7 @@ public class EventLogSummaryDiagnosticTests
         SetUpEntries(SystemTestSetup.Entry("Error"));
 
         DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+        Assert.Equal("WEC-DIAG-SYS-EVENTLOG", result.DiagnosticId);
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("1", result.Evidence["errorEntries"]);
         Assert.Equal("0", result.Evidence["criticalEntries"]);
@@ -409,6 +410,7 @@ public class ServiceStatusDiagnosticTests
             SystemTestSetup.Instance(("Name", "Dnscache"), ("State", "Running"), ("StartMode", "Auto")));
 
         DiagnosticResult result = Assert.Single(await CreateDiagnostic().EvaluateAsync(DiagnosticContext.Local, CancellationToken.None));
+        Assert.Equal("WEC-DIAG-SYS-SERVICES", result.DiagnosticId);
         Assert.Equal(DiagnosticStatus.Pass, result.Status);
         Assert.Equal("Running (Auto)", result.Evidence["Dhcp"]);
     }
