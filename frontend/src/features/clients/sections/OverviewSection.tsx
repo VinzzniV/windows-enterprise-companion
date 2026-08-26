@@ -26,7 +26,7 @@ import {
   sourceFreshnessStatus,
   sourcePresenceStatus,
 } from '../clientStatus';
-import { ClientIntegrationMap } from '../ClientIntegrationMap';
+import { DeviceRelationshipMap } from '../DeviceRelationshipMap';
 
 type OverviewLoadState =
   | { kind: 'loading' }
@@ -250,14 +250,19 @@ function SourceError({ state }: { state: InventorySourceState }) {
   return state.error ? <p className="mb-3 text-sm text-slate-400">{state.error}</p> : null;
 }
 
-function DeviceOverview({ device }: { device: HygieneDevice }) {
+function DeviceOverview({ device, overview }: { device: HygieneDevice; overview: ClientOverviewResult }) {
   const environment = useEnvironment();
   const sources = environment.result!.sources;
   const nessus = device.nessus ?? { exists: false, assetId: null, ipAddress: null, lastCompletedScanUtc: null, critical: 0, high: 0, medium: 0, low: 0, info: 0, ports: [], scanSources: [] };
   const nessusSource = sources.nessus ?? { availability: 'NOT_CONNECTED' as const, error: 'Nessus is not configured.' };
   const hasFinding = (...codes: string[]) => device.assessment.findings.some((finding) => codes.includes(finding.code));
   return <div className="flex flex-col gap-4">
-    <ClientIntegrationMap device={device} sources={{ ...sources, nessus: nessusSource }} />
+    <DeviceRelationshipMap
+      device={device}
+      sources={{ ...sources, nessus: nessusSource }}
+      overview={overview}
+      managementObservedAtUtc={environment.result!.assessedAtUtc}
+    />
     <Card title="Environment assessment">
       <div className="mb-3"><ClientSemanticStatus {...hygieneAssessmentStatus(device.assessment.status)} /></div>
       {device.assessment.findings.length ? <ul className="space-y-2">{device.assessment.findings.map((finding) => <li key={finding.code} className="rounded border border-slate-800 px-3 py-2 text-sm text-slate-300">
@@ -278,7 +283,7 @@ function DeviceOverview({ device }: { device: HygieneDevice }) {
   </div>;
 }
 
-function ManagementContext({ host }: { host: string }) {
+function ManagementContext({ host, overview }: { host: string; overview: ClientOverviewResult }) {
   const environment = useEnvironment();
   if (environment.loading && !environment.result) return <HygieneLoadStatus progress={environment.progress} elapsedSeconds={environment.elapsedSeconds} onCancel={environment.cancel} />;
   if (environment.cancelled && !environment.result) return <Card title="Management systems"><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-400">Management-source loading was cancelled.</p><Button onClick={() => { void environment.refresh(); }}>Retry</Button></div></Card>;
@@ -295,7 +300,7 @@ function ManagementContext({ host }: { host: string }) {
     </div>
   </Card>;
   const device = environment.result.devices.find((entry) => clientKey(entry.hostName) === clientKey(host) || clientKey(entry.computerName) === clientKey(host));
-  return device ? <DeviceOverview device={device} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
+  return device ? <DeviceOverview device={device} overview={overview} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
 }
 
 export function OverviewSection({ host }: { host: string }) {
@@ -345,6 +350,6 @@ export function OverviewSection({ host }: { host: string }) {
       <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
       <SecuritySummary host={host} security={state.result.security} metadata={securityMetadata} />
     </div>
-    <ManagementContext host={host} />
+    <ManagementContext host={host} overview={state.result} />
   </div>;
 }
