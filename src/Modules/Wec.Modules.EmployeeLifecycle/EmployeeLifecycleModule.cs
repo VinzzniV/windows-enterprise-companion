@@ -15,9 +15,11 @@ public sealed class EmployeeLifecycleModule : IModule
             serviceProvider.GetRequiredService<KasperskySecurityCenterClient>());
         services.AddSingleton<ItHygieneSnapshotCache>();
         services.AddScoped<ItHygieneService>();
+        services.AddScoped<ClientOverviewService>();
         services.AddScoped<IActionHandler, GetItHygieneHandler>();
         services.AddScoped<IActionHandler, GetItHygieneOverviewHandler>();
         services.AddScoped<IActionHandler, ListHygieneDevicesHandler>();
         services.AddScoped<IActionHandler, ListClientWorkspaceHandler>();
+        services.AddScoped<IActionHandler, GetClientOverviewHandler>();
     }
 }

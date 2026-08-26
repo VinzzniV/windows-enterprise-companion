@@ -56,6 +56,18 @@ The existing bridge module name remains `employeelifecycle`.
 | `listHygieneDevices` | optional AD/KSC overrides and `operationId` plus search, filter, page, page size and allowlisted sort | at most 100 correlated device rows plus filtered total |
 | `listClientWorkspace` | optional AD/KSC overrides and `operationId` plus client search, posture/source filter, grouping, page, page size, allowlisted sort and explicit `force` refresh | at most 100 de-duplicated rows without grouping; grouping pages complete OS/site groups, paged by at most 100 groups, with exact filtered, snapshot and group totals, source/time/domain metadata and a summary recalculated over those canonical de-duplicated hygiene rows |
 
+Client 360 uses a separate presentation-level bridge action while this project
+remains the host for the existing Clients workspace:
+
+| Module/action | Payload | Result |
+|---|---|---|
+| `clients/getOverview` | required client host | latest persisted Inventory, installed-software, Health and Security summaries with per-source freshness, completeness, coverage and detail-tab links |
+
+`clients/getOverview` reads only existing projections. Opening Client 360 never
+starts Inventory, Health, Security or external management-provider work. AD,
+Kaspersky, opsi and Nessus posture remains request-bound and is loaded only by
+an explicit user action.
+
 Cold loads with an `operationId` publish the typed event
 `employeelifecycle/hygieneProgress`. It reports the current load phase, elapsed
 start time, completed source count, per-source state and item count, and a

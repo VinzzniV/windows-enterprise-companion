@@ -52,6 +52,20 @@ public sealed class SemanticOptionsValidationTests
     }
 
     [Fact]
+    public void RejectsNonPositiveClientOverviewMaximumAges()
+    {
+        var options = new ClientOverviewOptions
+        {
+            MaximumInventoryAge = TimeSpan.Zero,
+            MaximumSoftwareAge = TimeSpan.Zero,
+            MaximumHealthAge = TimeSpan.Zero,
+            MaximumSecurityAge = TimeSpan.Zero,
+        };
+
+        Assert.Equal(4, Validate(options).Count);
+    }
+
+    [Fact]
     public async Task ShippedConfiguration_PassesValidateOnStart()
     {
         using IHost host = Program.BuildHost([]);

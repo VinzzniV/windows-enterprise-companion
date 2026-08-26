@@ -502,6 +502,92 @@ export interface CaseResult {
   employee: EmployeeDetails;
 }
 
+export interface ClientHealthIssue {
+  diagnosticId: string;
+  title: string;
+  status: string;
+  affectedResource: string;
+}
+
+export interface ClientHealthOverview {
+  metadata: ClientOverviewSourceMetadata;
+  criticalCount: number;
+  warningCount: number;
+  unknownCount: number;
+  healthyCount: number;
+  issues: ClientHealthIssue[];
+}
+
+export interface ClientInventoryOverview {
+  metadata: ClientOverviewSourceMetadata;
+  cpuName: string;
+  physicalCores: number;
+  logicalProcessors: number;
+  totalMemoryBytes: number;
+  operatingSystem: string;
+  operatingSystemVersion: string;
+  operatingSystemBuild: string;
+  architecture: string | null;
+  disks: ClientOverviewDisk[];
+}
+
+export interface ClientOverviewDisk {
+  model: string;
+  sizeBytes: number;
+  interfaceType: string | null;
+}
+
+export type ClientOverviewFreshness = 'MISSING' | 'FRESH' | 'STALE' | 'UNKNOWN';
+
+export interface ClientOverviewResult {
+  host: string;
+  inventory: ClientInventoryOverview | null;
+  software: ClientSoftwareOverview | null;
+  health: ClientHealthOverview | null;
+  security: ClientSecurityOverview | null;
+  sources: ClientOverviewSourceMetadata[];
+}
+
+export interface ClientOverviewSourceMetadata {
+  source: string;
+  provenance: string;
+  freshness: ClientOverviewFreshness;
+  capturedAtUtc: string | null;
+  ageSeconds: number | null;
+  isComplete: boolean;
+  coverage: string;
+  detailSection: string;
+}
+
+export interface ClientSecurityFinding {
+  findingId: string;
+  title: string;
+  severity: string;
+  affectedResource: string;
+}
+
+export interface ClientSecurityOverview {
+  metadata: ClientOverviewSourceMetadata;
+  scanStatus: string | null;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  topFindings: ClientSecurityFinding[];
+}
+
+export interface ClientSoftwareOverview {
+  metadata: ClientOverviewSourceMetadata;
+  installedCount: number;
+  sample: ClientSoftwareOverviewItem[];
+}
+
+export interface ClientSoftwareOverviewItem {
+  name: string;
+  version: string | null;
+  publisher: string | null;
+}
+
 export interface ClientWorkspaceListItem {
   host: string;
   key: string;
@@ -858,6 +944,10 @@ export interface DeleteDepartmentRequest {
 
 export interface GetCaseRequest {
   caseId?: number;
+}
+
+export interface GetClientOverviewRequest {
+  host: string;
 }
 
 export interface GetEmployeeRequest {
