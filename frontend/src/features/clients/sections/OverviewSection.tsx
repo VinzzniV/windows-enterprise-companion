@@ -1,28 +1,169 @@
-import { useEffect } from 'react';
-import type { HygieneDevice, InventorySourceState } from '../../../shared/api-types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import type {
+  ClientHealthOverview,
+  ClientInventoryOverview,
+  ClientOverviewResult,
+  ClientOverviewSourceMetadata,
+  HygieneDevice,
+  InventorySourceState,
+} from '../../../shared/api-types';
+import { invoke } from '../../../shared/bridge/bridgeClient';
+import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import { useEnvironment } from '../../../shared/environment/EnvironmentContext';
 import { HygieneLoadStatus } from '../../../shared/environment/HygieneLoadStatus';
 import { inventorySourceStatus } from '../../../shared/environment/inventorySourceStatus';
 import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
-import { EmptyState, ErrorState } from '../../../shared/ui/States';
+import { CompactErrorState, ErrorState } from '../../../shared/ui/States';
+import type { SemanticStatus } from '../../../shared/ui/SemanticStatusBadge';
 import { clientKey } from '../clients';
-import { ClientSemanticStatus, hygieneAssessmentStatus, sourceFreshnessStatus, sourcePresenceStatus } from '../clientStatus';
+import {
+  ClientSemanticStatus,
+  hygieneAssessmentStatus,
+  sourceFreshnessStatus,
+  sourcePresenceStatus,
+} from '../clientStatus';
 import { ClientIntegrationMap } from '../ClientIntegrationMap';
 
-function value(value: string | boolean | null | undefined): string {
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  return value == null || value === '' ? '—' : String(value);
+type OverviewLoadState =
+  | { kind: 'loading' }
+  | { kind: 'ready'; result: ClientOverviewResult; refreshing: boolean; refreshError: ErrorPresentation | null }
+  | { kind: 'error'; error: ErrorPresentation };
+
+const DETAIL_SECTIONS = new Set(['inventory', 'diagnostics', 'security']);
+
+function value(entry: string | boolean | null | undefined): string {
+  if (typeof entry === 'boolean') return entry ? 'Yes' : 'No';
+  return entry == null || entry === '' ? '—' : String(entry);
 }
 
 function date(valueToFormat: string | null): string {
   return valueToFormat ? new Date(valueToFormat).toLocaleString() : '—';
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 GB';
+  return `${(bytes / 1024 ** 3).toFixed(bytes >= 100 * 1024 ** 3 ? 0 : 1)} GB`;
+}
+
+function formatAge(ageSeconds: number | null): string {
+  if (ageSeconds === null) return 'Age unknown';
+  if (ageSeconds < 60) return 'Less than a minute old';
+  if (ageSeconds < 3600) return `${Math.floor(ageSeconds / 60)} min old`;
+  if (ageSeconds < 86400) return `${Math.floor(ageSeconds / 3600)} h old`;
+  return `${Math.floor(ageSeconds / 86400)} d old`;
+}
+
 function Rows({ entries }: { entries: Array<[string, string]> }) {
   return <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 text-sm">
     {entries.map(([label, entryValue]) => <div key={label} className="contents"><dt className="text-slate-400">{label}</dt><dd className="break-all text-slate-200">{entryValue}</dd></div>)}
   </dl>;
+}
+
+function storedSourceStatus(metadata: ClientOverviewSourceMetadata): SemanticStatus {
+  switch (metadata.freshness) {
+    case 'FRESH': return { dimension: 'freshness', value: 'fresh' };
+    case 'STALE': return { dimension: 'freshness', value: 'stale' };
+    case 'MISSING': return { dimension: 'availability', value: 'missing' };
+    case 'UNKNOWN': return { dimension: 'availability', value: 'unknown' };
+  }
+}
+
+function DetailLink({ host, metadata, children }: {
+  host: string;
+  metadata: ClientOverviewSourceMetadata;
+  children: string;
+}) {
+  const section = DETAIL_SECTIONS.has(metadata.detailSection) ? metadata.detailSection : 'overview';
+  const search = section === 'overview' ? '' : `?section=${encodeURIComponent(section)}`;
+  return <Link className="text-sm font-medium text-accent-400 hover:text-accent-300" to={`/clients/${encodeURIComponent(host)}${search}`}>{children}</Link>;
+}
+
+function SourceEvidence({ host, metadata }: { host: string; metadata: ClientOverviewSourceMetadata }) {
+  return <li className="grid gap-2 border-b border-slate-800/80 py-3 last:border-b-0 sm:grid-cols-[minmax(9rem,0.7fr)_minmax(16rem,1.5fr)_auto] sm:items-center">
+    <div>
+      <p className="font-medium text-slate-200">{metadata.source}</p>
+      <p className="mt-0.5 text-xs text-slate-500">{metadata.provenance}</p>
+    </div>
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
+        {metadata.freshness !== 'MISSING' && !metadata.isComplete && (
+          <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />
+        )}
+        <span className="text-xs tabular-nums text-slate-500">{formatAge(metadata.ageSeconds)}</span>
+      </div>
+      <p className="mt-1 text-xs text-slate-400">{metadata.coverage}</p>
+    </div>
+    <DetailLink host={host} metadata={metadata}>Open details</DetailLink>
+  </li>;
+}
+
+function SourceLedger({ host, sources }: { host: string; sources: ClientOverviewSourceMetadata[] }) {
+  return <Card title="Stored source evidence">
+    <p className="mb-1 text-sm text-slate-400">Latest saved evidence only. Opening this page does not start a scan.</p>
+    <ul>{sources.map((source) => <SourceEvidence key={source.source} host={host} metadata={source} />)}</ul>
+  </Card>;
+}
+
+function InventorySummary({ host, inventory, metadata }: {
+  host: string;
+  inventory: ClientInventoryOverview | null;
+  metadata: ClientOverviewSourceMetadata;
+}) {
+  const totalStorage = inventory?.disks.reduce((sum, disk) => sum + disk.sizeBytes, 0) ?? 0;
+  return <Card title="Device & operating system">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
+        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
+      </div>
+      <DetailLink host={host} metadata={metadata}>Open Inventory</DetailLink>
+    </div>
+    {inventory ? <>
+      <div className="mb-4">
+        <p className="text-lg font-semibold tracking-tight text-slate-100">{inventory.operatingSystem}</p>
+        <p className="mt-0.5 text-xs text-slate-400">Version {inventory.operatingSystemVersion} · Build {inventory.operatingSystemBuild} · {value(inventory.architecture)}</p>
+      </div>
+      <Rows entries={[
+        ['Processor', `${inventory.cpuName} · ${inventory.physicalCores} cores / ${inventory.logicalProcessors} logical`],
+        ['Memory', formatBytes(inventory.totalMemoryBytes)],
+        ['Storage', `${formatBytes(totalStorage)} across ${inventory.disks.length} disk${inventory.disks.length === 1 ? '' : 's'}`],
+        ['Captured', date(metadata.capturedAtUtc)],
+      ]} />
+    </> : <p className="text-sm text-slate-400">No stored hardware snapshot. Open Inventory to run an explicit scan.</p>}
+  </Card>;
+}
+
+function HealthSummary({ host, health, metadata }: {
+  host: string;
+  health: ClientHealthOverview | null;
+  metadata: ClientOverviewSourceMetadata;
+}) {
+  return <Card title="Health">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
+        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
+      </div>
+      <DetailLink host={host} metadata={metadata}>Open Health</DetailLink>
+    </div>
+    {health ? <>
+      <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm tabular-nums">
+        <span className="text-fail-300"><strong>{health.criticalCount}</strong> critical</span>
+        <span className="text-warn-300"><strong>{health.warningCount}</strong> warning</span>
+        <span className="text-slate-300"><strong>{health.unknownCount}</strong> unknown</span>
+        <span className="text-ok-300"><strong>{health.healthyCount}</strong> passed</span>
+      </div>
+      {health.issues.length > 0 ? <ul className="space-y-2">
+        {health.issues.map((issue) => <li key={issue.diagnosticId} className="rounded border border-slate-800 bg-slate-950/30 px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium text-slate-200">{issue.title}</span><span className="text-xs uppercase tracking-wide text-slate-500">{issue.status}</span></div>
+          <p className="mt-1 text-xs text-slate-400">{issue.affectedResource}</p>
+        </li>)}
+      </ul> : <p className="text-sm text-slate-400">{metadata.isComplete ? 'All observed Health checks passed.' : 'No issue detail is available from this incomplete run.'}</p>}
+    </> : <p className="text-sm text-slate-400">No stored Health run. Open Health to start the four checks explicitly.</p>}
+  </Card>;
 }
 
 function SourceHeader({ name, state, present, missingApplies, stale = false }: { name: string; state: InventorySourceState; present: boolean; missingApplies: boolean; stale?: boolean }) {
@@ -52,7 +193,7 @@ function DeviceOverview({ device }: { device: HygieneDevice }) {
     <Card title="Environment assessment">
       <div className="mb-3"><ClientSemanticStatus {...hygieneAssessmentStatus(device.assessment.status)} /></div>
       {device.assessment.findings.length ? <ul className="space-y-2">{device.assessment.findings.map((finding) => <li key={finding.code} className="rounded border border-slate-800 px-3 py-2 text-sm text-slate-300">
-        <span className={finding.severity === 'CRITICAL' ? 'text-danger-300' : 'text-warn-300'}>{finding.code.replaceAll('_', ' ')}</span> — {finding.message}
+        <span className={finding.severity === 'CRITICAL' ? 'text-fail-300' : 'text-warn-300'}>{finding.code.replaceAll('_', ' ')}</span> — {finding.message}
       </li>)}</ul> : <p className="text-sm text-slate-400">No hygiene findings from the available sources.</p>}
     </Card>
     <div className="grid gap-4 xl:grid-cols-2">
@@ -69,17 +210,69 @@ function DeviceOverview({ device }: { device: HygieneDevice }) {
   </div>;
 }
 
-export function OverviewSection({ host }: { host: string }) {
+function ManagementContext({ host }: { host: string }) {
   const environment = useEnvironment();
-  useEffect(() => { void environment.ensureLoaded(); }, [environment.ensureLoaded]);
   if (environment.loading && !environment.result) return <HygieneLoadStatus progress={environment.progress} elapsedSeconds={environment.elapsedSeconds} onCancel={environment.cancel} />;
-  if (environment.cancelled && !environment.result) return <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-4"><p className="text-sm text-slate-300">Environment load cancelled.</p><Button variant="secondary" onClick={() => { void environment.refresh(); }}>Retry</Button></div>;
+  if (environment.cancelled && !environment.result) return <Card title="Management systems"><div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-400">Management-source loading was cancelled.</p><Button onClick={() => { void environment.refresh(); }}>Retry</Button></div></Card>;
   if (environment.error && !environment.result) return <ErrorState
-    title="Environment overview failed"
+    title="Management systems unavailable"
     {...environment.error}
-    message="The environment overview could not be loaded."
-    controls={<Button variant="secondary" onClick={() => { void environment.refresh(); }}>Retry environment load</Button>}
+    message="AD, Kaspersky, opsi and Nessus context could not be loaded."
+    controls={<Button onClick={() => { void environment.refresh(); }}>Retry management sources</Button>}
   />;
-  const device = environment.result?.devices.find((entry) => clientKey(entry.hostName) === clientKey(host) || clientKey(entry.computerName) === clientKey(host));
-  return device ? <DeviceOverview device={device} /> : <EmptyState title="Unmanaged device" message="This saved or scanned device was not found in AD, Kaspersky, opsi or Nessus." />;
+  if (!environment.result) return <Card title="Management systems">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><p className="text-sm font-medium text-slate-200">AD, Kaspersky, opsi and Nessus are not loaded</p><p className="mt-1 text-xs text-slate-400">Load these read-only sources only when their current posture is needed.</p></div>
+      <Button onClick={() => { void environment.ensureLoaded(); }}>Load management sources</Button>
+    </div>
+  </Card>;
+  const device = environment.result.devices.find((entry) => clientKey(entry.hostName) === clientKey(host) || clientKey(entry.computerName) === clientKey(host));
+  return device ? <DeviceOverview device={device} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
+}
+
+export function OverviewSection({ host }: { host: string }) {
+  const [state, setState] = useState<OverviewLoadState>({ kind: 'loading' });
+  const requestGeneration = useRef(0);
+
+  const loadOverview = useCallback((refresh: boolean) => {
+    const generation = ++requestGeneration.current;
+    setState((current) => current.kind === 'ready'
+      ? { ...current, refreshing: true, refreshError: null }
+      : { kind: 'loading' });
+    void invoke<ClientOverviewResult>('clients', 'getOverview', { host })
+      .then((result) => {
+        if (requestGeneration.current === generation) setState({ kind: 'ready', result, refreshing: false, refreshError: null });
+      })
+      .catch((caught: unknown) => {
+        if (requestGeneration.current !== generation) return;
+        const error = presentError(caught, { message: 'The stored client overview could not be loaded.' });
+        setState((current) => refresh && current.kind === 'ready'
+          ? { ...current, refreshing: false, refreshError: error }
+          : { kind: 'error', error });
+      });
+  }, [host]);
+
+  useEffect(() => {
+    loadOverview(false);
+    return () => { requestGeneration.current += 1; };
+  }, [loadOverview]);
+
+  if (state.kind === 'loading') return <p className="py-6 text-sm text-slate-400" role="status">Loading stored client evidence …</p>;
+  if (state.kind === 'error') return <ErrorState {...state.error} controls={<Button onClick={() => loadOverview(false)}>Retry overview</Button>} />;
+
+  const inventoryMetadata = state.result.sources.find((source) => source.source === 'Inventory')!;
+  const healthMetadata = state.result.sources.find((source) => source.source === 'Health')!;
+  return <div className="flex flex-col gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3">
+      <div><p className="text-sm font-medium text-slate-200">Client 360 evidence snapshot</p><p className="mt-0.5 text-xs text-slate-400">Stored data is read-only and never refreshed remotely on open.</p></div>
+      <Button disabled={state.refreshing} onClick={() => loadOverview(true)}>{state.refreshing ? 'Refreshing …' : 'Refresh stored summaries'}</Button>
+    </div>
+    {state.refreshError && <CompactErrorState {...state.refreshError} />}
+    <SourceLedger host={host} sources={state.result.sources} />
+    <div className="grid gap-4 xl:grid-cols-2">
+      <InventorySummary host={host} inventory={state.result.inventory} metadata={inventoryMetadata} />
+      <HealthSummary host={host} health={state.result.health} metadata={healthMetadata} />
+    </div>
+    <ManagementContext host={host} />
+  </div>;
 }

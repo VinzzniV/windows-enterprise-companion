@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ItHygieneResult } from '../../../shared/api-types';
+import type { ClientOverviewResult, ItHygieneResult } from '../../../shared/api-types';
 import { EnvironmentProvider } from '../../../shared/environment/EnvironmentContext';
 import { TargetProvider } from '../../../shared/targets/TargetContext';
 import { OverviewSection } from './OverviewSection';
@@ -17,7 +18,7 @@ vi.mock('../../../shared/bridge/bridgeClient', () => ({
   BridgeUnavailableError: class extends Error {},
 }));
 
-const result: ItHygieneResult = {
+const environmentResult: ItHygieneResult = {
   assessedAtUtc: '2026-08-21T07:00:00Z',
   domainName: 'corp.local',
   sources: {
@@ -37,24 +38,74 @@ const result: ItHygieneResult = {
   }],
 };
 
+const storedOverview: ClientOverviewResult = {
+  host: 'PC-42.corp.local',
+  inventory: {
+    metadata: { source: 'Inventory', provenance: 'Persisted WMI/CIM hardware snapshot', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Hardware and operating-system snapshot available.', detailSection: 'inventory' },
+    cpuName: 'Intel Core', physicalCores: 8, logicalProcessors: 16, totalMemoryBytes: 17179869184,
+    operatingSystem: 'Windows 11 Enterprise', operatingSystemVersion: '10.0', operatingSystemBuild: '26100', architecture: '64-bit',
+    disks: [{ model: 'NVMe', sizeBytes: 512000000000, interfaceType: 'NVMe' }],
+  },
+  software: null,
+  health: {
+    metadata: { source: 'Health', provenance: 'Latest persisted on-demand Health run', freshness: 'STALE', capturedAtUtc: '2026-08-18T07:00:00Z', ageSeconds: 262800, isComplete: true, coverage: '4 of 4 expected checks observed.', detailSection: 'diagnostics' },
+    criticalCount: 0, warningCount: 1, unknownCount: 0, healthyCount: 3,
+    issues: [{ diagnosticId: 'SERVICES', title: 'Service stopped', status: 'Warning', affectedResource: 'Spooler' }],
+  },
+  security: null,
+  sources: [
+    { source: 'Inventory', provenance: 'Persisted WMI/CIM hardware snapshot', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Hardware and operating-system snapshot available.', detailSection: 'inventory' },
+    { source: 'Installed software', provenance: 'Persisted Inventory software capture', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored software capture.', detailSection: 'inventory' },
+    { source: 'Health', provenance: 'Latest persisted on-demand Health run', freshness: 'STALE', capturedAtUtc: '2026-08-18T07:00:00Z', ageSeconds: 262800, isComplete: true, coverage: '4 of 4 expected checks observed.', detailSection: 'diagnostics' },
+    { source: 'Security', provenance: 'Latest persisted Security scan and per-check coverage', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored Security scan.', detailSection: 'security' },
+  ],
+};
+
+function renderOverview() {
+  return render(<MemoryRouter><TargetProvider><EnvironmentProvider><OverviewSection host="PC-42.corp.local" /></EnvironmentProvider></TargetProvider></MemoryRouter>);
+}
+
 describe('OverviewSection', () => {
   beforeEach(() => {
     invokeMock.mockReset();
     invokeMock.mockImplementation((module: string, action: string) => {
       if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
-      if (module === 'employeelifecycle' && action === 'getHygiene') return Promise.resolve(result);
+      if (module === 'clients' && action === 'getOverview') return Promise.resolve(storedOverview);
+      if (module === 'employeelifecycle' && action === 'getHygiene') return Promise.resolve(environmentResult);
       if (module === 'connectivity' && action === 'probeHosts') return Promise.resolve({ results: [{ host: 'PC-42.corp.local', reachable: true, manageable: true }] });
       return Promise.reject(new Error(`Unexpected action ${module}/${action}`));
     });
   });
 
-  it('shows the opsi card as stale when the shared assessment is stale', async () => {
-    render(<TargetProvider><EnvironmentProvider><OverviewSection host="PC-42.corp.local" /></EnvironmentProvider></TargetProvider>);
+  it('shows stored inventory and Health evidence without loading management systems', async () => {
+    renderOverview();
 
+    expect(await screen.findByText('Windows 11 Enterprise')).toBeDefined();
+    expect(screen.getByText('Service stopped')).toBeDefined();
+    expect(screen.getAllByText('Stale').length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: 'Open Health' }).getAttribute('href'))
+      .toBe('/clients/PC-42.corp.local?section=diagnostics');
+    expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(false);
+    expect(invokeMock.mock.calls.some((call) => call[0] === 'connectivity')).toBe(false);
+  });
+
+  it('loads management sources only after the explicit action', async () => {
+    renderOverview();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Load management sources' }));
     await screen.findByText('Client ID');
+
     const opsiCard = screen.getByText('Client ID').closest('[class*="rounded"]');
     expect(opsiCard).not.toBeNull();
     expect(opsiCard!.textContent).toContain('Stale');
-    expect(opsiCard!.textContent).not.toContain('Available');
+    await waitFor(() => expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(true));
+  });
+
+  it('keeps missing sources explicit instead of presenting them as healthy', async () => {
+    renderOverview();
+
+    await screen.findByText('No stored software capture.');
+    expect(screen.getByText('No stored Security scan.')).toBeDefined();
+    expect(screen.getAllByText('Missing')).toHaveLength(2);
   });
 });
