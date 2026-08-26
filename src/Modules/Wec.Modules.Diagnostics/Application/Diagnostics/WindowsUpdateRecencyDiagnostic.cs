@@ -23,7 +23,7 @@ internal sealed class WindowsUpdateRecencyDiagnostic : IDiagnostic
         _clock = clock;
     }
 
-    public string DiagnosticId => "WEC-DIAG-SYS-UPDATES";
+    public string DiagnosticId => DeviceHealthDiagnosticIds.WindowsUpdateRecency;
 
     public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {

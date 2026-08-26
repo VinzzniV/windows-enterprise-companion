@@ -25,7 +25,7 @@ internal sealed class EventLogSummaryDiagnostic : IDiagnostic
         _clock = clock;
     }
 
-    public string DiagnosticId => "WEC-DIAG-SYS-EVENTLOG";
+    public string DiagnosticId => DeviceHealthDiagnosticIds.EventLogSummary;
 
     public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(
         DiagnosticContext context,

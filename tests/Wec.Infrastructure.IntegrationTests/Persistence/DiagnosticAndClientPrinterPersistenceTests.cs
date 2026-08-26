@@ -41,6 +41,74 @@ public sealed class DiagnosticAndClientPrinterPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task HistoricalDiagnosticRun_KeepsStoredPayloadButReturnsOnlyCurrentHealthChecks()
+    {
+        const string historicalPayload = """
+            {
+              "StartedAtUtc": "2026-07-08T10:00:00+00:00",
+              "CompletedAtUtc": "2026-07-08T10:01:00+00:00",
+              "Results": [
+                {
+                  "DiagnosticId": "WEC-DIAG-NET-CONFIG",
+                  "Title": "Legacy network check",
+                  "Status": 0,
+                  "Category": 0,
+                  "AffectedResource": "Network",
+                  "Evidence": {},
+                  "SuggestedNextSteps": [],
+                  "RequiredPrivilege": null,
+                  "CapturedAtUtc": "2026-07-08T10:00:30+00:00"
+                },
+                {
+                  "DiagnosticId": "WEC-DIAG-SYS-DISKSPACE",
+                  "Title": "Disk space is healthy",
+                  "Status": 0,
+                  "Category": 6,
+                  "AffectedResource": "Fixed drives",
+                  "Evidence": { "C:": "50 GB free" },
+                  "SuggestedNextSteps": [],
+                  "RequiredPrivilege": null,
+                  "CapturedAtUtc": "2026-07-08T10:00:45+00:00"
+                }
+              ]
+            }
+            """;
+
+        using (WecDbContext writeContext = CreateContext())
+        {
+            await writeContext.Database.MigrateAsync();
+            writeContext.Set<DiagnosticRunRecord>().Add(new DiagnosticRunRecord
+            {
+                Host = "PC-HISTORICAL",
+                CompletedAtUtc = When.AddMinutes(1),
+                PayloadJson = historicalPayload,
+            });
+            await writeContext.SaveChangesAsync();
+        }
+
+        using (WecDbContext readContext = CreateContext())
+        {
+            var repository = new EfDiagnosticRunRepository(
+                readContext,
+                NullLogger<EfDiagnosticRunRepository>.Instance);
+
+            DiagnosticRunResult? run = await repository.GetLatestAsync(
+                "PC-HISTORICAL",
+                CancellationToken.None);
+
+            Assert.NotNull(run);
+            DiagnosticResult result = Assert.Single(run.Results);
+            Assert.Equal("WEC-DIAG-SYS-DISKSPACE", result.DiagnosticId);
+
+            string storedPayload = await readContext.Set<DiagnosticRunRecord>()
+                .Where(record => record.Host == "PC-HISTORICAL")
+                .Select(record => record.PayloadJson)
+                .SingleAsync();
+            Assert.Contains("WEC-DIAG-NET-CONFIG", storedPayload, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task ClientPrinterScan_RoundTripsAndReplacesPerHost()
     {
         var printer = new ClientPrinter("Reception", "Kyocera KX", "IP_10.0.0.5", "EG", false, true);
