@@ -30,17 +30,17 @@ public sealed class PatchManagementOptions
     public int AuditHistoryLimit { get; set; } = 100;
 
     [PositiveTimeSpan]
-    public TimeSpan ManufacturerCheckInterval { get; set; } = TimeSpan.FromDays(1);
+    public TimeSpan WingetCheckInterval { get; set; } = TimeSpan.FromDays(1);
 
     [PositiveTimeSpan]
-    public TimeSpan ManufacturerRequestTimeout { get; set; } = TimeSpan.FromSeconds(20);
+    public TimeSpan WingetRequestTimeout { get; set; } = TimeSpan.FromSeconds(90);
 
     /// <summary>
-    /// Account used by Windows OpenSSH for package operations. Authentication
-    /// comes from ssh-agent or <see cref="SshIdentityFile"/>; no password is stored.
+    /// Optional account used by Windows OpenSSH for package operations. Empty uses
+    /// the username from the active opsi session. Authentication comes from
+    /// ssh-agent or <see cref="SshIdentityFile"/>; the opsi password is never reused.
     /// </summary>
-    [Required]
-    public string SshUserName { get; set; } = "root";
+    public string SshUserName { get; set; } = string.Empty;
 
     /// <summary>Optional private-key path. Empty uses ssh-agent/default OpenSSH identities.</summary>
     public string SshIdentityFile { get; set; } = string.Empty;
@@ -54,24 +54,10 @@ public sealed class PatchManagementOptions
     [PositiveTimeSpan]
     public TimeSpan PackageTransferTimeout { get; set; } = TimeSpan.FromMinutes(15);
 
-    public Dictionary<string, PackageAutomationProfileOptions> PackageAutomationProfiles { get; set; } =
-        new(StringComparer.OrdinalIgnoreCase);
+    [Required]
+    [RegularExpression("^/(?!\\.\\.(?:/|$))(?!.*\\/\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$")]
+    public string WingetWorkbenchRoot { get; set; } = "/var/lib/opsi/workbench/packages/wec-winget";
 
     /// <summary>Prepends sudo -n so an operation can never wait for a password prompt.</summary>
     public bool UseNonInteractiveSudo { get; set; }
-}
-
-public sealed class PackageAutomationProfileOptions
-{
-    public string ReleaseUrl { get; set; } = string.Empty;
-
-    public string ArtifactUrlPattern { get; set; } = string.Empty;
-
-    public string WorkbenchPath { get; set; } = string.Empty;
-
-    public string InstallerRelativePath { get; set; } = string.Empty;
-
-    public List<string> PreviousInstallerFileNames { get; set; } = [];
-
-    public long MaximumArtifactBytes { get; set; } = 512L * 1024 * 1024;
 }

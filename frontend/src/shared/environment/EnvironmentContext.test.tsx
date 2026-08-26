@@ -2,8 +2,8 @@ import { useEffect } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ItHygieneResult } from '../api-types';
-import { TargetProvider } from '../targets/TargetContext';
-import { EnvironmentProvider, useEnvironment } from './EnvironmentContext';
+import { TargetProvider, useTargets } from '../targets/TargetContext';
+import { EnvironmentProvider, useEnvironment, useEnvironmentRequest } from './EnvironmentContext';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
@@ -40,6 +40,15 @@ function Consumer({ name }: { name: string }) {
   return <span>{name}:{environment.result ? 'loaded' : 'waiting'}</span>;
 }
 
+function KasperskyRequestProbe() {
+  const { signInAdmin } = useTargets();
+  const request = useEnvironmentRequest();
+  useEffect(() => {
+    signInAdmin({ userName: 'administrator', domain: 'CORP', password: 'admin-secret' });
+  }, [signInAdmin]);
+  return <span>{request.kaspersky ? request.kaspersky.userName : 'no KSC override'}</span>;
+}
+
 describe('EnvironmentProvider', () => {
   beforeEach(() => {
     invokeMock.mockReset();
@@ -65,5 +74,11 @@ describe('EnvironmentProvider', () => {
     await waitFor(() => expect(invokeMock.mock.calls.filter(
       (call) => call[0] === 'employeelifecycle' && call[1] === 'getHygiene',
     )).toHaveLength(1));
+  });
+
+  it('never turns the global administrator sign-in into a KSC request credential', async () => {
+    render(<TargetProvider><KasperskyRequestProbe /></TargetProvider>);
+
+    expect(await screen.findByText('no KSC override')).toBeTruthy();
   });
 });

@@ -10,7 +10,11 @@ public sealed class BridgeExecutionTimeoutPolicyTests
 
     [Theory]
     [InlineData("targets", "list", 9)]
+    [InlineData("printmanagement", "scanServer", 30)]
     [InlineData("security", "runScan", 115)]
+    [InlineData("patchmanagement", "searchWingetPackages", 205)]
+    [InlineData("patchmanagement", "previewWingetPackage", 205)]
+    [InlineData("patchmanagement", "checkWingetUpdates", 590)]
     [InlineData("employeelifecycle", "getHygiene", 175)]
     [InlineData("employeelifecycle", "getHygieneOverview", 175)]
     [InlineData("employeelifecycle", "listHygieneDevices", 175)]
@@ -28,17 +32,17 @@ public sealed class BridgeExecutionTimeoutPolicyTests
     }
 
     [Fact]
-    public void PackageExecution_ScalesByTargetDepotCount()
+    public void WingetPackageExecution_ScalesBySelectedPackageCount()
     {
         JsonElement payload = JsonSerializer.SerializeToElement(new
         {
-            depotIds = new[] { "test", "production" },
+            packages = new[] { new { opsiProductId = "7zip" }, new { opsiProductId = "firefox" } },
         });
 
         TimeSpan timeout = _policy.Resolve(new BridgeRequest(
             "id",
             "patchmanagement",
-            "executePackageUpdate",
+            "applyWingetUpdates",
             payload));
 
         Assert.Equal(TimeSpan.FromSeconds(3_780), timeout);

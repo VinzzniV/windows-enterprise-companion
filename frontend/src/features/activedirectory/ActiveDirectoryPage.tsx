@@ -21,6 +21,7 @@ import { loadView, saveView } from '../../shared/viewCache';
 import { DirectoryIdentityTable, privilegedIdentityRows, ruleIdentityRows } from './directoryIdentity';
 import { DirectoryRuleBrowser } from './DirectoryRuleBrowser';
 import { DirectoryPrivilegedGroupBrowser } from './DirectoryPrivilegedGroupBrowser';
+import { exportActiveDirectoryCsv } from './activeDirectoryCsvExport';
 
 /** What survives an app restart for this page — never the password. */
 interface CachedAdView {
@@ -91,6 +92,12 @@ type HygieneState =
   | { kind: 'loaded'; hygiene: AdHygieneResult }
   | { kind: 'error'; error: ErrorPresentation };
 
+type ExportState =
+  | { kind: 'idle' }
+  | { kind: 'exporting'; progress: string }
+  | { kind: 'complete'; message: string }
+  | { kind: 'error'; error: ErrorPresentation };
+
 function OverviewStat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded border border-slate-800 bg-slate-900/50 px-4 py-3">
@@ -155,6 +162,7 @@ export function ActiveDirectoryPage() {
   );
   const [testBindState, setTestBindState] = useState<TestBindState>({ kind: 'idle' });
   const [hygieneSearch, setHygieneSearch] = useState('');
+  const [exportState, setExportState] = useState<ExportState>({ kind: 'idle' });
 
   const testConnection = useCallback(() => {
     setTestBindState({ kind: 'testing' });
@@ -236,6 +244,7 @@ export function ActiveDirectoryPage() {
     setState({ kind: 'idle' });
     setHygieneState({ kind: 'idle' });
     setTestBindState({ kind: 'idle' });
+    setExportState({ kind: 'idle' });
   };
 
   // Nothing cached yet: fall back to the newest saved DC so the user only has to hit
@@ -273,6 +282,30 @@ export function ActiveDirectoryPage() {
     () => privilegedIdentityRows(hygiene?.privilegedGroups ?? []),
     [hygiene?.privilegedGroups],
   );
+  const exportReady = overview?.domainJoined === true && hygiene?.domainJoined === true;
+
+  const exportAllData = async () => {
+    if (!overview || !hygiene || !exportReady) return;
+
+    setExportState({ kind: 'exporting', progress: 'Preparing complete export …' });
+    try {
+      const result = await exportActiveDirectoryCsv(
+        overview,
+        hygiene,
+        toConnectionRequest(connectionForm, adminCredentials),
+        (progress) => setExportState({ kind: 'exporting', progress }),
+      );
+      setExportState({
+        kind: 'complete',
+        message: result.cancelled ? 'Export cancelled.' : `Complete export saved to ${result.filePath}`,
+      });
+    } catch (error) {
+      setExportState({
+        kind: 'error',
+        error: directoryError(error, 'The complete Active Directory export could not be created.'),
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -292,6 +325,14 @@ export function ActiveDirectoryPage() {
             : hygieneState.kind === 'loading'
               ? 'Checking …'
               : 'Run hygiene checks'}
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => void exportAllData()}
+          disabled={!exportReady || exportState.kind === 'exporting'}
+          title="Run directory analysis and hygiene checks first."
+        >
+          {exportState.kind === 'exporting' ? 'Exporting complete data …' : 'Export complete CSV'}
         </Button>
       </PageHeader>
 
@@ -341,6 +382,14 @@ export function ActiveDirectoryPage() {
           <CompactErrorState {...testBindState.error} />
         )}
       </fieldset>
+
+      {exportState.kind === 'exporting' && (
+        <p className="text-sm text-slate-300" role="status">{exportState.progress}</p>
+      )}
+      {exportState.kind === 'complete' && (
+        <p className="text-sm text-ok-400" role="status">{exportState.message}</p>
+      )}
+      {exportState.kind === 'error' && <CompactErrorState {...exportState.error} />}
 
       {state.kind === 'idle' && (
         <EmptyState

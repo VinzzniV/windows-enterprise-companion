@@ -13,25 +13,25 @@ public sealed class PatchManagementPersistenceTests : IDisposable
     private WecDbContext CreateContext() => IntegrationDbContextFactory.Create(_databasePath);
 
     [Fact]
-    public async Task Mapping_UpsertRoundTripAndDelete()
+    public async Task WingetPackage_UpsertRoundTrip()
     {
+        DateTimeOffset now = new(2026, 8, 26, 8, 0, 0, TimeSpan.Zero);
         using (WecDbContext writeContext = CreateContext())
         {
             await writeContext.Database.MigrateAsync();
-            var repository = new EfPatchMappingRepository(writeContext);
-            await repository.UpsertAsync("Mozilla Firefox", "firefox", CancellationToken.None);
-            await repository.UpsertAsync("Mozilla Firefox", "firefox-esr", CancellationToken.None);
+            var repository = new EfWingetManagedPackageRepository(writeContext);
+            await repository.UpsertAsync(new WingetManagedPackage(
+                0, "7zip", "7zip.7zip", "winget", "machine", "depot.example.test", "7-Zip",
+                "25.01", 1, "26.02", "SUCCESS", now, null, now, now), CancellationToken.None);
         }
 
         using (WecDbContext readContext = CreateContext())
         {
-            var repository = new EfPatchMappingRepository(readContext);
-            ProductMapping mapping = Assert.Single(await repository.ListAsync(CancellationToken.None));
-            Assert.Equal("Mozilla Firefox", mapping.SoftwareName);
-            Assert.Equal("firefox-esr", mapping.OpsiProductId);
-
-            await repository.DeleteAsync("Mozilla Firefox", CancellationToken.None);
-            Assert.Empty(await repository.ListAsync(CancellationToken.None));
+            var repository = new EfWingetManagedPackageRepository(readContext);
+            WingetManagedPackage package = Assert.Single(await repository.ListAsync(CancellationToken.None));
+            Assert.Equal("7zip.7zip", package.WingetId);
+            Assert.Equal("26.02", package.LatestWingetVersion);
+            Assert.Equal(now, package.CheckedAtUtc);
         }
     }
 
@@ -40,7 +40,7 @@ public sealed class PatchManagementPersistenceTests : IDisposable
     {
         var older = new PatchAuditEntry(
             0, new DateTimeOffset(2026, 7, 3, 10, 0, 0, TimeSpan.Zero), "vinz",
-            "ROLLOUT_REQUESTED", "firefox", "depot-denkingen.kauth.local",
+            "WINGET_PACKAGE_UPDATED", "firefox", "depot-denkingen.kauth.local",
             ["pc1.kauth.local", "pc2.kauth.local"], "{\"preview\":true}", "SUCCESS", null);
         var newer = older with
         {
@@ -75,41 +75,52 @@ public sealed class PatchManagementPersistenceTests : IDisposable
 
             Assert.Single(await repository.ListAsync(1, CancellationToken.None));
             PatchAuditEntry? latest = await repository.FindLatestAsync(
-                "firefox", "ROLLOUT_REQUESTED", CancellationToken.None);
+                "firefox", "WINGET_PACKAGE_UPDATED", CancellationToken.None);
             Assert.NotNull(latest);
             Assert.Equal(entries[0].TimestampUtc, latest.TimestampUtc);
         }
     }
 
     [Fact]
-    public async Task VersionSource_UpsertRoundTripAndDelete()
+    public async Task WingetMigration_DropsLegacyTablesAndPreservesAuditHistory()
     {
-        DateTimeOffset checkedAt = new(2026, 8, 14, 7, 0, 0, TimeSpan.Zero);
-        using (WecDbContext writeContext = CreateContext())
+        using (WecDbContext previousContext = CreateContext())
         {
-            await writeContext.Database.MigrateAsync();
-            var repository = new EfProductVersionSourceRepository(writeContext);
-            await repository.UpsertAsync(new ProductVersionSource(
-                "firefox",
-                "https://example.test/releases",
-                "version ([0-9.]+)",
-                Enabled: true,
-                "129.0",
-                checkedAt,
-                "SUCCESS",
-                LastError: null), CancellationToken.None);
+            await previousContext.Database.MigrateAsync("20260819054558_AddSecurityCheckCoverage");
+            var audit = new EfPatchAuditRepository(previousContext);
+            await audit.AddAsync(new PatchAuditEntry(
+                0, new DateTimeOffset(2026, 8, 25, 8, 0, 0, TimeSpan.Zero), "admin",
+                "HISTORICAL_ACTION", "7zip", "depot.example.test", [], null,
+                "SUCCESS", null, "25.01-1", "25.01-2"), CancellationToken.None);
         }
 
-        using (WecDbContext readContext = CreateContext())
+        using (WecDbContext migratedContext = CreateContext())
         {
-            var repository = new EfProductVersionSourceRepository(readContext);
-            ProductVersionSource source = Assert.Single(await repository.ListAsync(CancellationToken.None));
-            Assert.Equal("129.0", source.LatestVersion);
-            Assert.Equal(checkedAt, source.LastCheckedUtc);
+            await migratedContext.Database.MigrateAsync();
+            Assert.False(await TableExistsAsync(migratedContext, "patchmanagement_product_mappings"));
+            Assert.False(await TableExistsAsync(migratedContext, "patchmanagement_version_sources"));
+            Assert.True(await TableExistsAsync(migratedContext, "patchmanagement_winget_packages"));
 
-            await repository.DeleteAsync("firefox", CancellationToken.None);
-            Assert.Empty(await repository.ListAsync(CancellationToken.None));
+            var audit = new EfPatchAuditRepository(migratedContext);
+            PatchAuditEntry entry = Assert.Single(await audit.ListAsync(10, CancellationToken.None));
+            Assert.Equal("HISTORICAL_ACTION", entry.Action);
+            Assert.Equal("25.01-1", entry.OldVersion);
         }
+    }
+
+    private static async Task<bool> TableExistsAsync(WecDbContext context, string tableName)
+    {
+        System.Data.Common.DbConnection connection = context.Database.GetDbConnection();
+        await connection.OpenAsync();
+        await using System.Data.Common.DbCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name";
+        System.Data.Common.DbParameter parameter = command.CreateParameter();
+        parameter.ParameterName = "$name";
+        parameter.Value = tableName;
+        command.Parameters.Add(parameter);
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync(),
+            System.Globalization.CultureInfo.InvariantCulture) == 1;
     }
 
     public void Dispose()

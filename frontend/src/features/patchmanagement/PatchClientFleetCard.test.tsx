@@ -69,13 +69,11 @@ describe('PatchClientFleetCard', () => {
     });
   });
 
-  it('owns the initial server query and opens the matching package drill-down', async () => {
-    const onOpenProduct = vi.fn();
+  it('owns the initial server query and remains read-only', async () => {
     render(
       <PatchClientFleetCard
         connected
         dashboard={dashboard}
-        onOpenProduct={onOpenProduct}
       />,
     );
 
@@ -98,12 +96,11 @@ describe('PatchClientFleetCard', () => {
     const firstRow = (await screen.findByText('pc001')).closest('tr') as HTMLTableRowElement;
     expect(within(firstRow).getByText('Failed')).toBeDefined();
 
-    await userEvent.click(within(firstRow).getByRole('button', { name: 'Open package' }));
-    expect(onOpenProduct).toHaveBeenCalledWith('firefox', 'FAILED');
+    expect(within(firstRow).queryByRole('button')).toBeNull();
   });
 
   it('resets paging for filters and sort while preserving the exact query contract', async () => {
-    render(<PatchClientFleetCard connected dashboard={dashboard} onOpenProduct={vi.fn()} />);
+    render(<PatchClientFleetCard connected dashboard={dashboard} />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Next' }));
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
@@ -145,7 +142,7 @@ describe('PatchClientFleetCard', () => {
         return Promise.reject(new Error(`Unexpected action ${action}`));
       });
 
-    render(<PatchClientFleetCard connected dashboard={dashboard} onOpenProduct={vi.fn()} />);
+    render(<PatchClientFleetCard connected dashboard={dashboard} />);
 
     expect(await screen.findByText('The patch client list could not be loaded.')).toBeDefined();
     await userEvent.click(screen.getByRole('button', { name: 'Reload client list' }));

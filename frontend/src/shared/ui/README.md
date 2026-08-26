@@ -192,42 +192,17 @@ client workflow state. `CURRENT` and `UPDATE_AVAILABLE` are Lifecycle `Current`
 and `Update available`; `DEPOT_DEVIATION` is Health `Warning` with `Depot
 deviation`; `MISSING_ON_DEPOT` is Availability `Missing` with `From depot`;
 `CHECK_FAILED` is Execution `Failed` with `Package check`; and
-`DEPLOYMENT_PENDING` is Lifecycle `Pending` with `Deployment`. An unrecognized
+`ACTION_PENDING` is Lifecycle `Pending` with `opsi action pending`. An unrecognized
 value is Availability `Unknown` with `Package status unavailable`, while its raw
 value remains technical detail. Package derivation, filtering, workflow states
 and bridge values are unchanged.
 
-The client patch workflow uses the same dimensions without collapsing its
-milestones. `COMPLETED` is Lifecycle `Current`, `UPDATE_AVAILABLE` is Lifecycle
-`Update available`, and `FAILED` is Execution `Failed`. `DETECTED` and every
-incomplete preparation or deployment milestone are Lifecycle `Pending`; their
-specific `Detected`, `Download required`, `Package prepared`, `Uploaded`,
-`Ready for pilot`, `Approved` or `Deployment requested` meaning remains visible
-beside the badge. An unrecognized state is Availability `Unknown` with
-`Workflow status unavailable` and retains the raw value only as technical
-detail. Workflow derivation, filtering and bridge values are unchanged.
-
-Manufacturer version sources keep configuration and check execution separate.
-An enabled source maps `SUCCESS` and `FAILED` to Execution `Succeeded` and
-`Failed`; `NOT_CHECKED` is Availability `Unknown` with `Not checked` context,
-and a missing source (`NOT_CONFIGURED`) is Availability `Not configured`. A
-persisted source with `enabled: false` is Lifecycle `Disabled`, regardless of
-its historical check result. The scheduled-check summary counts only enabled
-sources as active and distinguishes a load failure from an empty configuration.
-Unknown check values fall back to Availability `Unknown` and remain available
-only as technical detail. Backend values, source persistence and check behavior
-are unchanged.
-
-The Package Approval Chain is a fourth independent Patch Management family.
-Loading its read-only workflow status is Execution `Running`; a load failure is
-Execution `Failed`; a disconnected or otherwise unavailable status is
-Availability `Unknown`. A successful test-depot update and an accepted pilot
-approval are Execution `Succeeded` with `Test update` or `Pilot approved`
-context, while the verified initial gate is Lifecycle `Pending` with `Test
-update` context. The loader binds state and responses to the selected product,
-clears a previous product's workflow immediately and discards late responses,
-so an old approval can neither be displayed nor enable depot distribution for
-another package. Backend audit derivation and bridge values remain unchanged.
+The client patch view uses the same dimensions for read-only opsi state.
+`COMPLETED` is Lifecycle `Current`, `UPDATE_AVAILABLE` is Lifecycle
+`Update available`, `ACTION_PENDING` is shown neutrally as an existing opsi
+action, and `FAILED` is Execution `Failed`. WEC does not create or change these
+client states. Winget catalog failures are separate from opsi availability and
+therefore never replace a usable depot/client overview.
 
 Patch audit results are a fifth independent family. `SUCCESS` and `FAILED` map
 to Execution `Succeeded` and `Failed`. `PLANNED` records the successful
@@ -333,48 +308,22 @@ the intentional feature-local bridge/workflow owner for reachability and safe
 port deletion. The notification hook is the corresponding feature-local data
 and bridge owner for per-device notification checks; the DHCP hook is the
 corresponding owner for scoped reservation checks.
- Patch Management keeps connection/dashboard lifecycle and credential-free
- cache migration/persistence, depot/default resolution, live/stale state,
- refresh callbacks and the shared product/all-source manufacturer check in
- `usePatchManagementWorkspace`. The page owns only depot-change selection
- reset, tab navigation and product/client/drill selection and binds the hook to
- feature workspaces. `PatchProductOverviewWorkspace` owns local
- package search/status filtering, visible-product derivation, KPI/action
- summary, product table and detail-panel composition. It receives controlled
- selection, drill/check state and narrow select/drill/close/check/refresh
- callbacks. `PatchProductDetailsPanel` owns the sticky detail Card/Close
- boundary, package/depot/manufacturer/inventory presentation and composes the
- controlled client, approval and deployment owners. `PatchPackageBadge` shares
- package status presentation between overview and detail. `PatchAutomationWorkspace`
- owns all three
-Automation-tab cards, mount-bound source loading/retry, source form,
-save/delete verification and the source table; it receives product choices,
-connection/check state and narrow check/refresh callbacks. Its read-only
-`PatchClientFleetCard` owns the global client/package-state query, filter,
-server paging/sorting, local error retry and table; it receives only the live
-connection flag, current dashboard snapshot and a package-open callback. The
-product-specific `PatchProductClientsTable`, composed inside the detail panel,
-independently owns its scoped query, snapshot/product/filter reset,
-late-response protection, local retry,
-server paging/sorting and table. Drill filter and selection are controlled by
- the page because KPI drill-downs set the filter. `PatchDeploymentWorkflow`
- consumes the controlled selection and owns preview/request bridge calls,
- selection-scoped invalidation, late-response protection, loading, confirmation,
- errors, outcome and preview table. `PatchPackageApprovalWorkflow` owns the
- product-scoped approval load/retry, preferred test depot, package plan and
- confirmed execution, pilot approval, approved-only depot synchronization,
- errors/outcome and complete presentation. Product and connection changes
- invalidate that scope and discard late responses; the independent deployment
- workflow is composed as its child inside the approval chain. The read-only
+Patch Management keeps connection/dashboard lifecycle, credential-free cache
+persistence, depot/default resolution, due Winget checks and live/stale state in
+`usePatchManagementWorkspace`. `PatchProductOverviewWorkspace` owns the local
+package filter, KPI summary and read-only opsi depot table. `WingetPackagesWorkspace`
+owns catalog search, eligibility display, editable Product-ID/depot selection,
+creation/adoption preview, explicit confirmation, managed-package selection and
+batch update preview. A daily cached check and a forced check share the same
+backend action. Build buttons remain disabled during an operation, and every
+write displays a fresh server preview before sending `confirmed: true`.
+`PatchClientFleetCard` owns the read-only paged client/package-state query. The
+read-only
 `PatchAuditHistoryCard` owns the audit-log query, entry/error state, local retry,
 semantic result badge and table; it reads the current persisted history only
 when its exclusive tab mounts, while administrative actions remain independent
-of the hidden view. `PatchProductMappingsCard` owns the local mapping query,
-inputs, read retry, confirmed save/delete results and both tables; it receives
-the current unmapped inventory rows and reports successful changes so the page
-can refresh a live dashboard. Shared feature-local client-name, workflow-badge
-and opsi-error helpers preserve the existing presentation and recovery
-contracts across these owners.
+of the hidden view. No frontend path exposes mapping, manufacturer scraping,
+pilot, synchronization or client-action requests.
 Inventory, Security and Diagnostics are currently embedded in Clients rather
 than routed as standalone pages.
 

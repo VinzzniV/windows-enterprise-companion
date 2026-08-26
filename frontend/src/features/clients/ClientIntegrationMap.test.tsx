@@ -18,6 +18,7 @@ describe('ClientIntegrationMap', () => {
   it('maps backend source and finding states without time-based frontend logic', () => {
     expect(integrationStatus('kaspersky', available, true, new Set())).toBe('connected');
     expect(integrationStatus('kaspersky', available, true, new Set(['STALE_KASPERSKY']))).toBe('stale');
+    expect(integrationStatus('kaspersky', available, true, new Set(['MISSING_KES']))).toBe('disconnected');
     expect(integrationStatus('opsi', available, false, new Set(['MISSING_OPSI']))).toBe('disconnected');
     expect(integrationStatus('nessus', { availability: 'PARTIAL', error: null }, true, new Set())).toBe('partial');
     expect(integrationStatus('activeDirectory', { availability: 'UNAVAILABLE', error: 'Offline' }, false, new Set())).toBe('unknown');
@@ -33,6 +34,13 @@ describe('ClientIntegrationMap', () => {
       expect(screen.getByTestId(`integration-icon-${key}`).querySelector('svg')).not.toBeNull();
     }
     expect(screen.getAllByTestId(/^integration-node-/)).toHaveLength(5);
+  });
+
+  it('shows a Nessus asset without a completed scan as disconnected', () => {
+    const device = { computerName: 'PC-42', hostName: 'PC-42.corp.local', activeDirectory: { exists: true }, kaspersky: { exists: true }, opsi: { exists: true }, nessus: { exists: true, lastCompletedScanUtc: null }, assessment: { status: 'WARNING', findings: [{ code: 'MISSING_NESSUS', severity: 'WARNING', message: 'No scan' }] } } as unknown as HygieneDevice;
+    render(<ClientIntegrationMap device={device} sources={{ activeDirectory: available, kaspersky: available, opsi: available, nessus: available }} />);
+
+    expect(screen.getByTestId('integration-node-nessus').textContent).toContain('Disconnected');
   });
 
   it('moves a node and its complete branch together while dragging', () => {

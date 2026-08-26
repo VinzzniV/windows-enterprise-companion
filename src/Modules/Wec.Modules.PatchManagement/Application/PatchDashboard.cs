@@ -8,8 +8,7 @@ public sealed record PatchDashboardResult(
     DateTimeOffset GeneratedAtUtc,
     PatchDashboardSummary Summary,
     IReadOnlyList<PatchDepotSummary> Depots,
-    IReadOnlyList<PatchProductRow> Products,
-    IReadOnlyList<UnmappedSoftware> UnmappedSoftware);
+    IReadOnlyList<PatchProductRow> Products);
 
 public sealed record PatchDashboardOverview(
     string ServerUrl,
@@ -17,8 +16,7 @@ public sealed record PatchDashboardOverview(
     DateTimeOffset GeneratedAtUtc,
     PatchDashboardSummary Summary,
     IReadOnlyList<PatchDepotSummary> Depots,
-    IReadOnlyList<PatchProductOverviewRow> Products,
-    IReadOnlyList<UnmappedSoftware> UnmappedSoftware);
+    IReadOnlyList<PatchProductOverviewRow> Products);
 
 public sealed record PatchDashboardSummary(
     int ProductCount,
@@ -26,11 +24,11 @@ public sealed record PatchDashboardSummary(
     int ProductsWithDepotDeviation,
     int ProductsMissingOnDepots,
     int ProductsWithFailures,
-    int PendingRolloutCount,
     int OutdatedClientCount,
     int ClientCount,
     int DepotCount,
-    int UnmappedSoftwareCount);
+    int WingetManagedCount,
+    int WingetUpdatesAvailable);
 
 public sealed record PatchDepotSummary(string Id, string? Description, bool IsConfigServer, int ClientCount);
 
@@ -39,11 +37,6 @@ public sealed record PatchProductRow(
     string? Name,
     string? AvailableVersion,
     string? ReferenceVersion,
-    string? ManufacturerVersion,
-    string ManufacturerCheckStatus,
-    DateTimeOffset? ManufacturerCheckedAtUtc,
-    string? ManufacturerCheckError,
-    bool ManufacturerUpdateAvailable,
     IReadOnlyList<PatchDepotVersion> DepotVersions,
     IReadOnlyList<string> MissingDepotIds,
     PatchPackageStatus PackageStatus,
@@ -53,20 +46,20 @@ public sealed record PatchProductRow(
     int FailedClientCount,
     int PendingActionCount,
     string? LastError,
-    IReadOnlyList<PatchClientState> Clients,
-    IReadOnlyList<string> MappedSoftwareNames,
-    IReadOnlyList<InventoryDetection> InventoryDetections);
+    bool WingetManaged,
+    string? WingetId,
+    string? LatestWingetVersion,
+    string WingetCheckStatus,
+    DateTimeOffset? WingetCheckedAtUtc,
+    string? WingetCheckError,
+    bool WingetUpdateAvailable,
+    IReadOnlyList<PatchClientState> Clients);
 
 public sealed record PatchProductOverviewRow(
     string ProductId,
     string? Name,
     string? AvailableVersion,
     string? ReferenceVersion,
-    string? ManufacturerVersion,
-    string ManufacturerCheckStatus,
-    DateTimeOffset? ManufacturerCheckedAtUtc,
-    string? ManufacturerCheckError,
-    bool ManufacturerUpdateAvailable,
     IReadOnlyList<PatchDepotVersion> DepotVersions,
     IReadOnlyList<string> MissingDepotIds,
     PatchPackageStatus PackageStatus,
@@ -76,8 +69,13 @@ public sealed record PatchProductOverviewRow(
     int FailedClientCount,
     int PendingActionCount,
     string? LastError,
-    IReadOnlyList<string> MappedSoftwareNames,
-    IReadOnlyList<InventoryDetection> InventoryDetections);
+    bool WingetManaged,
+    string? WingetId,
+    string? LatestWingetVersion,
+    string WingetCheckStatus,
+    DateTimeOffset? WingetCheckedAtUtc,
+    string? WingetCheckError,
+    bool WingetUpdateAvailable);
 
 public sealed record PatchDepotVersion(string DepotId, string Version);
 
@@ -88,7 +86,7 @@ public enum PatchPackageStatus
     DepotDeviation,
     MissingOnDepot,
     CheckFailed,
-    DeploymentPending,
+    ActionPending,
 }
 
 public sealed record PatchClientState(
@@ -101,10 +99,7 @@ public sealed record PatchClientState(
     string? ActionResult,
     PatchWorkflowState State);
 
-public sealed record PatchClientListItem(
-    string ProductId,
-    string? ProductName,
-    PatchClientState Client);
+public sealed record PatchClientListItem(string ProductId, string? ProductName, PatchClientState Client);
 
 public sealed record PatchClientStatePage(
     IReadOnlyList<PatchClientListItem> Items,
@@ -112,11 +107,3 @@ public sealed record PatchClientStatePage(
     int SnapshotTotal,
     int Page,
     int PageSize);
-
-public sealed record InventoryDetection(string Host, string? Version);
-
-public sealed record UnmappedSoftware(
-    string Name,
-    IReadOnlyList<string> Versions,
-    int HostCount,
-    string? SuggestedProductId);

@@ -22,8 +22,7 @@ internal static class PatchDashboardPaging
         dashboard.GeneratedAtUtc,
         dashboard.Summary,
         dashboard.Depots,
-        dashboard.Products.Select(ProductOverview).ToList(),
-        dashboard.UnmappedSoftware);
+        dashboard.Products.Select(ProductOverview).ToList());
 
     public static PatchClientStatePage Page(
         PatchDashboardResult dashboard,
@@ -89,11 +88,6 @@ internal static class PatchDashboardPaging
         product.Name,
         product.AvailableVersion,
         product.ReferenceVersion,
-        product.ManufacturerVersion,
-        product.ManufacturerCheckStatus,
-        product.ManufacturerCheckedAtUtc,
-        product.ManufacturerCheckError,
-        product.ManufacturerUpdateAvailable,
         product.DepotVersions,
         product.MissingDepotIds,
         product.PackageStatus,
@@ -103,8 +97,13 @@ internal static class PatchDashboardPaging
         product.FailedClientCount,
         product.PendingActionCount,
         product.LastError,
-        product.MappedSoftwareNames,
-        product.InventoryDetections);
+        product.WingetManaged,
+        product.WingetId,
+        product.LatestWingetVersion,
+        product.WingetCheckStatus,
+        product.WingetCheckedAtUtc,
+        product.WingetCheckError,
+        product.WingetUpdateAvailable);
 
     private static IEnumerable<string?> ClientSearchValues(PatchClientState client)
     {

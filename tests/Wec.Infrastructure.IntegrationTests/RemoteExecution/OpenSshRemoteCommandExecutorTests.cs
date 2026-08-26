@@ -7,37 +7,42 @@ namespace Wec.Infrastructure.IntegrationTests.RemoteExecution;
 public sealed class OpenSshRemoteCommandExecutorTests
 {
     [Fact]
-    public void ArtifactStager_RejectsRemotePathsOutsideDedicatedTmpPrefix()
+    public void FileUploader_RejectsRemotePathsOutsideDedicatedTmpPrefix()
     {
-        Result<bool> result = HttpOpenSshArtifactStager.Validate(new RemoteArtifactStageRequest(
-            new Uri("https://example.test/releases/latest"),
-            "(https://example.test/setup.exe)",
-            1024,
-            "depot01.example.test",
-            "root",
-            "/var/lib/opsi/workbench/setup.exe",
-            TimeSpan.FromSeconds(5),
-            TimeSpan.FromMinutes(1)));
+        string file = Path.GetTempFileName();
+        try
+        {
+            Result<bool> result = OpenSshRemoteFileUploader.Validate(new RemoteFileUploadRequest(
+                file, "depot01.example.test", "root", "/var/lib/opsi/workbench/setup.tar.gz",
+                TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(1)));
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+            Assert.True(result.IsFailure);
+            Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
     }
 
     [Fact]
-    public void ArtifactStager_RejectsNonPositiveTimeouts()
+    public void FileUploader_RejectsNonPositiveTimeouts()
     {
-        Result<bool> result = HttpOpenSshArtifactStager.Validate(new RemoteArtifactStageRequest(
-            new Uri("https://example.test/releases/latest"),
-            "(https://example.test/setup.exe)",
-            1024,
-            "depot01.example.test",
-            "root",
-            "/tmp/wec-setup.artifact",
-            TimeSpan.Zero,
-            TimeSpan.FromMinutes(1)));
+        string file = Path.GetTempFileName();
+        try
+        {
+            Result<bool> result = OpenSshRemoteFileUploader.Validate(new RemoteFileUploadRequest(
+                file, "depot01.example.test", "root",
+                $"/tmp/wec-winget-{Guid.NewGuid():N}.tar.gz",
+                TimeSpan.Zero, TimeSpan.FromMinutes(1)));
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+            Assert.True(result.IsFailure);
+            Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
     }
 
     [Fact]

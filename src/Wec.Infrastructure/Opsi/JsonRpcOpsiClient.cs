@@ -194,37 +194,6 @@ public sealed partial class JsonRpcOpsiClient : IOpsiClient, IDisposable
                 : null,
             cancellationToken);
 
-    public async Task<Result<int>> RequestSetupAsync(
-        OpsiConnection connection,
-        string productId,
-        IReadOnlyList<string> clientIds,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(productId) || clientIds.Count == 0)
-        {
-            return Result.Failure<int>(new Error(
-                ErrorCode.InvalidRequest, "A rollout request needs a product and at least one client."));
-        }
-
-        object[] productOnClients =
-        [
-            .. clientIds.Select(clientId => new Dictionary<string, object?>
-            {
-                ["type"] = "ProductOnClient",
-                ["clientId"] = clientId,
-                ["productId"] = productId,
-                ["productType"] = LocalbootProductType,
-                ["actionRequest"] = "setup",
-            }),
-        ];
-
-        Result<JsonElement> result = await CallAsync(
-            connection, "productOnClient_updateObjects", [productOnClients], cancellationToken).ConfigureAwait(false);
-        return result.IsSuccess
-            ? Result.Success(clientIds.Count)
-            : Result.Failure<int>(result.Error!);
-    }
-
     public void Dispose()
     {
         _validatingClient.Dispose();

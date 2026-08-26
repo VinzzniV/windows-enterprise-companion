@@ -9,9 +9,9 @@ type ClientReachability = 'unknown' | 'checking' | 'online' | 'offline' | 'faile
 interface IntegrationNode { key: IntegrationKey; label: string; status: IntegrationStatus; detail: string; }
 
 const STATUS_LABELS: Record<IntegrationStatus, string> = { connected: 'Connected', stale: 'Stale', disconnected: 'Disconnected', unknown: 'Unknown', partial: 'Partial' };
-const FINDINGS: Record<IntegrationKey, { stale?: string; missing?: string }> = {
-  activeDirectory: { stale: 'STALE_AD' }, kaspersky: { stale: 'STALE_KASPERSKY', missing: 'MISSING_KASPERSKY' },
-  opsi: { stale: 'STALE_OPSI', missing: 'MISSING_OPSI' }, nessus: { stale: 'STALE_NESSUS', missing: 'MISSING_NESSUS' },
+const FINDINGS: Record<IntegrationKey, { stale?: string; missing?: readonly string[] }> = {
+  activeDirectory: { stale: 'STALE_AD' }, kaspersky: { stale: 'STALE_KASPERSKY', missing: ['MISSING_KASPERSKY', 'MISSING_KASPERSKY_AGENT', 'MISSING_KES'] },
+  opsi: { stale: 'STALE_OPSI', missing: ['MISSING_OPSI'] }, nessus: { stale: 'STALE_NESSUS', missing: ['MISSING_NESSUS'] },
 };
 const PATHS: Record<IntegrationKey, [string, string, string]> = {
   activeDirectory: ['M500 190 C480 155 520 125 500 76', 'M500 190 C525 155 475 120 500 76', 'M500 190 C490 150 510 120 500 76'],
@@ -33,7 +33,7 @@ export function integrationStatus(key: IntegrationKey, source: InventorySourceSt
   if (source.availability === 'PARTIAL' || source.availability === 'TRUNCATED') return 'partial';
   if (source.availability !== 'AVAILABLE') return 'unknown';
   if (FINDINGS[key].stale && findingCodes.has(FINDINGS[key].stale!)) return 'stale';
-  if (!present || (FINDINGS[key].missing && findingCodes.has(FINDINGS[key].missing!))) return 'disconnected';
+  if (!present || FINDINGS[key].missing?.some((code) => findingCodes.has(code))) return 'disconnected';
   return 'connected';
 }
 
@@ -148,7 +148,7 @@ export function ClientIntegrationMap({ device, sources }: { device: HygieneDevic
     animationRef.current = requestAnimationFrame(spring);
   };
   const findingCodes = new Set(device.assessment.findings.map((finding) => finding.code));
-  const definitions: Array<[IntegrationKey, string, boolean]> = [['activeDirectory', 'Active Directory', device.activeDirectory.exists], ['kaspersky', 'Kaspersky', device.kaspersky.exists], ['opsi', 'opsi', device.opsi.exists], ['nessus', 'Nessus', device.nessus?.exists ?? false]];
+  const definitions: Array<[IntegrationKey, string, boolean]> = [['activeDirectory', 'Active Directory', device.activeDirectory.exists], ['kaspersky', 'Kaspersky', device.kaspersky.exists], ['opsi', 'opsi', device.opsi.exists], ['nessus', 'Nessus', Boolean(device.nessus?.exists && device.nessus.lastCompletedScanUtc !== null)]];
   const nodes = definitions.map(([key, label, present]) => ({ key, label, status: integrationStatus(key, sources[key], present, findingCodes), detail: sources[key].error ?? (present ? 'Client found' : 'No matching client') }));
   const reachabilityLabel = reachability === 'online' ? 'Online' : reachability === 'offline' ? 'Offline' : reachability === 'checking' ? 'Pinging…' : reachability === 'failed' ? 'Ping failed' : 'Not checked';
   return <section className={`integration-map${reachability === 'offline' ? ' integration-map--offline' : ''}`} aria-labelledby="client-integration-map-title">

@@ -1,6 +1,6 @@
 # ADR 0014: Configurable Manufacturer Version Sources
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR 0017
 - **Date:** 2026-08-14
 - **Deciders:** Vinz
 - **Extends:** ADR 0008

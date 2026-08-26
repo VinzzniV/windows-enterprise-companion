@@ -16,7 +16,9 @@ internal interface IBridgeExecutionTimeoutPolicy
 internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPolicy
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(9);
+    private static readonly TimeSpan PrintServerScanTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan StandardOperationTimeout = TimeSpan.FromSeconds(115);
+    private static readonly TimeSpan WingetCatalogOperationTimeout = TimeSpan.FromSeconds(205);
     private static readonly TimeSpan EnvironmentAnalysisTimeout = TimeSpan.FromSeconds(175);
     private static readonly TimeSpan BatchOperationTimeout = TimeSpan.FromSeconds(590);
     private static readonly TimeSpan LogReadTimeout = TimeSpan.FromSeconds(25);
@@ -26,6 +28,7 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
     [
         "activedirectory/getHygiene",
         "activedirectory/getOverview",
+        "activedirectory/exportCsv",
         "activedirectory/searchComputers",
         "activedirectory/searchUsers",
         "activedirectory/testConnection",
@@ -34,10 +37,7 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
         "diagnostics/runDiagnostics",
         "inventory/getDiskEncryptionStatus",
         "inventory/getHardwareInfo",
-        "patchmanagement/checkVendorVersions",
         "patchmanagement/getDashboard",
-        "patchmanagement/getRolloutPreview",
-        "patchmanagement/requestRollout",
         "printmanagement/scanClientPrinters",
         "reporting/exportHtml",
         "reporting/exportJson",
@@ -63,9 +63,28 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
     public TimeSpan Resolve(BridgeRequest request)
     {
         string key = $"{request.Module}/{request.Action}";
-        if (key == "patchmanagement/executePackageUpdate")
+        if (key == "patchmanagement/createOrAdoptWingetPackage")
         {
-            return TimeSpan.FromTicks(PackageTargetTimeout.Ticks * ReadTargetCount(request.Payload));
+            return PackageTargetTimeout;
+        }
+        if (key is "patchmanagement/prepareWingetUpdates" or "patchmanagement/applyWingetUpdates")
+        {
+            return TimeSpan.FromTicks(PackageTargetTimeout.Ticks * ReadPackageCount(request.Payload));
+        }
+
+        if (key is "patchmanagement/searchWingetPackages" or "patchmanagement/previewWingetPackage")
+        {
+            return WingetCatalogOperationTimeout;
+        }
+
+        if (key == "patchmanagement/checkWingetUpdates")
+        {
+            return BatchOperationTimeout;
+        }
+
+        if (key == "printmanagement/scanServer")
+        {
+            return PrintServerScanTimeout;
         }
 
         if (EnvironmentAnalysisOperations.Contains(key))
@@ -86,15 +105,15 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
         return StandardOperations.Contains(key) ? StandardOperationTimeout : DefaultTimeout;
     }
 
-    private static int ReadTargetCount(JsonElement? payload)
+    private static int ReadPackageCount(JsonElement? payload)
     {
         if (payload is not { ValueKind: JsonValueKind.Object } value
-            || !value.TryGetProperty("depotIds", out JsonElement depotIds)
-            || depotIds.ValueKind != JsonValueKind.Array)
+            || !value.TryGetProperty("packages", out JsonElement packages)
+            || packages.ValueKind != JsonValueKind.Array)
         {
             return 1;
         }
 
-        return Math.Max(1, depotIds.GetArrayLength());
+        return Math.Max(1, packages.GetArrayLength());
     }
 }

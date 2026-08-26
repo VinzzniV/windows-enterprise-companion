@@ -24,6 +24,7 @@ public sealed record ClientWorkspacePage(
     int SnapshotTotal,
     int Page,
     int PageSize,
+    int? GroupCount,
     DateTimeOffset AssessedAtUtc,
     string? DomainName,
     HygieneSummary Summary,
@@ -83,11 +84,29 @@ internal static class ClientWorkspacePaging
 
         int page = Math.Max(1, request.Page);
         int pageSize = Math.Clamp(request.PageSize, 1, 100);
-        List<ClientWorkspaceListItem> items = ordered
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(client => ToListItem(client, groupMode, groupTotals))
-            .ToList();
+        List<ClientWorkspaceListItem> items;
+        int? groupCount = null;
+        if (groupMode is "OS" or "SITE")
+        {
+            List<IGrouping<string, ClientWorkspaceEntry>> groups = ordered
+                .GroupBy(client => GroupLabel(client, groupMode), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            groupCount = groups.Count;
+            items = groups
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .SelectMany(group => group)
+                .Select(client => ToListItem(client, groupMode, groupTotals))
+                .ToList();
+        }
+        else
+        {
+            items = ordered
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(client => ToListItem(client, groupMode, groupTotals))
+                .ToList();
+        }
 
         return new ClientWorkspacePage(
             items,
@@ -96,6 +115,7 @@ internal static class ClientWorkspacePaging
             merged.Count,
             page,
             pageSize,
+            groupCount,
             result.AssessedAtUtc,
             result.DomainName,
             workspaceSummary,

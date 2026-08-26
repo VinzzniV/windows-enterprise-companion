@@ -252,7 +252,7 @@ export function DashboardPage() {
           to="/patchmanagement"
           icon={navIcons.patchmanagement}
           title="Patch Management"
-          description="opsi patch workflow and rollout."
+          description="Read-only opsi status and Winget package maintenance."
           metric={patch}
         />
         <ModuleTile

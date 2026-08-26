@@ -106,36 +106,35 @@ public sealed class PatchDashboardPagingTests
     private static PatchDashboardResult Dashboard(List<PatchClientState> clients)
     {
         var product = new PatchProductRow(
-            "alpha",
-            "Alpha Product",
-            "2.0-1",
-            "2.0-1",
-            null,
-            "NOT_CONFIGURED",
-            null,
-            null,
-            false,
-            [new("depot-a", "2.0-1")],
-            [],
-            PatchPackageStatus.Current,
-            PatchWorkflowState.Completed,
-            clients.Count,
-            clients.Count(client => client.State == PatchWorkflowState.UpdateAvailable),
-            clients.Count(client => client.State == PatchWorkflowState.Failed),
-            clients.Count(client => client.State == PatchWorkflowState.RolloutRequested),
-            null,
-            clients,
-            [],
-            []);
+            ProductId: "alpha",
+            Name: "Alpha Product",
+            AvailableVersion: "2.0-1",
+            ReferenceVersion: "2.0-1",
+            DepotVersions: [new("depot-a", "2.0-1")],
+            MissingDepotIds: [],
+            PackageStatus: PatchPackageStatus.Current,
+            State: PatchWorkflowState.Completed,
+            InstalledClientCount: clients.Count,
+            OutdatedClientCount: clients.Count(client => client.State == PatchWorkflowState.UpdateAvailable),
+            FailedClientCount: clients.Count(client => client.State == PatchWorkflowState.Failed),
+            PendingActionCount: clients.Count(client => client.State == PatchWorkflowState.ActionPending),
+            LastError: null,
+            WingetManaged: false,
+            WingetId: null,
+            LatestWingetVersion: null,
+            WingetCheckStatus: "MANUAL",
+            WingetCheckedAtUtc: null,
+            WingetCheckError: null,
+            WingetUpdateAvailable: false,
+            Clients: clients);
         return new PatchDashboardResult(
             "https://opsi.example:4447/",
             "depot-a",
             new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero),
             new PatchDashboardSummary(
-                1, 0, 0, 0, 0, 0, 0, clients.Count, 1, 0),
+                1, 0, 0, 0, 0, 0, clients.Count, 1, 0, 0),
             [new("depot-a", "Depot A", true, clients.Count)],
-            [product],
-            []);
+            [product]);
     }
 
     private static PatchClientState Client(

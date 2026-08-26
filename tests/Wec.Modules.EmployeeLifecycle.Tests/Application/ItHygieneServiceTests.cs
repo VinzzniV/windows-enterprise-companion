@@ -78,6 +78,18 @@ public sealed class ItHygieneServiceTests
         Assert.Equal(HygieneStatus.Warning, device.Assessment.Status);
     }
 
+    [Fact]
+    public void Assessment_DetectsRegisteredKasperskyHostWithoutAgentOrKes()
+    {
+        HygieneDevice device = Assert.Single(Correlate(
+            [Ad("PC001")],
+            [Ksc("PC001", agent: "", kes: "")]));
+
+        AssertFinding([device], "PC001", HygieneFindingCode.MissingKasperskyAgent);
+        AssertFinding([device], "PC001", HygieneFindingCode.MissingKes);
+        Assert.Equal(HygieneStatus.Warning, device.Assessment.Status);
+    }
+
     [Theory]
     [InlineData("16.0.0.253", "16.0.0.254", true)]
     [InlineData("16.0", "16.0.0.0", false)]
@@ -219,6 +231,22 @@ public sealed class ItHygieneServiceTests
     }
 
     [Fact]
+    public void NessusAssessment_TreatsAssetWithoutCompletedScanAsMissing()
+    {
+        var inventory = new NessusComputerInventory(
+            [new NessusComputerInventoryItem("CLIENT", "asset", "10.0.0.1", null, 2, 0, 0, 0, 0, [], ["Clients"])],
+            NessusInventoryAvailability.Available, Now);
+        HygieneDevice device = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("CLIENT", operatingSystem: "Windows 11")], [Ksc("CLIENT")], [Opsi("CLIENT")], inventory,
+            new EnvironmentSourceStates(Available, Available, Available, Available), Now, Options));
+
+        AssertFinding([device], "CLIENT", HygieneFindingCode.MissingNessus);
+        Assert.DoesNotContain(device.Assessment.Findings,
+            finding => finding.Code == HygieneFindingCode.NessusCriticalVulnerabilities);
+        Assert.Equal(HygieneStatus.Warning, device.Assessment.Status);
+    }
+
+    [Fact]
     public async Task LoadAsync_KeepsAvailableSourcesWhenKasperskyFails()
     {
         var service = new ItHygieneService(
@@ -302,6 +330,30 @@ public sealed class ItHygieneServiceTests
         Assert.Equal("ksc-reader", kaspersky.Connection.UserName);
         Assert.Equal("CORP", kaspersky.Connection.Domain);
         Assert.Equal("stored-secret", kaspersky.Connection.Password);
+    }
+
+    [Fact]
+    public async Task LoadAsync_DoesNotUseActiveDirectoryCredentialForKaspersky()
+    {
+        var kaspersky = new CapturingKasperskyProvider();
+        var service = new ItHygieneService(
+            new AdProvider(Result.Success(new AdComputerInventory(true, "example.test", [Ad("PC001")], false))),
+            kaspersky,
+            new OpsiProvider(Result.Success(new OpsiComputerInventory([]))),
+            new NessusProvider(),
+            new CredentialStore(),
+            new EventPublisher(),
+            new TestClock(),
+            Microsoft.Extensions.Options.Options.Create(Options));
+
+        Result<ItHygieneResult> loaded = await service.LoadAsync(new ItHygieneRequest(
+            ActiveDirectory: new DirectoryInventoryConnection(
+                UserName: "administrator", UserDomain: "CORP", Password: "admin-secret")),
+            CancellationToken.None);
+
+        Assert.True(loaded.IsSuccess);
+        Assert.Null(kaspersky.Connection);
+        Assert.Equal(InventorySourceAvailability.NotConnected, loaded.Value.Sources.Kaspersky.Availability);
     }
 
     [Fact]

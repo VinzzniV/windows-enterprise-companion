@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
@@ -57,6 +57,7 @@ function ClientScanIdentity({ credentials }: { credentials: CredentialValues | u
 
 export function ClientDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { host: rawHost } = useParams<{ host: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const host = decodeURIComponent(rawHost ?? '');
@@ -120,7 +121,7 @@ export function ClientDetailPage() {
     <div className="flex flex-col gap-4">
       <PageHeader title={host} subtitle={local ? 'This machine · scanned as the current user' : 'Remote client'}>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => navigate('/clients')}>
+          <Button variant="ghost" onClick={() => navigate('/clients', { state: location.state })}>
             ← All clients
           </Button>
           {!local && (

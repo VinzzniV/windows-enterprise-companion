@@ -146,41 +146,6 @@ public sealed class JsonRpcOpsiClientTests
         Assert.False(Assert.Single(result.Value, depot => depot.Id == "depot-denkingen.kauth.local").IsConfigServer);
     }
 
-    [Fact]
-    public async Task RequestSetup_SendsProductOnClientObjectsAndBasicAuth()
-    {
-        var handler = new RecordingHandler("""{"id":1,"error":null,"result":null}""");
-        using var client = new JsonRpcOpsiClient(NullLogger<JsonRpcOpsiClient>.Instance, handler);
-
-        Result<int> result = await client.RequestSetupAsync(
-            Connection, "firefox", ["pc1.kauth.local", "pc2.kauth.local"], CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(2, result.Value);
-        using JsonDocument sent = JsonDocument.Parse(handler.LastRequestBody!);
-        Assert.Equal("productOnClient_updateObjects", sent.RootElement.GetProperty("method").GetString());
-        JsonElement objects = sent.RootElement.GetProperty("params")[0];
-        Assert.Equal(2, objects.GetArrayLength());
-        Assert.Equal("setup", objects[0].GetProperty("actionRequest").GetString());
-        Assert.Equal("firefox", objects[0].GetProperty("productId").GetString());
-        Assert.Equal(
-            "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("admin:secret")),
-            handler.LastAuthorizationHeader);
-    }
-
-    [Fact]
-    public async Task RequestSetup_WithoutClients_IsRejectedWithoutAnyCall()
-    {
-        var handler = new RecordingHandler("""{"id":1,"error":null,"result":null}""");
-        using var client = new JsonRpcOpsiClient(NullLogger<JsonRpcOpsiClient>.Instance, handler);
-
-        Result<int> result = await client.RequestSetupAsync(Connection, "firefox", [], CancellationToken.None);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
-        Assert.Null(handler.LastRequestBody);
-    }
-
     private static JsonRpcOpsiClient CreateClient(string responseBody, HttpStatusCode statusCode = HttpStatusCode.OK) =>
         new(NullLogger<JsonRpcOpsiClient>.Instance, new RecordingHandler(responseBody, statusCode));
 

@@ -37,6 +37,19 @@ export type CheckStatus = 'SUCCEEDED' | 'FAILED' | 'REQUIRES_ELEVATION' | 'NOT_A
 
 export type ErrorCode = 'INTERNAL_ERROR' | 'ACCESS_DENIED' | 'NOT_FOUND' | 'WMI_UNAVAILABLE' | 'INVALID_REQUEST' | 'UNKNOWN_ACTION' | 'NETWORK_PROBE_FAILED' | 'EVENT_LOG_UNAVAILABLE' | 'FILE_WRITE_FAILED' | 'DIRECTORY_UNAVAILABLE' | 'DNS_RESOLUTION_FAILED' | 'CONNECTION_TIMEOUT' | 'AUTHENTICATION_FAILED' | 'WIN_RM_UNAVAILABLE' | 'UNSUPPORTED_REMOTE_OPERATION' | 'SERVICE_UNAVAILABLE' | 'REMOTE_COMMAND_FAILED';
 
+export interface WingetPackageInfo {
+  id: string;
+  name: string;
+  publisher: string;
+  version: string;
+  source: string;
+  installerType: string;
+  architecture: string;
+  scope: string;
+  isEligible: boolean;
+  ineligibilityReason: string | null;
+}
+
 export interface ScanError {
   host: string;
   phase: ScanPhase;
@@ -346,6 +359,15 @@ export interface PrivilegedGroupInfo {
   memberDistinguishedNames: string[];
 }
 
+export interface ExportActiveDirectoryCsvRequest {
+  csv: string;
+}
+
+export interface ExportActiveDirectoryCsvResult {
+  cancelled: boolean;
+  filePath: string | null;
+}
+
 export interface GetAdHygieneRequest {
   connection?: DirectoryConnectionRequest | null;
 }
@@ -503,6 +525,7 @@ export interface ClientWorkspacePage {
   snapshotTotal: number;
   page: number;
   pageSize: number;
+  groupCount: number | null;
   assessedAtUtc: string;
   domainName: string | null;
   summary: HygieneSummary;
@@ -631,7 +654,7 @@ export interface HygieneFinding {
   message: string;
 }
 
-export type HygieneFindingCode = 'MISSING_KASPERSKY' | 'ORPHAN_KASPERSKY' | 'STALE_AD' | 'STALE_KASPERSKY' | 'OUTDATED_AGENT' | 'OUTDATED_KES' | 'MISSING_OPSI' | 'ORPHAN_OPSI' | 'STALE_OPSI' | 'MISSING_NESSUS' | 'STALE_NESSUS' | 'NESSUS_CRITICAL_VULNERABILITIES' | 'NESSUS_HIGH_VULNERABILITIES';
+export type HygieneFindingCode = 'MISSING_KASPERSKY' | 'ORPHAN_KASPERSKY' | 'STALE_AD' | 'STALE_KASPERSKY' | 'OUTDATED_AGENT' | 'OUTDATED_KES' | 'MISSING_OPSI' | 'ORPHAN_OPSI' | 'STALE_OPSI' | 'MISSING_NESSUS' | 'STALE_NESSUS' | 'NESSUS_CRITICAL_VULNERABILITIES' | 'NESSUS_HIGH_VULNERABILITIES' | 'MISSING_KASPERSKY_AGENT' | 'MISSING_KES';
 
 export type HygieneFindingSeverity = 'WARNING' | 'CRITICAL';
 
@@ -1036,11 +1059,6 @@ export interface ScanNetworkRequest {
   dhcp: TargetRequest | null;
 }
 
-export interface InventoryDetection {
-  host: string;
-  version: string | null;
-}
-
 export interface ListPatchClientStatesRequest {
   depotFilter?: string | null;
   productId?: string | null;
@@ -1052,42 +1070,6 @@ export interface ListPatchClientStatesRequest {
   pageSize?: number;
   sortColumn?: string | null;
   sortDirection?: string | null;
-}
-
-export interface PackageUpdateOutcome {
-  productId: string;
-  stage: string;
-  succeededTargetCount: number;
-  failedTargetCount: number;
-  targets: PackageUpdateTargetOutcome[];
-}
-
-export interface PackageUpdateTarget {
-  depotId: string;
-  host: string;
-  currentVersion: string | null;
-  command: string;
-}
-
-export interface PackageUpdateTargetOutcome {
-  depotId: string;
-  success: boolean;
-  exitCode: number | null;
-  oldVersion: string | null;
-  newVersion: string | null;
-  error: string | null;
-}
-
-export interface PackageWorkflowStatus {
-  productId: string;
-  testDepotId: string | null;
-  testedVersion: string | null;
-  testUpdateSucceededAtUtc: string | null;
-  pilotApprovedAtUtc: string | null;
-  pilotApproved: boolean;
-  lastSynchronizationResult: string | null;
-  lastSynchronizationAtUtc: string | null;
-  lastError: string | null;
 }
 
 export interface PatchClientListItem {
@@ -1122,7 +1104,6 @@ export interface PatchDashboardOverview {
   summary: PatchDashboardSummary;
   depots: PatchDepotSummary[];
   products: PatchProductOverviewRow[];
-  unmappedSoftware: UnmappedSoftware[];
 }
 
 export interface PatchDashboardSummary {
@@ -1131,11 +1112,11 @@ export interface PatchDashboardSummary {
   productsWithDepotDeviation: number;
   productsMissingOnDepots: number;
   productsWithFailures: number;
-  pendingRolloutCount: number;
   outdatedClientCount: number;
   clientCount: number;
   depotCount: number;
-  unmappedSoftwareCount: number;
+  wingetManagedCount: number;
+  wingetUpdatesAvailable: number;
 }
 
 export interface PatchDepotSummary {
@@ -1150,18 +1131,13 @@ export interface PatchDepotVersion {
   version: string;
 }
 
-export type PatchPackageStatus = 'CURRENT' | 'UPDATE_AVAILABLE' | 'DEPOT_DEVIATION' | 'MISSING_ON_DEPOT' | 'CHECK_FAILED' | 'DEPLOYMENT_PENDING';
+export type PatchPackageStatus = 'CURRENT' | 'UPDATE_AVAILABLE' | 'DEPOT_DEVIATION' | 'MISSING_ON_DEPOT' | 'CHECK_FAILED' | 'ACTION_PENDING';
 
 export interface PatchProductOverviewRow {
   productId: string;
   name: string | null;
   availableVersion: string | null;
   referenceVersion: string | null;
-  manufacturerVersion: string | null;
-  manufacturerCheckStatus: string;
-  manufacturerCheckedAtUtc: string | null;
-  manufacturerCheckError: string | null;
-  manufacturerUpdateAvailable: boolean;
   depotVersions: PatchDepotVersion[];
   missingDepotIds: string[];
   packageStatus: PatchPackageStatus;
@@ -1171,62 +1147,88 @@ export interface PatchProductOverviewRow {
   failedClientCount: number;
   pendingActionCount: number;
   lastError: string | null;
-  mappedSoftwareNames: string[];
-  inventoryDetections: InventoryDetection[];
+  wingetManaged: boolean;
+  wingetId: string | null;
+  latestWingetVersion: string | null;
+  wingetCheckStatus: string;
+  wingetCheckedAtUtc: string | null;
+  wingetCheckError: string | null;
+  wingetUpdateAvailable: boolean;
 }
 
-export interface PreparePackagesPlan {
-  productId: string;
-  stage: string;
-  mode: string;
-  artifactVersion: string | null;
-  targets: PackageUpdateTarget[];
-  note: string;
+export interface WingetManagedPackageView {
+  opsiProductId: string;
+  displayName: string;
+  wingetId: string;
+  source: string;
+  scope: string;
+  depotId: string;
+  currentDepotVersion: string | null;
+  lastPackagedWingetVersion: string | null;
+  latestWingetVersion: string | null;
+  updateAvailable: boolean;
+  checkStatus: string;
+  checkedAtUtc: string | null;
+  lastError: string | null;
+}
+
+export interface WingetPackageOperationOutcome {
+  opsiProductId: string;
+  depotId: string;
+  success: boolean;
+  oldVersion: string | null;
+  newVersion: string | null;
+  error: string | null;
+}
+
+export interface WingetPackagePreview {
+  opsiProductId: string;
+  displayName: string;
+  wingetId: string;
+  wingetVersion: string;
+  source: string;
+  scope: string;
+  installerType: string;
+  architecture: string;
+  depotId: string;
+  currentDepotVersion: string | null;
+  targetDepotVersion: string;
+  packageVersion: number;
+  adoptsExistingProduct: boolean;
+  workbenchPath: string;
+  commands: string[];
   confirmationText: string;
   generatedAtUtc: string;
 }
 
-export interface RolloutPreview {
-  productId: string;
-  productName: string | null;
-  depotFilter: string | null;
-  plannedAction: string;
-  clients: RolloutPreviewClient[];
+export interface WingetUpdateCheckResult {
+  checkedCount: number;
+  updateCount: number;
+  failedCount: number;
+  packages: WingetManagedPackageView[];
+}
+
+export interface WingetUpdateOutcome {
+  succeededCount: number;
+  failedCount: number;
+  packages: WingetPackageOperationOutcome[];
+}
+
+export interface WingetUpdatePlan {
+  packages: WingetPackagePreview[];
+  confirmationText: string;
   generatedAtUtc: string;
 }
 
-export interface RolloutPreviewClient {
-  clientId: string;
-  depotId: string | null;
-  installedVersion: string | null;
-  targetVersion: string | null;
-  currentState: PatchWorkflowState;
+export interface WingetUpdateSelection {
+  opsiProductId: string;
+  expectedWingetVersion: string;
 }
 
-export interface RolloutRequestOutcome {
-  requestedClientCount: number;
-}
+export type PatchWorkflowState = 'DETECTED' | 'UPDATE_AVAILABLE' | 'ACTION_PENDING' | 'COMPLETED' | 'FAILED';
 
-export interface UnmappedSoftware {
-  name: string;
-  versions: string[];
-  hostCount: number;
-  suggestedProductId: string | null;
-}
-
-export interface VersionCheckOutcome {
-  productId: string;
-  previousVersion: string | null;
-  latestVersion: string | null;
-  status: string;
-  checkedAtUtc: string;
-  error: string | null;
-}
-
-export type PatchWorkflowState = 'DETECTED' | 'UPDATE_AVAILABLE' | 'DOWNLOAD_NEEDED' | 'PACKAGE_PREPARED' | 'UPLOADED' | 'READY_FOR_PILOT' | 'APPROVED' | 'ROLLOUT_REQUESTED' | 'COMPLETED' | 'FAILED';
-
-export interface ApprovePackagePilotRequest {
-  productId: string;
+export interface ApplyWingetUpdatesRequest {
+  packages: WingetUpdateSelection[];
   confirmed?: boolean;
 }
 
@@ -1234,22 +1236,17 @@ export interface AuditLogResult {
   entries: PatchAuditEntry[];
 }
 
-export interface CheckVendorVersionsRequest {
+export interface CheckWingetUpdatesRequest {
   productIds?: string[] | null;
+  force?: boolean;
 }
 
-export interface DeleteMappingRequest {
-  softwareName: string;
-}
-
-export interface DeleteVersionSourceRequest {
-  productId: string;
-}
-
-export interface ExecutePackageUpdateRequest {
-  productId: string;
-  stage: string;
-  depotIds: string[];
+export interface CreateOrAdoptWingetPackageRequest {
+  opsiProductId: string;
+  displayName: string;
+  wingetId: string;
+  depotId: string;
+  expectedWingetVersion: string;
   confirmed?: boolean;
 }
 
@@ -1257,28 +1254,15 @@ export interface GetAuditLogRequest {
   limit?: number | null;
 }
 
-export interface GetPackageWorkflowStatusRequest {
-  productId: string;
-}
-
 export interface GetPatchDashboardRequest {
   depotFilter?: string | null;
 }
 
-export interface GetRolloutPreviewRequest {
-  productId: string;
-  depotFilter?: string | null;
-  clientIds?: string[] | null;
+export interface ListManagedWingetPackagesRequest {
 }
 
-export interface ListMappingsRequest {
-}
-
-export interface ListVersionSourcesRequest {
-}
-
-export interface MappingsResult {
-  mappings: ProductMapping[];
+export interface ManagedWingetPackagesResult {
+  packages: WingetManagedPackageView[];
 }
 
 export interface OpsiConnectRequest {
@@ -1305,37 +1289,24 @@ export interface OpsiConnectionStatusResult {
 export interface OpsiDisconnectRequest {
 }
 
-export interface PreparePackagesRequest {
-  productId: string;
-  stage: string;
-  depotIds: string[];
+export interface PrepareWingetUpdatesRequest {
+  packages: WingetUpdateSelection[];
 }
 
-export interface RequestRolloutRequest {
-  productId: string;
-  clientIds: string[];
-  depotFilter?: string | null;
-  confirmed?: boolean;
-}
-
-export interface SaveMappingRequest {
-  softwareName: string;
+export interface PreviewWingetPackageRequest {
   opsiProductId: string;
+  displayName: string;
+  wingetId: string;
+  depotId: string;
 }
 
-export interface SaveVersionSourceRequest {
-  productId: string;
-  sourceUrl: string;
-  versionPattern: string;
-  enabled?: boolean;
+export interface SearchWingetPackagesRequest {
+  query: string;
+  limit?: number;
 }
 
-export interface VersionCheckResult {
-  outcomes: VersionCheckOutcome[];
-}
-
-export interface VersionSourcesResult {
-  sources: ProductVersionSource[];
+export interface SearchWingetPackagesResult {
+  packages: WingetPackageInfo[];
 }
 
 export interface PatchAuditEntry {
@@ -1351,22 +1322,6 @@ export interface PatchAuditEntry {
   errorMessage: string | null;
   oldVersion: string | null;
   newVersion: string | null;
-}
-
-export interface ProductMapping {
-  softwareName: string;
-  opsiProductId: string;
-}
-
-export interface ProductVersionSource {
-  productId: string;
-  sourceUrl: string;
-  versionPattern: string;
-  enabled: boolean;
-  latestVersion: string | null;
-  lastCheckedUtc: string | null;
-  checkStatus: string;
-  lastError: string | null;
 }
 
 export interface DhcpCheckResult {

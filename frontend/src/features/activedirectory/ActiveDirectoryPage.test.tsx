@@ -155,6 +155,72 @@ describe('ActiveDirectoryPage', () => {
     expect(screen.getByText('Showing 1 loaded example of 250 matches.')).toBeDefined();
   });
 
+  it('exports the complete analysis, including every paged hygiene match and privileged member', async () => {
+    invokeMock.mockImplementation((_module: string, action: string, payload?: Record<string, unknown>) => {
+      if (action === 'list') return Promise.resolve({ targets: [] });
+      if (action === 'getOverview') return Promise.resolve(domainOverview);
+      if (action === 'getHygiene') return Promise.resolve(hygiene);
+      if (action === 'getPrivilegedGroupMemberPage') {
+        return Promise.resolve({
+          groupName: 'Domain Admins',
+          groupDistinguishedName: hygiene.privilegedGroups[0].distinguishedName,
+          page: 1,
+          pageSize: 100,
+          totalCount: 2,
+          items: [
+            {
+              accountName: 'jane.doe',
+              distinguishedName: hygiene.privilegedGroups[0].memberDistinguishedNames[0],
+              entityType: 'User',
+              accountStatus: 'Enabled',
+              lastLogonUtc: null,
+            },
+            {
+              accountName: 'john.doe',
+              distinguishedName: 'CN=John Doe,OU=Privileged,OU=Users,DC=corp,DC=example,DC=com',
+              entityType: 'User',
+              accountStatus: 'Enabled',
+              lastLogonUtc: null,
+            },
+          ],
+        });
+      }
+      if (action === 'getHygieneRulePage') {
+        const page = Number(payload?.page);
+        const itemCount = page === 3 ? 50 : 100;
+        return Promise.resolve({
+          ruleId: 'WEC-AD-INACTIVE-USERS',
+          page,
+          pageSize: 100,
+          totalCount: 250,
+          items: Array.from({ length: itemCount }, (_, index) => ({
+            name: `stale.user.${(page - 1) * 100 + index + 1}`,
+            distinguishedName: `CN=Stale User ${(page - 1) * 100 + index + 1},OU=Stale Accounts,DC=corp,DC=example,DC=com`,
+            lastLogonUtc: null,
+          })),
+          evaluatedAtUtc: hygiene.capturedAtUtc,
+        });
+      }
+      if (action === 'exportCsv') return Promise.resolve({ cancelled: false, filePath: 'C:\\temp\\ad.csv' });
+      return Promise.reject(new Error(`Unexpected action: ${action}`));
+    });
+    renderPage();
+
+    const exportButton = screen.getByRole('button', { name: 'Export complete CSV' });
+    expect(exportButton).toHaveProperty('disabled', true);
+    await userEvent.click(screen.getByRole('button', { name: 'Analyze directory' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run hygiene checks' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Export complete CSV' }));
+
+    expect(await screen.findByText('Complete export saved to C:\\temp\\ad.csv')).toBeDefined();
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'getPrivilegedGroupMemberPage')).toHaveLength(1);
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'getHygieneRulePage')).toHaveLength(3);
+    const exportCall = invokeMock.mock.calls.find((call) => call[1] === 'exportCsv');
+    expect(exportCall).toBeDefined();
+    expect(exportCall?.[2].csv).toContain('CN=Stale User 250,OU=Stale Accounts');
+    expect(exportCall?.[2].csv).toContain('CN=John Doe,OU=Privileged');
+  });
+
   it('turns bounded hygiene examples into searchable identity tables with honest coverage', async () => {
     invokeMock.mockImplementation((_module: string, action: string) => {
       if (action === 'list') return Promise.resolve({ targets: [] });

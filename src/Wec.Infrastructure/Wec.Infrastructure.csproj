@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <MicrosoftManagementDeployment-Platform>x64</MicrosoftManagementDeployment-Platform>
+    <MicrosoftManagementDeployment-FactoryLinkage>none</MicrosoftManagementDeployment-FactoryLinkage>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,11 +21,32 @@
          (see comment in Directory.Packages.props) -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
     <PackageReference Include="Microsoft.Management.Infrastructure" />
+    <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" />
+    <PackageReference Include="Microsoft.WindowsPackageManager.InProcCom">
+      <GeneratePathProperty>true</GeneratePathProperty>
+      <IncludeAssets>none</IncludeAssets>
+      <NoWarn>NU1701</NoWarn>
+    </PackageReference>
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Serilog.Sinks.File" />
     <PackageReference Include="System.Diagnostics.EventLog" />
     <PackageReference Include="System.DirectoryServices.Protocols" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="$(PkgMicrosoft_WindowsPackageManager_InProcCom)\runtimes\win-x64\native\Microsoft.Management.Deployment.InProc.dll"
+             Link="Microsoft.Management.Deployment.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(PkgMicrosoft_WindowsPackageManager_InProcCom)\runtimes\win-x64\native\Microsoft.Management.Deployment.InProc.dll.manifest"
+             Link="Microsoft.Management.Deployment.dll.manifest"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(PkgMicrosoft_WindowsPackageManager_InProcCom)\runtimes\win-x64\native\WindowsPackageManager.dll"
+             Link="WindowsPackageManager.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

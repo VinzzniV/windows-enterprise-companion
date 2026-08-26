@@ -34,6 +34,8 @@ The service emits only these findings:
 |---|---|
 | `MissingKaspersky` | enabled AD computer, no normalized KSC match |
 | `OrphanKaspersky` | KSC computer, no normalized AD match |
+| `MissingKasperskyAgent` | KSC computer has no reported Network Agent version |
+| `MissingKes` | KSC computer has no reported KES version |
 | `StaleAd` | AD LastLogonDate exceeds warning/critical threshold |
 | `StaleKaspersky` | KSC LastSeen exceeds warning/critical threshold |
 | `OutdatedAgent` | numeric Agent version is below configured target |
@@ -52,7 +54,7 @@ The existing bridge module name remains `employeelifecycle`.
 | `getHygiene` | optional AD and KSC connection/credential overrides plus optional `operationId` | correlated `ItHygieneResult` |
 | `getHygieneOverview` | optional AD/KSC overrides, optional `operationId` and explicit `force` refresh | sources, summary, assessment time and known hosts without device rows |
 | `listHygieneDevices` | optional AD/KSC overrides and `operationId` plus search, filter, page, page size and allowlisted sort | at most 100 correlated device rows plus filtered total |
-| `listClientWorkspace` | optional AD/KSC overrides and `operationId` plus client search, posture/source filter, grouping, page, page size, allowlisted sort and explicit `force` refresh | at most 100 de-duplicated Hygiene/scan-history/saved-target rows, exact filtered and snapshot totals, source/time/domain metadata and a summary recalculated over those canonical de-duplicated hygiene rows |
+| `listClientWorkspace` | optional AD/KSC overrides and `operationId` plus client search, posture/source filter, grouping, page, page size, allowlisted sort and explicit `force` refresh | at most 100 de-duplicated rows without grouping; grouping pages complete OS/site groups, paged by at most 100 groups, with exact filtered, snapshot and group totals, source/time/domain metadata and a summary recalculated over those canonical de-duplicated hygiene rows |
 
 Cold loads with an `operationId` publish the typed event
 `employeelifecycle/hygieneProgress`. It reports the current load phase, elapsed
@@ -113,6 +115,15 @@ expose the active state through `aria-pressed`; `Assessed devices` removes the
 parameter and returns to `ALL`. The legacy
 `#/employeelifecycle?filter=<FILTER>` route remains a small allowlist-based
 redirect to the canonical URL; it no longer renders a second device table.
+The posture selector also provides focused stale filters for AD, Kaspersky and
+opsi, plus `Missing in Active Directory` and `Disabled in Active Directory`.
+This makes it possible to review old inventory records and run the existing
+read-only connectivity check against the visible AD-missing page.
+
+When a user opens a client from the Clients table and returns through `All
+clients`, the current page, filters, sort, scroll position and manual
+connectivity evidence are kept in browser history state. The evidence is not
+persisted and is replaced by a new connectivity check.
 
 Credentials are request-scoped and held in memory only. KSC has a separate
 session sign-in under Settings so it does not replace the global Windows/AD

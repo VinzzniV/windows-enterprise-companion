@@ -24,9 +24,9 @@ const baseEntry: Omit<PatchAuditEntry, 'id' | 'action' | 'result'> = {
 };
 
 const entries: PatchAuditEntry[] = [
-  { ...baseEntry, id: 1, action: 'PREPARE_PACKAGES', result: 'PLANNED' },
-  { ...baseEntry, id: 2, action: 'ROLLOUT_REQUESTED', result: 'SUCCESS' },
-  { ...baseEntry, id: 3, action: 'PACKAGE_UPDATE', result: 'FAILED', errorMessage: 'opsi failed' },
+  { ...baseEntry, id: 1, action: 'WINGET_VERSION_CHECK', result: 'PLANNED' },
+  { ...baseEntry, id: 2, action: 'WINGET_PACKAGE_CREATED', result: 'SUCCESS' },
+  { ...baseEntry, id: 3, action: 'WINGET_PACKAGE_UPDATED', result: 'FAILED', errorMessage: 'opsi failed' },
 ];
 
 describe('PatchAuditHistoryCard', () => {
@@ -43,16 +43,16 @@ describe('PatchAuditHistoryCard', () => {
       'getAuditLog',
       {},
     ));
-    const previewRow = (await screen.findByText('PREPARE_PACKAGES')).closest('tr')!;
+    const previewRow = (await screen.findByText('WINGET_VERSION_CHECK')).closest('tr')!;
     expect(within(previewRow).getByText('Succeeded')).toBeDefined();
     expect(within(previewRow).getByText('Preview created')).toBeDefined();
     expect(within(previewRow).getByText('missing → 2.0')).toBeDefined();
     expect(within(previewRow).getByText('2: pc1, pc2.example.local')).toBeDefined();
     expect(within(previewRow).getByText(new Date(baseEntry.timestampUtc).toLocaleString())).toBeDefined();
 
-    const successRow = screen.getByText('ROLLOUT_REQUESTED').closest('tr')!;
+    const successRow = screen.getByText('WINGET_PACKAGE_CREATED').closest('tr')!;
     expect(within(successRow).getByText('Succeeded')).toBeDefined();
-    const failureRow = screen.getByText('PACKAGE_UPDATE').closest('tr')!;
+    const failureRow = screen.getByText('WINGET_PACKAGE_UPDATED').closest('tr')!;
     expect(within(failureRow).getByText('Failed')).toBeDefined();
     expect(within(failureRow).getByText('opsi failed')).toBeDefined();
     expect(screen.queryByText(/^(SUCCESS|FAILED|PLANNED)$/)).toBeNull();
@@ -67,7 +67,7 @@ describe('PatchAuditHistoryCard', () => {
     expect(screen.queryByText('No Patch Management actions have been recorded yet.')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Reload history' }));
 
-    expect(await screen.findByText('PREPARE_PACKAGES')).toBeDefined();
+    expect(await screen.findByText('WINGET_VERSION_CHECK')).toBeDefined();
     expect(invokeMock).toHaveBeenCalledTimes(2);
   });
 });

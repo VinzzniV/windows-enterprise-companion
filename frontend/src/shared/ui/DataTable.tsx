@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { compareSortKeys, type SortKey } from '../sort';
 import { Button } from './Button';
 import { Select } from './Select';
@@ -14,6 +14,8 @@ export interface DataTablePagination {
   page: number;
   pageSize: number;
   total: number;
+  /** Optional label when pagination counts groups rather than individual rows. */
+  itemLabel?: string;
   onPageChange(page: number): void;
   onPageSizeChange?(pageSize: number): void;
   pageSizeOptions?: readonly number[];
@@ -37,6 +39,11 @@ export interface DataColumn<T> {
   sortable?: boolean;
 }
 
+export interface DataTableGroup {
+  key: string;
+  label: ReactNode;
+}
+
 interface DataTableProps<T> {
   columns: readonly DataColumn<T>[];
   /** The rows for the current page. DataTable never fetches or slices them. */
@@ -55,6 +62,8 @@ interface DataTableProps<T> {
   /** Controlled page metadata and navigation. */
   pagination?: DataTablePagination;
   loading?: boolean;
+  /** Optional collapsible groups for already sorted, server-paged rows. */
+  groupBy?(row: T): DataTableGroup;
 }
 
 const alignClass: Record<NonNullable<DataColumn<unknown>['align']>, string> = {
@@ -77,8 +86,10 @@ export function DataTable<T>({
   onSortChange,
   pagination,
   loading = false,
+  groupBy,
 }: DataTableProps<T>) {
   const [localSort, setLocalSort] = useState<{ index: number; dir: DataTableSortDirection } | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(new Set());
   const isControlledSort = onSortChange !== undefined;
 
   const sortKeyOf = (column: DataColumn<T>, row: T): SortKey => {
@@ -126,7 +137,53 @@ export function DataTable<T>({
   const rangeStart = pagination?.total
     ? Math.min((pagination.page - 1) * pagination.pageSize + 1, pagination.total)
     : 0;
-  const rangeEnd = pagination ? Math.min(rangeStart + rows.length - 1, pagination.total) : 0;
+  const groupedRows = groupBy
+    ? sortedRows.reduce<{ group: DataTableGroup; rows: T[] }[]>((groups, row) => {
+      const group = groupBy(row);
+      const existing = groups.find((entry) => entry.group.key === group.key);
+      if (existing) existing.rows.push(row);
+      else groups.push({ group, rows: [row] });
+      return groups;
+    }, [])
+    : null;
+  const rangeEnd = pagination
+    ? Math.min(rangeStart + (groupedRows?.length ?? rows.length) - 1, pagination.total)
+    : 0;
+  const toggleGroup = (key: string) => setExpandedGroups((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
+  const renderRow = (row: T, rowIndex: number) => {
+    const active = isRowActive?.(row) ?? false;
+    return (
+      <tr
+        key={getRowKey ? getRowKey(row, rowIndex) : rowIndex}
+        onClick={onRowClick ? () => onRowClick(row) : undefined}
+        onKeyDown={onRowClick ? (event) => handleKey(event, row) : undefined}
+        tabIndex={onRowClick ? 0 : undefined}
+        role={onRowClick ? 'button' : undefined}
+        aria-pressed={onRowClick ? active : undefined}
+        className={`border-t border-slate-800/70 ${
+          zebra ? 'even:bg-slate-800/20' : ''
+        } ${active ? 'bg-accent-500/10' : ''} ${
+          onRowClick ? 'cursor-pointer transition-colors hover:bg-slate-800/40' : ''
+        }`}
+      >
+        {columns.map((column) => (
+          <td
+            key={column.header}
+            className={`px-3 py-1.5 align-top ${column.align ? alignClass[column.align] : ''} ${
+              column.mono ? 'font-mono text-[13px] tabular-nums' : ''
+            }`}
+          >
+            {column.cell(row)}
+          </td>
+        ))}
+      </tr>
+    );
+  };
 
   return (
     <div aria-busy={loading}>
@@ -173,42 +230,28 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row, rowIndex) => {
-            const active = isRowActive?.(row) ?? false;
-            return (
-              <tr
-                key={getRowKey ? getRowKey(row, rowIndex) : rowIndex}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                onKeyDown={onRowClick ? (event) => handleKey(event, row) : undefined}
-                tabIndex={onRowClick ? 0 : undefined}
-                role={onRowClick ? 'button' : undefined}
-                aria-pressed={onRowClick ? active : undefined}
-                className={`border-t border-slate-800/70 ${
-                  zebra ? 'even:bg-slate-800/20' : ''
-                } ${active ? 'bg-accent-500/10' : ''} ${
-                  onRowClick ? 'cursor-pointer transition-colors hover:bg-slate-800/40' : ''
-                }`}
-              >
-                {columns.map((column) => (
-                  <td
-                    key={column.header}
-                    className={`px-3 py-1.5 align-top ${column.align ? alignClass[column.align] : ''} ${
-                      column.mono ? 'font-mono text-[13px] tabular-nums' : ''
-                    }`}
-                  >
-                    {column.cell(row)}
+          {groupedRows
+            ? groupedRows.map(({ group, rows: groupRows }) => {
+              const expanded = expandedGroups.has(group.key);
+              return <Fragment key={group.key}>
+                <tr className="border-t border-slate-700 bg-slate-800/50">
+                  <td colSpan={columns.length} className="px-3 py-2">
+                    <button type="button" onClick={() => toggleGroup(group.key)} aria-expanded={expanded} className="inline-flex items-center gap-2 font-medium text-slate-200 hover:text-white">
+                      <span aria-hidden>{expanded ? '▾' : '▸'}</span>{group.label}
+                    </button>
                   </td>
-                ))}
-              </tr>
-            );
-          })}
+                </tr>
+                {expanded && groupRows.map(renderRow)}
+              </Fragment>;
+            })
+            : sortedRows.map(renderRow)}
         </tbody>
       </table>}
       </div>
       {pagination && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3 text-sm text-slate-400">
           <span aria-live="polite">
-            {rangeStart}–{Math.max(rangeStart, rangeEnd)} of {pagination.total}
+            {rangeStart}–{Math.max(rangeStart, rangeEnd)} of {pagination.total}{pagination.itemLabel ? ` ${pagination.itemLabel}` : ''}
             {loading && <span className="ml-2" role="status">Loading…</span>}
           </span>
           <div className="flex items-center gap-2">

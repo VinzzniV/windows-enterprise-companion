@@ -20,12 +20,7 @@ import { patchWorkflowStatus } from './patchStatus';
 const workflowStateOptions: readonly PatchWorkflowState[] = [
   'DETECTED',
   'UPDATE_AVAILABLE',
-  'DOWNLOAD_NEEDED',
-  'PACKAGE_PREPARED',
-  'UPLOADED',
-  'READY_FOR_PILOT',
-  'APPROVED',
-  'ROLLOUT_REQUESTED',
+  'ACTION_PENDING',
   'COMPLETED',
   'FAILED',
 ];
@@ -59,25 +54,12 @@ export function PatchWorkflowBadge({ state }: { state: PatchWorkflowState }) {
   );
 }
 
-export type PatchClientOpenFilter = Extract<
-  PatchWorkflowState,
-  'UPDATE_AVAILABLE' | 'FAILED' | 'ROLLOUT_REQUESTED'
-> | null;
-
-function openFilter(state: PatchWorkflowState): PatchClientOpenFilter {
-  return state === 'UPDATE_AVAILABLE' || state === 'FAILED' || state === 'ROLLOUT_REQUESTED'
-    ? state
-    : null;
-}
-
 export function PatchClientFleetCard({
   connected,
   dashboard,
-  onOpenProduct,
 }: {
   connected: boolean;
   dashboard: PatchDashboardOverview;
-  onOpenProduct: (productId: string, filter: PatchClientOpenFilter) => void;
 }) {
   const [clientSearch, setClientSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -207,17 +189,6 @@ export function PatchClientFleetCard({
           { id: 'installed', header: 'Installed', sortable: true, mono: true, cell: (row: PatchClientListItem) => row.client.installedVersion ?? '—' },
           { id: 'target', header: 'Target version', sortable: true, mono: true, cell: (row: PatchClientListItem) => row.client.targetVersion ?? '—' },
           { id: 'status', header: 'Status', sortable: true, cell: (row: PatchClientListItem) => <PatchWorkflowBadge state={row.client.state} /> },
-          {
-            header: '',
-            cell: (row: PatchClientListItem) => (
-              <Button
-                variant="ghost"
-                onClick={() => onOpenProduct(row.productId, openFilter(row.client.state))}
-              >
-                Open package
-              </Button>
-            ),
-          },
         ]}
         rows={clients?.items ?? []}
         getRowKey={(row) => `${row.productId}-${row.client.clientId}`}

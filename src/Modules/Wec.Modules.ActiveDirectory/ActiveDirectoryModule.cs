@@ -21,6 +21,7 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<IActionHandler, GetAdHygieneHandler>();
         services.AddScoped<IActionHandler, GetAdHygieneRulePageHandler>();
         services.AddScoped<IActionHandler, GetAdPrivilegedGroupMemberPageHandler>();
+        services.AddScoped<IActionHandler, ExportActiveDirectoryCsvHandler>();
         services.AddScoped<IActionHandler, TestDirectoryConnectionHandler>();
         services.AddScoped<IActionHandler, SearchAdComputersHandler>();
         services.AddScoped<UserSearchService>();

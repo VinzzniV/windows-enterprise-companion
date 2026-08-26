@@ -31,6 +31,8 @@ public enum HygieneFindingCode
     StaleNessus,
     NessusCriticalVulnerabilities,
     NessusHighVulnerabilities,
+    MissingKasperskyAgent,
+    MissingKes,
 }
 
 public enum HygieneFindingSeverity
@@ -246,7 +248,7 @@ internal sealed class ItHygieneService
         Result<KasperskyInventoryConnection?> kscInput = KasperskyInput(request.Kaspersky);
         Result<KasperskyConnection> kscConnection = kscInput.IsFailure
             ? Result.Failure<KasperskyConnection>(kscInput.Error!)
-            : BuildKasperskyConnection(kscInput.Value, request.ActiveDirectory);
+            : BuildKasperskyConnection(kscInput.Value);
         Task<Result<AdComputerInventory>> adTask = progress.TrackAdAsync(
             adQuery.IsSuccess
                 ? LoadSourceAsync(
@@ -606,6 +608,22 @@ internal sealed class ItHygieneService
                 "Enabled in Active Directory, but no matching Kaspersky device was found."));
         }
 
+        if (ksc is not null && string.IsNullOrWhiteSpace(ksc.AgentVersion))
+        {
+            findings.Add(new HygieneFinding(
+                HygieneFindingCode.MissingKasperskyAgent,
+                HygieneFindingSeverity.Warning,
+                "Kaspersky device is registered, but no Network Agent version was reported."));
+        }
+
+        if (ksc is not null && string.IsNullOrWhiteSpace(ksc.KesVersion))
+        {
+            findings.Add(new HygieneFinding(
+                HygieneFindingCode.MissingKes,
+                HygieneFindingSeverity.Warning,
+                "Kaspersky device is registered, but no KES version was reported."));
+        }
+
         if (canCompareKaspersky && ad is null && ksc is not null)
         {
             findings.Add(new HygieneFinding(
@@ -672,7 +690,7 @@ internal sealed class ItHygieneService
         {
             if (ad is { Enabled: true }
                 && IsWindows(ad.OperatingSystem)
-                && nessus is null
+                && (nessus is null || nessus.LastCompletedScanUtc is null)
                 && !MatchesAny(ad.ComputerName, nessusInventory.MissingExcludedHostPatterns)
                 && !MatchesAny(ad.DistinguishedName, nessusInventory.MissingExcludedOuPatterns))
             {
@@ -682,7 +700,7 @@ internal sealed class ItHygieneService
                     "Enabled Windows computer in Active Directory, but no matching Nessus asset was found."));
             }
 
-            if (nessus is not null)
+            if (nessus?.LastCompletedScanUtc is not null)
             {
                 AddStaleFinding(
                     findings,
@@ -823,14 +841,12 @@ internal sealed class ItHygieneService
                 _options.InventoryLimit));
     }
 
-    private Result<KasperskyConnection> BuildKasperskyConnection(
-        KasperskyInventoryConnection? input,
-        DirectoryInventoryConnection? adInput)
+    private Result<KasperskyConnection> BuildKasperskyConnection(KasperskyInventoryConnection? input)
     {
         input ??= new KasperskyInventoryConnection();
-        string? userName = NormalizeOptional(input.UserName) ?? NormalizeOptional(adInput?.UserName);
-        string? password = input.Password ?? adInput?.Password;
-        string? domain = NormalizeOptional(input.Domain) ?? NormalizeOptional(adInput?.UserDomain);
+        string? userName = NormalizeOptional(input.UserName);
+        string? password = input.Password;
+        string? domain = NormalizeOptional(input.Domain);
         if (userName is null || password is null)
         {
             return Result.Failure<KasperskyConnection>(new Error(

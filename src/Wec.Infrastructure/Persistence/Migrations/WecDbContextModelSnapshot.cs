@@ -414,32 +414,7 @@ namespace Wec.Infrastructure.Persistence.Migrations
                     b.ToTable("patchmanagement_audit_entries", (string)null);
                 });
 
-            modelBuilder.Entity("Wec.Modules.PatchManagement.Persistence.ProductMappingRecord", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("id");
-
-                    b.Property<string>("OpsiProductId")
-                        .IsRequired()
-                        .HasColumnType("TEXT")
-                        .HasColumnName("opsi_product_id");
-
-                    b.Property<string>("SoftwareName")
-                        .IsRequired()
-                        .HasColumnType("TEXT")
-                        .HasColumnName("software_name");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SoftwareName")
-                        .IsUnique();
-
-                    b.ToTable("patchmanagement_product_mappings", (string)null);
-                });
-
-            modelBuilder.Entity("Wec.Modules.PatchManagement.Persistence.ProductVersionSourceRecord", b =>
+            modelBuilder.Entity("Wec.Modules.PatchManagement.Persistence.WingetManagedPackageRecord", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -451,43 +426,73 @@ namespace Wec.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("check_status");
 
-                    b.Property<bool>("Enabled")
+                    b.Property<long?>("CheckedAtUtc")
                         .HasColumnType("INTEGER")
-                        .HasColumnName("enabled");
+                        .HasColumnName("checked_at_utc");
 
-                    b.Property<long?>("LastCheckedUtc")
+                    b.Property<long>("CreatedAtUtc")
                         .HasColumnType("INTEGER")
-                        .HasColumnName("last_checked_utc");
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("DepotId")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("depot_id");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("display_name");
 
                     b.Property<string>("LastError")
                         .HasColumnType("TEXT")
                         .HasColumnName("last_error");
 
-                    b.Property<string>("LatestVersion")
+                    b.Property<string>("LastPackagedWingetVersion")
                         .HasColumnType("TEXT")
-                        .HasColumnName("latest_version");
+                        .HasColumnName("last_packaged_winget_version");
 
-                    b.Property<string>("ProductId")
+                    b.Property<string>("LatestWingetVersion")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("latest_winget_version");
+
+                    b.Property<string>("OpsiProductId")
                         .IsRequired()
                         .HasColumnType("TEXT")
-                        .HasColumnName("product_id");
+                        .HasColumnName("opsi_product_id");
 
-                    b.Property<string>("SourceUrl")
+                    b.Property<string>("Scope")
                         .IsRequired()
                         .HasColumnType("TEXT")
-                        .HasColumnName("source_url");
+                        .HasColumnName("scope");
 
-                    b.Property<string>("VersionPattern")
+                    b.Property<string>("Source")
                         .IsRequired()
                         .HasColumnType("TEXT")
-                        .HasColumnName("version_pattern");
+                        .HasColumnName("source");
+
+                    b.Property<int>("TemplateVersion")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("template_version");
+
+                    b.Property<long>("UpdatedAtUtc")
+                        .HasColumnType("INTEGER")
+                        .HasColumnName("updated_at_utc");
+
+                    b.Property<string>("WingetId")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("winget_id");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductId")
+                    b.HasIndex("OpsiProductId")
                         .IsUnique();
 
-                    b.ToTable("patchmanagement_version_sources", (string)null);
+                    b.HasIndex("WingetId", "DepotId")
+                        .IsUnique();
+
+                    b.ToTable("patchmanagement_winget_packages", (string)null);
                 });
 
             modelBuilder.Entity("Wec.Modules.PrintManagement.Persistence.ClientPrinterScanRecord", b =>

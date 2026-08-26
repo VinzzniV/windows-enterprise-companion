@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <!-- WebView2 ships a WPF assembly referencing WindowsBase; without UseWPF the
          framework reference is missing and MSB3277 version conflicts appear -->

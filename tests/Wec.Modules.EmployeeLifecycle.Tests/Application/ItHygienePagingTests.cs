@@ -293,6 +293,32 @@ public sealed class ItHygienePagingTests
         Assert.Equal("PC-100", page.Items[^1].Name);
     }
 
+    [Fact]
+    public void ClientWorkspacePaginatesCompleteGroupsInsteadOfIndividualClients()
+    {
+        HygieneDevice windowsOne = Device("WIN-01", HygieneStatus.Healthy);
+        HygieneDevice windowsTwo = Device("WIN-02", HygieneStatus.Healthy);
+        HygieneDevice server = Device("SERVER-01", HygieneStatus.Healthy) with
+        {
+            ActiveDirectory = Device("SERVER-01", HygieneStatus.Healthy).ActiveDirectory with
+            {
+                OperatingSystem = "Windows Server 2025",
+            },
+        };
+        ItHygieneResult result = ResultAt(DateTimeOffset.UnixEpoch, windowsOne, windowsTwo, server);
+
+        ClientWorkspacePage firstPage = ClientWorkspacePaging.Page(
+            result, [], [], new ListClientWorkspaceRequest(GroupMode: "OS", PageSize: 1));
+        ClientWorkspacePage secondPage = ClientWorkspacePaging.Page(
+            result, [], [], new ListClientWorkspaceRequest(GroupMode: "OS", Page: 2, PageSize: 1));
+
+        Assert.Equal(2, firstPage.GroupCount);
+        Assert.Equal(2, firstPage.Items.Count);
+        Assert.All(firstPage.Items, item => Assert.Equal("Windows 11", item.GroupLabel));
+        Assert.Single(secondPage.Items);
+        Assert.Equal("Windows Server 2025", secondPage.Items[0].GroupLabel);
+    }
+
     private static ItHygieneResult ResultAt(DateTimeOffset assessedAtUtc, params HygieneDevice[] devices) => new(
         assessedAtUtc,
         "example.test",

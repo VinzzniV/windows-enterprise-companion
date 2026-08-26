@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type {
   ClientWorkspaceListItem,
   ClientWorkspacePage,
@@ -17,7 +17,7 @@ import { useHygieneOperation } from '../../shared/environment/useHygieneOperatio
 import { Badge } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
-import { DataTable, type DataColumn, type DataTableSort } from '../../shared/ui/DataTable';
+import { DataTable, type DataColumn, type DataTableGroup, type DataTableSort } from '../../shared/ui/DataTable';
 import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
@@ -79,6 +79,12 @@ function SourceBadge({ client, state, source }: { client: ClientWorkspaceListIte
   }
   if (source === 'ksc') {
     if (!device.kaspersky.exists) return <ClientSemanticStatus status={sourcePresenceStatus(false, hasFinding(device, ['MISSING_KASPERSKY']))} />;
+    const missingAgent = hasFinding(device, ['MISSING_KASPERSKY_AGENT']);
+    const missingKes = hasFinding(device, ['MISSING_KES']);
+    if (missingAgent || missingKes) {
+      const missingComponents = [missingAgent && 'Network Agent', missingKes && 'KES'].filter(Boolean).join(' + ');
+      return <ClientSemanticStatus status={sourcePresenceStatus(false, true)} context={`${missingComponents} not installed`} />;
+    }
     if (hasFinding(device, ['STALE_KASPERSKY'])) return <ClientSemanticStatus status={{ dimension: 'freshness', value: 'stale' }} />;
     if (hasFinding(device, ['OUTDATED_AGENT', 'OUTDATED_KES'])) return <ClientSemanticStatus status={{ dimension: 'lifecycle', value: 'update-available' }} />;
     return <ClientSemanticStatus status={sourceFreshnessStatus(false, device.kaspersky.lastSeen)} />;
@@ -87,7 +93,9 @@ function SourceBadge({ client, state, source }: { client: ClientWorkspaceListIte
     if (!device.opsi.exists) return <ClientSemanticStatus status={sourcePresenceStatus(false, hasFinding(device, ['MISSING_OPSI']))} />;
     return <ClientSemanticStatus status={sourceFreshnessStatus(hasFinding(device, ['STALE_OPSI']), device.opsi.lastSeen)} />;
   }
-  if (!device.nessus.exists) return <ClientSemanticStatus status={sourcePresenceStatus(false, hasFinding(device, ['MISSING_NESSUS']))} />;
+  if (!device.nessus.exists || !device.nessus.lastCompletedScanUtc) {
+    return <ClientSemanticStatus status={sourcePresenceStatus(false, hasFinding(device, ['MISSING_NESSUS']))} context={device.nessus.exists ? 'No completed scan' : null} />;
+  }
   if (hasFinding(device, ['NESSUS_CRITICAL_VULNERABILITIES'])) return <Badge tone="fail">Critical</Badge>;
   if (hasFinding(device, ['NESSUS_HIGH_VULNERABILITIES'])) return <Badge tone="warn">High</Badge>;
   return <ClientSemanticStatus status={sourceFreshnessStatus(hasFinding(device, ['STALE_NESSUS']), device.nessus.lastCompletedScanUtc)} />;
@@ -98,6 +106,17 @@ const unavailableSource: InventorySourceState = { availability: 'NOT_CONNECTED',
 interface ClientProbeViewState {
   state: ClientConnectivityState;
   checkedAtUtc: string | null;
+}
+
+interface ClientsViewState {
+  search: string;
+  groupMode: GroupMode;
+  sourceFilter: ClientSourceFilter;
+  page: number;
+  pageSize: number;
+  sort: DataTableSort;
+  probeStates: Record<string, ClientProbeViewState>;
+  scrollY: number;
 }
 
 function ClientConnectivityStatus({ value }: { value: ClientProbeViewState }) {
@@ -114,17 +133,21 @@ function SourceLastSeen({ source, value }: { source: string; value: string | nul
 
 export function ClientsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const restoredView = location.state as ClientsViewState | null;
+  const initialView = useRef(restoredView);
+  const restoredScrollY = initialView.current?.scrollY;
   const postureFilter = clientPostureFilterFromUrl(searchParams.get('posture'));
   const request = useEnvironmentRequest();
   const hygieneOperation = useHygieneOperation();
   const [workspace, setWorkspace] = useState<ClientWorkspacePage | null>(null);
-  const [search, setSearch] = useState('');
-  const [groupMode, setGroupMode] = useState<GroupMode>('none');
-  const [sourceFilter, setSourceFilter] = useState<ClientSourceFilter>('ALL');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-  const [sort, setSort] = useState<DataTableSort>({ column: 'device', direction: 'asc' });
+  const [search, setSearch] = useState(() => initialView.current?.search ?? '');
+  const [groupMode, setGroupMode] = useState<GroupMode>(() => initialView.current?.groupMode ?? 'none');
+  const [sourceFilter, setSourceFilter] = useState<ClientSourceFilter>(() => initialView.current?.sourceFilter ?? 'ALL');
+  const [page, setPage] = useState(() => initialView.current?.page ?? 1);
+  const [pageSize, setPageSize] = useState(() => initialView.current?.pageSize ?? 50);
+  const [sort, setSort] = useState<DataTableSort>(() => initialView.current?.sort ?? { column: 'device', direction: 'asc' });
   const [refreshRevision, setRefreshRevision] = useState(0);
   const lastForcedRevision = useRef(0);
   const requestId = useRef(0);
@@ -134,7 +157,7 @@ export function ClientsPage() {
   const [loadError, setLoadError] = useState<ErrorPresentation | null>(null);
   const [cancelled, setCancelled] = useState(false);
   const probeRequestId = useRef(0);
-  const [probeStates, setProbeStates] = useState<Record<string, ClientProbeViewState>>({});
+  const [probeStates, setProbeStates] = useState<Record<string, ClientProbeViewState>>(() => initialView.current?.probeStates ?? {});
   const [probing, setProbing] = useState(false);
   const [probeError, setProbeError] = useState<ErrorPresentation | null>(null);
 
@@ -162,7 +185,12 @@ export function ClientsPage() {
     });
     activeLoad.current = invocation;
     void invocation.promise.then((value) => {
-      if (requestId.current === currentRequest) setWorkspace(value);
+      if (requestId.current === currentRequest) {
+        setWorkspace(value);
+        if (restoredScrollY) {
+          requestAnimationFrame(() => window.scrollTo({ top: restoredScrollY }));
+        }
+      }
     }).catch((caught) => {
       if (requestId.current === currentRequest && !(caught instanceof BridgeCancelledError)) {
         setLoadError(presentError(caught, { message: 'The client inventory could not be loaded.' }));
@@ -176,7 +204,7 @@ export function ClientsPage() {
       }
     });
     return () => invocation.cancel();
-  }, [groupMode, page, pageSize, postureFilter, refreshRevision, request, search, sort, sourceFilter, hygieneOperation.begin, hygieneOperation.end]);
+  }, [groupMode, page, pageSize, postureFilter, refreshRevision, request, restoredScrollY, search, sort, sourceFilter, hygieneOperation.begin, hygieneOperation.end]);
 
   const probeOnline = () => {
     const hosts = workspace?.items.map((client) => client.host) ?? [];
@@ -249,11 +277,7 @@ export function ClientsPage() {
       { header: 'Nessus', cell: (client) => <SourceBadge client={client} state={sources?.nessus ?? unavailableSource} source="nessus" /> },
       { id: 'overall', header: 'Overall', sortable: true, cell: (client) => <ClientSemanticStatus {...hygieneAssessmentStatus(client.environment?.assessment.status ?? null)} /> },
     ];
-    if (groupMode === 'none') return deviceColumns;
-    return [{
-      header: groupMode === 'os' ? 'OS group' : 'Site group',
-      cell: (client) => <span className="whitespace-nowrap text-slate-300">{client.groupLabel} <span className="text-muted">({client.groupTotal})</span></span>,
-    }, ...deviceColumns];
+    return deviceColumns;
   }, [groupMode, probeStates, workspace?.sources]);
 
   const resetPage = () => setPage(1);
@@ -265,6 +289,20 @@ export function ClientsPage() {
     resetPage();
   };
   const rows = workspace?.items ?? [];
+  const rowGroup = groupMode === 'none' ? undefined : (client: ClientWorkspaceListItem): DataTableGroup => {
+    const label = client.groupLabel ?? (groupMode === 'os' ? 'Unknown OS' : 'Other');
+    return {
+      key: label,
+      label: <>{label} <span className="text-muted">({client.groupTotal ?? 0})</span></>,
+    };
+  };
+  const openClient = (client: ClientWorkspaceListItem) => {
+    const viewState: ClientsViewState = {
+      search, groupMode, sourceFilter, page, pageSize, sort, probeStates, scrollY: window.scrollY,
+    };
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: viewState });
+    navigate(`/clients/${encodeURIComponent(client.host)}`, { state: viewState });
+  };
   const retry = () => { setCancelled(false); setPage(1); setRefreshRevision((current) => current + 1); };
 
   return <div className="flex flex-col gap-4">
@@ -319,9 +357,9 @@ export function ClientsPage() {
       controls={<Button variant="secondary" onClick={retry}>Retry environment load</Button>}
     />}
     {loading && !workspace && !showEnvironmentProgress ? <Spinner label="Loading environment inventory …" /> : !rows.length && !loading ? <EmptyState title="No clients" message="No device matches the current filters." />
-      : <DataTable columns={columns} rows={rows} getRowKey={(client) => client.key}
-        onRowClick={(client) => navigate(`/clients/${encodeURIComponent(client.host)}`)} stickyHeader emptyMessage="No clients."
+      : <DataTable columns={columns} rows={rows} getRowKey={(client) => client.key} groupBy={rowGroup}
+        onRowClick={openClient} stickyHeader emptyMessage="No clients."
         loading={loading} sort={sort} onSortChange={(value) => { setSort(value); resetPage(); }}
-        pagination={{ page: workspace?.page ?? page, pageSize: workspace?.pageSize ?? pageSize, total: workspace?.total ?? 0, onPageChange: setPage, onPageSizeChange: (value) => { setPageSize(value); resetPage(); } }} />}
+        pagination={{ page: workspace?.page ?? page, pageSize: workspace?.pageSize ?? pageSize, total: workspace?.groupCount ?? workspace?.total ?? 0, itemLabel: groupMode === 'none' ? undefined : 'groups', onPageChange: setPage, onPageSizeChange: (value) => { setPageSize(value); resetPage(); } }} />}
   </div>;
 }

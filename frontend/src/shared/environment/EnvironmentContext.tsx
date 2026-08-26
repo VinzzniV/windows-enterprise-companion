@@ -33,7 +33,10 @@ const EnvironmentContext = createContext<EnvironmentContextValue | null>(null);
 export function useEnvironmentRequest(): ItHygieneRequest {
   const targets = useTargets();
   const admin = targets.adminCredentials;
-  const ksc = targets.kasperskyCredentials ?? admin;
+  // KSC is a separate authentication realm. Never fall back to the global
+  // Windows/AD administrator; when no KSC session override is present, the
+  // backend uses only the separately stored KSC credential.
+  const ksc = targets.kasperskyCredentials;
   const savedDc = targets.savedTargets
     .filter((target) => target.role === 'DomainController')
     .at(-1);

@@ -7,7 +7,7 @@ import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';
 import { clientKey } from '../clients';
-import { ClientSemanticStatus, hygieneAssessmentStatus, sourcePresenceStatus } from '../clientStatus';
+import { ClientSemanticStatus, hygieneAssessmentStatus, sourceFreshnessStatus, sourcePresenceStatus } from '../clientStatus';
 import { ClientIntegrationMap } from '../ClientIntegrationMap';
 
 function value(value: string | boolean | null | undefined): string {
@@ -25,13 +25,15 @@ function Rows({ entries }: { entries: Array<[string, string]> }) {
   </dl>;
 }
 
-function SourceHeader({ name, state, present, missingApplies }: { name: string; state: InventorySourceState; present: boolean; missingApplies: boolean }) {
+function SourceHeader({ name, state, present, missingApplies, stale = false }: { name: string; state: InventorySourceState; present: boolean; missingApplies: boolean; stale?: boolean }) {
   const unavailable = state.availability !== 'AVAILABLE';
   const presentation = unavailable ? inventorySourceStatus(state.availability) : null;
   return <div className="mb-3 flex flex-wrap items-center gap-2"><h3 className="font-semibold text-slate-200">{name}</h3>
     {presentation
       ? <ClientSemanticStatus {...presentation} />
-      : <ClientSemanticStatus status={sourcePresenceStatus(present, missingApplies)} />}
+      : stale
+        ? <ClientSemanticStatus status={sourceFreshnessStatus(true, null)} />
+        : <ClientSemanticStatus status={sourcePresenceStatus(present, missingApplies)} />}
   </div>;
 }
 
@@ -54,13 +56,13 @@ function DeviceOverview({ device }: { device: HygieneDevice }) {
       </li>)}</ul> : <p className="text-sm text-slate-400">No hygiene findings from the available sources.</p>}
     </Card>
     <div className="grid gap-4 xl:grid-cols-2">
-      <Card title="Active Directory"><SourceHeader name="Active Directory" state={sources.activeDirectory} present={device.activeDirectory.exists} missingApplies={hasFinding('ORPHAN_KASPERSKY', 'ORPHAN_OPSI')} /><SourceError state={sources.activeDirectory} />
+      <Card title="Active Directory"><SourceHeader name="Active Directory" state={sources.activeDirectory} present={device.activeDirectory.exists} missingApplies={hasFinding('ORPHAN_KASPERSKY', 'ORPHAN_OPSI')} stale={hasFinding('STALE_AD')} /><SourceError state={sources.activeDirectory} />
         <Rows entries={[["Enabled", value(device.activeDirectory.enabled)], ["DNS host", value(device.activeDirectory.dnsHostName)], ["Operating system", value(device.activeDirectory.operatingSystem)], ["Description", value(device.activeDirectory.description)], ["OU", value(device.activeDirectory.organizationalUnit)], ["Last logon", date(device.activeDirectory.lastLogonDate)]]} /></Card>
-      <Card title="Kaspersky"><SourceHeader name="Kaspersky" state={sources.kaspersky} present={device.kaspersky.exists} missingApplies={hasFinding('MISSING_KASPERSKY')} /><SourceError state={sources.kaspersky} />
+      <Card title="Kaspersky"><SourceHeader name="Kaspersky" state={sources.kaspersky} present={device.kaspersky.exists && !hasFinding('MISSING_KASPERSKY_AGENT', 'MISSING_KES')} missingApplies={hasFinding('MISSING_KASPERSKY', 'MISSING_KASPERSKY_AGENT', 'MISSING_KES')} stale={hasFinding('STALE_KASPERSKY')} /><SourceError state={sources.kaspersky} />
         <Rows entries={[["Last seen", date(device.kaspersky.lastSeen)], ["Network Agent", value(device.kaspersky.agentVersion)], ["KES", value(device.kaspersky.kesVersion)], ["Group", value(device.kaspersky.administrationGroup)]]} /></Card>
-      <Card title="opsi"><SourceHeader name="opsi" state={sources.opsi} present={device.opsi.exists} missingApplies={hasFinding('MISSING_OPSI')} /><SourceError state={sources.opsi} />
+      <Card title="opsi"><SourceHeader name="opsi" state={sources.opsi} present={device.opsi.exists} missingApplies={hasFinding('MISSING_OPSI')} stale={hasFinding('STALE_OPSI')} /><SourceError state={sources.opsi} />
         <Rows entries={[["Client ID", value(device.opsi.clientId)], ["Description", value(device.opsi.description)], ["Depot", value(device.opsi.depotId)], ["Last seen", date(device.opsi.lastSeen)], ["Client Agent", value(device.opsi.clientAgentVersion)]]} /></Card>
-      <Card title="Nessus"><SourceHeader name="Nessus" state={nessusSource} present={nessus.exists} missingApplies={hasFinding('MISSING_NESSUS')} /><SourceError state={nessusSource} />
+      <Card title="Nessus"><SourceHeader name="Nessus" state={nessusSource} present={nessus.exists && nessus.lastCompletedScanUtc !== null} missingApplies={hasFinding('MISSING_NESSUS')} stale={hasFinding('STALE_NESSUS')} /><SourceError state={nessusSource} />
         <Rows entries={[["Last completed scan", date(nessus.lastCompletedScanUtc)], ["Critical", String(nessus.critical)], ["High", String(nessus.high)], ["Medium", String(nessus.medium)], ["Low", String(nessus.low)], ["Ports", nessus.ports.join(', ') || '—'], ["Scans", nessus.scanSources.join(', ') || '—']]} />
         {nessus.exists && <a className="mt-3 inline-block text-sm text-accent-400 hover:text-accent-300" href={`#/vulnerabilities?tab=findings&asset=${encodeURIComponent(device.computerName)}`}>Open findings in Vulnerabilities</a>}</Card>
     </div>

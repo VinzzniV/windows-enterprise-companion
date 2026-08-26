@@ -96,6 +96,11 @@ internal static class ItHygienePaging
         "PROBLEMS" => device.Assessment.Status is HygieneStatus.Warning or HygieneStatus.CleanupCandidate or HygieneStatus.Critical,
         "INCOMPLETE" => device.Assessment.Status == HygieneStatus.Incomplete,
         "STALE" => Has(device, HygieneFindingCode.StaleAd, HygieneFindingCode.StaleKaspersky, HygieneFindingCode.StaleOpsi, HygieneFindingCode.StaleNessus),
+        "STALE_AD" => Has(device, HygieneFindingCode.StaleAd),
+        "STALE_KASPERSKY" => Has(device, HygieneFindingCode.StaleKaspersky),
+        "STALE_OPSI" => Has(device, HygieneFindingCode.StaleOpsi),
+        "MISSING_AD" => !device.ActiveDirectory.Exists,
+        "DISABLED_AD" => device.ActiveDirectory.Enabled == false,
         "OUTDATED" => Has(device, HygieneFindingCode.OutdatedAgent, HygieneFindingCode.OutdatedKes),
         "NESSUS_CRITICAL" => Has(device, HygieneFindingCode.NessusCriticalVulnerabilities),
         "NESSUS_HIGH" => Has(device, HygieneFindingCode.NessusHighVulnerabilities),
@@ -149,6 +154,8 @@ internal static class ItHygienePaging
         HygieneFindingCode.StaleNessus => "Stale Nessus",
         HygieneFindingCode.NessusCriticalVulnerabilities => "Critical vulnerabilities",
         HygieneFindingCode.NessusHighVulnerabilities => "High vulnerabilities",
+        HygieneFindingCode.MissingKasperskyAgent => "Missing Kaspersky Network Agent",
+        HygieneFindingCode.MissingKes => "Missing KES",
         _ => code.ToString(),
     };
 }

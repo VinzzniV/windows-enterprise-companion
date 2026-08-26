@@ -322,7 +322,7 @@ export function derivePatchStatusChart(
     else if (product.state === 'UPDATE_AVAILABLE') buckets.outdated += 1;
     else if (product.state === 'COMPLETED') buckets.upToDate += 1;
     else if (product.state === 'DETECTED') buckets.noState += 1;
-    else buckets.inProgress += 1; // the prepared/approved/rollout states
+    else buckets.inProgress += 1; // an existing opsi action is pending
   }
   return [
     { label: 'Failed', count: buckets.failed, colorClass: 'bg-fail-500' },

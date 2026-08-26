@@ -252,9 +252,9 @@ internal static partial class Program
         builder.Services.AddSingleton<IWmiQueryService, CimWmiQueryService>();
         builder.Services.AddSingleton<IDiskEncryptionStatusReader, Wec.Infrastructure.Storage.WmiDiskEncryptionStatusReader>();
         builder.Services.AddSingleton<Wec.Core.Opsi.IOpsiClient, Wec.Infrastructure.Opsi.JsonRpcOpsiClient>();
-        builder.Services.AddSingleton<Wec.Core.SoftwareUpdates.IVendorVersionClient, HttpVendorVersionClient>();
+        builder.Services.AddSingleton<Wec.Core.SoftwareUpdates.IWingetCatalogClient, ComWingetCatalogClient>();
         builder.Services.AddSingleton<Wec.Core.RemoteExecution.IRemoteCommandExecutor, OpenSshRemoteCommandExecutor>();
-        builder.Services.AddSingleton<Wec.Core.RemoteExecution.IRemoteArtifactStager, Wec.Infrastructure.RemoteExecution.HttpOpenSshArtifactStager>();
+        builder.Services.AddSingleton<Wec.Core.RemoteExecution.IRemoteFileUploader, OpenSshRemoteFileUploader>();
         builder.Services.AddSingleton<Wec.Core.Snmp.ISnmpReader, Wec.Infrastructure.Snmp.SnmpV2cReader>();
         builder.Services.AddSingleton<Wec.Core.Ccrx.ICcrxClient, Wec.Infrastructure.Ccrx.CcrxHttpClient>();
         builder.Services.AddSingleton<Wec.Core.Dhcp.IDhcpReader, Wec.Infrastructure.Dhcp.PowerShellDhcpReader>();

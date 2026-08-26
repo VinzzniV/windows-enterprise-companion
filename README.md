@@ -9,8 +9,8 @@ from local assets, typed JSON message bridge — no HTTP server, no open ports
 Assessment features are read-only and target the local machine, remote Windows
 clients or connected management systems. Two workflows deliberately write to
 managed systems:
-Patch Management can submit confirmed, previewed and audited opsi/package
-operations (ADRs 0008, 0015 and 0016), and Print Management can delete only
+Patch Management can create confirmed, previewed and audited Winget-backed opsi
+depot packages (ADRs 0008 and 0017), and Print Management can delete only
 ports that were detected as unused after explicit confirmation. Each backend
 module has its own README under `src/Modules/`.
 
@@ -55,7 +55,7 @@ the canonical coding-agent instruction source.
 | Active Directory | Domain overview and hygiene over LDAP; test bind; computer search for the Clients workspace and user search for IT Lifecycle | own or explicitly named domain/DC |
 | IT Lifecycle | Read-only correlation of AD computers with Kaspersky Security Center inventory for missing, orphaned, stale or outdated agents/endpoints | AD/LDAP + KSC OpenAPI |
 | Vulnerability Management | Nessus scan import with persisted assets/findings, sync status and historical trend | Nessus API (HTTPS :8834 by default) |
-| Patch Management | Central opsi package/depot dashboard (ADR 0008/0014/0015): manufacturer checks, depot comparison, gated test → approval → synchronization, client rollout and versioned audit history | opsi JSON-RPC (HTTPS :4447) + Windows OpenSSH for confirmed package operations |
+| Patch Management | Read-only opsi depot/client overview plus Winget catalog search, package generation, explicit adoption and confirmed depot package updates (ADR 0008/0017); client rollout remains in opsi | Winget deployment API + opsi JSON-RPC (HTTPS :4447) + Windows OpenSSH/SCP |
 | Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels); queues merged per physical device, search + site grouping, snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009). Client-installed printers are a separate CIM path shown in the client detail | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
 | Network Scan | Active nmap discovery, device classification, reverse DNS and optional DHCP reservation correlation | scanned network ranges + optional DHCP server |
 | Reporting | HTML/JSON executive summary per machine (local or a scanned remote client); reads already-captured data, never starts a scan | local + any scanned client |
@@ -159,22 +159,27 @@ Rejected credentials report `AUTHENTICATION_FAILED`, missing rights on the
 target report `ACCESS_DENIED` — except under NTLM, where WinRM reports both
 as access denied (the error text says so).
 
-## opsi package operations over SSH
+## Winget-backed opsi package operations over SSH
 
-Confirmed package updates use the Windows OpenSSH client and never store an
-SSH password. Before the first run:
+Confirmed package builds use the Windows OpenSSH client and never store an SSH
+password. The WEC host also needs Windows Package Manager with its deployment
+API. Before the first run:
 
 1. Install the Windows **OpenSSH Client** optional feature.
 2. Add every opsi depot host key to the current Windows user's
    `~/.ssh/known_hosts` and verify its fingerprint out of band.
 3. Configure agent/default-key authentication for
-   `Wec:PatchManagement:SshUserName`, or set `SshIdentityFile` in the per-user
-   settings file.
+   opsi account. Set `Wec:PatchManagement:SshUserName` only if SSH requires a
+   different account, or set `SshIdentityFile` in the per-user settings file.
 4. If the SSH account is not root, enable `UseNonInteractiveSudo` and grant a
-   narrowly scoped passwordless sudo rule for `opsi-package-updater`.
+   narrowly scoped passwordless sudo rule for `opsi-makepackage`,
+   `opsi-package-manager`, and file operations below the configured dedicated
+   `WingetWorkbenchRoot`.
 
-The command timeout defaults to 30 minutes. WEC verifies the resulting
-`productOnDepot` version through opsi before allowing pilot approval.
+The command timeout defaults to 30 minutes. WEC transfers only locally generated
+package sources, keeps its workbenches below
+`/var/lib/opsi/workbench/packages/wec-winget` by default, and verifies the resulting
+`productOnDepot` version through opsi. It never creates a client action request.
 
 ## Current limitations
 
@@ -195,10 +200,10 @@ The command timeout defaults to 30 minutes. WEC verifies the resulting
   listed until deleted or rescanned.
 - Elevation applies to the whole app via restart (button in the sidebar
   footer); there is no per-action elevation prompt (deliberate, ADR 0002).
-- Patch Management executes explicitly confirmed repository-backed
-  `opsi-package-updater` runs over Windows OpenSSH (ADR 0015). SSH uses
-  key/agent authentication, strict host-key checking and a test-depot approval
-  gate; package operations and rollout requests are audited per target.
+- Patch Management handles only eligible machine-wide packages from the Winget
+  community source. Store, user-scoped, Portable, ZIP and Font packages remain
+  manual. Builds use strict OpenSSH/SCP and every check/build is audited; WEC does
+  not assign packages or start client updates (ADR 0017).
 - TypeScript bridge DTOs are generated from the C# action and event contracts.
   Run `dotnet run --project tools/Wec.ContractGenerator` after a contract change;
   CI rejects stale `frontend/src/shared/api-types.generated.ts` output.

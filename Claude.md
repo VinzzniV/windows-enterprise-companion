@@ -58,18 +58,12 @@ new ADR in `docs/adr/` (numbered, same format).
   in-memory per request, never persisted. Local-only work reports a typed
   `UNSUPPORTED_REMOTE_OPERATION`/`NotApplicable` result instead of silently
   falling back to the WEC machine.
-- Patch management (ADR 0008/0015): opsi data and rollout requests use JSON-RPC
-  behind `IOpsiClient`; repository package updates use Windows OpenSSH behind
-  `IRemoteCommandExecutor`. Both require preview + explicit confirmation and
-  are audited. Depot synchronization is backend-gated by a successful test
-  update and explicit pilot approval. opsi and SSH passwords are never persisted.
-- Manufacturer version checks (ADR 0014): persisted HTTPS URL + bounded regex
-  per opsi product behind `IVendorVersionClient`; due checks run when the
-  connected dashboard opens, and every success/failure is audited.
-- Custom opsi package builds (ADR 0016): opt-in validated profiles download and
-  hash a vendor artifact, stage it through strict OpenSSH/SCP, build from an
-  isolated workbench copy on the test depot, and promote that exact approved
-  `.opsi` artifact to additional depots. No arbitrary shell input is accepted.
+- Patch management (ADR 0008/0017): opsi depot/client data is read through
+  `IOpsiClient`; Winget discovery uses the typed `IWingetCatalogClient`. Confirmed
+  package sources are generated locally, transferred by strict SCP, built and
+  installed on one depot through `IRemoteCommandExecutor`, then verified through
+  opsi. WEC never creates client action requests or synchronizes depots. Every
+  catalog check and build is audited; opsi and SSH passwords are never persisted.
 - Persistence: one `WecDbContext` (Infrastructure) + SQLite at
   `%LOCALAPPDATA%\Wec\wec.db`. EF Core migrations from day 1, applied at startup.
   Module entity configurations (`IEntityTypeConfiguration<T>`) live in the module,
