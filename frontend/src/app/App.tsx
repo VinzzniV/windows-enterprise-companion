@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
@@ -11,7 +11,8 @@ import { TargetProvider } from '../shared/targets/TargetContext';
 import { EnvironmentProvider } from '../shared/environment/EnvironmentContext';
 import { AdminSignIn } from '../shared/targets/AdminSignIn';
 import { presentError, type ErrorPresentation } from '../shared/bridge/errorPresentation';
-import { appRoutes, navigationGroups, sectionLabelFor } from './routeRegistry';
+import { appRoutes, navigationGroups, sectionLabelFor, type AppRouteDefinition } from './routeRegistry';
+import { Spinner } from '../shared/ui/Spinner';
 
 export type AppInfoState =
   | { kind: 'loading' }
@@ -210,16 +211,26 @@ function NavigationContent({ appInfoState, onNavigate, onClose }: NavigationCont
   );
 }
 
-function AppRoutes() {
+interface AppRoutesProps {
+  routes?: readonly AppRouteDefinition[];
+}
+
+export function AppRoutes({ routes = appRoutes }: AppRoutesProps) {
   const location = useLocation();
 
   return (
     // Key on the path so route changes reset the error boundary.
     <div key={location.pathname}>
       <ErrorBoundary>
-        <Routes>
-          {appRoutes.map(({ id, path, Component }) => <Route key={id} path={path} element={<Component />} />)}
-        </Routes>
+        <Suspense fallback={(
+          <div className="flex min-h-48 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/40">
+            <Spinner label="Loading workspace…" />
+          </div>
+        )}>
+          <Routes>
+            {routes.map(({ id, path, Component }) => <Route key={id} path={path} element={<Component />} />)}
+          </Routes>
+        </Suspense>
       </ErrorBoundary>
     </div>
   );

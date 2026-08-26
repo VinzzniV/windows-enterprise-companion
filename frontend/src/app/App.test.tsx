@@ -133,6 +133,16 @@ describe('responsive application shell', () => {
     expect(document.activeElement).toBe(openNavigation);
   });
 
+  it('navigates between lazy workspaces through the primary navigation', async () => {
+    render(<App />);
+
+    expect(await screen.findByText('Dashboard content')).toBeDefined();
+    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Clients' }));
+
+    expect(await screen.findByText('Clients content')).toBeDefined();
+    expect(window.location.hash).toBe('#/clients');
+  });
+
   it('keeps lifecycle bookmarks working by redirecting their filter to Clients posture', async () => {
     window.location.hash = '#/employeelifecycle?filter=OUTDATED';
 

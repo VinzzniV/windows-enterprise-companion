@@ -1,18 +1,32 @@
-import type { ComponentType, ReactNode } from 'react';
-import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
-import { ClientDetailPage } from '../features/clients/ClientDetailPage';
-import { ClientsPage } from '../features/clients/ClientsPage';
-import { ComparePage } from '../features/clients/ComparePage';
-import { DashboardPage } from '../features/dashboard/DashboardPage';
-import { EmployeeLifecyclePage } from '../features/employeelifecycle/EmployeeLifecyclePage';
-import { NetworkScanPage } from '../features/networkscan/NetworkScanPage';
-import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
-import { PrintManagementPage } from '../features/printmanagement/PrintManagementPage';
-import { ReportingPage } from '../features/reporting/ReportingPage';
-import { SettingsPage } from '../features/verwaltung/SettingsPage';
-import { ErrorLogPage } from '../features/verwaltung/ErrorLogPage';
-import { VulnerabilitiesPage } from '../features/vulnerabilities/VulnerabilitiesPage';
+import { lazy, type ComponentType, type ReactNode } from 'react';
 import { navIcons } from './navIcons';
+
+const DashboardPage = lazy(() => import('../features/dashboard/DashboardPage')
+  .then((module) => ({ default: module.DashboardPage })));
+const ClientsPage = lazy(() => import('../features/clients/ClientsPage')
+  .then((module) => ({ default: module.ClientsPage })));
+const ComparePage = lazy(() => import('../features/clients/ComparePage')
+  .then((module) => ({ default: module.ComparePage })));
+const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage')
+  .then((module) => ({ default: module.ClientDetailPage })));
+const ActiveDirectoryPage = lazy(() => import('../features/activedirectory/ActiveDirectoryPage')
+  .then((module) => ({ default: module.ActiveDirectoryPage })));
+const EmployeeLifecyclePage = lazy(() => import('../features/employeelifecycle/EmployeeLifecyclePage')
+  .then((module) => ({ default: module.EmployeeLifecyclePage })));
+const VulnerabilitiesPage = lazy(() => import('../features/vulnerabilities/VulnerabilitiesPage')
+  .then((module) => ({ default: module.VulnerabilitiesPage })));
+const PatchManagementPage = lazy(() => import('../features/patchmanagement/PatchManagementPage')
+  .then((module) => ({ default: module.PatchManagementPage })));
+const PrintManagementPage = lazy(() => import('../features/printmanagement/PrintManagementPage')
+  .then((module) => ({ default: module.PrintManagementPage })));
+const NetworkScanPage = lazy(() => import('../features/networkscan/NetworkScanPage')
+  .then((module) => ({ default: module.NetworkScanPage })));
+const ReportingPage = lazy(() => import('../features/reporting/ReportingPage')
+  .then((module) => ({ default: module.ReportingPage })));
+const SettingsPage = lazy(() => import('../features/verwaltung/SettingsPage')
+  .then((module) => ({ default: module.SettingsPage })));
+const ErrorLogPage = lazy(() => import('../features/verwaltung/ErrorLogPage')
+  .then((module) => ({ default: module.ErrorLogPage })));
 
 export type NavigationGroupKey = 'fleet' | 'administration';
 
