@@ -13,6 +13,7 @@ import { AdminSignIn } from '../shared/targets/AdminSignIn';
 import { presentError, type ErrorPresentation } from '../shared/bridge/errorPresentation';
 import { appRoutes, navigationGroups, sectionLabelFor, type AppRouteDefinition } from './routeRegistry';
 import { Spinner } from '../shared/ui/Spinner';
+import { GlobalSearch } from './GlobalSearch';
 
 export type AppInfoState =
   | { kind: 'loading' }
@@ -36,11 +37,20 @@ interface TopBarProps {
   appInfo: AppInfoResponse | null;
   navigationOpen: boolean;
   navigationButtonRef: RefObject<HTMLButtonElement | null>;
+  searchButtonRef: RefObject<HTMLButtonElement | null>;
   onOpenNavigation(): void;
+  onOpenSearch(): void;
 }
 
 /** Global status bar: responsive navigation/context (left) + session actions (right). */
-function TopBar({ appInfo, navigationOpen, navigationButtonRef, onOpenNavigation }: TopBarProps) {
+function TopBar({
+  appInfo,
+  navigationOpen,
+  navigationButtonRef,
+  searchButtonRef,
+  onOpenNavigation,
+  onOpenSearch,
+}: TopBarProps) {
   const location = useLocation();
   const [restartError, setRestartError] = useState<ErrorPresentation | null>(null);
   return (
@@ -66,6 +76,18 @@ function TopBar({ appInfo, navigationOpen, navigationButtonRef, onOpenNavigation
         </div>
       </div>
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+        <Button
+          ref={searchButtonRef}
+          variant="secondary"
+          aria-label="Open global search"
+          aria-keyshortcuts="Control+K Meta+K"
+          onClick={onOpenSearch}
+          className="px-2 py-1 text-xs font-normal"
+        >
+          <span className="hidden sm:inline">Search</span>
+          <kbd className="ml-1 hidden text-[10px] text-muted lg:inline">Ctrl K</kbd>
+          <span className="sm:hidden">⌕</span>
+        </Button>
         <AdminSignIn />
         {appInfo && (
           <>
@@ -239,12 +261,24 @@ export function AppRoutes({ routes = appRoutes }: AppRoutesProps) {
 function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
   const location = useLocation();
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const navigationButtonRef = useRef<HTMLButtonElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const appInfo = appInfoState.kind === 'loaded' ? appInfoState.appInfo : null;
 
   const closeNavigation = useCallback(() => {
     setNavigationOpen(false);
     navigationButtonRef.current?.focus();
+  }, []);
+
+  const openGlobalSearch = useCallback(() => {
+    setNavigationOpen(false);
+    setGlobalSearchOpen(true);
+  }, []);
+
+  const closeGlobalSearch = useCallback(() => {
+    setGlobalSearchOpen(false);
+    requestAnimationFrame(() => searchButtonRef.current?.focus());
   }, []);
 
   useEffect(() => {
@@ -260,9 +294,24 @@ function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [closeNavigation, navigationOpen]);
 
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'k') {
+        event.preventDefault();
+        openGlobalSearch();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openGlobalSearch]);
+
   return (
     <div className="flex h-dvh overflow-hidden bg-slate-950 text-slate-100">
-      <aside data-testid="desktop-navigation" className="hidden w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900 xl:flex">
+      <aside
+        data-testid="desktop-navigation"
+        inert={globalSearchOpen ? true : undefined}
+        className="hidden w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900 xl:flex"
+      >
         <NavigationContent appInfoState={appInfoState} />
       </aside>
 
@@ -283,14 +332,16 @@ function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
 
       <main
         data-testid="application-main"
-        inert={navigationOpen ? true : undefined}
+        inert={navigationOpen || globalSearchOpen ? true : undefined}
         className="flex min-w-0 flex-1 flex-col overflow-hidden"
       >
         <TopBar
           appInfo={appInfo}
           navigationOpen={navigationOpen}
           navigationButtonRef={navigationButtonRef}
+          searchButtonRef={searchButtonRef}
           onOpenNavigation={() => setNavigationOpen(true)}
+          onOpenSearch={openGlobalSearch}
         />
         <div data-testid="application-scroll-container" className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 xl:p-6">
           <div className="mx-auto max-w-[1400px]">
@@ -298,6 +349,7 @@ function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
           </div>
         </div>
       </main>
+      <GlobalSearch open={globalSearchOpen} onClose={closeGlobalSearch} />
     </div>
   );
 }
