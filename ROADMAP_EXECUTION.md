@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 6 — User Management read-only foundation
+Current phase: Phase 7 — User/client/software correlation
 
-Current slice: Extend the AD user projection with stable lifecycle fields
+Current slice: Define the approved user/device relationship evidence contract
 
 ## Done
 
@@ -114,6 +114,16 @@ Current slice: Extend the AD user projection with stable lifecycle fields
 - Phase 5 full gates passed: Release build without warnings, 665 backend tests,
   437 frontend tests, 320 generated contracts current, production build, zero
   NPM findings, module dependency check and production credential scan.
+- A stable, server-paged AD user inventory and read-only User Management module
+  now expose User 360 identity, lifecycle and SID-validated access context.
+- The Users workspace provides bounded search/filter/sort/paging and
+  Overview/Access detail tabs without persisting workflow state or credentials.
+- Global search opens with `Ctrl+K`, supports keyboard and focus management,
+  and combines navigation, saved targets, stored clients plus bounded AD user
+  and client lookups. Its first version exposes no write actions.
+- Phase 6 full gates passed: Release build without warnings, 680 backend tests,
+  453 frontend tests, 334 generated contracts current, production build, zero
+  NPM findings, module dependency check and production credential scan.
 
 ## Blocked
 
@@ -178,6 +188,12 @@ Current slice: Extend the AD user projection with stable lifecycle fields
   company or remote query. The Health tab itself could not be opened on this
   home profile because the Clients list contains no device; its tab navigation
   and content are covered by frontend tests.
+- Phase 6 production build emits a 281.78 kB initial JavaScript chunk
+  (89.82 kB gzip); route workspaces remain split into feature chunks.
+- Phase 6 Release desktop smoke loaded Dashboard, opened the focused global
+  search with `Ctrl+K`, and navigated through it to Users. The home profile
+  showed the explicit no-domain state and made no company-system query.
+- The Phase 6 smoke log contained no Error/Fatal entries or credential terms.
 - GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
   removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
@@ -186,12 +202,11 @@ Current slice: Extend the AD user projection with stable lifecycle fields
 
 ## Next
 
-1. Extend the AD user projection with stable object identity and lifecycle
-   fields while preserving current directory analysis contracts.
-2. Add deterministic server-side user search, filtering, sorting and paging.
-3. Create the read-only User Management module and User 360 read model without
-   writing lifecycle data or modifying AD.
-4. Build the Users workspace and User 360 Overview/Access tabs.
-5. Add user results to global search when the global-search slice lands.
-6. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Record the bounded interactive-user and local-profile evidence shape and
+   its privacy/retention rules in ADR 0019 or a focused revision.
+2. Collect that evidence only during explicit Inventory scans.
+3. Correlate User 360 to clients with source, age and confidence, without
+   inferring ownership.
+4. Add linked-device posture/software summaries and the User relationship map.
+5. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
