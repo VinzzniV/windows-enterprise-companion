@@ -33,7 +33,7 @@ interface NavItem {
 }
 
 // Clients is the day-to-day workspace and sits right under the Dashboard.
-// Per-host Inventory/Security/Diagnostics now live inside a client's detail, so
+// Per-host Inventory/Security/Health now live inside a client's detail, so
 // they no longer appear as standalone nav entries. Administration holds app-wide
 // settings and the error log.
 const navGroups: { label: string; items: NavItem[] }[] = [

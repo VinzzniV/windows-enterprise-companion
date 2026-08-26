@@ -235,8 +235,8 @@ export function DiagnosticsPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Diagnostics"
-        subtitle="Read-only troubleshooting per computer — connectivity probes always measure from the WEC machine"
+        title="Device Health"
+        subtitle="Read-only Windows Update, service, Event Log and disk-space checks per computer"
       >
         <Button
           variant="primary"
@@ -247,7 +247,7 @@ export function DiagnosticsPage() {
             (selection.mode === 'multiple' && toHostList(selection).length === 0)
           }
         >
-          {anyRunning ? 'Running …' : 'Run diagnostics'}
+          {anyRunning ? 'Running …' : 'Run health checks'}
         </Button>
       </PageHeader>
 
@@ -260,15 +260,15 @@ export function DiagnosticsPage() {
 
       {entries.length === 0 && (
         <EmptyState
-          title="System diagnostics"
-          message="Checks network configuration, reachability, time synchronization, services, event logs, disk space, pending reboots and update recency on demand. The latest run per host is saved; no diagnostics run in the background. Remote connectivity probes remain local-perspective and are skipped."
+          title="Device health"
+          message="Checks Windows Update age, configured services, recent Event Log errors and free disk space on demand. The latest result per host is saved; no health checks run in the background."
         />
       )}
 
       {singleEntry ? (
         <>
           {singleEntry.state.kind === 'running' && (
-            <Spinner label={`Running diagnostics on ${singleEntry.label} …`} />
+            <Spinner label={`Running health checks on ${singleEntry.label} …`} />
           )}
           {singleEntry.state.kind === 'error' && (
             <ErrorState title={`Error — ${singleEntry.label}`} message={singleEntry.state.message} />
@@ -289,7 +289,7 @@ export function DiagnosticsPage() {
       ) : (
         entries.map((entry) => (
           <Card key={entry.key} title={entry.label}>
-            {entry.state.kind === 'running' && <Spinner label="Running diagnostics …" />}
+            {entry.state.kind === 'running' && <Spinner label="Running health checks …" />}
             {entry.state.kind === 'error' && (
               <p role="alert" className="break-words text-sm text-fail-400">
                 {entry.state.message}

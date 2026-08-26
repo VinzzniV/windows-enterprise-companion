@@ -201,8 +201,8 @@ describe('ClientDetailPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
     expect(await screen.findByText('Run security scan')).toBeDefined();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Diagnostics' }));
-    expect(await screen.findByText('Run diagnostics')).toBeDefined();
+    fireEvent.click(screen.getByRole('tab', { name: 'Health' }));
+    expect(await screen.findByText('Run health check')).toBeDefined();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Report export' }));
     // Remote reporting now works: the section reports on the scanned host by name

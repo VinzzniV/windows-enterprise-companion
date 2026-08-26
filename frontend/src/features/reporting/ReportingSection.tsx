@@ -225,9 +225,9 @@ export function ReportingSection({
               </dd>
             </>
           )}
-          <dt className="text-slate-400">Diagnostics</dt>
+          <dt className="text-slate-400">Health</dt>
           <dd className="text-slate-400">
-            Not included — diagnostics are outside the report read contract. Export does not run checks or include the saved latest diagnostics run.
+            Not included — Health is outside the report read contract. Export does not run checks or include the latest saved health snapshot.
           </dd>
         </dl>
         <p className="mt-3 text-xs text-muted">

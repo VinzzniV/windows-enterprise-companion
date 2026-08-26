@@ -12,7 +12,7 @@ import { EmptyState, ErrorState } from '../../shared/ui/States';
 import { clientKey, isLocalClient, toClientTarget } from './clients';
 import { InventorySection } from './sections/InventorySection';
 import { SecuritySection } from './sections/SecuritySection';
-import { DiagnosticsSection } from './sections/DiagnosticsSection';
+import { HealthSection } from './sections/HealthSection';
 import { EventLogSection } from './sections/EventLogSection';
 import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
@@ -26,7 +26,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'inventory', label: 'Inventory' },
   { key: 'security', label: 'Security' },
-  { key: 'diagnostics', label: 'Diagnostics' },
+  { key: 'diagnostics', label: 'Health' },
   { key: 'events', label: 'Event logs' },
   { key: 'printers', label: 'Printers' },
   { key: 'reporting', label: 'Report export' },
@@ -201,7 +201,7 @@ export function ClientDetailPage() {
             <SecuritySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-diagnostics" aria-labelledby="clienttab-diagnostics" hidden={section !== 'diagnostics'}>
-            <DiagnosticsSection key={host} target={target} />
+            <HealthSection key={host} target={target} />
           </div>
           <div role="tabpanel" id="clientpanel-events" aria-labelledby="clienttab-events" hidden={section !== 'events'}>
             <EventLogSection key={host} target={target} />

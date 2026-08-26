@@ -18,11 +18,10 @@ type State =
   | { kind: 'done'; run: DiagnosticRunResult }
   | { kind: 'error'; error: ErrorPresentation };
 
-/** Diagnostics section of a client: latest saved run on open, new runs only on demand. */
-export function DiagnosticsSection({ target }: { target: TargetRequest | null }) {
+/** Latest stored Health snapshot with an explicit on-demand refresh. */
+export function HealthSection({ target }: { target: TargetRequest | null }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
-  // Load the last saved run on open (no network scan)
   useEffect(() => {
     setState({ kind: 'loading' });
     invoke<LatestDiagnosticRunResult>('diagnostics', 'getLatestDiagnostics', { target })
@@ -38,23 +37,23 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
       .then((result) => setState({ kind: 'done', run: result }))
       .catch((error: unknown) => setState({
         kind: 'error',
-        error: presentError(error, { message: 'Diagnostics could not be completed.' }),
+        error: presentError(error, { message: 'The health check could not be completed.' }),
       }));
   }, [target]);
 
   if (state.kind === 'loading') {
-    return <Spinner label="Loading last diagnostics …" />;
+    return <Spinner label="Loading latest health snapshot …" />;
   }
 
   if (state.kind === 'running') {
-    return <Spinner label="Running diagnostics …" />;
+    return <Spinner label="Running health check …" />;
   }
 
   if (state.kind === 'error') {
     return (
       <ErrorState
         {...state.error}
-        controls={<Button onClick={run}>Retry diagnostics</Button>}
+        controls={<Button onClick={run}>Retry health check</Button>}
       />
     );
   }
@@ -62,9 +61,9 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
   if (state.kind === 'idle') {
     return (
       <EmptyState
-        title="System diagnostics"
-        message="Network, DNS, domain, time, services, event logs and system checks. Connectivity probes always measure from the WEC machine and are skipped for remote targets. The result is saved and shown again next time."
-        action={<Button variant="primary" onClick={run}>Run diagnostics</Button>}
+        title="Device health"
+        message="Checks Windows Update age, configured services, recent Event Log errors and free disk space. Checks run only on demand and the latest result is saved per client."
+        action={<Button variant="primary" onClick={run}>Run health check</Button>}
       />
     );
   }
@@ -73,9 +72,9 @@ export function DiagnosticsSection({ target }: { target: TargetRequest | null })
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm">
         <span className="text-slate-400">
-          Latest saved run completed {new Date(state.run.completedAtUtc).toLocaleString()}
+          Latest saved health check completed {new Date(state.run.completedAtUtc).toLocaleString()}
         </span>
-        <Button onClick={run}>Re-run</Button>
+        <Button onClick={run}>Re-run health check</Button>
       </div>
       <RunSummary results={state.run.results} />
       <CategorySections results={state.run.results} />

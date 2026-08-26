@@ -16,7 +16,7 @@ function diagnostic(overrides: Partial<DiagnosticResult>): DiagnosticResult {
     diagnosticId: 'WEC-DIAG-TEST',
     title: 'Test diagnostic',
     status: 'PASS',
-    category: 'NETWORK',
+    category: 'SYSTEM',
     affectedResource: 'Resource',
     evidence: { key: 'value' },
     suggestedNextSteps: [],
@@ -30,12 +30,12 @@ const run: DiagnosticRunResult = {
   startedAtUtc: '2026-07-03T10:00:00Z',
   completedAtUtc: '2026-07-03T10:00:05Z',
   results: [
-    diagnostic({ title: 'Gateway reachable', status: 'PASS' }),
+    diagnostic({ title: 'Disk space healthy', status: 'PASS' }),
     diagnostic({
-      title: 'DNS server unreachable',
+      title: 'Automatic service stopped',
       status: 'FAIL',
-      category: 'DNS',
-      suggestedNextSteps: ['Check the configured DNS servers'],
+      category: 'SERVICES',
+      suggestedNextSteps: ['Check the service configuration'],
     }),
   ],
 };
@@ -49,16 +49,16 @@ describe('DiagnosticsPage', () => {
     invokeMock.mockResolvedValue(run);
 
     render(<DiagnosticsPage />);
-    await userEvent.click(screen.getByRole('button', { name: 'Run diagnostics' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run health checks' }));
 
-    expect(await screen.findByText('Gateway reachable')).toBeDefined();
-    expect(screen.getByText('DNS server unreachable')).toBeDefined();
+    expect(await screen.findByText('Disk space healthy')).toBeDefined();
+    expect(screen.getByText('Automatic service stopped')).toBeDefined();
     // Summary strip counts
     expect(screen.getAllByText('Healthy').length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText('Critical').length).toBeGreaterThanOrEqual(2);
     // Failing checks put the way forward first
-    expect(screen.getByText('Check the configured DNS servers')).toBeDefined();
-    const failedRow = screen.getByText('DNS server unreachable').closest('li');
+    expect(screen.getByText('Check the service configuration')).toBeDefined();
+    const failedRow = screen.getByText('Automatic service stopped').closest('li');
     expect(failedRow?.querySelector('details')?.hasAttribute('open')).toBe(false);
     expect(failedRow?.querySelector('summary')?.textContent).toContain('Raw evidence (1)');
   });
@@ -67,7 +67,7 @@ describe('DiagnosticsPage', () => {
     invokeMock.mockRejectedValue(new Error('bridge down'));
 
     render(<DiagnosticsPage />);
-    await userEvent.click(screen.getByRole('button', { name: 'Run diagnostics' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run health checks' }));
 
     expect(await screen.findByText('bridge down')).toBeDefined();
   });
@@ -76,27 +76,26 @@ describe('DiagnosticsPage', () => {
     render(
       <CategorySections
         results={[
-          diagnostic({ title: 'Network pass', status: 'PASS', category: 'NETWORK' }),
-          diagnostic({ title: 'Domain not run', status: 'NOT_RUN', category: 'DOMAIN' }),
+          diagnostic({ title: 'Disk pass', status: 'PASS', category: 'SYSTEM' }),
+          diagnostic({ title: 'Service not run', status: 'NOT_RUN', category: 'SERVICES' }),
           diagnostic({ title: 'Event warning', status: 'WARNING', category: 'EVENT_LOG' }),
-          diagnostic({ title: 'DNS warning', status: 'WARNING', category: 'DNS' }),
-          diagnostic({ title: 'DNS failure', status: 'FAIL', category: 'DNS' }),
+          diagnostic({ title: 'Update warning', status: 'WARNING', category: 'SYSTEM' }),
+          diagnostic({ title: 'Disk failure', status: 'FAIL', category: 'SYSTEM' }),
         ]}
       />,
     );
 
     expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
-      expect.stringContaining('DNS'),
+      expect.stringContaining('System'),
       expect.stringContaining('Event logs'),
-      expect.stringContaining('Domain'),
-      expect.stringContaining('Network'),
+      expect.stringContaining('Services'),
     ]);
     expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
-      'DNS failure',
-      'DNS warning',
+      'Disk failure',
+      'Update warning',
+      'Disk pass',
       'Event warning',
-      'Domain not run',
-      'Network pass',
+      'Service not run',
     ]);
     expect(screen.getByText('Critical').className).toContain('border-fail-700');
     expect(screen.getAllByText('Warning').every((badge) => badge.className.includes('border-warn-700'))).toBe(true);
