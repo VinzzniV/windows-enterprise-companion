@@ -430,7 +430,7 @@ export interface RemoteEventLogEntry {
   message: string;
 }
 
-export type DiagnosticCategory = 'NETWORK' | 'DOMAIN' | 'TIME_SYNCHRONIZATION' | 'EVENT_LOG' | 'SERVICES' | 'DNS' | 'SYSTEM';
+export type DiagnosticCategory = 'EVENT_LOG' | 'SERVICES' | 'SYSTEM';
 
 export interface DiagnosticResult {
   diagnosticId: string;

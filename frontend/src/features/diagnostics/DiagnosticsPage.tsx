@@ -30,20 +30,12 @@ import {
 import { runWithConcurrencyLimit } from '../../shared/concurrency';
 
 const categoryOrder: DiagnosticCategory[] = [
-  'NETWORK',
-  'DNS',
-  'DOMAIN',
-  'TIME_SYNCHRONIZATION',
   'SERVICES',
   'EVENT_LOG',
   'SYSTEM',
 ];
 
 const categoryLabels: Record<DiagnosticCategory, string> = {
-  NETWORK: 'Network',
-  DNS: 'DNS',
-  DOMAIN: 'Domain',
-  TIME_SYNCHRONIZATION: 'Time',
   SERVICES: 'Services',
   EVENT_LOG: 'Event logs',
   SYSTEM: 'System',
