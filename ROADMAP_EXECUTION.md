@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 5 — Relationship Map foundation
+Current phase: Phase 6 — User Management read-only foundation
 
-Current slice: Characterize the current client relationship-state mapping
+Current slice: Extend the AD user projection with stable lifecycle fields
 
 ## Done
 
@@ -101,6 +101,19 @@ Current slice: Characterize the current client relationship-state mapping
   423 frontend tests, 320 generated contracts current, production build, zero
   NPM findings, module dependency check, production credential scan and a real
   Release desktop Dashboard-to-Clients lazy-route smoke test.
+- Current AD, Kaspersky, opsi and Nessus source-state precedence is fixed by
+  characterization tests before changing the relationship presentation.
+- A bounded frontend relationship model now carries stable entity keys,
+  semantic state, observation time, deep links and evidence-bearing edges with
+  source, confidence and explanation. It deliberately has no persistence or
+  generic graph engine.
+- Client 360 now uses the accessible map/list presentation for AD, Kaspersky,
+  opsi, Nessus, WEC Inventory, Health and Security context. Decorative dragging
+  and its 65 lines of map animation CSS were removed; connectivity remains an
+  explicit action and a missing Ping/WinRM response is not called offline.
+- Phase 5 full gates passed: Release build without warnings, 665 backend tests,
+  437 frontend tests, 320 generated contracts current, production build, zero
+  NPM findings, module dependency check and production credential scan.
 
 ## Blocked
 
@@ -153,6 +166,14 @@ Current slice: Characterize the current client relationship-state mapping
   built local assets without a blank screen or route error. The home profile
   reported all four management sources as not configured and ran no explicit
   connectivity action.
+- Phase 5 component and Client 360 integration tests cover all current source
+  states, bounded nodes, edge evidence, observation timestamps, confidence,
+  keyboard-accessible deep links, semantic list fallback and manual-only
+  connectivity. The home profile has no client record, so a real Relationship
+  Map rendering remains part of the company-environment smoke gate.
+- Phase 5 frontend suite: 437 passed. The initial JavaScript chunk remains
+  271.56 kB (86.57 kB gzip); removal of the decorative map CSS reduces the
+  stylesheet from 61.85 kB to 51.58 kB.
 - Release desktop smoke reached Dashboard and Clients without starting any
   company or remote query. The Health tab itself could not be opened on this
   home profile because the Clients list contains no device; its tab navigation
@@ -165,11 +186,12 @@ Current slice: Characterize the current client relationship-state mapping
 
 ## Next
 
-1. Characterize current Client Integration Map source-state behavior.
-2. Introduce bounded relationship node and edge view models without creating a
-   generic graph framework.
-3. Add accessible map and list presentations with explicit actions and deep
-   links; keep connectivity checks manual.
-4. Migrate Client 360 to the relationship presentation and run Phase 5 gates.
-5. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Extend the AD user projection with stable object identity and lifecycle
+   fields while preserving current directory analysis contracts.
+2. Add deterministic server-side user search, filtering, sorting and paging.
+3. Create the read-only User Management module and User 360 read model without
+   writing lifecycle data or modifying AD.
+4. Build the Users workspace and User 360 Overview/Access tabs.
+5. Add user results to global search when the global-search slice lands.
+6. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
