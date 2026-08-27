@@ -66,6 +66,74 @@ const profile: UserProfileResult = {
   },
 };
 
+const profileWithDevice: UserProfileResult = {
+  ...profile,
+  devices: {
+    coverage: 'PARTIAL',
+    explanation: 'Some stored devices have missing Inventory user evidence.',
+    sourceCoverage: {
+      storedDeviceCount: 12,
+      evidenceCapturedDeviceCount: 8,
+      notCapturedDeviceCount: 3,
+      unavailableDeviceCount: 1,
+      truncatedDeviceCount: 0,
+    },
+    totalLinkedDeviceCount: 12,
+    linkedDevicesTruncated: true,
+    linkedDevices: [{
+      host: 'PC-42',
+      inventoryCapturedAtUtc: '2026-08-27T08:00:00Z',
+      relationshipEvidence: [{
+        relationshipType: 'LAST_INTERACTIVE_USER',
+        source: 'WEC Inventory',
+        observedAtUtc: '2026-08-27T08:00:00Z',
+        confidence: 'HIGH',
+        explanation: 'The SID resolved from the last interactive domain user.',
+        profileLastUseAtUtc: null,
+      }],
+      software: {
+        isAvailable: true,
+        isComplete: true,
+        capturedAtUtc: '2026-08-27T08:00:00Z',
+        installedCount: 42,
+        sample: [{ name: 'Admin Tool', version: '2.0', publisher: 'Example' }],
+        explanation: 'Complete stored capture.',
+      },
+      health: {
+        isAvailable: true,
+        isComplete: false,
+        capturedAtUtc: '2026-08-27T08:30:00Z',
+        criticalCount: 1,
+        warningCount: 2,
+        unknownCount: 1,
+        healthyCount: 3,
+        explanation: 'Three of four checks observed.',
+      },
+      security: {
+        isAvailable: true,
+        isComplete: true,
+        capturedAtUtc: '2026-08-27T08:45:00Z',
+        scanStatus: 'Completed',
+        criticalCount: 0,
+        highCount: 2,
+        mediumCount: 3,
+        lowCount: 4,
+        explanation: 'All checks succeeded.',
+      },
+      vulnerabilities: {
+        availability: 'AVAILABLE',
+        deviceMatched: true,
+        capturedAtUtc: '2026-08-27T07:00:00Z',
+        criticalCount: 1,
+        highCount: 2,
+        mediumCount: 3,
+        lowCount: 4,
+        explanation: 'Stored Nessus match.',
+      },
+    }],
+  },
+};
+
 function renderProfile(value: UserProfileResult = profile) {
   invokeMock.mockImplementation((module: string, action: string) => {
     if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
@@ -134,5 +202,33 @@ describe('UserDetailPage', () => {
     const panel = screen.getByRole('tabpanel', { name: 'Access' });
     expect(within(panel).getByText('Coverage unavailable')).toBeDefined();
     expect(within(panel).queryByText('None found')).toBeNull();
+  });
+
+  it('shows bounded relationship evidence and stored device context without starting scans', async () => {
+    renderProfile(profileWithDevice);
+    await userEvent.click(await screen.findByRole('tab', { name: 'Devices' }));
+
+    const panel = screen.getByRole('tabpanel', { name: 'Devices' });
+    expect(within(panel).getByRole('heading', { name: 'User relationships' })).toBeDefined();
+    expect(within(panel).getByText(/Showing 1 of 12 linked devices/)).toBeDefined();
+    expect(within(panel).getByText(/The SID resolved from the last interactive domain user/)).toBeDefined();
+    const softwarePanel = within(panel).getByRole('heading', { name: 'Installed software' }).closest('section');
+    expect(softwarePanel?.textContent).toContain('42 applications');
+    expect(within(panel).getByText('1 critical · 2 warning')).toBeDefined();
+    expect(within(panel).getByRole('link', { name: 'Software & inventory' }).getAttribute('href'))
+      .toBe('/clients/PC-42?section=inventory');
+    expect(within(panel).getByRole('link', { name: 'Vulnerabilities' }).getAttribute('href'))
+      .toContain('/vulnerabilities?tab=findings&asset=PC-42');
+    expect(invokeMock.mock.calls.map(([module, action]) => `${module}/${action}`).sort())
+      .toEqual(['targets/list', 'usermanagement/getUserProfile'].sort());
+  });
+
+  it('states when no exact SID-matched device relationship exists', async () => {
+    renderProfile();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Devices' }));
+
+    const panel = screen.getByRole('tabpanel', { name: 'Devices' });
+    expect(within(panel).getByText('No linked devices')).toBeDefined();
+    expect(within(panel).getByText(/does not infer device ownership/)).toBeDefined();
   });
 });

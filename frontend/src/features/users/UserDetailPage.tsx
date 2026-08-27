@@ -19,11 +19,13 @@ import {
   userDirectoryViewKey,
   type UserDirectoryEndpoint,
 } from './users';
+import { UserDevicesSection } from './UserDevicesSection';
 
-type UserSection = 'overview' | 'access';
+type UserSection = 'overview' | 'access' | 'devices';
 const sections: { key: UserSection; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'access', label: 'Access' },
+  { key: 'devices', label: 'Devices' },
 ];
 
 function isUserSection(value: string | null): value is UserSection {
@@ -195,12 +197,15 @@ export function UserDetailPage() {
           </dl>
         </Card>
         <Card title="Device context">
-          <p className="text-sm text-slate-300">
-            No reliable device relationship evidence has been collected for this user yet.
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-2xl font-semibold text-slate-100">{profile.devices.totalLinkedDeviceCount}</span>
+            <span className="text-sm text-slate-300">SID-matched linked devices</span>
+          </div>
+          <p className="mt-2 text-sm text-slate-300">{profile.devices.explanation}</p>
           <p className="mt-2 text-xs text-muted">
-            WEC does not infer ownership from names or profiles. Linked devices appear only after an explicit Inventory scan records approved evidence.
+            WEC does not infer ownership from names or profiles. Relationships appear only after an explicit Inventory scan records approved evidence.
           </p>
+          <Link className="mt-3 inline-block text-sm text-accent-300 hover:text-accent-200" to="?section=devices">Open device relationships →</Link>
         </Card>
       </div>
     </div>
@@ -245,6 +250,10 @@ export function UserDetailPage() {
             : <GroupList groups={access.directGroups} query={groupQuery} />}
         </Card>
       </div>
+    </div>
+
+    <div role="tabpanel" id="userpanel-devices" aria-labelledby="usertab-devices" hidden={section !== 'devices'}>
+      <UserDevicesSection profile={profile} />
     </div>
   </div>;
 }
