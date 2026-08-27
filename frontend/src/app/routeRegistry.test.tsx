@@ -10,6 +10,7 @@ describe('routeRegistry', () => {
     expect(new Set(navigationItems.map((item) => item.to)).size).toBe(navigationItems.length);
     expect(navigationItems.map((item) => item.label)).toEqual([
       'Dashboard',
+      'Action Center',
       'Clients',
       'Users',
       'Active Directory',

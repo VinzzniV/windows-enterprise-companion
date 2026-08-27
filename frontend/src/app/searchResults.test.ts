@@ -32,6 +32,9 @@ describe('global search result builders', () => {
     expect(navigationResults('configuration')).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Settings', to: '/settings' }),
     ]));
+    expect(navigationResults('attention')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Action Center', to: '/actions' }),
+    ]));
   });
 
   it('merges client evidence by short host name and keeps the result set bounded', () => {

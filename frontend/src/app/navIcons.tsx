@@ -27,6 +27,13 @@ export const navIcons: Record<string, ReactNode> = {
       <path d="M8 20h8M12 16v4" />
     </svg>
   ),
+  actioncenter: (
+    <svg {...iconProps}>
+      <path d="M5 4h14v16H5z" />
+      <path d="M8 8h8M8 12h5M8 16h7" />
+      <path d="M3 7h2M3 12h2M3 17h2" />
+    </svg>
+  ),
   users: (
     <svg {...iconProps}>
       <circle cx="9" cy="8" r="3" />

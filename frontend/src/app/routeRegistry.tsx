@@ -3,6 +3,8 @@ import { navIcons } from './navIcons';
 
 const DashboardPage = lazy(() => import('../features/dashboard/DashboardPage')
   .then((module) => ({ default: module.DashboardPage })));
+const ActionCenterPage = lazy(() => import('../features/actioncenter/ActionCenterPage')
+  .then((module) => ({ default: module.ActionCenterPage })));
 const ClientsPage = lazy(() => import('../features/clients/ClientsPage')
   .then((module) => ({ default: module.ClientsPage })));
 const ComparePage = lazy(() => import('../features/clients/ComparePage')
@@ -62,6 +64,7 @@ export interface NavigationGroup {
 
 export const appRoutes: readonly AppRouteDefinition[] = [
   { id: 'dashboard', path: '/', sectionLabel: 'Dashboard', Component: DashboardPage, navigation: { group: 'fleet', label: 'Dashboard', icon: navIcons.dashboard, searchTerms: ['overview', 'status'] } },
+  { id: 'action-center', path: '/actions', sectionLabel: 'Action Center', Component: ActionCenterPage, navigation: { group: 'fleet', label: 'Action Center', icon: navIcons.actioncenter, searchTerms: ['work list', 'findings', 'attention', 'issues'] } },
   { id: 'clients', path: '/clients', sectionLabel: 'Clients', Component: ClientsPage, navigation: { group: 'fleet', label: 'Clients', icon: navIcons.clients, searchTerms: ['devices', 'fleet', 'computers'] } },
   { id: 'client-compare', path: '/clients/compare', sectionLabel: 'Clients', Component: ComparePage },
   { id: 'client-detail', path: '/clients/:host', sectionLabel: 'Clients', Component: ClientDetailPage },
