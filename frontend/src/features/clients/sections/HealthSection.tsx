@@ -6,7 +6,7 @@ import type {
   LatestDiagnosticRunResult,
   TargetRequest,
 } from '../../../shared/api-types';
-import { CategorySections, RunSummary } from '../../diagnostics/DiagnosticsPage';
+import { CategorySections, RunSummary } from '../../diagnostics/HealthResults';
 import { Button } from '../../../shared/ui/Button';
 import { Spinner } from '../../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';

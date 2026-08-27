@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DiagnosticResult, DiagnosticRunResult } from '../../shared/api-types';
-import { CategorySections, DiagnosticsPage, RunSummary } from './DiagnosticsPage';
+import { DiagnosticsPage } from './DiagnosticsPage';
+import { CategorySections, RunSummary } from './HealthResults';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
