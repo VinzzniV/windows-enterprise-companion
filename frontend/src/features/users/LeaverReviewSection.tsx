@@ -1,8 +1,14 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { UserProfileResult } from '../../shared/api-types';
+import type { ExportLeaverReviewResult, UserProfileResult } from '../../shared/api-types';
+import { invoke } from '../../shared/bridge/bridgeClient';
+import { errorText } from '../../shared/bridge/errorText';
 import { Badge, type BadgeTone } from '../../shared/ui/Badge';
+import { Button } from '../../shared/ui/Button';
+import { Checkbox } from '../../shared/ui/Checkbox';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { buildLeaverAssessment, type LeaverEvidenceState } from './leaverReview';
+import { toLeaverReviewMarkdown } from './leaverReviewExport';
 import { formatDirectoryTimestamp } from './users';
 
 const statePresentation: Record<LeaverEvidenceState, { label: string; tone: BadgeTone }> = {
@@ -13,7 +19,42 @@ const statePresentation: Record<LeaverEvidenceState, { label: string; tone: Badg
 };
 
 export function LeaverReviewSection({ profile }: { profile: UserProfileResult }) {
-  const assessment = buildLeaverAssessment(profile);
+  const assessment = useMemo(() => buildLeaverAssessment(profile), [profile]);
+  const [reviewedItemIds, setReviewedItemIds] = useState<ReadonlySet<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setReviewedItemIds(new Set());
+    setExportMessage(null);
+  }, [profile.identity.objectId]);
+
+  const toggleReviewed = (itemId: string) => {
+    setReviewedItemIds((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  const exportChecklist = () => {
+    setExporting(true);
+    setExportMessage(null);
+    const markdown = toLeaverReviewMarkdown(
+      profile,
+      assessment,
+      reviewedItemIds,
+      new Date().toISOString(),
+    );
+    void invoke<ExportLeaverReviewResult>('usermanagement', 'exportLeaverReview', { markdown })
+      .then((result) => setExportMessage(result.cancelled
+        ? 'Export cancelled.'
+        : `Exported to ${result.filePath}`))
+      .catch((caught: unknown) => setExportMessage(errorText(caught)))
+      .finally(() => setExporting(false));
+  };
+
   return <div className="flex flex-col gap-4">
     <section className="rounded-lg border border-warn-800/70 bg-warn-950/20 p-4" aria-labelledby="leaver-review-heading">
       <div className="flex flex-wrap items-center gap-2">
@@ -23,6 +64,13 @@ export function LeaverReviewSection({ profile }: { profile: UserProfileResult })
       <p className="mt-2 text-sm text-slate-300">
         This view organizes current evidence for the deliberately selected directory user. It does not disable the account, remove groups, change devices or persist a workflow case.
       </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button variant="primary" disabled={exporting} onClick={exportChecklist}>
+          {exporting ? 'Exporting…' : 'Export Markdown checklist'}
+        </Button>
+        <span className="text-xs text-muted">{reviewedItemIds.size} of {assessment.items.length} evidence items reviewed in this session</span>
+      </div>
+      {exportMessage && <p className="mt-2 text-sm text-slate-300" role="status">{exportMessage}</p>}
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
         <div><dt className="text-xs uppercase tracking-wide text-muted">User</dt><dd className="mt-1 text-slate-100">{assessment.userDisplayName}</dd></div>
         <div><dt className="text-xs uppercase tracking-wide text-muted">Needs review</dt><dd className="mt-1 font-mono text-xl text-warn-300">{assessment.attentionCount}</dd></div>
@@ -49,7 +97,14 @@ export function LeaverReviewSection({ profile }: { profile: UserProfileResult })
             <p className="mt-2 text-xs text-slate-500">{item.evidence}</p>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-2 text-xs">
               <span className="text-muted">Source: {item.source}</span>
-              {item.href && <Link className="text-accent-300 hover:text-accent-200" to={item.href}>Inspect evidence →</Link>}
+              <div className="flex flex-wrap items-center gap-3">
+                <Checkbox
+                  label="Reviewed in this session"
+                  checked={reviewedItemIds.has(item.id)}
+                  onChange={() => toggleReviewed(item.id)}
+                />
+                {item.href && <Link className="text-accent-300 hover:text-accent-200" to={item.href}>Inspect evidence →</Link>}
+              </div>
             </div>
           </li>;
         })}

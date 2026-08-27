@@ -2080,6 +2080,15 @@ export interface UserSummary {
   replicatedLastLogonAtUtc: string | null;
 }
 
+export interface ExportLeaverReviewRequest {
+  markdown: string;
+}
+
+export interface ExportLeaverReviewResult {
+  cancelled: boolean;
+  filePath: string | null;
+}
+
 export interface GetUserProfileRequest {
   objectId: string;
   connection?: UserDirectoryConnectionRequest | null;

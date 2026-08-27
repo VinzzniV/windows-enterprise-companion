@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -138,6 +138,9 @@ function renderProfile(value: UserProfileResult = profile) {
   invokeMock.mockImplementation((module: string, action: string) => {
     if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
     if (module === 'usermanagement' && action === 'getUserProfile') return Promise.resolve(value);
+    if (module === 'usermanagement' && action === 'exportLeaverReview') {
+      return Promise.resolve({ cancelled: false, filePath: 'C:\\temp\\leaver-review.md' });
+    }
     return Promise.resolve({});
   });
   return render(
@@ -246,5 +249,25 @@ describe('UserDetailPage', () => {
     expect(within(panel).queryByRole('button', { name: /disable|delete|remove/i })).toBeNull();
     expect(invokeMock.mock.calls.map(([module, action]) => `${module}/${action}`).sort())
       .toEqual(['targets/list', 'usermanagement/getUserProfile'].sort());
+  });
+
+  it('exports only the current session checklist and reports the selected path', async () => {
+    renderProfile(profileWithDevice);
+    await userEvent.click(await screen.findByRole('button', { name: 'Start Leaver review' }));
+    const panel = screen.getByRole('tabpanel', { name: 'Leaver review' });
+
+    await userEvent.click(within(panel).getAllByRole('checkbox', { name: 'Reviewed in this session' })[0]);
+    expect(within(panel).getByText('1 of 6 evidence items reviewed in this session')).toBeDefined();
+    await userEvent.click(within(panel).getByRole('button', { name: 'Export Markdown checklist' }));
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
+      'usermanagement',
+      'exportLeaverReview',
+      expect.objectContaining({ markdown: expect.stringContaining('- [x] Directory account state — attention') }),
+    ));
+    expect(await within(panel).findByText('Exported to C:\\temp\\leaver-review.md')).toBeDefined();
+    const exportCall = invokeMock.mock.calls.find(([, action]) => action === 'exportLeaverReview');
+    expect(exportCall?.[2].markdown).toContain('- [ ] PC-42 — RETURN UNRESOLVED');
+    expect(exportCall?.[2].markdown).toContain('WEC persists no workflow state');
   });
 });
