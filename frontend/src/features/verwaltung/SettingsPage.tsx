@@ -24,7 +24,7 @@ import { Input } from '../../shared/ui/Input';
 import { Spinner } from '../../shared/ui/Spinner';
 import { ErrorState } from '../../shared/ui/States';
 import { ConfirmDangerAction } from '../../shared/ui/ConfirmDangerAction';
-import { CredentialFields, type CredentialValues } from '../../shared/targets/TargetSelector';
+import { CredentialFields, type CredentialValues } from '../../shared/targets/Credentials';
 import { useTargetsOptional } from '../../shared/targets/TargetContext';
 import { useEnvironmentOptional } from '../../shared/environment/EnvironmentContext';
 import {

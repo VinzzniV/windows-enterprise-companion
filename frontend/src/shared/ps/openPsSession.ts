@@ -1,5 +1,5 @@
 import { invoke } from '../bridge/bridgeClient';
-import type { CredentialValues } from '../targets/TargetSelector';
+import type { CredentialValues } from '../targets/Credentials';
 
 export interface OpenPsSessionResult {
   launched: boolean;

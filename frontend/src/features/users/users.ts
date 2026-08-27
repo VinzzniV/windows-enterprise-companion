@@ -4,7 +4,7 @@ import type {
   DirectoryUserSortField,
   UserDirectoryConnectionRequest,
 } from '../../shared/api-types';
-import type { CredentialValues } from '../../shared/targets/TargetSelector';
+import type { CredentialValues } from '../../shared/targets/Credentials';
 
 export interface UserDirectoryEndpoint {
   domain: string;
