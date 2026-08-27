@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 9 — Action Center
+Current phase: Phase 10 — Stale-device cleanup assistant
 
-Current slice: Record the computed read-model decision and characterize source assessment boundaries
+Current slice: Characterize stale-device evidence and define the read-only assessment boundary
 
 ## Done
 
@@ -154,6 +154,24 @@ Current slice: Record the computed read-model decision and characterize source a
 - Phase 8 full gates passed: Release build without warnings, 704 backend tests,
   462 frontend tests, 354 generated contracts current, production build, zero
   NPM findings, module dependency check and production credential scan.
+- Phase 8 PR CI run `33026958213` passed for milestone commit `1a42320`.
+- ADR 0020 records a computed, non-persisted Action Center read model with
+  narrow Core evidence projections, deterministic item keys, explicit source
+  coverage and allowlisted deep links. Workflow state and a generic provider or
+  rules engine remain out of scope.
+- Hygiene assessment policy was extracted without changing public behavior.
+  Request-bound hygiene evidence, stored Inventory evidence and stored-only
+  Security findings now expose bounded Action Center projections without
+  triggering Inventory or Security scans.
+- The new Action Center module computes a read-only, server-filtered, sorted and
+  paged work list with severity, evidence age, coverage, reliability and a
+  recommended next action. It persists neither source payloads nor work items.
+- The Action Center workspace uses a dense table rather than dashboard cards.
+  Its optional context view contains only the selected device, reporting source
+  and evidence edge, and reuses the accessible map/list presentation.
+- Phase 9 full gates passed: Release build without warnings, 715 backend tests,
+  465 frontend tests, 365 generated contracts current, production build, zero
+  NPM findings, module dependency check and committed credential scans.
 
 ## Blocked
 
@@ -239,6 +257,11 @@ Current slice: Record the computed read-model decision and characterize source a
   (89.87 kB gzip); User 360 remains route-split. The real Release host loaded
   local assets and navigated through `Ctrl+K` to Users. No Error/Fatal,
   credential, SID, UPN or account-name term was emitted in the smoke interval.
+- Phase 9 production build emits a 282.41 kB initial JavaScript chunk
+  (90.05 kB gzip); the Action Center is a separate 9.82 kB chunk (3.79 kB
+  gzip). The real Release host navigated through `Ctrl+K` to Action Center and
+  completed `actioncenter/listItems`. No Error/Fatal, credential, SID, UPN or
+  account-name term was emitted in the smoke interval.
 - GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
   removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
@@ -247,11 +270,9 @@ Current slice: Record the computed read-model decision and characterize source a
 
 ## Next
 
-1. Record ADR 0020 for the computed, non-persisted Action Center read model and
-   its narrow Core projection boundaries.
-2. Characterize the existing AD/Kaspersky/opsi/Nessus, Inventory and Security
-   source assessment semantics before extracting reusable projections.
-3. Build the bounded read-only Action Center work list before adding its
-   optional context map.
-4. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Characterize stale-device evidence, source precedence and existing
+   client/user deep links before defining the cleanup assessment.
+2. Build a read-only guided assessment with explicit evidence gaps, a manual
+   session decision and a bounded export; do not add AD writes.
+3. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
