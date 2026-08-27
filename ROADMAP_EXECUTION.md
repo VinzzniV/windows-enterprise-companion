@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 7 — User/client/software correlation
+Current phase: Phase 8 — Read-only Leaver review
 
-Current slice: Define the approved user/device relationship evidence contract
+Current slice: Define the bounded Leaver assessment and export projection
 
 ## Done
 
@@ -124,13 +124,34 @@ Current slice: Define the approved user/device relationship evidence contract
 - Phase 6 full gates passed: Release build without warnings, 680 backend tests,
   453 frontend tests, 334 generated contracts current, production build, zero
   NPM findings, module dependency check and production credential scan.
+- ADR 0019 and the Inventory module documentation now define the approved,
+  bounded interactive-user and local-profile evidence, including explicit
+  system/service-profile filtering, latest-snapshot retention and the rule
+  that observations never become ownership claims.
+- Explicit Inventory scans now collect only the approved domain-user and
+  profile SID evidence. Older snapshots remain readable and visibly report
+  that the evidence was not captured.
+- A narrow Core provider joins directory users to Inventory devices only by
+  exact SID and reports evaluated, missing, unavailable and truncated source
+  coverage without guessing from account, e-mail or host names.
+- User 360 now shows a bounded linked-device view with stored software,
+  Health, Security and Nessus summaries. A dedicated stored-only Nessus
+  provider prevents profile reads from starting foreground or background
+  synchronization.
+- The User relationship map reuses the accessible bounded map/list pattern,
+  exposes relationship type, source, observation time, confidence and
+  explanation, and links into Client 360 and its detail views.
+- Phase 7 full gates passed: Release build without warnings, 699 backend tests,
+  457 frontend tests, 352 generated contracts current, production build, zero
+  NPM findings, module dependency check and production credential scan.
 
 ## Blocked
 
 - Phase 0 artifact upload is waiting for GitHub's storage-usage recalculation.
-  Run `33013664987` reports that recalculation takes 6–12 hours after cleanup;
-  two preserved artifacts currently use 132.24 MiB. Retry the manual workflow
-  after the quota state updates.
+  A later release-free packaging run `33023537176` again passed audit, build,
+  contracts, tests, publish, host smoke, ZIP validation, installer and
+  checksums, then failed only at ZIP artifact upload while the quota remained
+  unavailable. No release gate was weakened.
 
 ## Deferred release gates
 
@@ -194,6 +215,16 @@ Current slice: Define the approved user/device relationship evidence contract
   search with `Ctrl+K`, and navigated through it to Users. The home profile
   showed the explicit no-domain state and made no company-system query.
 - The Phase 6 smoke log contained no Error/Fatal entries or credential terms.
+- Phase 7 frontend tests cover exact evidence labels, confidence, bounded
+  presentation, semantic map/list behavior, stored device summaries, missing
+  source states, deep links and the absence of profile-triggered scans.
+- Phase 7 production build emits a 281.82 kB initial JavaScript chunk
+  (89.85 kB gzip); User 360 and the shared Relationship Map remain lazy feature
+  chunks.
+- Phase 7 Release desktop smoke loaded Dashboard and navigated through
+  `Ctrl+K` to Users. The home profile showed the explicit no-domain state; the
+  smoke log contained no Error/Fatal, credential, SID, UPN or account-name
+  terms.
 - GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
   removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
@@ -202,11 +233,10 @@ Current slice: Define the approved user/device relationship evidence contract
 
 ## Next
 
-1. Record the bounded interactive-user and local-profile evidence shape and
-   its privacy/retention rules in ADR 0019 or a focused revision.
-2. Collect that evidence only during explicit Inventory scans.
-3. Correlate User 360 to clients with source, age and confidence, without
-   inferring ownership.
-4. Add linked-device posture/software summaries and the User relationship map.
-5. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Define a read-only Leaver assessment for one deliberately selected User 360
+   identity without introducing persisted workflow state.
+2. Present account, activity, group/access and linked-device return evidence
+   with explicit missing and partial coverage.
+3. Export a bounded review checklist without write actions or credentials.
+4. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
