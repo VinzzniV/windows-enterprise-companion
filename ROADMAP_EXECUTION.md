@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 11 — Legacy cleanup and service refactoring
+Current phase: Roadmap completion audit and release verification
 
-Current slice: Inventory legacy wrappers, reusable components and multi-host parity gaps
+Current slice: Phase 11 milestone CI and deferred Phase 0 artifact upload
 
 ## Done
 
@@ -193,6 +193,25 @@ Current slice: Inventory legacy wrappers, reusable components and multi-host par
 - Phase 10 full gates passed: Release build without warnings, 724 backend tests,
   468 frontend tests, 376 generated contracts current, production build, zero
   NPM findings, module dependency check and committed credential scans.
+- Phase 10 PR CI run `33029981576` passed for milestone commit `47937d3`.
+- Inventory, Security and Health now expose bounded, cancellable multi-host
+  handlers with typed progress and isolated per-host outcomes. Clients owns the
+  only multi-host scan workbench; row selection alone never starts a scan and
+  session credentials are displayed only as identity metadata.
+- Inventory, Security and Health result components were separated from their
+  old standalone pages before the replaced wrappers and full `TargetSelector`
+  were removed. Shared credential fields remain in a narrow credential seam.
+- The old unrouted Employee detail/form CRUD was removed after the read-only
+  User Management MVP. The allowlisted lifecycle redirect, backend source
+  types and all historical Employee Lifecycle tables remain preserved.
+- `HygieneSourceLoader` now owns external source I/O, credentials and source
+  states while `ItHygieneService` retains correlation and snapshot assembly.
+  Winget preview/update planning and package execution are isolated behind the
+  existing orchestration facade without changing confirmation or audit rules.
+- Phase 11 full gates passed: Release build without warnings, 731 backend
+  tests, 458 frontend tests, 386 generated contracts current, production
+  build, zero NPM findings, module dependency check and committed credential
+  scan.
 
 ## Blocked
 
@@ -289,6 +308,10 @@ Current slice: Inventory legacy wrappers, reusable components and multi-host par
   completed `devicecleanup/listCandidates` without a connectivity probe. No
   Error/Fatal, credential, SID, UPN or account-name term was emitted in the
   smoke interval.
+- Phase 11 production build emits a 283.10 kB initial JavaScript chunk
+  (90.27 kB gzip). The real Release host loaded Dashboard and the Clients
+  workbench from local assets; the home profile performed no remote scan.
+  The smoke log contained no Error/Fatal, credential or user-payload terms.
 - GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
   removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
@@ -297,12 +320,9 @@ Current slice: Inventory legacy wrappers, reusable components and multi-host par
 
 ## Next
 
-1. Inventory the remaining standalone Inventory, Security and Diagnostics
-   wrappers, TargetSelector consumers and Employee Lifecycle routes against
-   their canonical replacements.
-2. Add bounded Inventory, Security and Health batch parity to Clients before
-   removing any replaced wrapper.
-3. Complete the planned ItHygieneService source-loading and Winget planning /
-   execution extractions only at characterized responsibility boundaries.
-4. Retry the Phase 0 manual package upload after GitHub recalculates storage
-   usage.
+1. Push the Phase 11 milestone and require green pull-request CI.
+2. Retry the Phase 0 release-free packaging workflow and verify ZIP, installer,
+   checksums and both artifact uploads without creating a tag or release.
+3. Audit every roadmap phase and explicit Definition of Done against current
+   repository and CI evidence; retain company-environment and release approval
+   gates as explicit external follow-up rather than claiming local coverage.
