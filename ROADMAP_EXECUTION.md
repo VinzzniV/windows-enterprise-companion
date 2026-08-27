@@ -1,10 +1,10 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `IN_PROGRESS`
+Status: `IN_PROGRESS` — waiting for external GitHub quota recalculation
 
 Current phase: Roadmap completion audit and release verification
 
-Current slice: Final branch CI and deferred Phase 0 artifact upload
+Current slice: Deferred Phase 0 artifact upload on the verified final branch
 
 ## Done
 
@@ -231,18 +231,24 @@ Current slice: Final branch CI and deferred Phase 0 artifact upload
   showed all company providers as not configured. Navigation and selection
   triggered no scan. The smoke interval contained no Error/Fatal entry,
   credential payload field, SID, UPN or account payload field.
+- Final-head PR CI run `33035939447` passed on `b9d153a`. The branch was
+  re-fetched against `origin/master`, is current with the base, conflict-free
+  and has no open review finding.
+- Release-free packaging run `33036396522` on `b9d153a` passed audit, build,
+  contract verification, all frontend and backend tests, self-contained
+  publish, published-host smoke, ZIP creation and validation, Inno Setup
+  installer creation and checksum verification.
 
 ## Blocked
 
 - Phase 0 artifact upload is waiting for GitHub's storage-usage recalculation.
-  Release-free packaging run `33034406276` passed audit, build, contracts,
-  tests, self-contained publish, published-host smoke, ZIP validation, Inno
-  Setup installer and checksum verification, then failed only at ZIP artifact
-  upload while the quota remained unavailable. All 84 obsolete Actions
-  artifacts (about 5.27 GiB) have now been removed and the repository reports
-  zero Actions artifacts. GitHub documents a 6–12 hour delay before usage is
-  recalculated. Release `v0.1.0` and its two published assets remain unchanged;
-  no release gate was weakened.
+  The latest release-free run `33036396522` again failed only when creating the
+  ZIP artifact; GitHub explicitly reported that usage recalculation takes
+  6–12 hours. The installer upload was skipped solely because the preceding
+  upload failed. All 84 obsolete Actions artifacts (about 5.27 GiB) have been
+  removed and the repository API reports zero Actions artifacts and zero
+  artifact bytes. Release `v0.1.0` and its two published assets remain
+  unchanged; no release gate was weakened.
 
 ## Deferred release gates
 
@@ -348,11 +354,10 @@ Current slice: Final branch CI and deferred Phase 0 artifact upload
 
 ## Next
 
-1. Commit and push the final audit correction and documentation, then require
-   green pull-request CI on that exact head.
-2. After GitHub recalculates storage usage, retry the release-free packaging
-   workflow on the final head and verify ZIP, installer, checksums and both
+1. After GitHub recalculates storage usage, retry the release-free packaging
+   workflow on the current branch and verify ZIP, installer, checksums and both
    artifact uploads without creating a tag or release.
-3. When the repository merge gates are green, mark Draft PR #28 ready and
+2. Require green pull-request CI on the exact final documentation head.
+3. When both repository merge gates are green, mark Draft PR #28 ready and
    merge it under D-006. Do not create a version tag, publish an installer or
    create a GitHub Release without explicit user approval.
