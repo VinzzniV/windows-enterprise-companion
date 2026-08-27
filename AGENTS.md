@@ -77,6 +77,9 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 - Action Center is a computed, non-persisted read model over concrete Core
   projections. It exposes no owner, note, workflow status, write action or
   automatic remediation, and stored providers never trigger scans (ADR 0020).
+- Device Cleanup is a guided read-only assessment. It reuses hygiene and stored
+  Inventory/user evidence, runs Ping/WinRM only after an explicit action, keeps
+  decisions in the current frontend session and exposes no AD write action.
 
 ## Current program
 

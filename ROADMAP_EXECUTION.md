@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 10 — Stale-device cleanup assistant
+Current phase: Phase 11 — Legacy cleanup and service refactoring
 
-Current slice: Characterize stale-device evidence and define the read-only assessment boundary
+Current slice: Inventory legacy wrappers, reusable components and multi-host parity gaps
 
 ## Done
 
@@ -172,6 +172,27 @@ Current slice: Characterize stale-device evidence and define the read-only asses
 - Phase 9 full gates passed: Release build without warnings, 715 backend tests,
   465 frontend tests, 365 generated contracts current, production build, zero
   NPM findings, module dependency check and committed credential scans.
+- Phase 9 PR CI run `33028585766` passed for milestone commit `7e60401`.
+- A dedicated Device Cleanup module now composes request-cached hygiene facts,
+  stored Inventory timestamps and approved stored user/device observations.
+  It starts no Inventory, Health, Security or connectivity scan when opened.
+- Cleanup classification is conservative and explainable: an existing critical
+  stale-source finding produces `PotentialCleanup`; disabled, stale, orphan or
+  old-Inventory evidence produces `Review`. Recent evidence remains visible but
+  never silently overrides a conflicting source fact.
+- The guided workspace exposes AD state and replicated last activity,
+  Kaspersky and opsi last seen, Nessus scan age, WEC Inventory age, source
+  coverage and user relationship evidence. Ping/WinRM runs only from its
+  explicit button and a missing response is not treated as retirement proof.
+- Manual decision, reason, reviewed-source marks and connectivity state remain
+  frontend-session-only. A reason is required before an explicitly confirmed,
+  bounded Markdown export; no AD disable, move or delete action exists.
+- Stale Action Center items now deep-link into the selected cleanup assessment;
+  unrelated security, patch and vulnerability items keep their specialist
+  destinations.
+- Phase 10 full gates passed: Release build without warnings, 724 backend tests,
+  468 frontend tests, 376 generated contracts current, production build, zero
+  NPM findings, module dependency check and committed credential scans.
 
 ## Blocked
 
@@ -262,6 +283,12 @@ Current slice: Characterize stale-device evidence and define the read-only asses
   gzip). The real Release host navigated through `Ctrl+K` to Action Center and
   completed `actioncenter/listItems`. No Error/Fatal, credential, SID, UPN or
   account-name term was emitted in the smoke interval.
+- Phase 10 production build emits a 282.99 kB initial JavaScript chunk
+  (90.23 kB gzip); Device Cleanup is a separate 16.08 kB chunk (5.33 kB gzip).
+  The real Release host navigated through `Ctrl+K` to Device Cleanup and
+  completed `devicecleanup/listCandidates` without a connectivity probe. No
+  Error/Fatal, credential, SID, UPN or account-name term was emitted in the
+  smoke interval.
 - GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
   removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
@@ -270,9 +297,12 @@ Current slice: Characterize stale-device evidence and define the read-only asses
 
 ## Next
 
-1. Characterize stale-device evidence, source precedence and existing
-   client/user deep links before defining the cleanup assessment.
-2. Build a read-only guided assessment with explicit evidence gaps, a manual
-   session decision and a bounded export; do not add AD writes.
-3. Retry the Phase 0 manual package upload after GitHub recalculates storage
+1. Inventory the remaining standalone Inventory, Security and Diagnostics
+   wrappers, TargetSelector consumers and Employee Lifecycle routes against
+   their canonical replacements.
+2. Add bounded Inventory, Security and Health batch parity to Clients before
+   removing any replaced wrapper.
+3. Complete the planned ItHygieneService source-loading and Winget planning /
+   execution extractions only at characterized responsibility boundaries.
+4. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
