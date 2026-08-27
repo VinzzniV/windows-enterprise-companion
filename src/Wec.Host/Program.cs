@@ -32,6 +32,7 @@ using Wec.Infrastructure.Directory;
 using Wec.Modules.ActionCenter;
 using Wec.Modules.ActiveDirectory;
 using Wec.Modules.Diagnostics;
+using Wec.Modules.DeviceCleanup;
 using Wec.Modules.EmployeeLifecycle;
 using Wec.Modules.Inventory;
 using Wec.Modules.NetworkScan;
@@ -181,6 +182,12 @@ internal static partial class Program
             .ValidateOnStart();
 
         builder.Services
+            .AddOptions<DeviceCleanupOptions>()
+            .Bind(builder.Configuration.GetSection(DeviceCleanupOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        builder.Services
             .AddOptions<DiagnosticsOptions>()
             .Bind(builder.Configuration.GetSection(DiagnosticsOptions.SectionName))
             .ValidateDataAnnotations()
@@ -248,6 +255,7 @@ internal static partial class Program
             new ActiveDirectoryModule(),
             new UserManagementModule(),
             new ActionCenterModule(),
+            new DeviceCleanupModule(),
             new PatchManagementModule(),
             new PrintManagementModule(),
             new NetworkScanModule(),
