@@ -144,6 +144,7 @@ export interface AppInfoResponse {
   logDirectory: string;
   isElevated: boolean;
   maxParallelScans: number;
+  maxBatchHosts: number;
   machineName: string;
   runtimeProfile: string;
 }

@@ -35,6 +35,7 @@ const loadedState: AppInfoState = {
     logDirectory: 'C:\\private\\logs',
     isElevated: false,
     maxParallelScans: 4,
+    maxBatchHosts: 50,
     machineName: 'TESTHOST',
     runtimeProfile: 'Installed',
   },

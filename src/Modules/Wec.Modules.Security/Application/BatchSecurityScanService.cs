@@ -64,6 +64,13 @@ public sealed partial class BatchSecurityScanService
                 "A batch scan needs at least one host."));
         }
 
+        if (distinctHosts.Count > _remoteScanOptions.MaxBatchHosts)
+        {
+            return Result.Failure<BatchScanResult>(new Error(
+                ErrorCode.InvalidRequest,
+                $"A batch scan accepts at most {_remoteScanOptions.MaxBatchHosts} hosts."));
+        }
+
         DateTimeOffset startedAtUtc = _clock.UtcNow;
         foreach (string host in distinctHosts)
         {

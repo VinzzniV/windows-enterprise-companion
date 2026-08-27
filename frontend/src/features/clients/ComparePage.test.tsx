@@ -73,6 +73,7 @@ const appInfo: AppInfoResponse = {
   logDirectory: 'logs',
   isElevated: false,
   maxParallelScans: 4,
+  maxBatchHosts: 50,
   machineName: 'LOCAL-PC',
   runtimeProfile: 'Test',
 };

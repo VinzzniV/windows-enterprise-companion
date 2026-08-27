@@ -37,7 +37,7 @@ public sealed class BatchSecurityScanServiceTests
             .Do(call => { lock (_publishedEvents) { _publishedEvents.Add(call.Arg<BridgeEvent>()); } });
     }
 
-    private BatchSecurityScanService CreateService(int maxParallelScans = 4)
+    private BatchSecurityScanService CreateService(int maxParallelScans = 4, int maxBatchHosts = 50)
     {
         var clock = Substitute.For<IClock>();
         clock.UtcNow.Returns(Now);
@@ -46,7 +46,11 @@ public sealed class BatchSecurityScanServiceTests
         services.AddSingleton(_repository);
         services.AddSingleton<IEnumerable<ISecurityCheck>>([_check]);
         services.AddSingleton(clock);
-        services.AddSingleton(MsOptions.Create(new RemoteScanOptions { MaxParallelScans = maxParallelScans }));
+        services.AddSingleton(MsOptions.Create(new RemoteScanOptions
+        {
+            MaxParallelScans = maxParallelScans,
+            MaxBatchHosts = maxBatchHosts,
+        }));
         services.AddSingleton(NullLogger<SecurityScanService>.Instance);
         services.AddScoped<SecurityScanService>(provider => new SecurityScanService(
             provider.GetRequiredService<IEnumerable<ISecurityCheck>>(),
@@ -61,7 +65,11 @@ public sealed class BatchSecurityScanServiceTests
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _eventPublisher,
             clock,
-            MsOptions.Create(new RemoteScanOptions { MaxParallelScans = maxParallelScans }),
+            MsOptions.Create(new RemoteScanOptions
+            {
+                MaxParallelScans = maxParallelScans,
+                MaxBatchHosts = maxBatchHosts,
+            }),
             NullLogger<BatchSecurityScanService>.Instance);
     }
 
@@ -86,6 +94,17 @@ public sealed class BatchSecurityScanServiceTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+    }
+
+    [Fact]
+    public async Task HostCountAboveConfiguredBound_IsInvalidRequest()
+    {
+        Result<BatchScanResult> result = await CreateService(maxBatchHosts: 2).RunBatchScanAsync(
+            ["pc-01", "pc-02", "pc-03"], ScanCredentials.CurrentUser, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+        Assert.Contains("at most 2 hosts", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

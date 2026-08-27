@@ -18,6 +18,7 @@ public sealed record AppInfoResponse(
     string LogDirectory,
     bool IsElevated,
     int MaxParallelScans,
+    int MaxBatchHosts,
     string MachineName,
     string RuntimeProfile);
 
@@ -63,6 +64,7 @@ internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppI
             Path.GetFullPath(Environment.ExpandEnvironmentVariables(_loggingOptions.LogDirectory)),
             _privilegeContext.IsElevated,
             _remoteScanOptions.MaxParallelScans,
+            _remoteScanOptions.MaxBatchHosts,
             Environment.MachineName,
             _runtimeProfile.Name)));
     }
