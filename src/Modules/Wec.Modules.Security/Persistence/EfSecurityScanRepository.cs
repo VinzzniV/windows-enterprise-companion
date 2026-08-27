@@ -112,6 +112,23 @@ public sealed class EfSecurityScanRepository : ISecurityScanRepository
             .Select(scan => new StoredSecurityScanHost(scan.Host, scan.CompletedAtUtc))
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<SecurityScanResult>> ListLatestScansAsync(
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
+        List<SecurityScanRecord> records = await _dbContext.Set<SecurityScanRecord>()
+            .Where(scan => !_dbContext.Set<SecurityScanRecord>().Any(newer =>
+                newer.Host == scan.Host && newer.Id > scan.Id))
+            .OrderBy(scan => scan.Host)
+            .Take(limit)
+            .Include(scan => scan.Findings)
+            .Include(scan => scan.CheckResults)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+        return [.. records.Select(ToScanResult)];
+    }
+
     public async Task<IReadOnlyList<SecurityScanResult>> GetRecentScansAsync(
         string hostKey,
         int limit,

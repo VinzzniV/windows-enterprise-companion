@@ -62,3 +62,30 @@ public interface IHygieneActionEvidenceProvider
         HygieneActionEvidenceQuery query,
         CancellationToken cancellationToken);
 }
+
+public sealed record SecurityActionEvidence(
+    string SubjectKey,
+    string Host,
+    string FindingId,
+    string Title,
+    string Description,
+    string Severity,
+    string Category,
+    string Recommendation,
+    DateTimeOffset CapturedAtUtc,
+    DateTimeOffset ScanCompletedAtUtc,
+    ActionEvidenceAvailability Coverage,
+    string CoverageExplanation);
+
+public sealed record SecurityActionEvidenceSnapshot(
+    IReadOnlyList<SecurityActionEvidence> Findings,
+    int EvaluatedScanCount,
+    bool ScansTruncated);
+
+/// <summary>Stored-only aggregate Security projection for Action Center.</summary>
+public interface ISecurityActionEvidenceProvider
+{
+    Task<SecurityActionEvidenceSnapshot> LoadStoredAsync(
+        int maximumScans,
+        CancellationToken cancellationToken);
+}
