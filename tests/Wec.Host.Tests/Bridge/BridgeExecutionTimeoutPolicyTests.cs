@@ -20,6 +20,8 @@ public sealed class BridgeExecutionTimeoutPolicyTests
     [InlineData("employeelifecycle", "listHygieneDevices", 175)]
     [InlineData("employeelifecycle", "listClientWorkspace", 175)]
     [InlineData("security", "runBatchScan", 590)]
+    [InlineData("inventory", "runBatchScan", 590)]
+    [InlineData("diagnostics", "runBatchDiagnostics", 590)]
     [InlineData("logs", "recent", 25)]
     public void Resolve_ReturnsTheCentralActionLifetime(
         string module,

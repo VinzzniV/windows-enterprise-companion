@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type {
   BatchScanResult,
   FindingCategory,
@@ -240,12 +241,17 @@ export function FindingList({ findings }: { findings: SecurityFinding[] }) {
   );
 }
 
-export function BatchHostRow({ outcome }: { outcome: BatchScanResult['hosts'][number] }) {
+export function BatchHostRow({ outcome, hostHref }: {
+  outcome: BatchScanResult['hosts'][number];
+  hostHref?: string;
+}) {
   const findings = outcome.scan?.findings ?? null;
   return (
     <li className="rounded border border-slate-800 bg-slate-950/50 p-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="min-w-32 font-medium">{outcome.host}</span>
+        {hostHref
+          ? <Link className="min-w-32 font-medium text-accent-300 hover:text-accent-200" to={hostHref}>{outcome.host}</Link>
+          : <span className="min-w-32 font-medium">{outcome.host}</span>}
         <HostStatusBadge status={outcome.status} />
         {findings && (
           <span className="flex items-center gap-1">

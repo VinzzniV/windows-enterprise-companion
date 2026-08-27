@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type {
+  AppInfoResponse,
   ClientWorkspaceListItem,
   ClientWorkspacePage,
   HygieneDevice,
@@ -35,6 +36,7 @@ import {
   sourcePresenceStatus,
   type ClientConnectivityState,
 } from './clientStatus';
+import { ClientBulkActions } from './ClientBulkActions';
 
 type ClientSourceFilter = 'ALL' | 'AD' | 'KASPERSKY' | 'OPSI' | 'NESSUS' | 'SCANNED' | 'SAVED';
 type GroupMode = 'none' | 'os' | 'site';
@@ -116,6 +118,7 @@ interface ClientsViewState {
   pageSize: number;
   sort: DataTableSort;
   probeStates: Record<string, ClientProbeViewState>;
+  selectedHosts: string[];
   scrollY: number;
 }
 
@@ -160,6 +163,21 @@ export function ClientsPage() {
   const [probeStates, setProbeStates] = useState<Record<string, ClientProbeViewState>>(() => initialView.current?.probeStates ?? {});
   const [probing, setProbing] = useState(false);
   const [probeError, setProbeError] = useState<ErrorPresentation | null>(null);
+  const [selectedHosts, setSelectedHosts] = useState<string[]>(() => initialView.current?.selectedHosts ?? []);
+  const [maxBatchHosts, setMaxBatchHosts] = useState<number | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void invoke<AppInfoResponse>('system', 'getAppInfo')
+      .then((appInfo) => {
+        if (active) setMaxBatchHosts(appInfo.maxBatchHosts);
+      })
+      .catch(() => {
+        if (active) setMaxBatchHosts(null);
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const currentRequest = ++requestId.current;
@@ -257,6 +275,25 @@ export function ClientsPage() {
   const columns = useMemo<DataColumn<ClientWorkspaceListItem>[]>(() => {
     const sources = workspace?.sources;
     const deviceColumns: DataColumn<ClientWorkspaceListItem>[] = [
+      { id: 'select', header: 'Select', cell: (client) => {
+        const key = client.host.toUpperCase();
+        const checked = selectedHosts.some((host) => host.toUpperCase() === key);
+        const limitReached = maxBatchHosts !== null && selectedHosts.length >= maxBatchHosts;
+        return <input
+          type="checkbox"
+          aria-label={`Select ${client.name} for bulk scan`}
+          checked={checked}
+          disabled={batchRunning || maxBatchHosts === null || (!checked && limitReached)}
+          onClick={(event) => event.stopPropagation()}
+          onChange={() => setSelectedHosts((current) => {
+            const existing = current.some((host) => host.toUpperCase() === key);
+            if (existing) return current.filter((host) => host.toUpperCase() !== key);
+            if (maxBatchHosts === null || current.length >= maxBatchHosts) return current;
+            return [...current, client.host];
+          })}
+          className="h-4 w-4 cursor-pointer accent-accent-500 disabled:cursor-not-allowed"
+        />;
+      } },
       { id: 'device', header: 'Device', sortable: true, cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
         {client.os && <span className="text-xs text-muted">{client.os}</span>}
         {client.description && <span className="text-xs text-slate-400">{client.description}</span>}
@@ -278,7 +315,7 @@ export function ClientsPage() {
       { id: 'overall', header: 'Overall', sortable: true, cell: (client) => <ClientSemanticStatus {...hygieneAssessmentStatus(client.environment?.assessment.status ?? null)} /> },
     ];
     return deviceColumns;
-  }, [groupMode, probeStates, workspace?.sources]);
+  }, [batchRunning, maxBatchHosts, probeStates, selectedHosts, workspace?.sources]);
 
   const resetPage = () => setPage(1);
   const applyPostureFilter = (value: ClientPostureFilter) => {
@@ -298,12 +335,27 @@ export function ClientsPage() {
   };
   const openClient = (client: ClientWorkspaceListItem) => {
     const viewState: ClientsViewState = {
-      search, groupMode, sourceFilter, page, pageSize, sort, probeStates, scrollY: window.scrollY,
+      search, groupMode, sourceFilter, page, pageSize, sort, probeStates, selectedHosts, scrollY: window.scrollY,
     };
     navigate(`${location.pathname}${location.search}`, { replace: true, state: viewState });
     navigate(`/clients/${encodeURIComponent(client.host)}`, { state: viewState });
   };
   const retry = () => { setCancelled(false); setPage(1); setRefreshRevision((current) => current + 1); };
+  const selectVisibleHosts = () => {
+    if (maxBatchHosts === null || batchRunning) return;
+    setSelectedHosts((current) => {
+      const next = [...current];
+      const selectedKeys = new Set(current.map((host) => host.toUpperCase()));
+      for (const client of rows) {
+        const key = client.host.toUpperCase();
+        if (!selectedKeys.has(key) && next.length < maxBatchHosts) {
+          next.push(client.host);
+          selectedKeys.add(key);
+        }
+      }
+      return next;
+    });
+  };
 
   return <div className="flex flex-col gap-4">
     <PageHeader title="Clients" subtitle="Canonical device inventory and fleet posture across AD, Kaspersky, opsi, Nessus and WEC scans">
@@ -338,7 +390,11 @@ export function ClientsPage() {
       </div>
       <p className="mt-3 text-xs text-muted">Assessed {new Date(workspace.assessedAtUtc).toLocaleString()}{workspace.domainName ? ` · AD domain ${workspace.domainName}` : ''}. Read-only posture; no remediation starts from this view.</p>
     </Card>}
-    <Toolbar><Input type="search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} placeholder="Filter by device, OS or finding" aria-label="Filter clients" className="w-64" />
+    <Toolbar actions={<>
+      <span className="text-xs tabular-nums text-muted">{selectedHosts.length}/{maxBatchHosts ?? '—'} selected</span>
+      <Button variant="ghost" onClick={selectVisibleHosts} disabled={batchRunning || maxBatchHosts === null || !rows.length || selectedHosts.length >= maxBatchHosts}>Select page</Button>
+      <Button variant="ghost" onClick={() => setSelectedHosts([])} disabled={batchRunning || !selectedHosts.length}>Clear selection</Button>
+    </>}><Input type="search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} placeholder="Filter by device, OS or finding" aria-label="Filter clients" className="w-64" />
       <Select fullWidth={false} value={postureFilter} onChange={(event) => applyPostureFilter(event.target.value as ClientPostureFilter)} aria-label="Filter clients by posture">
         {clientPostureFilters.map((value) => <option key={value} value={value}>{clientPostureLabels[value]}</option>)}
       </Select>
@@ -348,6 +404,12 @@ export function ClientsPage() {
       <Select fullWidth={false} value={groupMode} onChange={(event) => { setGroupMode(event.target.value as GroupMode); resetPage(); }} aria-label="Group clients by">
         <option value="none">No grouping</option><option value="os">Group by OS</option><option value="site">Group by site</option>
       </Select></Toolbar>
+    <ClientBulkActions
+      selectedHosts={selectedHosts}
+      maxBatchHosts={maxBatchHosts}
+      onRunningChange={setBatchRunning}
+      onCompleted={() => setRefreshRevision((current) => current + 1)}
+    />
     <p className="text-sm text-slate-400">{workspace?.total ?? 0} devices · {workspace?.scannedTotal ?? 0} scanned{workspace && workspace.total !== workspace.snapshotTotal ? ` · ${workspace.snapshotTotal} total` : ''}</p>
     {loading && showEnvironmentProgress && <HygieneLoadStatus progress={hygieneOperation.progress} elapsedSeconds={hygieneOperation.elapsedSeconds} onCancel={() => { setCancelled(true); activeLoad.current?.cancel(); }} />}
     {cancelled && !loading && <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-4"><p className="text-sm text-slate-300">Environment load cancelled. The previous successful data remains unchanged.</p><Button variant="secondary" onClick={retry}>Retry</Button></div>}
@@ -358,7 +420,7 @@ export function ClientsPage() {
     />}
     {loading && !workspace && !showEnvironmentProgress ? <Spinner label="Loading environment inventory …" /> : !rows.length && !loading ? <EmptyState title="No clients" message="No device matches the current filters." />
       : <DataTable columns={columns} rows={rows} getRowKey={(client) => client.key} groupBy={rowGroup}
-        onRowClick={openClient} stickyHeader emptyMessage="No clients."
+        onRowClick={batchRunning ? undefined : openClient} stickyHeader emptyMessage="No clients."
         loading={loading} sort={sort} onSortChange={(value) => { setSort(value); resetPage(); }}
         pagination={{ page: workspace?.page ?? page, pageSize: workspace?.pageSize ?? pageSize, total: workspace?.groupCount ?? workspace?.total ?? 0, itemLabel: groupMode === 'none' ? undefined : 'groups', onPageChange: setPage, onPageSizeChange: (value) => { setPageSize(value); resetPage(); } }} />}
   </div>;
