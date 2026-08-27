@@ -60,3 +60,39 @@ public interface IDeviceCleanupEvidenceProvider
         DeviceCleanupEvidenceQuery query,
         CancellationToken cancellationToken);
 }
+
+public enum DeviceCleanupUserEvidenceAvailability
+{
+    Available = 0,
+    Partial,
+    NotCaptured,
+    Unavailable,
+    Truncated,
+}
+
+public sealed record DeviceCleanupUserObservation(
+    string RelationshipType,
+    string Sid,
+    string? AccountDisplay,
+    DateTimeOffset ObservedAtUtc,
+    DateTimeOffset? ProfileLastUseAtUtc,
+    string Confidence,
+    string Explanation);
+
+public sealed record DeviceCleanupInventoryEvidence(
+    string Host,
+    DateTimeOffset CapturedAtUtc,
+    DeviceCleanupUserEvidenceAvailability UserEvidenceAvailability,
+    string UserEvidenceExplanation,
+    IReadOnlyList<DeviceCleanupUserObservation> UserObservations);
+
+/// <summary>
+/// Latest stored Inventory and approved user/device observations for one
+/// cleanup subject. Reading this contract never starts an Inventory scan.
+/// </summary>
+public interface IDeviceCleanupInventoryEvidenceProvider
+{
+    Task<DeviceCleanupInventoryEvidence?> GetLatestAsync(
+        string host,
+        CancellationToken cancellationToken);
+}
