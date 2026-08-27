@@ -2,7 +2,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HardwareInfoResult } from '../../shared/api-types';
-import { formatLinkSpeed, formatSnapshotAge, HardwareInfoPage } from './HardwareInfoPage';
+import { HardwareInfoPage } from './HardwareInfoPage';
+import { formatLinkSpeed, formatSnapshotAge } from './InventorySnapshot';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 

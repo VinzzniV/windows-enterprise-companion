@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '../../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import type { GetHardwareInfoRequest, HardwareInfoResult, TargetRequest } from '../../../shared/api-types';
-import { formatSnapshotAge, SnapshotGrid } from '../../inventory/HardwareInfoPage';
+import { formatSnapshotAge, SnapshotGrid } from '../../inventory/InventorySnapshot';
 import { Button } from '../../../shared/ui/Button';
 import { Spinner } from '../../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';
