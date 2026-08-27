@@ -7,7 +7,7 @@ import {
   FindingList,
   ResultContext,
   SeveritySummary,
-} from '../../security/SecurityPage';
+} from '../../security/SecurityResults';
 import { ScanHistory } from '../../security/ScanHistory';
 import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';

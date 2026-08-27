@@ -11,9 +11,9 @@ import { semanticStatusPresentation } from '../../shared/ui/SemanticStatusBadge'
 import {
   FindingCard,
   ResultContext,
-  SecurityPage,
   securityCoverageSemanticStatus,
-} from './SecurityPage';
+} from './SecurityResults';
+import { SecurityPage } from './SecurityPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
