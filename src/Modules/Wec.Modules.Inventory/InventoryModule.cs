@@ -17,6 +17,7 @@ public sealed class InventoryModule : IModule
         services.AddScoped<RemoteInstalledSoftwareReader>();
         services.AddScoped<DeviceUserEvidenceCollector>();
         services.AddScoped<HardwareInfoService>();
+        services.AddScoped<BatchInventoryService>();
         services.AddScoped<DiskEncryptionService>();
         services.AddScoped<IInventoryReportDataProvider, InventoryReportDataProvider>();
         services.AddScoped<IInventoryClientSnapshotProvider, InventoryClientSnapshotProvider>();
@@ -24,6 +25,7 @@ public sealed class InventoryModule : IModule
         services.AddScoped<IUserDeviceRelationshipProvider, InventoryUserDeviceRelationshipProvider>();
         services.AddScoped<IDeviceCleanupInventoryEvidenceProvider, DeviceCleanupInventoryEvidenceProvider>();
         services.AddScoped<IActionHandler, GetHardwareInfoHandler>();
+        services.AddScoped<IActionHandler, RunBatchInventoryHandler>();
         services.AddScoped<IActionHandler, GetDiskEncryptionStatusHandler>();
         services.AddScoped<IActionHandler, ListInventoryHostsHandler>();
         services.AddScoped<IActionHandler, DeleteHostSnapshotHandler>();

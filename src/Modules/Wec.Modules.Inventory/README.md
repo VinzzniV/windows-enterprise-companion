@@ -14,6 +14,7 @@ latest host snapshot, not a separate activity history.
 | Action | Payload | Result | Notes |
 |---|---|---|---|
 | `inventory/getHardwareInfo` | `{ forceRefresh?: boolean, target?: TargetRequest, cacheOnly?: boolean }` | `HardwareInfoResult` (host, snapshot, `capturedAtUtc`, `fromCache`) | Snapshot stored in SQLite **per host**; TTL via `Wec:Inventory:CacheTtl`; `cacheOnly` serves the stored snapshot without touching the network (`NOT_FOUND` if none) |
+| `inventory/runBatchScan` | `{ hosts, userName?, domain?, password? }` | `InventoryBatchResult` with one typed outcome per host | Explicit remote Inventory capture; bounded by `Wec:Remote:MaxBatchHosts` and `MaxParallelScans`; emits `inventory/batchScanProgress`; cancellation stops queued and active work |
 | `inventory/getDiskEncryptionStatus` | `{ target?: TargetRequest }` | `DiskEncryptionStatus` (host, volumes) | Locally requires elevation (`ACCESS_DENIED` + `requiredPrivilege`, ADR 0002); remote rights come from the connection credentials |
 | `inventory/listHosts` | `{}` | `{ hosts: [{ host, capturedAtUtc }] }` | Stored snapshots — the UI restores scanned computers across page switches |
 | `inventory/deleteHostSnapshot` | `{ host }` | `{ host }` | Removes the stored snapshot for one host |
@@ -27,7 +28,7 @@ machine as the current user.
   `DiskDrive`, `OperatingSystemInfo`, `PhysicalNetworkAdapter`, `GpuInfo`,
   `MonitorInfo`, `InstalledSoftwareEntry`, `EncryptableVolume`)
 - `Application/` — `HardwareInfoService` (per-host cache lookup → CIM
-  queries → persist), `DiskEncryptionService`, `InstalledSoftwareReader`
+  queries → persist), bounded `BatchInventoryService`, `DiskEncryptionService`, `InstalledSoftwareReader`
   (registry uninstall keys)
 - `Handlers/` — `IActionHandler` implementations, thin delegation to services
 - `Persistence/` — `HardwareSnapshotRecord` + EF configuration
@@ -71,7 +72,11 @@ machine as the current user.
     "CacheTtl": "00:15:00",
     "MaxUserProfiles": 100
   },
-  "Remote": { "ConnectionTimeout": "00:00:30" }
+  "Remote": {
+    "ConnectionTimeout": "00:00:30",
+    "MaxParallelScans": 4,
+    "MaxBatchHosts": 50
+  }
 }
 ```
 

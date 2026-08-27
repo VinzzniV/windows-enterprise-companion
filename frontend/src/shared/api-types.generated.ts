@@ -1220,6 +1220,11 @@ export interface HardwareInfoResult {
   fromCache: boolean;
 }
 
+export interface InventoryBatchProgress {
+  host: string;
+  status: InventoryBatchHostStatus;
+}
+
 export interface CpuInfo {
   name: string;
   physicalCores: number;
@@ -1278,6 +1283,21 @@ export interface InteractiveDomainUserEvidence {
   sid: string;
   domain: string;
   accountName: string;
+}
+
+export interface InventoryBatchHostOutcome {
+  host: string;
+  status: InventoryBatchHostStatus;
+  inventory: HardwareInfoResult | null;
+  error: ScanError | null;
+}
+
+export type InventoryBatchHostStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export interface InventoryBatchResult {
+  startedAtUtc: string;
+  completedAtUtc: string;
+  hosts: InventoryBatchHostOutcome[];
 }
 
 export interface LocalUserProfileEvidence {
@@ -1351,6 +1371,13 @@ export interface ListInventoryHostsRequest {
 
 export interface ListInventoryHostsResult {
   hosts: StoredInventoryHost[];
+}
+
+export interface RunBatchInventoryRequest {
+  hosts?: string[] | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
 }
 
 export interface StoredInventoryHost {
