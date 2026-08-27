@@ -112,10 +112,13 @@ internal sealed class ActionCenterService(
             : string.Equals(finding.Severity, "Critical", StringComparison.Ordinal)
                 ? ActionCenterSeverity.High
                 : ActionCenterSeverity.Warning;
+        bool cleanupEvidence = IsCleanupEvidence(finding.FindingCode);
         bool nessus = finding.Source == "Nessus";
-        string href = nessus
-            ? $"/vulnerabilities?tab=findings&asset={Uri.EscapeDataString(finding.Host)}"
-            : $"/clients/{Uri.EscapeDataString(finding.Host)}";
+        string href = cleanupEvidence
+            ? $"/cleanup?host={Uri.EscapeDataString(finding.Host)}"
+            : nessus
+                ? $"/vulnerabilities?tab=findings&asset={Uri.EscapeDataString(finding.Host)}"
+                : $"/clients/{Uri.EscapeDataString(finding.Host)}";
         return new ActionCenterWorkItem(
             $"hygiene:{finding.SubjectKey}:{finding.FindingCode}",
             "Device",
@@ -161,8 +164,8 @@ internal sealed class ActionCenterService(
             ActionEvidenceAvailability.Available,
             "High",
             "The latest persisted Inventory timestamp was read without starting a scan.",
-            "Open Client 360 and explicitly refresh Inventory if current evidence is needed.",
-            $"/clients/{Uri.EscapeDataString(snapshot.Host)}?section=inventory"));
+            "Open Device Cleanup to compare this timestamp with the other retained source facts.",
+            $"/cleanup?host={Uri.EscapeDataString(snapshot.Host)}"));
 
     private static ActionCenterWorkItem FromSecurity(
         SecurityActionEvidence finding,
@@ -275,14 +278,18 @@ internal sealed class ActionCenterService(
 
     private static string RecommendedAction(string code) => code switch
     {
+        "StaleAd" or "StaleKaspersky" or "StaleOpsi" or "StaleNessus" or "OrphanKaspersky" or "OrphanOpsi" =>
+            "Open Device Cleanup and review all retained source facts before making a manual decision.",
         "OutdatedAgent" or "OutdatedKes" => "Open Client 360 and Patch Management to plan the approved package update.",
-        "MissingNessus" or "StaleNessus" or "NessusCriticalVulnerabilities" or "NessusHighVulnerabilities" =>
+        "MissingNessus" or "NessusCriticalVulnerabilities" or "NessusHighVulnerabilities" =>
             "Open Vulnerabilities and review the matching stored Nessus evidence.",
-        "MissingOpsi" or "OrphanOpsi" or "StaleOpsi" =>
+        "MissingOpsi" =>
             "Open Client 360 and verify the opsi registration before changing either system.",
-        "MissingKaspersky" or "OrphanKaspersky" or "StaleKaspersky" or "MissingKasperskyAgent" or "MissingKes" =>
+        "MissingKaspersky" or "MissingKasperskyAgent" or "MissingKes" =>
             "Open Client 360 and verify the Kaspersky registration and source freshness.",
-        "StaleAd" => "Open Client 360 and verify the directory object and replicated last-logon evidence.",
         _ => "Open Client 360 and review the source evidence.",
     };
+
+    private static bool IsCleanupEvidence(string code) => code is
+        "StaleAd" or "StaleKaspersky" or "StaleOpsi" or "StaleNessus" or "OrphanKaspersky" or "OrphanOpsi";
 }

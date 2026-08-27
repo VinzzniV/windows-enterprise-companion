@@ -37,9 +37,12 @@ public sealed class ActionCenterServiceTests
             item.Id == "security:PC-SEC:secure-boot"
             && item.Href == "/clients/PC-SEC?section=security");
         Assert.Contains(result.Value.Items, item =>
+            item.Id == "hygiene:PC-02:StaleAd"
+            && item.Href == "/cleanup?host=PC-02");
+        Assert.Contains(result.Value.Items, item =>
             item.Id == "inventory:PC-OLD:stale"
             && item.EvidenceAgeDays == 31
-            && item.Href == "/clients/PC-OLD?section=inventory");
+            && item.Href == "/cleanup?host=PC-OLD");
         Assert.True(result.Value.ItemsTruncated);
         Assert.Equal(ActionEvidenceAvailability.Truncated,
             result.Value.Sources.Single(source => source.Source == "WEC Security").Availability);
