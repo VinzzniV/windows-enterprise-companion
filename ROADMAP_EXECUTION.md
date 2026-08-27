@@ -2,9 +2,9 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Phase 8 — Read-only Leaver review
+Current phase: Phase 9 — Action Center
 
-Current slice: Define the bounded Leaver assessment and export projection
+Current slice: Record the computed read-model decision and characterize source assessment boundaries
 
 ## Done
 
@@ -145,6 +145,15 @@ Current slice: Define the bounded Leaver assessment and export projection
   457 frontend tests, 352 generated contracts current, production build, zero
   NPM findings, module dependency check and production credential scan. PR CI
   run `33025884397` passed for milestone commit `c5efe14`.
+- User 360 now has a deliberately selected read-only Leaver review that exposes
+  account state, replicated activity, direct and SID-allowlisted privileged
+  groups, device evidence, source coverage and unresolved physical return.
+- Review marks live only in the current frontend session. The bounded Markdown
+  export requires an explicit save-dialog confirmation, persists no case state
+  and carries explicit evidence boundaries rather than completion claims.
+- Phase 8 full gates passed: Release build without warnings, 704 backend tests,
+  462 frontend tests, 354 generated contracts current, production build, zero
+  NPM findings, module dependency check and production credential scan.
 
 ## Blocked
 
@@ -226,6 +235,10 @@ Current slice: Define the bounded Leaver assessment and export projection
   `Ctrl+K` to Users. The home profile showed the explicit no-domain state; the
   smoke log contained no Error/Fatal, credential, SID, UPN or account-name
   terms.
+- Phase 8 production build emits a 281.85 kB initial JavaScript chunk
+  (89.87 kB gzip); User 360 remains route-split. The real Release host loaded
+  local assets and navigated through `Ctrl+K` to Users. No Error/Fatal,
+  credential, SID, UPN or account-name term was emitted in the smoke interval.
 - GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
   removed and the two preserved artifacts use 132.24 MiB.
 - Local Inno Setup compiler is unavailable; installer verification relies on
@@ -234,10 +247,11 @@ Current slice: Define the bounded Leaver assessment and export projection
 
 ## Next
 
-1. Define a read-only Leaver assessment for one deliberately selected User 360
-   identity without introducing persisted workflow state.
-2. Present account, activity, group/access and linked-device return evidence
-   with explicit missing and partial coverage.
-3. Export a bounded review checklist without write actions or credentials.
+1. Record ADR 0020 for the computed, non-persisted Action Center read model and
+   its narrow Core projection boundaries.
+2. Characterize the existing AD/Kaspersky/opsi/Nessus, Inventory and Security
+   source assessment semantics before extracting reusable projections.
+3. Build the bounded read-only Action Center work list before adding its
+   optional context map.
 4. Retry the Phase 0 manual package upload after GitHub recalculates storage
    usage.
