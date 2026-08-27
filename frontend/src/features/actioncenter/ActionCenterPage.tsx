@@ -16,6 +16,7 @@ import { presentError, type ErrorPresentation } from '../../shared/bridge/errorP
 import { HygieneLoadStatus } from '../../shared/environment/HygieneLoadStatus';
 import { useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
 import { useHygieneOperation } from '../../shared/environment/useHygieneOperation';
+import { RelationshipMap } from '../../shared/relationships/RelationshipMap';
 import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
 import { DataTable, type DataColumn, type DataTableSort } from '../../shared/ui/DataTable';
@@ -25,6 +26,7 @@ import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
 import { ErrorState } from '../../shared/ui/States';
 import { Toolbar } from '../../shared/ui/Toolbar';
+import { actionCenterRelationshipModel } from './actionCenterRelationships';
 
 interface ActionCenterFilters {
   search: string;
@@ -91,6 +93,7 @@ export function ActionCenterPage() {
   const [result, setResult] = useState<ActionCenterPageResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorPresentation | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ActionCenterWorkItem | null>(null);
 
   useEffect(() => {
     const currentRequest = ++requestId.current;
@@ -114,7 +117,10 @@ export function ActionCenterPage() {
     });
     activeLoad.current = invocation;
     void invocation.promise.then((value) => {
-      if (requestId.current === currentRequest) setResult(value);
+      if (requestId.current === currentRequest) {
+        setResult(value);
+        setSelectedItem((current) => current && value.items.some((item) => item.id === current.id) ? current : null);
+      }
     }).catch((caught: unknown) => {
       if (requestId.current === currentRequest && !(caught instanceof BridgeCancelledError)) {
         setError(presentError(caught, {
@@ -184,9 +190,14 @@ export function ActionCenterPage() {
       header: 'Next action',
       cell: (item) => <div className="min-w-64 max-w-lg">
         <p className="text-xs text-slate-300">{item.recommendedAction}</p>
-        <Link className="mt-1 inline-block text-sm font-medium text-accent-300 hover:text-accent-200" to={item.href}>
-          Inspect evidence →
-        </Link>
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <Link className="text-sm font-medium text-accent-300 hover:text-accent-200" to={item.href}>
+            Inspect evidence →
+          </Link>
+          <button type="button" className="text-xs text-slate-400 hover:text-slate-200" onClick={() => setSelectedItem(item)}>
+            Show context
+          </button>
+        </div>
       </div>,
     },
   ], []);
@@ -322,6 +333,10 @@ export function ActionCenterPage() {
           onPageSizeChange: (value) => { setPage(1); setPageSize(value); },
         }}
       />
+      {selectedItem && <RelationshipMap
+        model={actionCenterRelationshipModel(selectedItem)}
+        actions={<Button variant="ghost" onClick={() => setSelectedItem(null)}>Close context</Button>}
+      />}
     </>}
   </div>;
 }

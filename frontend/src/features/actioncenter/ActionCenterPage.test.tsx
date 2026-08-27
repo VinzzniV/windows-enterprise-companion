@@ -89,6 +89,14 @@ describe('ActionCenterPage', () => {
     expect(screen.getByText(/reached a configured limit/)).toBeDefined();
     expect(screen.getByText('Read-only')).toBeDefined();
     expect(screen.queryByRole('button', { name: /remediate|resolve|assign/i })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show context' }));
+    expect(screen.getByRole('heading', { name: 'Action context · PC-01' })).toBeDefined();
+    expect(screen.getByText('Reported by')).toBeDefined();
+    expect(screen.getByText(/high confidence/)).toBeDefined();
+    expect(screen.queryByText(/User:/)).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Close context' }));
+    expect(screen.queryByRole('heading', { name: 'Action context · PC-01' })).toBeNull();
   });
 
   it('applies filters, server sorting and explicit force refresh without querying each keystroke', async () => {
