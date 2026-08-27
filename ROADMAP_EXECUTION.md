@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Roadmap completion audit and release verification
 
-Current slice: Phase 11 milestone CI and deferred Phase 0 artifact upload
+Current slice: Final branch CI and deferred Phase 0 artifact upload
 
 ## Done
 
@@ -212,14 +212,37 @@ Current slice: Phase 11 milestone CI and deferred Phase 0 artifact upload
   tests, 458 frontend tests, 386 generated contracts current, production
   build, zero NPM findings, module dependency check and committed credential
   scan.
+- Phase 11 milestone PR CI run `33033955651` passed for commit `42aef05`.
+- The final roadmap audit found one cross-phase omission: Client 360 did not
+  yet surface the approved stored user/device evidence. Commit `59dd9dd`
+  closes that gap with a narrow Inventory provider, explicit availability,
+  source, observation time and confidence, without an AD query or ownership
+  claim.
+- The requirement-by-requirement completion audit confirms phases 0–11 in the
+  current repository. The frozen Employee Lifecycle backend source and its
+  five historical tables remain deliberately preserved under ADR 0019; no
+  destructive migration was introduced.
+- Final local gates on `59dd9dd` passed: Release build with zero warnings and
+  errors, 733 backend tests, 459 frontend tests, 388 generated contracts,
+  production build, zero NPM vulnerabilities, modular-monolith dependency
+  rules and the committed production secret-literal scan.
+- The final Release desktop smoke loaded Dashboard, opened the keyboard-driven
+  global search with `Ctrl+K`, navigated to the lazy Clients workspace and
+  showed all company providers as not configured. Navigation and selection
+  triggered no scan. The smoke interval contained no Error/Fatal entry,
+  credential payload field, SID, UPN or account payload field.
 
 ## Blocked
 
 - Phase 0 artifact upload is waiting for GitHub's storage-usage recalculation.
-  A later release-free packaging run `33023537176` again passed audit, build,
-  contracts, tests, publish, host smoke, ZIP validation, installer and
-  checksums, then failed only at ZIP artifact upload while the quota remained
-  unavailable. No release gate was weakened.
+  Release-free packaging run `33034406276` passed audit, build, contracts,
+  tests, self-contained publish, published-host smoke, ZIP validation, Inno
+  Setup installer and checksum verification, then failed only at ZIP artifact
+  upload while the quota remained unavailable. All 84 obsolete Actions
+  artifacts (about 5.27 GiB) have now been removed and the repository reports
+  zero Actions artifacts. GitHub documents a 6–12 hour delay before usage is
+  recalculated. Release `v0.1.0` and its two published assets remain unchanged;
+  no release gate was weakened.
 
 ## Deferred release gates
 
@@ -312,17 +335,24 @@ Current slice: Phase 11 milestone CI and deferred Phase 0 artifact upload
   (90.27 kB gzip). The real Release host loaded Dashboard and the Clients
   workbench from local assets; the home profile performed no remote scan.
   The smoke log contained no Error/Fatal, credential or user-payload terms.
-- GitHub CLI is authenticated; 82 obsolete Actions artifacts (5.14 GiB) were
-  removed and the two preserved artifacts use 132.24 MiB.
+- The post-audit production build emits a 283.10 kB initial JavaScript chunk
+  (90.26 kB gzip); Client Detail remains split at 51.37 kB (13.55 kB gzip).
+  Final suites contain 733 backend and 459 frontend tests, and 388 generated
+  bridge types are current.
+- GitHub CLI is authenticated; all 84 obsolete Actions artifacts (about
+  5.27 GiB) were removed. The repository now reports zero Actions artifacts,
+  while the two `v0.1.0` GitHub Release assets remain published and unchanged.
 - Local Inno Setup compiler is unavailable; installer verification relies on
   GitHub CI.
 - `%APPDATA%\Wec\usersettings.json` is not present on this host.
 
 ## Next
 
-1. Push the Phase 11 milestone and require green pull-request CI.
-2. Retry the Phase 0 release-free packaging workflow and verify ZIP, installer,
-   checksums and both artifact uploads without creating a tag or release.
-3. Audit every roadmap phase and explicit Definition of Done against current
-   repository and CI evidence; retain company-environment and release approval
-   gates as explicit external follow-up rather than claiming local coverage.
+1. Commit and push the final audit correction and documentation, then require
+   green pull-request CI on that exact head.
+2. After GitHub recalculates storage usage, retry the release-free packaging
+   workflow on the final head and verify ZIP, installer, checksums and both
+   artifact uploads without creating a tag or release.
+3. When the repository merge gates are green, mark Draft PR #28 ready and
+   merge it under D-006. Do not create a version tag, publish an installer or
+   create a GitHub Release without explicit user approval.

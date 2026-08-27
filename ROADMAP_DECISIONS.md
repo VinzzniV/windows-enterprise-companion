@@ -1,8 +1,10 @@
 # Windows Enterprise Companion — Roadmap Decisions
 
-Status: confirmed preflight decisions, implementation not started
+Status: confirmed decisions applied to the roadmap implementation
 
 Date: 2026-08-26
+
+Implementation application verified: 2026-08-27
 
 This file is the authoritative compact decision register for
 `docs/ultimate-admin-tool-roadmap.md`. Repository architecture documents and
