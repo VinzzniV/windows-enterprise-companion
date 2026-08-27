@@ -46,3 +46,39 @@ public interface IUserDeviceRelationshipProvider
         string directorySid,
         CancellationToken cancellationToken);
 }
+
+public enum ClientUserEvidenceAvailability
+{
+    Available = 0,
+    Partial,
+    NotCaptured,
+    Unavailable,
+    Truncated,
+}
+
+public sealed record ClientObservedUserEvidence(
+    string DirectorySid,
+    string AccountDisplay,
+    UserDeviceRelationshipType RelationshipType,
+    string Source,
+    DateTimeOffset ObservedAtUtc,
+    UserDeviceRelationshipConfidence Confidence,
+    string Explanation);
+
+public sealed record ClientUserRelationshipSnapshot(
+    DateTimeOffset InventoryCapturedAtUtc,
+    ClientUserEvidenceAvailability Availability,
+    string CoverageExplanation,
+    int UnresolvedProfileCount,
+    IReadOnlyList<ClientObservedUserEvidence> Observations);
+
+/// <summary>
+/// Latest stored, host-oriented Inventory evidence for Client 360. Reading it
+/// starts no scan and never turns an observation into an ownership claim.
+/// </summary>
+public interface IClientUserRelationshipProvider
+{
+    Task<ClientUserRelationshipSnapshot?> GetLatestAsync(
+        string? host,
+        CancellationToken cancellationToken);
+}

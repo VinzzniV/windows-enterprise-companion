@@ -7,6 +7,7 @@ import type {
   ClientOverviewSourceMetadata,
   ClientSecurityOverview,
   ClientSoftwareOverview,
+  ClientUserOverview,
   HygieneDevice,
   InventorySourceState,
 } from '../../../shared/api-types';
@@ -234,6 +235,40 @@ function SecuritySummary({ host, security, metadata }: {
   </Card>;
 }
 
+function relationshipLabel(valueToFormat: string): string {
+  return valueToFormat.toLocaleLowerCase().replaceAll('_', ' ').replace(/^./, (value) => value.toLocaleUpperCase());
+}
+
+function UserSummary({ host, users, metadata }: {
+  host: string;
+  users: ClientUserOverview | null;
+  metadata: ClientOverviewSourceMetadata;
+}) {
+  return <Card title="Linked users">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
+        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
+      </div>
+      <DetailLink host={host} metadata={metadata}>Open Inventory evidence</DetailLink>
+    </div>
+    {users ? <>
+      {users.observations.length > 0 ? <ul className="space-y-2" aria-label="Observed user relationships">
+        {users.observations.map((observation) => <li key={`${observation.directorySid}:${observation.relationshipType}`} className="rounded border border-slate-800 bg-slate-950/30 px-3 py-2 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-medium text-slate-200">{observation.accountDisplay}</span>
+            <span className="text-xs text-slate-400">{observation.confidence.toLocaleLowerCase()} confidence</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-400">{relationshipLabel(observation.relationshipType)} · observed {date(observation.observedAtUtc)} · {observation.source}</p>
+          <p className="mt-1 text-xs text-slate-500">{observation.explanation}</p>
+        </li>)}
+      </ul> : <p className="text-sm text-slate-400">The latest Inventory scan contains no named interactive-user observation.</p>}
+      {users.unresolvedProfileCount > 0 && <p className="mt-3 text-xs text-slate-400">{users.unresolvedProfileCount} additional local profile{users.unresolvedProfileCount === 1 ? '' : 's'} cannot be linked to a displayed directory identity from stored evidence alone.</p>}
+      <p className="mt-3 text-xs text-warn-300">These are timestamped observations, not device ownership or assignment claims.</p>
+    </> : <p className="text-sm text-slate-400">No stored user/device relationship evidence. Run an explicit Inventory scan to collect the approved evidence.</p>}
+  </Card>;
+}
+
 function SourceHeader({ name, state, present, missingApplies, stale = false }: { name: string; state: InventorySourceState; present: boolean; missingApplies: boolean; stale?: boolean }) {
   const unavailable = state.availability !== 'AVAILABLE';
   const presentation = unavailable ? inventorySourceStatus(state.availability) : null;
@@ -337,6 +372,7 @@ export function OverviewSection({ host }: { host: string }) {
   const softwareMetadata = state.result.sources.find((source) => source.source === 'Installed software')!;
   const healthMetadata = state.result.sources.find((source) => source.source === 'Health')!;
   const securityMetadata = state.result.sources.find((source) => source.source === 'Security')!;
+  const usersMetadata = state.result.sources.find((source) => source.source === 'Linked users')!;
   return <div className="flex flex-col gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3">
       <div><p className="text-sm font-medium text-slate-200">Client 360 evidence snapshot</p><p className="mt-0.5 text-xs text-slate-400">Stored data is read-only and never refreshed remotely on open.</p></div>
@@ -349,6 +385,7 @@ export function OverviewSection({ host }: { host: string }) {
       <HealthSummary host={host} health={state.result.health} metadata={healthMetadata} />
       <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
       <SecuritySummary host={host} security={state.result.security} metadata={securityMetadata} />
+      <UserSummary host={host} users={state.result.users} metadata={usersMetadata} />
     </div>
     <ManagementContext host={host} overview={state.result} />
   </div>;

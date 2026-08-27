@@ -13,6 +13,16 @@ export interface ActionEvidenceSourceState {
   explanation: string | null;
 }
 
+export interface ClientObservedUserEvidence {
+  directorySid: string;
+  accountDisplay: string;
+  relationshipType: UserDeviceRelationshipType;
+  source: string;
+  observedAtUtc: string;
+  confidence: UserDeviceRelationshipConfidence;
+  explanation: string;
+}
+
 export interface DeviceCleanupFindingEvidence {
   code: string;
   severity: string;
@@ -779,6 +789,7 @@ export interface ClientOverviewResult {
   software: ClientSoftwareOverview | null;
   health: ClientHealthOverview | null;
   security: ClientSecurityOverview | null;
+  users: ClientUserOverview | null;
   sources: ClientOverviewSourceMetadata[];
 }
 
@@ -820,6 +831,12 @@ export interface ClientSoftwareOverviewItem {
   name: string;
   version: string | null;
   publisher: string | null;
+}
+
+export interface ClientUserOverview {
+  metadata: ClientOverviewSourceMetadata;
+  unresolvedProfileCount: number;
+  observations: ClientObservedUserEvidence[];
 }
 
 export interface ClientWorkspaceListItem {

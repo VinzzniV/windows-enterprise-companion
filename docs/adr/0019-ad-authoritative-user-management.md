@@ -1,6 +1,6 @@
 # ADR 0019: AD-Authoritative User Management
 
-- **Status:** Accepted · revised 2026-08-27 (device relationship evidence)
+- **Status:** Accepted · revised 2026-08-27 (bidirectional device relationship presentation)
 - **Date:** 2026-08-26
 - **Deciders:** Vinz
 - **Supersedes:** The former Employee Lifecycle employee record as a future
@@ -112,10 +112,12 @@ or endpoint-monitoring model:
   failure does not fail the hardware snapshot and is never represented as an
   empty successful result. Snapshots created by older versions deserialize as
   `NotCaptured`.
-- Inventory implements a narrow Core read provider that returns only evidence
-  matching a requested directory SID. User Management composes this with its
-  existing device posture, software, Health and Security read projections; no
-  module reference or generic relationship repository is introduced.
+- Inventory implements narrow Core read providers for both supported profile
+  directions. User 360 receives only evidence matching a requested directory
+  SID. Client 360 receives the latest stored named interactive-user observation
+  for one host plus an aggregate count of unresolved local profiles. Neither
+  read starts a scan or an AD lookup. No module reference or generic
+  relationship repository is introduced.
 - Current relationship types are `Last interactive user` and `Profile present`.
   An exact SID match gives high confidence in the observed interactive account
   and medium confidence in profile presence. Neither confidence level means

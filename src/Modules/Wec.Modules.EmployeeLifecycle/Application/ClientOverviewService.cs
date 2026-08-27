@@ -78,12 +78,18 @@ public sealed record ClientSecurityOverview(
     int LowCount,
     IReadOnlyList<ClientSecurityFinding> TopFindings);
 
+public sealed record ClientUserOverview(
+    ClientOverviewSourceMetadata Metadata,
+    int UnresolvedProfileCount,
+    IReadOnlyList<ClientObservedUserEvidence> Observations);
+
 public sealed record ClientOverviewResult(
     string Host,
     ClientInventoryOverview? Inventory,
     ClientSoftwareOverview? Software,
     ClientHealthOverview? Health,
     ClientSecurityOverview? Security,
+    ClientUserOverview? Users,
     IReadOnlyList<ClientOverviewSourceMetadata> Sources);
 
 internal sealed class ClientOverviewService
@@ -95,6 +101,7 @@ internal sealed class ClientOverviewService
     private readonly IInstalledSoftwareInventoryProvider _software;
     private readonly IDeviceHealthSnapshotProvider _health;
     private readonly ISecurityReportDataProvider _security;
+    private readonly IClientUserRelationshipProvider _clientUsers;
     private readonly IClock _clock;
     private readonly ClientOverviewOptions _options;
 
@@ -103,6 +110,7 @@ internal sealed class ClientOverviewService
         IInstalledSoftwareInventoryProvider software,
         IDeviceHealthSnapshotProvider health,
         ISecurityReportDataProvider security,
+        IClientUserRelationshipProvider clientUsers,
         IClock clock,
         IOptions<ClientOverviewOptions> options)
     {
@@ -110,6 +118,7 @@ internal sealed class ClientOverviewService
         _software = software;
         _health = health;
         _security = security;
+        _clientUsers = clientUsers;
         _clock = clock;
         _options = options.Value;
     }
@@ -121,6 +130,7 @@ internal sealed class ClientOverviewService
         InstalledSoftwareSnapshotData? software = await _software.GetLatestAsync(providerHost, cancellationToken);
         DeviceHealthSnapshotData? health = await _health.GetLatestAsync(providerHost, cancellationToken);
         SecurityReportData? security = await _security.GetLatestScanAsync(providerHost, cancellationToken);
+        ClientUserRelationshipSnapshot? users = await _clientUsers.GetLatestAsync(providerHost, cancellationToken);
 
         ClientOverviewSourceMetadata inventoryMetadata = Metadata(
             "Inventory",
@@ -156,6 +166,14 @@ internal sealed class ClientOverviewService
             SecurityCoverage(security),
             "security",
             _options.MaximumSecurityAge);
+        ClientOverviewSourceMetadata usersMetadata = Metadata(
+            "Linked users",
+            "Latest stored WEC Inventory user evidence",
+            users?.InventoryCapturedAtUtc,
+            users?.Availability == ClientUserEvidenceAvailability.Available,
+            users?.CoverageExplanation ?? "No stored user/device relationship evidence.",
+            "inventory",
+            _options.MaximumInventoryAge);
 
         return new ClientOverviewResult(
             host,
@@ -163,7 +181,11 @@ internal sealed class ClientOverviewService
             software is null ? null : SoftwareOverview(softwareMetadata, software),
             health is null ? null : HealthOverview(healthMetadata, health),
             security is null ? null : SecurityOverview(securityMetadata, security),
-            [inventoryMetadata, softwareMetadata, healthMetadata, securityMetadata]);
+            users is null ? null : new ClientUserOverview(
+                usersMetadata,
+                users.UnresolvedProfileCount,
+                users.Observations),
+            [inventoryMetadata, softwareMetadata, healthMetadata, securityMetadata, usersMetadata]);
     }
 
     private ClientOverviewSourceMetadata Metadata(

@@ -61,11 +61,17 @@ const storedOverview: ClientOverviewResult = {
     scanStatus: 'Completed', criticalCount: 1, highCount: 0, mediumCount: 1, lowCount: 0,
     topFindings: [{ findingId: 'BITLOCKER', title: 'BitLocker protection disabled', severity: 'Critical', affectedResource: 'C:' }],
   },
+  users: {
+    metadata: { source: 'Linked users', provenance: 'Latest stored WEC Inventory user evidence', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Stored Inventory exposed one named observation and two unresolved local profiles.', detailSection: 'inventory' },
+    unresolvedProfileCount: 2,
+    observations: [{ directorySid: 'S-1-5-21-1-2-3-1104', accountDisplay: 'CORP\\alex', relationshipType: 'LAST_INTERACTIVE_USER', source: 'WEC Inventory', observedAtUtc: '2026-08-21T06:00:00Z', confidence: 'HIGH', explanation: 'Inventory observed this directory SID as the interactive user; this is not an ownership claim.' }],
+  },
   sources: [
     { source: 'Inventory', provenance: 'Persisted WMI/CIM hardware snapshot', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Hardware and operating-system snapshot available.', detailSection: 'inventory' },
     { source: 'Installed software', provenance: 'Persisted Inventory software capture', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Complete capture with 12 installed entries.', detailSection: 'inventory' },
     { source: 'Health', provenance: 'Latest persisted on-demand Health run', freshness: 'STALE', capturedAtUtc: '2026-08-18T07:00:00Z', ageSeconds: 262800, isComplete: true, coverage: '4 of 4 expected checks observed.', detailSection: 'diagnostics' },
     { source: 'Security', provenance: 'Latest persisted Security scan and per-check coverage', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:30:00Z', ageSeconds: 1800, isComplete: true, coverage: '13 of 13 applicable checks succeeded.', detailSection: 'security' },
+    { source: 'Linked users', provenance: 'Latest stored WEC Inventory user evidence', freshness: 'FRESH', capturedAtUtc: '2026-08-21T06:00:00Z', ageSeconds: 3600, isComplete: true, coverage: 'Stored Inventory exposed one named observation and two unresolved local profiles.', detailSection: 'inventory' },
   ],
 };
 
@@ -142,5 +148,16 @@ describe('OverviewSection', () => {
       .toBe('/clients/PC-42.corp.local?section=inventory');
     expect(screen.getByRole('link', { name: 'Open Security' }).getAttribute('href'))
       .toBe('/clients/PC-42.corp.local?section=security');
+  });
+
+  it('shows stored user evidence as an observation without claiming ownership', async () => {
+    renderOverview();
+
+    expect(await screen.findByText('CORP\\alex')).toBeDefined();
+    expect(screen.getByText(/Last interactive user/)).toBeDefined();
+    expect(screen.getByText(/not an ownership claim/)).toBeDefined();
+    expect(screen.getByText(/2 additional local profiles/)).toBeDefined();
+    expect(invokeMock.mock.calls.some((call) => call[0] === 'usermanagement')).toBe(false);
+    expect(invokeMock.mock.calls.some((call) => call[0] === 'activedirectory')).toBe(false);
   });
 });

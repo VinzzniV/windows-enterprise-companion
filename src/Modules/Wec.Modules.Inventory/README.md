@@ -60,7 +60,12 @@ machine as the current user.
   and filtered local-profile SID/presence/available last-use data. It never
   reads profile paths or contents and never claims device ownership. Coverage,
   truncation and source failures remain explicit; built-in/system/service
-  profiles are removed by tested SID and WMI `Special` rules.
+  profiles are removed by tested SID and WMI `Special` rules before
+  persistence. The module exposes both a
+  SID-to-device projection for User 360 and a stored host-to-observation
+  projection for Client 360. Client 360 shows only the named interactive
+  observation and aggregates unresolved profile identities; reading either
+  projection starts no scan.
 - The executive summary report uses the stored snapshot for the selected host;
   omitting the report host selects the local machine.
 

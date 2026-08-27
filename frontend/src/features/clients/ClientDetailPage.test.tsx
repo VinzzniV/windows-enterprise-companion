@@ -84,11 +84,13 @@ const storedClientOverview: ClientOverviewResult = {
   software: null,
   health: null,
   security: null,
+  users: null,
   sources: [
     { source: 'Inventory', provenance: 'Persisted WMI/CIM hardware snapshot', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored hardware snapshot.', detailSection: 'inventory' },
     { source: 'Installed software', provenance: 'Persisted Inventory software capture', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored software capture.', detailSection: 'inventory' },
     { source: 'Health', provenance: 'Latest persisted on-demand Health run', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored Health run.', detailSection: 'diagnostics' },
     { source: 'Security', provenance: 'Latest persisted Security scan and per-check coverage', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored Security scan.', detailSection: 'security' },
+    { source: 'Linked users', provenance: 'Latest stored WEC Inventory user evidence', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored user/device relationship evidence.', detailSection: 'inventory' },
   ],
 };
 

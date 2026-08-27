@@ -207,6 +207,16 @@ export function buildDeviceRelationshipModel(
     },
   ];
 
+  const userNodes: RelationshipNode[] = (overview.users?.observations ?? []).map((observation) => ({
+    id: `user:${observation.directorySid.toLocaleLowerCase()}`,
+    entityType: 'user',
+    label: observation.accountDisplay,
+    context: `${observation.relationshipType.toLocaleLowerCase().replaceAll('_', ' ')} · ${observation.confidence.toLocaleLowerCase()} confidence`,
+    status: observation.confidence === 'HIGH' ? 'connected' : 'partial',
+    observedAtUtc: observation.observedAtUtc,
+  }));
+  related.push(...userNodes);
+
   const primaryStatus: RelationshipStatus = reachability === 'online'
     ? 'connected'
     : reachability === 'failed'
@@ -231,7 +241,7 @@ export function buildDeviceRelationshipModel(
     href: clientPath,
   };
 
-  const edges = [
+  const edges: RelationshipEdge[] = [
     relationshipEdge(primaryId, related[0], 'Represented in', 'Active Directory computer inventory', 'Matched by normalized computer identity in the explicitly loaded directory evidence.', false, managementObservedAtUtc),
     relationshipEdge(primaryId, related[1], 'Managed by', 'Kaspersky managed-device inventory', 'Matched by normalized client identity in the explicitly loaded Kaspersky evidence.', false, managementObservedAtUtc),
     relationshipEdge(primaryId, related[2], 'Managed by', 'opsi client inventory', 'Matched by normalized client identity in the explicitly loaded opsi evidence.', false, managementObservedAtUtc),
@@ -239,6 +249,19 @@ export function buildDeviceRelationshipModel(
     relationshipEdge(primaryId, related[4], 'Described by', inventoryMetadata.provenance, inventoryMetadata.coverage, true),
     relationshipEdge(primaryId, related[5], 'Observed by', healthMetadata.provenance, healthMetadata.coverage, true),
     relationshipEdge(primaryId, related[6], 'Assessed by', securityMetadata.provenance, securityMetadata.coverage, true),
+    ...userNodes.map((node, index): RelationshipEdge => {
+      const observation = overview.users!.observations[index];
+      return {
+        id: `${primaryId}:${node.id}`,
+        fromNodeId: primaryId,
+        toNodeId: node.id,
+        relationshipType: observation.relationshipType.toLocaleLowerCase().replaceAll('_', ' '),
+        evidenceSource: observation.source,
+        observedAtUtc: observation.observedAtUtc,
+        confidence: observation.confidence === 'HIGH' ? 'high' : 'medium',
+        explanation: observation.explanation,
+      };
+    }),
   ];
 
   return {

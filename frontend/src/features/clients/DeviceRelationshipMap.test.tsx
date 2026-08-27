@@ -30,11 +30,16 @@ const overview = {
   software: { installedCount: 42 },
   health: { criticalCount: 0, warningCount: 1, healthyCount: 3 },
   security: { criticalCount: 0, highCount: 2, mediumCount: 4 },
+  users: {
+    unresolvedProfileCount: 1,
+    observations: [{ directorySid: 'S-1-5-21-1-2-3-1104', accountDisplay: 'CORP\\alex', relationshipType: 'LAST_INTERACTIVE_USER', source: 'WEC Inventory', observedAtUtc: '2026-08-20T08:00:00Z', confidence: 'HIGH', explanation: 'Observed identity; this is not ownership.' }],
+  },
   sources: [
     { source: 'Inventory', provenance: 'Stored hardware snapshot', freshness: 'FRESH', capturedAtUtc: '2026-08-20T08:00:00Z', ageSeconds: 60, isComplete: true, coverage: 'Hardware captured', detailSection: 'inventory' },
     { source: 'Installed software', provenance: 'Stored software snapshot', freshness: 'FRESH', capturedAtUtc: '2026-08-20T08:00:00Z', ageSeconds: 60, isComplete: true, coverage: '42 applications', detailSection: 'inventory' },
     { source: 'Health', provenance: 'Stored Health run', freshness: 'STALE', capturedAtUtc: '2026-08-19T08:00:00Z', ageSeconds: 90000, isComplete: true, coverage: '4 checks', detailSection: 'diagnostics' },
     { source: 'Security', provenance: 'Stored Security scan', freshness: 'FRESH', capturedAtUtc: '2026-08-20T09:00:00Z', ageSeconds: 30, isComplete: false, coverage: 'Partial scan', detailSection: 'security' },
+    { source: 'Linked users', provenance: 'Stored Inventory user evidence', freshness: 'FRESH', capturedAtUtc: '2026-08-20T08:00:00Z', ageSeconds: 60, isComplete: true, coverage: 'One named observation', detailSection: 'inventory' },
   ],
 } as unknown as ClientOverviewResult;
 
@@ -89,15 +94,17 @@ describe('DeviceRelationshipMap', () => {
     const model = buildDeviceRelationshipModel(device, sources, overview, 'unknown', '2026-08-20T12:30:00Z');
 
     expect(model.nodes.map((node) => node.label)).toEqual([
-      'PC-42', 'Active Directory', 'Kaspersky', 'opsi', 'Nessus', 'WEC Inventory', 'Device Health', 'Security posture',
+      'PC-42', 'Active Directory', 'Kaspersky', 'opsi', 'Nessus', 'WEC Inventory', 'Device Health', 'Security posture', 'CORP\\alex',
     ]);
-    expect(model.edges).toHaveLength(7);
+    expect(model.edges).toHaveLength(8);
     expect(model.nodes.find((node) => node.label === 'WEC Inventory')?.context).toContain('42 installed applications');
     expect(model.nodes.find((node) => node.label === 'Device Health')?.status).toBe('stale');
     expect(model.nodes.find((node) => node.label === 'Security posture')?.status).toBe('partial');
     expect(model.edges.find((edge) => edge.toNodeId === 'wec:inventory')?.confidence).toBe('confirmed');
     expect(model.edges.find((edge) => edge.toNodeId === 'management:active-directory')?.observedAtUtc)
       .toBe('2026-08-20T12:30:00Z');
+    expect(model.edges.find((edge) => edge.toNodeId.startsWith('user:'))?.confidence).toBe('high');
+    expect(model.edges.find((edge) => edge.toNodeId.startsWith('user:'))?.explanation).toContain('not ownership');
   });
 
   it('renders source links and no decorative drag interaction', () => {

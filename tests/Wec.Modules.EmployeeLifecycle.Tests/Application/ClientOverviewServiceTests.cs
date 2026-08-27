@@ -13,6 +13,7 @@ public sealed class ClientOverviewServiceTests
     private readonly IInstalledSoftwareInventoryProvider _software = Substitute.For<IInstalledSoftwareInventoryProvider>();
     private readonly IDeviceHealthSnapshotProvider _health = Substitute.For<IDeviceHealthSnapshotProvider>();
     private readonly ISecurityReportDataProvider _security = Substitute.For<ISecurityReportDataProvider>();
+    private readonly IClientUserRelationshipProvider _clientUsers = Substitute.For<IClientUserRelationshipProvider>();
     private readonly IClock _clock = Substitute.For<IClock>();
 
     public ClientOverviewServiceTests()
@@ -28,6 +29,7 @@ public sealed class ClientOverviewServiceTests
         _software.GetLatestAsync("PC-42", Arg.Any<CancellationToken>()).Returns(Software(capturedAt));
         _health.GetLatestAsync("PC-42", Arg.Any<CancellationToken>()).Returns(Health(capturedAt));
         _security.GetLatestScanAsync("PC-42", Arg.Any<CancellationToken>()).Returns(Security(capturedAt));
+        _clientUsers.GetLatestAsync("PC-42", Arg.Any<CancellationToken>()).Returns(Users(capturedAt));
 
         ClientOverviewResult result = await CreateService().GetAsync("PC-42", CancellationToken.None);
 
@@ -39,6 +41,11 @@ public sealed class ClientOverviewServiceTests
         Assert.Equal(1, result.Health!.WarningCount);
         Assert.Equal("Service stopped", Assert.Single(result.Health.Issues).Title);
         Assert.Equal(1, result.Security!.CriticalCount);
+        ClientObservedUserEvidence user = Assert.Single(result.Users!.Observations);
+        Assert.Equal("CORP\\alex", user.AccountDisplay);
+        Assert.Equal(UserDeviceRelationshipConfidence.High, user.Confidence);
+        Assert.Contains("not an ownership claim", user.Explanation, StringComparison.Ordinal);
+        Assert.Equal(2, result.Users.UnresolvedProfileCount);
         Assert.All(result.Sources, source => Assert.Equal(ClientOverviewFreshness.Fresh, source.Freshness));
         Assert.All(result.Sources, source => Assert.True(source.IsComplete));
     }
@@ -52,6 +59,7 @@ public sealed class ClientOverviewServiceTests
         Assert.Null(result.Software);
         Assert.Null(result.Health);
         Assert.Null(result.Security);
+        Assert.Null(result.Users);
         Assert.All(result.Sources, source =>
         {
             Assert.Equal(ClientOverviewFreshness.Missing, source.Freshness);
@@ -75,6 +83,7 @@ public sealed class ClientOverviewServiceTests
         await _software.Received(1).GetLatestAsync(host: null, Arg.Any<CancellationToken>());
         await _health.Received(1).GetLatestAsync(host: null, Arg.Any<CancellationToken>());
         await _security.Received(1).GetLatestScanAsync(host: null, Arg.Any<CancellationToken>());
+        await _clientUsers.Received(1).GetLatestAsync(host: null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -101,6 +110,7 @@ public sealed class ClientOverviewServiceTests
         _software,
         _health,
         _security,
+        _clientUsers,
         _clock,
         Options.Create(new ClientOverviewOptions()));
 
@@ -148,4 +158,18 @@ public sealed class ClientOverviewServiceTests
         ],
         new SecurityCoverageReportData(true, true, 10, 8, 8, 0, 0, 2),
         []);
+
+    private static ClientUserRelationshipSnapshot Users(DateTimeOffset capturedAt) => new(
+        capturedAt,
+        ClientUserEvidenceAvailability.Available,
+        "Stored Inventory exposed one named observation and two unresolved local profiles.",
+        UnresolvedProfileCount: 2,
+        [new ClientObservedUserEvidence(
+            "S-1-5-21-1-2-3-1104",
+            "CORP\\alex",
+            UserDeviceRelationshipType.LastInteractiveUser,
+            "WEC Inventory",
+            capturedAt,
+            UserDeviceRelationshipConfidence.High,
+            "Inventory observed this directory SID as the interactive user; this is not an ownership claim.")]);
 }

@@ -67,12 +67,15 @@ remains the host for the existing Clients workspace:
 
 | Module/action | Payload | Result |
 |---|---|---|
-| `clients/getOverview` | required client host | latest persisted Inventory, installed-software, Health and Security summaries with per-source freshness, completeness, coverage and detail-tab links |
+| `clients/getOverview` | required client host | latest persisted Inventory, installed-software, Health, Security and approved user/device observations with per-source freshness, completeness, coverage and detail-tab links |
 
 `clients/getOverview` reads only existing projections. Opening Client 360 never
 starts Inventory, Health, Security or external management-provider work. AD,
 Kaspersky, opsi and Nessus posture remains request-bound and is loaded only by
-an explicit user action.
+an explicit user action. Named user context is limited to the latest stored
+interactive-domain-user observation. Unresolved local-profile SIDs remain an
+aggregate count, and every presentation states that observation is not
+ownership or assignment.
 
 Cold loads with an `operationId` publish the typed event
 `employeelifecycle/hygieneProgress`. It reports the current load phase, elapsed
