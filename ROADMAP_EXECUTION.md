@@ -1,10 +1,10 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `IN_PROGRESS` — waiting for external GitHub quota recalculation
+Status: `COMPLETE_PENDING_MERGE`
 
 Current phase: Roadmap completion audit and release verification
 
-Current slice: Deferred Phase 0 artifact upload on the verified final branch
+Current slice: Merge the fully verified roadmap branch through Draft PR #28
 
 ## Done
 
@@ -238,17 +238,18 @@ Current slice: Deferred Phase 0 artifact upload on the verified final branch
   contract verification, all frontend and backend tests, self-contained
   publish, published-host smoke, ZIP creation and validation, Inno Setup
   installer creation and checksum verification.
-
-## Blocked
-
-- Phase 0 artifact upload is waiting for GitHub's storage-usage recalculation.
-  The latest release-free run `33036396522` again failed only when creating the
-  ZIP artifact; GitHub explicitly reported that usage recalculation takes
-  6–12 hours. The installer upload was skipped solely because the preceding
-  upload failed. All 84 obsolete Actions artifacts (about 5.27 GiB) have been
-  removed and the repository API reports zero Actions artifacts and zero
-  artifact bytes. Release `v0.1.0` and its two published assets remain
-  unchanged; no release gate was weakened.
+- GitHub release-free packaging run `33112423083` passed every gate on final
+  implementation head `1025511`: dependency audit, build, contract check, all
+  tests, self-contained publish, published-host smoke, ZIP validation, Inno
+  Setup installer, checksums and both artifact uploads. The release step was
+  skipped as required.
+- Downloaded artifacts `9663342701` and `9663344878` were independently
+  verified. SHA-256 matched for `wec-0.2.0-win-x64.zip`
+  (`39eca9f2ad607301e38eccff67c333055cd8509a7ed52cfd828f009dd9b08b6b`)
+  and `wec-0.2.0-setup.exe`
+  (`daa29b247ce09bd8dd4f756a81e3676a7e1913e1c5839b9cc7eaf565687f78df`).
+  The ZIP contains 619 entries including the host executable, frontend entry
+  point and application settings. Release `v0.1.0` remains unchanged.
 
 ## Deferred release gates
 
@@ -351,13 +352,16 @@ Current slice: Deferred Phase 0 artifact upload on the verified final branch
 - Local Inno Setup compiler is unavailable; installer verification relies on
   GitHub CI.
 - `%APPDATA%\Wec\usersettings.json` is not present on this host.
+- Final release-free GitHub packaging run `33112423083` passed on `1025511`.
+  ZIP artifact `9663342701` is 91,969,707 bytes and installer artifact
+  `9663344878` is 62,930,001 bytes. Both downloaded packages match their
+  committed SHA-256 records; no tag or release was created.
 
 ## Next
 
-1. After GitHub recalculates storage usage, retry the release-free packaging
-   workflow on the current branch and verify ZIP, installer, checksums and both
-   artifact uploads without creating a tag or release.
-2. Require green pull-request CI on the exact final documentation head.
+1. Require green pull-request CI on the exact final documentation head.
+2. Preserve a successful release-free packaging proof for that head or its
+   documentation-only predecessor.
 3. When both repository merge gates are green, mark Draft PR #28 ready and
    merge it under D-006. Do not create a version tag, publish an installer or
    create a GitHub Release without explicit user approval.
