@@ -14,6 +14,7 @@ public sealed class DiagnosticsModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<DiagnosticRunService>();
+        services.AddScoped<BatchDiagnosticService>();
         services.AddScoped<IDiagnosticRunRepository, EfDiagnosticRunRepository>();
         services.AddScoped<IDeviceHealthSnapshotProvider, DeviceHealthSnapshotProvider>();
         services.AddScoped<IDiagnostic, EventLogSummaryDiagnostic>();
@@ -22,6 +23,7 @@ public sealed class DiagnosticsModule : IModule
         services.AddScoped<IDiagnostic, WindowsUpdateRecencyDiagnostic>();
         services.AddScoped<EventLogQueryService>();
         services.AddScoped<IActionHandler, RunDiagnosticsHandler>();
+        services.AddScoped<IActionHandler, RunBatchDiagnosticsHandler>();
         services.AddScoped<IActionHandler, GetLatestDiagnosticsHandler>();
         services.AddScoped<IActionHandler, QueryEventLogHandler>();
     }

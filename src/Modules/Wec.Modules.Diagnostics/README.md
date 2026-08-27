@@ -18,11 +18,16 @@ checks that are no longer executed.
 | Action | Payload | Result |
 |---|---|---|
 | `diagnostics/runDiagnostics` | `{ target?: TargetRequest }` | `DiagnosticRunResult`; empty target = local machine |
+| `diagnostics/runBatchDiagnostics` | `{ hosts, userName?, domain?, password? }` | `DiagnosticBatchResult` with one typed outcome per host; bounded by `Wec:Remote:MaxBatchHosts` and `MaxParallelScans`; emits `diagnostics/batchRunProgress` |
 | `diagnostics/getLatestDiagnostics` | `{ target?: TargetRequest }` | latest persisted `DiagnosticRunResult` for the host, or `null` |
 | `diagnostics/queryEventLog` | `{ preset, target?: TargetRequest }` | live preset-based Event Log result |
 
 The bridge names deliberately remain stable. A later contract migration may
 introduce `health/*` aliases only when compatibility requires it.
+
+Batch Health runs are explicitly started, read-only and cancellable. Each host
+uses its own persistence scope, so one failed target cannot abort or corrupt the
+other completed results.
 
 ## Active health checks
 

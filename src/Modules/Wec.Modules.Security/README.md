@@ -124,7 +124,8 @@ are unambiguous.
 | `MaxDaysSinceLastInstalledUpdate` | 60 | Patch-level staleness threshold |
 | `MinimumPasswordLength` | 8 | Local password-policy baseline |
 
-Batch concurrency comes from `Wec:Remote:MaxParallelScans` (default 4).
+Batch concurrency comes from `Wec:Remote:MaxParallelScans` (default 4), and
+`Wec:Remote:MaxBatchHosts` (default 50) limits one explicitly started batch.
 
 ## Tests
 

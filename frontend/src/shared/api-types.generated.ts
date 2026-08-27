@@ -622,6 +622,11 @@ export interface ExportDeviceCleanupAssessmentResult {
   filePath: string | null;
 }
 
+export interface DiagnosticBatchProgress {
+  host: string;
+  status: DiagnosticBatchHostStatus;
+}
+
 export interface EventLogQueryResult {
   presetKey: string;
   totalMatched: number;
@@ -635,6 +640,21 @@ export interface RemoteEventLogEntry {
   source: string;
   eventCode: number;
   message: string;
+}
+
+export interface DiagnosticBatchHostOutcome {
+  host: string;
+  status: DiagnosticBatchHostStatus;
+  run: DiagnosticRunResult | null;
+  error: ScanError | null;
+}
+
+export type DiagnosticBatchHostStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export interface DiagnosticBatchResult {
+  startedAtUtc: string;
+  completedAtUtc: string;
+  hosts: DiagnosticBatchHostOutcome[];
 }
 
 export type DiagnosticCategory = 'EVENT_LOG' | 'SERVICES' | 'SYSTEM';
@@ -670,6 +690,13 @@ export interface LatestDiagnosticRunResult {
 export interface QueryEventLogRequest {
   preset: string;
   target?: TargetRequest | null;
+}
+
+export interface RunBatchDiagnosticsRequest {
+  hosts?: string[] | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
 }
 
 export interface RunDiagnosticsRequest {
