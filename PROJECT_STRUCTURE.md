@@ -75,6 +75,9 @@ Modulstruktur (typisch pro Modul):
 | UI-Bereich | Modul | Kurzbeschreibung |
 |---|---|---|
 | Clients (`frontend/src/features/clients`) | `Wec.Modules.Inventory`, `Security`, `Diagnostics`, `PrintManagement`, `EmployeeLifecycle` | Zielsysteme (Clients) scannen, vergleichen, Ergebnisse anzeigen |
+| Users (`frontend/src/features/users`) | `Wec.Modules.UserManagement` über `IDirectoryUserReadProvider` aus `Wec.Modules.ActiveDirectory` | AD-autoritative Benutzersuche und read-only User 360 |
+| Action Center (`frontend/src/features/actioncenter`) | `Wec.Modules.ActionCenter` über konkrete Hygiene-, Inventory- und Security-Core-Projektionen | Berechnete read-only Arbeitsliste ohne Workflow-Persistenz |
+| Device Cleanup (`frontend/src/features/devicecleanup`) | `Wec.Modules.DeviceCleanup` über konkrete Hygiene- und Inventory-Core-Projektionen | Geführte read-only Altgerätebewertung mit session-only Entscheidung und Export |
 | Dashboard (`frontend/src/features/dashboard`) | `Wec.Modules.ActiveDirectory` | Gesamtübersicht und AD-Anbindung |
 | Active Directory (`frontend/src/features/activedirectory`) | `Wec.Modules.ActiveDirectory` | Domain-/Computer-/Benutzerabfragen |
 | Inventory (`frontend/src/features/inventory`) | `Wec.Modules.Inventory` | Hardware-, Software- und Statusdaten |

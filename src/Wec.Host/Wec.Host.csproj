@@ -17,6 +17,9 @@
     <ProjectReference Include="..\Modules\Wec.Modules.Diagnostics\Wec.Modules.Diagnostics.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.Reporting\Wec.Modules.Reporting.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.ActiveDirectory\Wec.Modules.ActiveDirectory.csproj" />
+    <ProjectReference Include="..\Modules\Wec.Modules.UserManagement\Wec.Modules.UserManagement.csproj" />
+    <ProjectReference Include="..\Modules\Wec.Modules.ActionCenter\Wec.Modules.ActionCenter.csproj" />
+    <ProjectReference Include="..\Modules\Wec.Modules.DeviceCleanup\Wec.Modules.DeviceCleanup.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.PatchManagement\Wec.Modules.PatchManagement.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.PrintManagement\Wec.Modules.PrintManagement.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.NetworkScan\Wec.Modules.NetworkScan.csproj" />

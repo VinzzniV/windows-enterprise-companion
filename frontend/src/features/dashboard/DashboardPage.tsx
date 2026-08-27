@@ -231,7 +231,7 @@ export function DashboardPage() {
           to="/clients"
           icon={navIcons.clients}
           title="Clients"
-          description="Per-host inventory, security and diagnostics — scanned on demand."
+          description="Per-host inventory, security and health — scanned on demand."
           metric={inventory}
         />
         <ModuleTile

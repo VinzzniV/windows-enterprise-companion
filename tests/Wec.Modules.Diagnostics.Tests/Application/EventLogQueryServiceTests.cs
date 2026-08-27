@@ -54,6 +54,7 @@ public class EventLogQueryServiceTests
             DiagnosticContext.Local, "disk-events", CancellationToken.None);
 
         Assert.True(result.IsSuccess, result.Error?.Message);
+        Assert.Equal("disk-events", result.Value.PresetKey);
         Assert.Equal(2, result.Value.TotalMatched);
         Assert.False(result.Value.Truncated);
         Assert.Equal("Ntfs", result.Value.Entries[0].Source); // newest first

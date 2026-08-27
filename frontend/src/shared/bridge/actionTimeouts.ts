@@ -29,6 +29,8 @@ const standardOperations = new Set([
 ]);
 
 const batchOperations = new Set([
+  'diagnostics/runBatchDiagnostics',
+  'inventory/runBatchScan',
   'networkscan/scan',
   'security/runBatchScan',
 ]);

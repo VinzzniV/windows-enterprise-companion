@@ -73,6 +73,7 @@ const appInfo: AppInfoResponse = {
   logDirectory: 'logs',
   isElevated: false,
   maxParallelScans: 4,
+  maxBatchHosts: 50,
   machineName: 'LOCAL-PC',
   runtimeProfile: 'Test',
 };
@@ -97,6 +98,7 @@ function hardware(host: string): HardwareInfoResult {
       monitors: null,
       installedSoftware: [],
       installedSoftwareError: null,
+      userEvidence: null,
     },
   };
 }

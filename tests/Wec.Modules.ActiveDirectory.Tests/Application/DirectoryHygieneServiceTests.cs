@@ -28,6 +28,7 @@ public sealed class DirectoryHygieneServiceTests
         return new DirectoryHygieneService(
             new DomainContextService(_wmiQueryService, _directoryReader, options),
             _directoryReader,
+            new PrivilegedGroupResolver(_directoryReader, options),
             clock,
             options,
             NullLogger<DirectoryHygieneService>.Instance);

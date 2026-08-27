@@ -6,7 +6,7 @@ import type {
   StoredSecurityScanHost,
   TargetRequest,
 } from '../../shared/api-types';
-import type { CredentialValues } from '../../shared/targets/TargetSelector';
+import type { CredentialValues } from '../../shared/targets/Credentials';
 
 /** A client in the workspace list, merged from AD, scan history and saved targets. */
 export interface ClientEntry {

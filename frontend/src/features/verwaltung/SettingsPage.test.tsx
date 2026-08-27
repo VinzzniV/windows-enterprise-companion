@@ -55,6 +55,7 @@ beforeEach(() => {
         logDirectory: 'logs',
         isElevated: false,
         maxParallelScans: 4,
+        maxBatchHosts: 50,
         machineName: 'TEST-PC',
         runtimeProfile: 'test',
       });

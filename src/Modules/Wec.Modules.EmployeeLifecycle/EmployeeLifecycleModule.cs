@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Wec.Core.Contracts;
 using Wec.Core.Messaging;
 using Wec.Core.Modules;
 using Wec.Modules.EmployeeLifecycle.Application;
@@ -15,9 +16,13 @@ public sealed class EmployeeLifecycleModule : IModule
             serviceProvider.GetRequiredService<KasperskySecurityCenterClient>());
         services.AddSingleton<ItHygieneSnapshotCache>();
         services.AddScoped<ItHygieneService>();
+        services.AddScoped<IHygieneActionEvidenceProvider, HygieneActionEvidenceProvider>();
+        services.AddScoped<IDeviceCleanupEvidenceProvider, DeviceCleanupEvidenceProvider>();
+        services.AddScoped<ClientOverviewService>();
         services.AddScoped<IActionHandler, GetItHygieneHandler>();
         services.AddScoped<IActionHandler, GetItHygieneOverviewHandler>();
         services.AddScoped<IActionHandler, ListHygieneDevicesHandler>();
         services.AddScoped<IActionHandler, ListClientWorkspaceHandler>();
+        services.AddScoped<IActionHandler, GetClientOverviewHandler>();
     }
 }

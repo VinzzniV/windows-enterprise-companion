@@ -12,12 +12,10 @@ public enum DiagnosticStatus
 
 public enum DiagnosticCategory
 {
-    Network = 0,
-    Domain = 1,
-    TimeSynchronization = 2,
+    // Explicit numeric values preserve the persisted representation. Historical
+    // results using retired values are filtered before they leave the repository.
     EventLog = 3,
     Services = 4,
-    Dns = 5,
     System = 6,
 }
 

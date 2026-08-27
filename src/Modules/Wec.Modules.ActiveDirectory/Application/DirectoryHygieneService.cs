@@ -1,4 +1,3 @@
-using System.Security.Principal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
@@ -13,13 +12,9 @@ internal sealed partial class DirectoryHygieneService
     private const string InactiveComputersRuleId = "WEC-AD-INACTIVE-COMPUTERS";
     private const string PasswordNeverExpiresRuleId = "WEC-AD-PASSWORD-NEVER-EXPIRES";
     private const string DisabledPrivilegedRuleId = "WEC-AD-DISABLED-PRIVILEGED";
-    private const string BuiltinAdministratorsSid = "S-1-5-32-544";
-    private const int DomainAdminsRid = 512;
-    private const int SchemaAdminsRid = 518;
-    private const int EnterpriseAdminsRid = 519;
-
     private readonly DomainContextService _domainContextService;
     private readonly IDirectoryReader _directoryReader;
+    private readonly PrivilegedGroupResolver _privilegedGroupResolver;
     private readonly IClock _clock;
     private readonly ActiveDirectoryOptions _options;
     private readonly ILogger<DirectoryHygieneService> _logger;
@@ -31,12 +26,14 @@ internal sealed partial class DirectoryHygieneService
     public DirectoryHygieneService(
         DomainContextService domainContextService,
         IDirectoryReader directoryReader,
+        PrivilegedGroupResolver privilegedGroupResolver,
         IClock clock,
         IOptions<ActiveDirectoryOptions> options,
         ILogger<DirectoryHygieneService> logger)
     {
         _domainContextService = domainContextService;
         _directoryReader = directoryReader;
+        _privilegedGroupResolver = privilegedGroupResolver;
         _clock = clock;
         _options = options.Value;
         _logger = logger;
@@ -269,7 +266,8 @@ internal sealed partial class DirectoryHygieneService
         string domainName = context.Value.DomainName!;
         string namingContext = context.Value.DefaultNamingContext!;
         Result<IReadOnlyList<ResolvedPrivilegedGroup>> resolvedGroups =
-            await ResolvePrivilegedGroupsAsync(domainName, namingContext, cancellationToken);
+            await _privilegedGroupResolver.ResolveAsync(
+                domainName, namingContext, _connection, cancellationToken);
         if (resolvedGroups.IsFailure)
         {
             return Result.Failure<AdPrivilegedGroupMemberPage>(resolvedGroups.Error!);
@@ -347,7 +345,8 @@ internal sealed partial class DirectoryHygieneService
         CancellationToken cancellationToken)
     {
         Result<IReadOnlyList<ResolvedPrivilegedGroup>> resolvedGroups =
-            await ResolvePrivilegedGroupsAsync(domainName, namingContext, cancellationToken);
+            await _privilegedGroupResolver.ResolveAsync(
+                domainName, namingContext, _connection, cancellationToken);
         if (resolvedGroups.IsFailure)
         {
             return Result.Failure<IReadOnlyList<PrivilegedGroupInfo>>(resolvedGroups.Error!);
@@ -377,52 +376,6 @@ internal sealed partial class DirectoryHygieneService
         }
 
         return Result.Success<IReadOnlyList<PrivilegedGroupInfo>>(groups);
-    }
-
-    private async Task<Result<IReadOnlyList<ResolvedPrivilegedGroup>>> ResolvePrivilegedGroupsAsync(
-        string domainName,
-        string namingContext,
-        CancellationToken cancellationToken)
-    {
-        Result<string> domainSid = await ReadDomainSidAsync(domainName, namingContext, cancellationToken);
-        if (domainSid.IsFailure)
-        {
-            return Result.Failure<IReadOnlyList<ResolvedPrivilegedGroup>>(domainSid.Error!);
-        }
-
-        string[] privilegedSids =
-        [
-            $"{domainSid.Value}-{DomainAdminsRid}",
-            $"{domainSid.Value}-{EnterpriseAdminsRid}",
-            $"{domainSid.Value}-{SchemaAdminsRid}",
-            BuiltinAdministratorsSid,
-        ];
-
-        var groups = new List<ResolvedPrivilegedGroup>();
-        foreach (string sid in privilegedSids)
-        {
-            Result<IReadOnlyList<DirectoryEntryData>> entries = await _directoryReader.SearchAsync(
-                BuildQuery(domainName, namingContext, AdFilters.GroupBySid(sid), ["sAMAccountName"]),
-                cancellationToken);
-            if (entries.IsFailure)
-            {
-                return Result.Failure<IReadOnlyList<ResolvedPrivilegedGroup>>(entries.Error!);
-            }
-
-            // Enterprise/Schema Admins only exist on the forest root — an absent
-            // group is a valid answer for child domains, not an error
-            if (entries.Value.Count == 0)
-            {
-                continue;
-            }
-
-            DirectoryEntryData group = entries.Value[0];
-            groups.Add(new ResolvedPrivilegedGroup(
-                group.GetFirstValue("sAMAccountName") ?? group.DistinguishedName,
-                group.DistinguishedName));
-        }
-
-        return Result.Success<IReadOnlyList<ResolvedPrivilegedGroup>>(groups);
     }
 
     private async Task<Result<AdHygieneRule>> EvaluateDisabledPrivilegedRuleAsync(
@@ -461,39 +414,6 @@ internal sealed partial class DirectoryHygieneService
             entries.Value.TotalCount,
             [.. entries.Value.Entries.Select(ToAccountInfo)],
             recommendation));
-    }
-
-    private async Task<Result<string>> ReadDomainSidAsync(
-        string domainName,
-        string namingContext,
-        CancellationToken cancellationToken)
-    {
-        Result<IReadOnlyList<DirectoryEntryData>> domainHead = await _directoryReader.SearchAsync(
-            new DirectorySearchQuery(
-                domainName,
-                namingContext,
-                "(objectClass=*)",
-                ["objectSid"],
-                DirectorySearchScope.Base,
-                _options.PageSize,
-                _options.SearchTimeout,
-                _connection.Server,
-                _connection.Credentials),
-            cancellationToken);
-        if (domainHead.IsFailure)
-        {
-            return Result.Failure<string>(domainHead.Error!);
-        }
-
-        byte[]? sidBytes = domainHead.Value.Count > 0 ? domainHead.Value[0].GetBytes("objectSid") : null;
-        if (sidBytes is null)
-        {
-            return Result.Failure<string>(new Error(
-                ErrorCode.DirectoryUnavailable,
-                "The domain head did not expose a readable objectSid."));
-        }
-
-        return Result.Success(new SecurityIdentifier(sidBytes, 0).Value);
     }
 
     private static AdAccountInfo ToAccountInfo(DirectoryEntryData entry) => new(
@@ -553,6 +473,4 @@ internal sealed partial class DirectoryHygieneService
         Level = LogLevel.Information,
         Message = "AD hygiene captured for {DomainName}: {RuleCount} rules, {PrivilegedGroupCount} privileged groups")]
     private partial void LogHygieneCaptured(string domainName, int ruleCount, int privilegedGroupCount);
-
-    private sealed record ResolvedPrivilegedGroup(string GroupName, string DistinguishedName);
 }

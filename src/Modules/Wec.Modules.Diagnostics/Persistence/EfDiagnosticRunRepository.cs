@@ -31,7 +31,15 @@ public sealed class EfDiagnosticRunRepository : IDiagnosticRunRepository
 
         try
         {
-            return JsonSerializer.Deserialize<DiagnosticRunResult>(record.PayloadJson);
+            DiagnosticRunResult? run = JsonSerializer.Deserialize<DiagnosticRunResult>(record.PayloadJson);
+            return run is null
+                ? null
+                : run with
+                {
+                    Results = run.Results
+                        .Where(result => DeviceHealthDiagnosticIds.IsCurrent(result.DiagnosticId))
+                        .ToList(),
+                };
         }
         catch (JsonException exception)
         {

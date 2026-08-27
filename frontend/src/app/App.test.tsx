@@ -35,6 +35,7 @@ const loadedState: AppInfoState = {
     logDirectory: 'C:\\private\\logs',
     isElevated: false,
     maxParallelScans: 4,
+    maxBatchHosts: 50,
     machineName: 'TESTHOST',
     runtimeProfile: 'Installed',
   },
@@ -104,6 +105,8 @@ describe('responsive application shell', () => {
     invokeMock.mockImplementation((module: string, action: string) => {
       if (module === 'system' && action === 'getAppInfo') return Promise.resolve(loadedState.appInfo);
       if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (module === 'inventory' && action === 'listHosts') return Promise.resolve({ hosts: [] });
+      if (module === 'security' && action === 'listHosts') return Promise.resolve({ hosts: [] });
       return Promise.resolve({});
     });
   });
@@ -131,6 +134,34 @@ describe('responsive application shell', () => {
     expect(screen.queryByRole('dialog', { name: 'Main navigation' })).toBeNull();
     expect(screen.getByTestId('application-main').hasAttribute('inert')).toBe(false);
     expect(document.activeElement).toBe(openNavigation);
+  });
+
+  it('navigates between lazy workspaces through the primary navigation', async () => {
+    render(<App />);
+
+    expect(await screen.findByText('Dashboard content')).toBeDefined();
+    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Clients' }));
+
+    expect(await screen.findByText('Clients content')).toBeDefined();
+    expect(window.location.hash).toBe('#/clients');
+  });
+
+  it('opens global search with Ctrl+K and restores focus after Escape', async () => {
+    render(<App />);
+    await screen.findByText('Dashboard content');
+    const opener = screen.getByRole('button', { name: 'Open global search' });
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+
+    const dialog = screen.getByRole('dialog', { name: 'Global search' });
+    const input = within(dialog).getByRole('combobox');
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    expect(screen.getByTestId('application-main').hasAttribute('inert')).toBe(true);
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Global search' })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+    expect(screen.getByTestId('application-main').hasAttribute('inert')).toBe(false);
   });
 
   it('keeps lifecycle bookmarks working by redirecting their filter to Clients posture', async () => {

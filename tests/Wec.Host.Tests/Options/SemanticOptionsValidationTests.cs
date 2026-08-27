@@ -22,7 +22,6 @@ public sealed class SemanticOptionsValidationTests
     {
         var options = new DiagnosticsOptions
         {
-            DnsProbeHostname = "example.test",
             EventLogNames = [],
             MonitoredServices = [],
         };
@@ -50,6 +49,20 @@ public sealed class SemanticOptionsValidationTests
         };
 
         Assert.Equal(2, Validate(options).Count);
+    }
+
+    [Fact]
+    public void RejectsNonPositiveClientOverviewMaximumAges()
+    {
+        var options = new ClientOverviewOptions
+        {
+            MaximumInventoryAge = TimeSpan.Zero,
+            MaximumSoftwareAge = TimeSpan.Zero,
+            MaximumHealthAge = TimeSpan.Zero,
+            MaximumSecurityAge = TimeSpan.Zero,
+        };
+
+        Assert.Equal(4, Validate(options).Count);
     }
 
     [Fact]

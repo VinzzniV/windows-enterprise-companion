@@ -32,6 +32,7 @@ const inventory: HardwareInfoResult = {
     monitors: [],
     installedSoftware: [],
     installedSoftwareError: null,
+    userEvidence: null,
   },
 };
 

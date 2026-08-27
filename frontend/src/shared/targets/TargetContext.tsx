@@ -9,7 +9,7 @@ import {
 } from 'react';
 import type { SavedTarget, SavedTargetsResult, TargetRole } from '../api-types';
 import { invoke } from '../bridge/bridgeClient';
-import type { CredentialValues } from './TargetSelector';
+import type { CredentialValues } from './Credentials';
 
 export interface SaveTargetInput {
   label: string;

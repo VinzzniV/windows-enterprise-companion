@@ -3,7 +3,6 @@ using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
 using Wec.Core.Messaging;
 using Wec.Core.Results;
-using Wec.Core.Targets;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
@@ -204,11 +203,7 @@ public sealed record HygieneLoadProgress(
 
 internal sealed class ItHygieneService
 {
-    private readonly IAdComputerInventoryProvider _activeDirectory;
-    private readonly IKasperskyInventoryReader _kaspersky;
-    private readonly IOpsiComputerInventoryProvider _opsi;
-    private readonly INessusComputerInventoryProvider _nessus;
-    private readonly IServiceCredentialStore _credentials;
+    private readonly HygieneSourceLoader _sourceLoader;
     private readonly IBridgeEventPublisher _events;
     private readonly IClock _clock;
     private readonly ItLifecycleOptions _options;
@@ -223,11 +218,13 @@ internal sealed class ItHygieneService
         IClock clock,
         IOptions<ItLifecycleOptions> options)
     {
-        _activeDirectory = activeDirectory;
-        _kaspersky = kaspersky;
-        _opsi = opsi;
-        _nessus = nessus;
-        _credentials = credentials;
+        _sourceLoader = new HygieneSourceLoader(
+            activeDirectory,
+            kaspersky,
+            opsi,
+            nessus,
+            credentials,
+            options.Value);
         _events = events;
         _clock = clock;
         _options = options.Value;
@@ -244,63 +241,27 @@ internal sealed class ItHygieneService
             _events,
             _options);
         progress.Start();
-        Result<AdComputerInventoryQuery> adQuery = BuildAdQuery(request.ActiveDirectory);
-        Result<KasperskyInventoryConnection?> kscInput = KasperskyInput(request.Kaspersky);
-        Result<KasperskyConnection> kscConnection = kscInput.IsFailure
-            ? Result.Failure<KasperskyConnection>(kscInput.Error!)
-            : BuildKasperskyConnection(kscInput.Value);
-        Task<Result<AdComputerInventory>> adTask = progress.TrackAdAsync(
-            adQuery.IsSuccess
-                ? LoadSourceAsync(
-                    () => _activeDirectory.LoadAsync(adQuery.Value, cancellationToken),
-                    "Active Directory",
-                    cancellationToken)
-                : Task.FromResult(Result.Failure<AdComputerInventory>(adQuery.Error!)));
-        Task<Result<KasperskyInventory>> kscTask = progress.TrackKasperskyAsync(
-            kscConnection.IsSuccess
-                ? LoadSourceAsync(
-                    () => _kaspersky.LoadAsync(kscConnection.Value, cancellationToken),
-                    "Kaspersky Security Center",
-                    cancellationToken)
-                : Task.FromResult(Result.Failure<KasperskyInventory>(kscConnection.Error!)));
-        Task<Result<OpsiComputerInventory>> opsiTask = progress.TrackOpsiAsync(
-            LoadSourceAsync(
-                () => _opsi.LoadAsync(_options.InventoryLimit, cancellationToken),
-                "opsi",
-                cancellationToken));
-        Task<Result<NessusComputerInventory>> nessusTask = progress.TrackNessusAsync(LoadSourceAsync(
-            () => _nessus.LoadAsync(cancellationToken),
-            "Nessus",
-            cancellationToken));
+        HygieneSourceLoad sourceLoad;
         try
         {
-            await Task.WhenAll(adTask, kscTask, opsiTask, nessusTask);
+            sourceLoad = await _sourceLoader.LoadAsync(request, progress, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             progress.Cancel();
             throw;
         }
-
-        Result<AdComputerInventory> ad = await adTask;
-        Result<KasperskyInventory> ksc = await kscTask;
-        Result<OpsiComputerInventory> opsi = await opsiTask;
-        Result<NessusComputerInventory> nessus = await nessusTask;
         progress.Correlating();
-
-        InventorySourceState adState = AdState(ad);
-        InventorySourceState kscState = KasperskyState(ksc);
-        InventorySourceState opsiState = OpsiState(opsi);
-        InventorySourceState nessusState = NessusState(nessus);
-        var sources = new EnvironmentSourceStates(adState, kscState, opsiState, nessusState);
 
         DateTimeOffset now = _clock.UtcNow;
         IReadOnlyList<HygieneDevice> devices = CorrelateAndAssess(
-            ad.IsSuccess ? ad.Value.Computers : [],
-            ksc.IsSuccess ? ksc.Value.Computers : [],
-            opsi.IsSuccess ? opsi.Value.Computers : [],
-            nessus.IsSuccess ? nessus.Value : new NessusComputerInventory([], NessusInventoryAvailability.Unavailable, null),
-            sources,
+            sourceLoad.ActiveDirectory.IsSuccess ? sourceLoad.ActiveDirectory.Value.Computers : [],
+            sourceLoad.Kaspersky.IsSuccess ? sourceLoad.Kaspersky.Value.Computers : [],
+            sourceLoad.Opsi.IsSuccess ? sourceLoad.Opsi.Value.Computers : [],
+            sourceLoad.Nessus.IsSuccess
+                ? sourceLoad.Nessus.Value
+                : new NessusComputerInventory([], NessusInventoryAvailability.Unavailable, null),
+            sourceLoad.States,
             now,
             _options);
 
@@ -308,132 +269,11 @@ internal sealed class ItHygieneService
         progress.Complete(summary);
         return Result.Success(new ItHygieneResult(
             now,
-            ad.IsSuccess ? ad.Value.DomainName : null,
-            sources,
+            sourceLoad.DomainName,
+            sourceLoad.States,
             summary,
             devices));
     }
-
-    internal static InventorySourceState NessusState(Result<NessusComputerInventory> result)
-    {
-        if (result.IsFailure)
-        {
-            return new InventorySourceState(InventorySourceAvailability.Unavailable, ErrorText(result.Error!));
-        }
-
-        return new InventorySourceState(result.Value.Availability switch
-        {
-            NessusInventoryAvailability.Available => InventorySourceAvailability.Available,
-            NessusInventoryAvailability.Partial => InventorySourceAvailability.Partial,
-            NessusInventoryAvailability.NotConnected => InventorySourceAvailability.NotConnected,
-            _ => InventorySourceAvailability.Unavailable,
-        }, result.Value.Error);
-    }
-
-    private Result<KasperskyInventoryConnection?> KasperskyInput(KasperskyInventoryConnection? input)
-    {
-        if (!string.IsNullOrWhiteSpace(input?.UserName) && input.Password is not null)
-        {
-            return Result.Success<KasperskyInventoryConnection?>(input);
-        }
-
-        Result<StoredServiceCredential?> stored = _credentials.Read(ServiceCredentialKind.Kaspersky);
-        if (stored.IsFailure)
-        {
-            return Result.Failure<KasperskyInventoryConnection?>(stored.Error!);
-        }
-
-        return stored.Value is null
-            ? Result.Success<KasperskyInventoryConnection?>(input)
-            : Result.Success<KasperskyInventoryConnection?>(new KasperskyInventoryConnection(
-                input?.Server,
-                input?.Port,
-                stored.Value.UserName,
-                stored.Value.Domain,
-                stored.Value.Password));
-    }
-
-    private static async Task<Result<T>> LoadSourceAsync<T>(
-        Func<Task<Result<T>>> load,
-        string sourceName,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await load().ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            return Result.Failure<T>(new Error(
-                ErrorCode.ServiceUnavailable,
-                $"{sourceName} inventory is unavailable.")
-            {
-                Details = exception.Message,
-            });
-        }
-    }
-
-    internal static InventorySourceState AdState(Result<AdComputerInventory> result)
-    {
-        if (result.IsFailure)
-        {
-            return new InventorySourceState(InventorySourceAvailability.Unavailable, ErrorText(result.Error!));
-        }
-
-        if (!result.Value.DomainJoined)
-        {
-            return new InventorySourceState(
-                InventorySourceAvailability.NotConnected,
-                "No Active Directory domain context is available.");
-        }
-
-        return new InventorySourceState(
-            result.Value.Truncated ? InventorySourceAvailability.Truncated : InventorySourceAvailability.Available);
-    }
-
-    internal static InventorySourceState SourceState<T>(Result<T> result, bool notConnectedOnInvalidRequest)
-    {
-        if (result.IsFailure)
-        {
-            InventorySourceAvailability availability =
-                notConnectedOnInvalidRequest && result.Error!.Code == ErrorCode.InvalidRequest
-                    ? InventorySourceAvailability.NotConnected
-                    : InventorySourceAvailability.Unavailable;
-            return new InventorySourceState(availability, ErrorText(result.Error!));
-        }
-
-        bool truncated = result.Value switch
-        {
-            KasperskyInventory inventory => inventory.Truncated,
-            OpsiComputerInventory inventory => inventory.Truncated,
-            _ => false,
-        };
-        return new InventorySourceState(
-            truncated ? InventorySourceAvailability.Truncated : InventorySourceAvailability.Available);
-    }
-
-    internal static InventorySourceState KasperskyState(Result<KasperskyInventory> result)
-    {
-        InventorySourceState state = SourceState(result, notConnectedOnInvalidRequest: true);
-        return result.IsSuccess && result.Value.Truncated
-            ? new InventorySourceState(InventorySourceAvailability.Truncated)
-            : state;
-    }
-
-    internal static InventorySourceState OpsiState(Result<OpsiComputerInventory> result)
-    {
-        InventorySourceState state = SourceState(result, notConnectedOnInvalidRequest: true);
-        return result.IsSuccess && result.Value.Truncated
-            ? new InventorySourceState(InventorySourceAvailability.Truncated)
-            : state;
-    }
-
-    private static string ErrorText(Error error) =>
-        string.IsNullOrWhiteSpace(error.Details) ? error.Message : $"{error.Message} {error.Details}";
 
     internal static IReadOnlyList<HygieneDevice> CorrelateAndAssess(
         IReadOnlyList<AdComputerInventoryItem> adComputers,
@@ -488,16 +328,8 @@ internal sealed class ItHygieneService
                 kscByName.TryGetValue(name, out KasperskyComputer? ksc);
                 opsiByName.TryGetValue(name, out OpsiComputerInventoryItem? opsi);
                 nessusByName.TryGetValue(name, out NessusComputerInventoryItem? nessus);
-                List<HygieneFinding> findings = Assess(ad, ksc, opsi, nessus, nessusInventory, sources, now, options, assessNessus);
-                HygieneStatus status = findings.Any(finding => finding.Code == HygieneFindingCode.NessusCriticalVulnerabilities)
-                    ? HygieneStatus.Critical
-                    : findings.Any(finding => finding.Severity == HygieneFindingSeverity.Critical)
-                    ? HygieneStatus.CleanupCandidate
-                    : findings.Count > 0
-                        ? HygieneStatus.Warning
-                        : SourcesComplete(sources, assessNessus)
-                            ? HygieneStatus.Healthy
-                            : HygieneStatus.Incomplete;
+                HygieneAssessment assessment = HygieneAssessmentPolicy.Assess(
+                    ad, ksc, opsi, nessus, nessusInventory, sources, now, options, assessNessus);
 
                 string hostName = ad?.DnsHostName
                     ?? opsi?.ComputerName
@@ -541,16 +373,10 @@ internal sealed class ItHygieneService
                         nessus?.Info ?? 0,
                         nessus?.Ports ?? [],
                         nessus?.ScanSources ?? []),
-                    new HygieneAssessment(status, findings));
+                    assessment);
             })
             .ToList();
     }
-
-    private static bool SourcesComplete(EnvironmentSourceStates sources, bool requireNessus) =>
-        sources.ActiveDirectory.Availability == InventorySourceAvailability.Available
-        && sources.Kaspersky.Availability == InventorySourceAvailability.Available
-        && sources.Opsi.Availability == InventorySourceAvailability.Available
-        && (!requireNessus || sources.Nessus.Availability == InventorySourceAvailability.Available);
 
     internal static string NormalizeComputerName(string? computerName)
     {
@@ -564,231 +390,8 @@ internal sealed class ItHygieneService
         return value.ToUpperInvariant();
     }
 
-    internal static bool IsVersionOlder(string? installed, string? target)
-    {
-        if (!TryParseVersion(installed, out int[] installedParts)
-            || !TryParseVersion(target, out int[] targetParts))
-        {
-            return false;
-        }
-
-        int count = Math.Max(installedParts.Length, targetParts.Length);
-        for (int index = 0; index < count; index++)
-        {
-            int installedPart = index < installedParts.Length ? installedParts[index] : 0;
-            int targetPart = index < targetParts.Length ? targetParts[index] : 0;
-            if (installedPart != targetPart)
-            {
-                return installedPart < targetPart;
-            }
-        }
-
-        return false;
-    }
-
-    private static List<HygieneFinding> Assess(
-        AdComputerInventoryItem? ad,
-        KasperskyComputer? ksc,
-        OpsiComputerInventoryItem? opsi,
-        NessusComputerInventoryItem? nessus,
-        NessusComputerInventory nessusInventory,
-        EnvironmentSourceStates sources,
-        DateTimeOffset now,
-        ItLifecycleOptions options,
-        bool assessNessus)
-    {
-        var findings = new List<HygieneFinding>();
-        bool canCompareKaspersky = CanCompare(sources.ActiveDirectory, sources.Kaspersky);
-        bool canCompareOpsi = CanCompare(sources.ActiveDirectory, sources.Opsi);
-        if (canCompareKaspersky && ad is { Enabled: true } && ksc is null)
-        {
-            findings.Add(new HygieneFinding(
-                HygieneFindingCode.MissingKaspersky,
-                HygieneFindingSeverity.Warning,
-                "Enabled in Active Directory, but no matching Kaspersky device was found."));
-        }
-
-        if (ksc is not null && string.IsNullOrWhiteSpace(ksc.AgentVersion))
-        {
-            findings.Add(new HygieneFinding(
-                HygieneFindingCode.MissingKasperskyAgent,
-                HygieneFindingSeverity.Warning,
-                "Kaspersky device is registered, but no Network Agent version was reported."));
-        }
-
-        if (ksc is not null && string.IsNullOrWhiteSpace(ksc.KesVersion))
-        {
-            findings.Add(new HygieneFinding(
-                HygieneFindingCode.MissingKes,
-                HygieneFindingSeverity.Warning,
-                "Kaspersky device is registered, but no KES version was reported."));
-        }
-
-        if (canCompareKaspersky && ad is null && ksc is not null)
-        {
-            findings.Add(new HygieneFinding(
-                HygieneFindingCode.OrphanKaspersky,
-                HygieneFindingSeverity.Warning,
-                "Present in Kaspersky, but no matching Active Directory computer was found."));
-        }
-
-        AddStaleFinding(
-            findings,
-            HygieneFindingCode.StaleAd,
-            "Active Directory last logon",
-            ad?.LastLogonDate,
-            now,
-            options);
-        AddStaleFinding(
-            findings,
-            HygieneFindingCode.StaleOpsi,
-            "opsi last seen",
-            opsi?.LastSeen,
-            now,
-            options);
-
-        if (canCompareOpsi && ad is { Enabled: true } && IsWindowsClient(ad.OperatingSystem) && opsi is null)
-        {
-            findings.Add(new HygieneFinding(
-                HygieneFindingCode.MissingOpsi,
-                HygieneFindingSeverity.Warning,
-                "Active Windows client in Active Directory, but no matching opsi client was found."));
-        }
-
-        if (canCompareOpsi && ad is null && opsi is not null)
-        {
-            findings.Add(new HygieneFinding(
-                HygieneFindingCode.OrphanOpsi,
-                HygieneFindingSeverity.Warning,
-                "Present in opsi, but no matching Active Directory computer was found."));
-        }
-        AddStaleFinding(
-            findings,
-            HygieneFindingCode.StaleKaspersky,
-            "Kaspersky last seen",
-            ksc?.LastSeen,
-            now,
-            options);
-
-        if (ksc is not null && IsVersionOlder(ksc.AgentVersion, options.TargetAgentVersion))
-        {
-            findings.Add(new HygieneFinding(
-                HygieneFindingCode.OutdatedAgent,
-                HygieneFindingSeverity.Warning,
-                $"Network Agent {ksc.AgentVersion} is below target {options.TargetAgentVersion}."));
-        }
-
-        if (ksc is not null && IsVersionOlder(ksc.KesVersion, options.TargetKesVersion))
-        {
-            findings.Add(new HygieneFinding(
-                HygieneFindingCode.OutdatedKes,
-                HygieneFindingSeverity.Warning,
-                $"KES {ksc.KesVersion} is below target {options.TargetKesVersion}."));
-        }
-
-        if (assessNessus && sources.Nessus.Availability == InventorySourceAvailability.Available)
-        {
-            if (ad is { Enabled: true }
-                && IsWindows(ad.OperatingSystem)
-                && (nessus is null || nessus.LastCompletedScanUtc is null)
-                && !MatchesAny(ad.ComputerName, nessusInventory.MissingExcludedHostPatterns)
-                && !MatchesAny(ad.DistinguishedName, nessusInventory.MissingExcludedOuPatterns))
-            {
-                findings.Add(new HygieneFinding(
-                    HygieneFindingCode.MissingNessus,
-                    HygieneFindingSeverity.Warning,
-                    "Enabled Windows computer in Active Directory, but no matching Nessus asset was found."));
-            }
-
-            if (nessus?.LastCompletedScanUtc is not null)
-            {
-                AddStaleFinding(
-                    findings,
-                    HygieneFindingCode.StaleNessus,
-                    "Nessus last completed scan",
-                    nessus.LastCompletedScanUtc,
-                    now,
-                    nessusInventory.StaleWarningDays,
-                    nessusInventory.StaleCriticalDays);
-                if (nessus.Critical > 0)
-                {
-                    findings.Add(new HygieneFinding(
-                        HygieneFindingCode.NessusCriticalVulnerabilities,
-                        HygieneFindingSeverity.Critical,
-                        $"Nessus reports {nessus.Critical} critical finding instance(s)."));
-                }
-                else if (nessus.High > 0)
-                {
-                    findings.Add(new HygieneFinding(
-                        HygieneFindingCode.NessusHighVulnerabilities,
-                        HygieneFindingSeverity.Warning,
-                        $"Nessus reports {nessus.High} high finding instance(s)."));
-                }
-            }
-        }
-
-        return findings;
-    }
-
-    private static bool CanCompare(InventorySourceState left, InventorySourceState right) =>
-        left.Availability == InventorySourceAvailability.Available
-        && right.Availability == InventorySourceAvailability.Available;
-
-    internal static bool IsWindowsClient(string? operatingSystem) =>
-        !string.IsNullOrWhiteSpace(operatingSystem)
-        && operatingSystem.Contains("Windows", StringComparison.OrdinalIgnoreCase)
-        && !operatingSystem.Contains("Server", StringComparison.OrdinalIgnoreCase);
-
-    internal static bool IsWindows(string? operatingSystem) =>
-        !string.IsNullOrWhiteSpace(operatingSystem)
-        && operatingSystem.Contains("Windows", StringComparison.OrdinalIgnoreCase);
-
-    private static bool MatchesAny(string? value, IReadOnlyList<string>? patterns) =>
-        !string.IsNullOrWhiteSpace(value)
-        && (patterns ?? []).Any(pattern =>
-            !string.IsNullOrWhiteSpace(pattern)
-            && value.Contains(pattern.Trim().Trim('*'), StringComparison.OrdinalIgnoreCase));
-
-    private static void AddStaleFinding(
-        List<HygieneFinding> findings,
-        HygieneFindingCode code,
-        string label,
-        DateTimeOffset? timestamp,
-        DateTimeOffset now,
-        ItLifecycleOptions options)
-        => AddStaleFinding(
-            findings, code, label, timestamp, now, options.StaleWarningDays, options.StaleCriticalDays);
-
-    private static void AddStaleFinding(
-        List<HygieneFinding> findings,
-        HygieneFindingCode code,
-        string label,
-        DateTimeOffset? timestamp,
-        DateTimeOffset now,
-        int warningDays,
-        int criticalDays)
-    {
-        if (timestamp is null)
-        {
-            return;
-        }
-
-        double ageDays = Math.Max(0, (now - timestamp.Value).TotalDays);
-        if (ageDays > criticalDays)
-        {
-            findings.Add(new HygieneFinding(
-                code,
-                HygieneFindingSeverity.Critical,
-                $"{label} was {Math.Floor(ageDays)} days ago (cleanup threshold: {criticalDays} days)."));
-        }
-        else if (ageDays > warningDays)
-        {
-            findings.Add(new HygieneFinding(
-                code,
-                HygieneFindingSeverity.Warning,
-                $"{label} was {Math.Floor(ageDays)} days ago (warning threshold: {warningDays} days)."));
-        }
-    }
+    internal static bool IsVersionOlder(string? installed, string? target) =>
+        HygieneAssessmentPolicy.IsVersionOlder(installed, target);
 
     internal static HygieneSummary Summarize(IReadOnlyList<HygieneDevice> devices)
     {
@@ -824,123 +427,6 @@ internal sealed class ItHygieneService
             devices.Count(device => Has(device, HygieneFindingCode.NessusHighVulnerabilities)));
     }
 
-    private Result<AdComputerInventoryQuery> BuildAdQuery(DirectoryInventoryConnection? input)
-    {
-        input ??= new DirectoryInventoryConnection();
-        Result<ScanCredentials> credentials = BuildCredentials(
-            input.UserName,
-            input.UserDomain,
-            input.Password,
-            input.Domain);
-        return credentials.IsFailure
-            ? Result.Failure<AdComputerInventoryQuery>(credentials.Error!)
-            : Result.Success(new AdComputerInventoryQuery(
-                NormalizeOptional(input.Domain),
-                NormalizeOptional(input.Server),
-                credentials.Value,
-                _options.InventoryLimit));
-    }
-
-    private Result<KasperskyConnection> BuildKasperskyConnection(KasperskyInventoryConnection? input)
-    {
-        input ??= new KasperskyInventoryConnection();
-        string? userName = NormalizeOptional(input.UserName);
-        string? password = input.Password;
-        string? domain = NormalizeOptional(input.Domain);
-        if (userName is null || password is null)
-        {
-            return Result.Failure<KasperskyConnection>(new Error(
-                ErrorCode.InvalidRequest,
-                "Kaspersky Security Center credentials are required. Sign in with the read-only KSC account."));
-        }
-
-        if (userName.Contains('\\', StringComparison.Ordinal))
-        {
-            string[] parts = userName.Split('\\', 2);
-            domain = parts[0];
-            userName = parts[1];
-        }
-        else if (userName.Contains('@', StringComparison.Ordinal))
-        {
-            domain = null;
-        }
-
-        return Result.Success(new KasperskyConnection(
-            NormalizeOptional(input.Server) ?? _options.Kaspersky.Server,
-            input.Port ?? _options.Kaspersky.Port,
-            userName,
-            domain,
-            password,
-            NormalizeOptional(_options.Kaspersky.TrustedCertificateThumbprint),
-            _options.Kaspersky.RequestTimeout,
-            _options.InventoryLimit,
-            _options.Kaspersky.ExcludedAdministrationGroups ?? []));
-    }
-
-    private static Result<ScanCredentials> BuildCredentials(
-        string? userName,
-        string? userDomain,
-        string? password,
-        string? directoryDomain)
-    {
-        string? normalizedUser = NormalizeOptional(userName);
-        if (normalizedUser is null)
-        {
-            return Result.Success(ScanCredentials.CurrentUser);
-        }
-
-        if (password is null)
-        {
-            return Result.Failure<ScanCredentials>(new Error(
-                ErrorCode.InvalidRequest,
-                "Explicit Active Directory credentials require a password."));
-        }
-
-        if (normalizedUser.Contains('\\', StringComparison.Ordinal))
-        {
-            string[] parts = normalizedUser.Split('\\', 2);
-            return parts.All(part => part.Length > 0)
-                ? Result.Success(ScanCredentials.Explicit(parts[1], parts[0], password))
-                : Result.Failure<ScanCredentials>(new Error(
-                    ErrorCode.InvalidRequest,
-                    "The Active Directory account is not a valid DOMAIN\\user name."));
-        }
-
-        if (normalizedUser.Contains('@', StringComparison.Ordinal))
-        {
-            return Result.Success(ScanCredentials.Explicit(normalizedUser, null, password));
-        }
-
-        string? domain = NormalizeOptional(userDomain) ?? NormalizeOptional(directoryDomain);
-        return domain is not null
-            ? Result.Success(ScanCredentials.Explicit(normalizedUser, domain, password))
-            : Result.Failure<ScanCredentials>(new Error(
-                ErrorCode.InvalidRequest,
-                "The Active Directory account needs a domain."));
-    }
-
-    private static bool TryParseVersion(string? value, out int[] parts)
-    {
-        parts = [];
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        string[] tokens = value.Trim().Split('.');
-        parts = new int[tokens.Length];
-        for (int index = 0; index < tokens.Length; index++)
-        {
-            if (!int.TryParse(tokens[index], out parts[index]) || parts[index] < 0)
-            {
-                parts = [];
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private static string? OrganizationalUnit(string? distinguishedName)
     {
         if (string.IsNullOrWhiteSpace(distinguishedName))
@@ -954,6 +440,4 @@ internal sealed class ItHygieneService
             : null;
     }
 
-    private static string? NormalizeOptional(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

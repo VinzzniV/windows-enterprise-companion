@@ -29,17 +29,20 @@ public class HardwareInfoServiceTests
     private HardwareInfoService CreateService(TimeSpan? cacheTtl = null)
     {
         _clock.UtcNow.Returns(Now);
+        var inventoryOptions = Microsoft.Extensions.Options.Options.Create(new InventoryOptions
+        {
+            CacheTtl = cacheTtl ?? TimeSpan.FromMinutes(15),
+        });
+        var remoteOptions = Microsoft.Extensions.Options.Options.Create(new RemoteScanOptions());
         return new HardwareInfoService(
             _wmiQueryService,
             _repository,
             new InstalledSoftwareReader(_registryReader),
             new RemoteInstalledSoftwareReader(_wmiQueryService),
+            new DeviceUserEvidenceCollector(_wmiQueryService, inventoryOptions, remoteOptions),
             _clock,
-            Microsoft.Extensions.Options.Options.Create(new InventoryOptions
-            {
-                CacheTtl = cacheTtl ?? TimeSpan.FromMinutes(15),
-            }),
-            Microsoft.Extensions.Options.Options.Create(new RemoteScanOptions()),
+            inventoryOptions,
+            remoteOptions,
             NullLogger<HardwareInfoService>.Instance);
     }
 
@@ -106,6 +109,11 @@ public class HardwareInfoServiceTests
             ["UserFriendlyName"] = Encode("DELL U2723QE"),
             ["SerialNumberID"] = Encode("SN-1"),
         });
+        SetUpQuery("Win32_ComputerSystem", new Dictionary<string, object?>
+        {
+            ["UserName"] = null,
+        });
+        SetUpEmptyQuery("Win32_UserProfile");
     }
 
     private static ushort[] Encode(string text) =>
@@ -121,6 +129,17 @@ public class HardwareInfoServiceTests
                 Arg.Is<string>(query => query.Contains(wmiClassName, StringComparison.Ordinal)),
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success<IReadOnlyList<WmiInstance>>([new WmiInstance(properties)]));
+
+    private void SetUpEmptyQuery(string wmiClassName) =>
+        _wmiQueryService
+            .QueryAsync(
+                Arg.Any<ScanTarget>(),
+                Arg.Any<ScanCredentials>(),
+                Arg.Any<ConnectionOptions>(),
+                Arg.Any<string>(),
+                Arg.Is<string>(query => query.Contains(wmiClassName, StringComparison.Ordinal)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<WmiInstance>>([]));
 
     [Fact]
     public async Task FreshQuery_SavesSnapshotAndReturnsIt()
@@ -150,6 +169,8 @@ public class HardwareInfoServiceTests
         Assert.Equal("DEL", monitor.Manufacturer);
         Assert.Equal("DELL U2723QE", monitor.Model);
         Assert.NotNull(result.Value.Snapshot.InstalledSoftware);
+        Assert.Equal(UserEvidenceSourceState.Available, result.Value.Snapshot.UserEvidence!.InteractiveUserState);
+        Assert.Equal(UserEvidenceSourceState.Available, result.Value.Snapshot.UserEvidence.LocalProfilesState);
         await _repository.Received(1).SaveAsync(
             LocalHostKey, result.Value.Snapshot, Now, Arg.Any<CancellationToken>());
     }

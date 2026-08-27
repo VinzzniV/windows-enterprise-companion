@@ -24,7 +24,7 @@ import { Input } from '../../shared/ui/Input';
 import { Spinner } from '../../shared/ui/Spinner';
 import { ErrorState } from '../../shared/ui/States';
 import { ConfirmDangerAction } from '../../shared/ui/ConfirmDangerAction';
-import { CredentialFields, type CredentialValues } from '../../shared/targets/TargetSelector';
+import { CredentialFields, type CredentialValues } from '../../shared/targets/Credentials';
 import { useTargetsOptional } from '../../shared/targets/TargetContext';
 import { useEnvironmentOptional } from '../../shared/environment/EnvironmentContext';
 import {
@@ -344,6 +344,8 @@ export function SettingsPage() {
             <dd className="text-slate-200">{appInfo.isElevated ? 'Administrator' : 'Standard user'}</dd>
             <dt className="text-slate-400">Max parallel scans</dt>
             <dd className="font-mono text-slate-200">{appInfo.maxParallelScans}</dd>
+            <dt className="text-slate-400">Max batch hosts</dt>
+            <dd className="font-mono text-slate-200">{appInfo.maxBatchHosts}</dd>
             <dt className="text-slate-400">Database</dt>
             <dd className="break-all font-mono text-xs text-slate-300">{appInfo.databasePath}</dd>
             <dt className="text-slate-400">Log directory</dt>

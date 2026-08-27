@@ -5,6 +5,73 @@
  * These declarations are generated from every payload/result type reachable
  * from IActionHandler<TPayload, TResult> implementations.
  */
+export type ActionEvidenceAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CONNECTED' | 'UNAVAILABLE' | 'TRUNCATED';
+
+export interface ActionEvidenceSourceState {
+  source: string;
+  availability: ActionEvidenceAvailability;
+  explanation: string | null;
+}
+
+export interface ClientObservedUserEvidence {
+  directorySid: string;
+  accountDisplay: string;
+  relationshipType: UserDeviceRelationshipType;
+  source: string;
+  observedAtUtc: string;
+  confidence: UserDeviceRelationshipConfidence;
+  explanation: string;
+}
+
+export interface DeviceCleanupFindingEvidence {
+  code: string;
+  severity: string;
+  message: string;
+}
+
+export type DeviceCleanupUserEvidenceAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CAPTURED' | 'UNAVAILABLE' | 'TRUNCATED';
+
+export interface DeviceCleanupUserObservation {
+  relationshipType: string;
+  sid: string;
+  accountDisplay: string | null;
+  observedAtUtc: string;
+  profileLastUseAtUtc: string | null;
+  confidence: string;
+  explanation: string;
+}
+
+export type DirectoryUserAccessCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'UNAVAILABLE';
+
+export type DirectoryUserAccountStateFilter = 'ALL' | 'ENABLED' | 'DISABLED';
+
+export interface DirectoryUserGroup {
+  distinguishedName: string;
+  name: string;
+}
+
+export type DirectoryUserSortDirection = 'ASCENDING' | 'DESCENDING';
+
+export type DirectoryUserSortField = 'DISPLAY_NAME' | 'SAM_ACCOUNT_NAME' | 'DEPARTMENT' | 'CREATED_AT' | 'LAST_LOGON';
+
+export interface HygieneActionDirectoryConnection {
+  domain?: string | null;
+  server?: string | null;
+  userName?: string | null;
+  userDomain?: string | null;
+  password?: string | null;
+}
+
+export interface HygieneActionKasperskyConnection {
+  server?: string | null;
+  port?: number | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
+}
+
+export type NessusInventoryAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CONNECTED' | 'UNAVAILABLE';
+
 export interface SecurityCoverageReportData {
   isKnown: boolean;
   isComplete: boolean;
@@ -17,6 +84,27 @@ export interface SecurityCoverageReportData {
 }
 
 export type ServiceCredentialKind = 'KASPERSKY' | 'OPSI' | 'NESSUS';
+
+export type UserDeviceRelationshipConfidence = 'HIGH' | 'MEDIUM';
+
+export interface UserDeviceRelationshipCoverage {
+  storedDeviceCount: number;
+  evidenceCapturedDeviceCount: number;
+  notCapturedDeviceCount: number;
+  unavailableDeviceCount: number;
+  truncatedDeviceCount: number;
+}
+
+export interface UserDeviceRelationshipObservation {
+  relationshipType: UserDeviceRelationshipType;
+  source: string;
+  observedAtUtc: string;
+  confidence: UserDeviceRelationshipConfidence;
+  explanation: string;
+  profileLastUseAtUtc: string | null;
+}
+
+export type UserDeviceRelationshipType = 'LAST_INTERACTIVE_USER' | 'PROFILE_PRESENT';
 
 export interface TargetRequest {
   host?: string | null;
@@ -66,6 +154,7 @@ export interface AppInfoResponse {
   logDirectory: string;
   isElevated: boolean;
   maxParallelScans: number;
+  maxBatchHosts: number;
   machineName: string;
   runtimeProfile: string;
 }
@@ -245,6 +334,67 @@ export interface ServiceCredentialStatuses {
   opsi: ServiceCredentialStatus;
 }
 
+export interface ActionCenterPage {
+  items: ActionCenterWorkItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  summary: ActionCenterSummary;
+  assessedAtUtc: string;
+  sources: ActionEvidenceSourceState[];
+  itemsTruncated: boolean;
+}
+
+export type ActionCenterSeverity = 'CRITICAL' | 'HIGH' | 'WARNING' | 'MEDIUM' | 'LOW' | 'INFORMATION' | 'UNKNOWN';
+
+export type ActionCenterSortDirection = 'ASCENDING' | 'DESCENDING';
+
+export type ActionCenterSortField = 'SEVERITY' | 'DEVICE' | 'SOURCE' | 'EVIDENCE_AGE' | 'PROBLEM';
+
+export interface ActionCenterSummary {
+  total: number;
+  critical: number;
+  high: number;
+  warning: number;
+  unknownCoverage: number;
+}
+
+export interface ActionCenterWorkItem {
+  id: string;
+  subjectType: string;
+  subjectKey: string;
+  device: string;
+  userObjectId: string | null;
+  userDisplayName: string | null;
+  problemCode: string;
+  problem: string;
+  explanation: string;
+  source: string;
+  severity: ActionCenterSeverity;
+  evidenceAtUtc: string | null;
+  assessedAtUtc: string;
+  evidenceAgeDays: number | null;
+  coverage: ActionEvidenceAvailability;
+  reliability: string;
+  coverageExplanation: string;
+  recommendedAction: string;
+  href: string;
+}
+
+export interface ListActionCenterItemsRequest {
+  activeDirectory?: HygieneActionDirectoryConnection | null;
+  kaspersky?: HygieneActionKasperskyConnection | null;
+  operationId?: string | null;
+  force?: boolean;
+  search?: string | null;
+  severity?: ActionCenterSeverity | null;
+  source?: string | null;
+  page?: number;
+  pageSize?: number;
+  sortField?: ActionCenterSortField;
+  sortDirection?: ActionCenterSortDirection;
+}
+
 export interface AdComputer {
   name: string;
   dnsHostName: string | null;
@@ -397,6 +547,7 @@ export interface SearchAdComputersRequest {
   nameFilter?: string | null;
   includeDisabled?: boolean;
   connection?: DirectoryConnectionRequest | null;
+  resultLimit?: number | null;
 }
 
 export interface SearchAdUsersRequest {
@@ -415,6 +566,77 @@ export interface TestDirectoryConnectionResult {
   defaultNamingContext: string | null;
 }
 
+export interface DeviceCleanupAssessment {
+  candidate: DeviceCleanupCandidate;
+  sources: DeviceCleanupSourceFact[];
+  findings: DeviceCleanupFindingEvidence[];
+  userEvidenceAvailability: DeviceCleanupUserEvidenceAvailability;
+  userEvidenceExplanation: string;
+  userObservations: DeviceCleanupUserObservation[];
+}
+
+export interface DeviceCleanupCandidate {
+  subjectKey: string;
+  host: string;
+  classification: DeviceCleanupClassification;
+  classificationExplanation: string;
+  activeDirectoryEnabled: boolean | null;
+  activeDirectoryLastLogonAtUtc: string | null;
+  kasperskyLastSeenAtUtc: string | null;
+  opsiLastSeenAtUtc: string | null;
+  nessusLastScanAtUtc: string | null;
+  inventoryCapturedAtUtc: string | null;
+  relevantFindingCount: number;
+}
+
+export type DeviceCleanupClassification = 'POTENTIAL_CLEANUP' | 'REVIEW' | 'INSUFFICIENT_EVIDENCE' | 'NO_CLEANUP_SIGNAL';
+
+export interface DeviceCleanupPage {
+  candidates: DeviceCleanupCandidate[];
+  total: number;
+  page: number;
+  pageSize: number;
+  assessedAtUtc: string;
+  sources: ActionEvidenceSourceState[];
+  selectedAssessment: DeviceCleanupAssessment | null;
+  subjectsTruncated: boolean;
+}
+
+export interface DeviceCleanupSourceFact {
+  source: string;
+  coverage: ActionEvidenceAvailability;
+  exists: boolean | null;
+  state: string;
+  observedAtUtc: string | null;
+  explanation: string;
+}
+
+export interface ListDeviceCleanupCandidatesRequest {
+  activeDirectory?: HygieneActionDirectoryConnection | null;
+  kaspersky?: HygieneActionKasperskyConnection | null;
+  operationId?: string | null;
+  force?: boolean;
+  search?: string | null;
+  selectedHost?: string | null;
+  includeWithoutSignals?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ExportDeviceCleanupAssessmentRequest {
+  markdown: string;
+}
+
+export interface ExportDeviceCleanupAssessmentResult {
+  cancelled: boolean;
+  filePath: string | null;
+}
+
+export interface DiagnosticBatchProgress {
+  host: string;
+  status: DiagnosticBatchHostStatus;
+}
+
 export interface EventLogQueryResult {
   presetKey: string;
   totalMatched: number;
@@ -430,7 +652,22 @@ export interface RemoteEventLogEntry {
   message: string;
 }
 
-export type DiagnosticCategory = 'NETWORK' | 'DOMAIN' | 'TIME_SYNCHRONIZATION' | 'EVENT_LOG' | 'SERVICES' | 'DNS' | 'SYSTEM';
+export interface DiagnosticBatchHostOutcome {
+  host: string;
+  status: DiagnosticBatchHostStatus;
+  run: DiagnosticRunResult | null;
+  error: ScanError | null;
+}
+
+export type DiagnosticBatchHostStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export interface DiagnosticBatchResult {
+  startedAtUtc: string;
+  completedAtUtc: string;
+  hosts: DiagnosticBatchHostOutcome[];
+}
+
+export type DiagnosticCategory = 'EVENT_LOG' | 'SERVICES' | 'SYSTEM';
 
 export interface DiagnosticResult {
   diagnosticId: string;
@@ -463,6 +700,13 @@ export interface LatestDiagnosticRunResult {
 export interface QueryEventLogRequest {
   preset: string;
   target?: TargetRequest | null;
+}
+
+export interface RunBatchDiagnosticsRequest {
+  hosts?: string[] | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
 }
 
 export interface RunDiagnosticsRequest {
@@ -500,6 +744,99 @@ export interface CaseDetails {
 export interface CaseResult {
   case: CaseDetails;
   employee: EmployeeDetails;
+}
+
+export interface ClientHealthIssue {
+  diagnosticId: string;
+  title: string;
+  status: string;
+  affectedResource: string;
+}
+
+export interface ClientHealthOverview {
+  metadata: ClientOverviewSourceMetadata;
+  criticalCount: number;
+  warningCount: number;
+  unknownCount: number;
+  healthyCount: number;
+  issues: ClientHealthIssue[];
+}
+
+export interface ClientInventoryOverview {
+  metadata: ClientOverviewSourceMetadata;
+  cpuName: string;
+  physicalCores: number;
+  logicalProcessors: number;
+  totalMemoryBytes: number;
+  operatingSystem: string;
+  operatingSystemVersion: string;
+  operatingSystemBuild: string;
+  architecture: string | null;
+  disks: ClientOverviewDisk[];
+}
+
+export interface ClientOverviewDisk {
+  model: string;
+  sizeBytes: number;
+  interfaceType: string | null;
+}
+
+export type ClientOverviewFreshness = 'MISSING' | 'FRESH' | 'STALE' | 'UNKNOWN';
+
+export interface ClientOverviewResult {
+  host: string;
+  inventory: ClientInventoryOverview | null;
+  software: ClientSoftwareOverview | null;
+  health: ClientHealthOverview | null;
+  security: ClientSecurityOverview | null;
+  users: ClientUserOverview | null;
+  sources: ClientOverviewSourceMetadata[];
+}
+
+export interface ClientOverviewSourceMetadata {
+  source: string;
+  provenance: string;
+  freshness: ClientOverviewFreshness;
+  capturedAtUtc: string | null;
+  ageSeconds: number | null;
+  isComplete: boolean;
+  coverage: string;
+  detailSection: string;
+}
+
+export interface ClientSecurityFinding {
+  findingId: string;
+  title: string;
+  severity: string;
+  affectedResource: string;
+}
+
+export interface ClientSecurityOverview {
+  metadata: ClientOverviewSourceMetadata;
+  scanStatus: string | null;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  topFindings: ClientSecurityFinding[];
+}
+
+export interface ClientSoftwareOverview {
+  metadata: ClientOverviewSourceMetadata;
+  installedCount: number;
+  sample: ClientSoftwareOverviewItem[];
+}
+
+export interface ClientSoftwareOverviewItem {
+  name: string;
+  version: string | null;
+  publisher: string | null;
+}
+
+export interface ClientUserOverview {
+  metadata: ClientOverviewSourceMetadata;
+  unresolvedProfileCount: number;
+  observations: ClientObservedUserEvidence[];
 }
 
 export interface ClientWorkspaceListItem {
@@ -860,6 +1197,10 @@ export interface GetCaseRequest {
   caseId?: number;
 }
 
+export interface GetClientOverviewRequest {
+  host: string;
+}
+
 export interface GetEmployeeRequest {
   employeeId?: number;
 }
@@ -923,11 +1264,26 @@ export interface HardwareInfoResult {
   fromCache: boolean;
 }
 
+export interface InventoryBatchProgress {
+  host: string;
+  status: InventoryBatchHostStatus;
+}
+
 export interface CpuInfo {
   name: string;
   physicalCores: number;
   logicalProcessors: number;
   maxClockSpeedMhz: number;
+}
+
+export interface DeviceUserEvidence {
+  interactiveUserState: UserEvidenceSourceState;
+  interactiveUser: InteractiveDomainUserEvidence | null;
+  interactiveUserError: UserEvidenceCaptureError | null;
+  localProfilesState: UserEvidenceSourceState;
+  localProfiles: LocalUserProfileEvidence[] | null;
+  localProfilesError: UserEvidenceCaptureError | null;
+  localProfilesTruncated: boolean;
 }
 
 export interface DiskDrive {
@@ -958,12 +1314,39 @@ export interface HardwareSnapshot {
   monitors: MonitorInfo[] | null;
   installedSoftware: InstalledSoftwareEntry[] | null;
   installedSoftwareError: SoftwareCaptureError | null;
+  userEvidence: DeviceUserEvidence | null;
 }
 
 export interface InstalledSoftwareEntry {
   name: string;
   version: string | null;
   publisher: string | null;
+}
+
+export interface InteractiveDomainUserEvidence {
+  sid: string;
+  domain: string;
+  accountName: string;
+}
+
+export interface InventoryBatchHostOutcome {
+  host: string;
+  status: InventoryBatchHostStatus;
+  inventory: HardwareInfoResult | null;
+  error: ScanError | null;
+}
+
+export type InventoryBatchHostStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export interface InventoryBatchResult {
+  startedAtUtc: string;
+  completedAtUtc: string;
+  hosts: InventoryBatchHostOutcome[];
+}
+
+export interface LocalUserProfileEvidence {
+  sid: string;
+  lastUseAtUtc: string | null;
 }
 
 export interface MemoryBank {
@@ -1000,6 +1383,13 @@ export interface SoftwareCaptureError {
   message: string;
 }
 
+export interface UserEvidenceCaptureError {
+  code: string;
+  message: string;
+}
+
+export type UserEvidenceSourceState = 'NOT_CAPTURED' | 'AVAILABLE' | 'UNAVAILABLE';
+
 export type VolumeProtectionStatus = 'UNPROTECTED' | 'PROTECTED' | 'UNKNOWN';
 
 export interface DeleteHostSnapshotRequest {
@@ -1025,6 +1415,13 @@ export interface ListInventoryHostsRequest {
 
 export interface ListInventoryHostsResult {
   hosts: StoredInventoryHost[];
+}
+
+export interface RunBatchInventoryRequest {
+  hosts?: string[] | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
 }
 
 export interface StoredInventoryHost {
@@ -1782,6 +2179,172 @@ export interface SavedTarget {
   role: string;
   userName: string | null;
   createdAtUtc: string;
+}
+
+export interface UserDirectoryConnectionRequest {
+  domain?: string | null;
+  server?: string | null;
+  userName?: string | null;
+  userDomain?: string | null;
+  password?: string | null;
+}
+
+export interface UserAccessProfile {
+  directGroups: DirectoryUserGroup[];
+  privilegedCoverage: DirectoryUserAccessCoverage;
+  privilegedCoverageExplanation: string;
+  directPrivilegedGroups: DirectoryUserGroup[];
+}
+
+export type UserDeviceEvidenceCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'PARTIAL' | 'NOT_CAPTURED';
+
+export interface UserDeviceHealthProfile {
+  isAvailable: boolean;
+  isComplete: boolean;
+  capturedAtUtc: string | null;
+  criticalCount: number;
+  warningCount: number;
+  unknownCount: number;
+  healthyCount: number;
+  explanation: string;
+}
+
+export interface UserDeviceProfile {
+  coverage: UserDeviceEvidenceCoverage;
+  explanation: string;
+  sourceCoverage: UserDeviceRelationshipCoverage;
+  totalLinkedDeviceCount: number;
+  linkedDevicesTruncated: boolean;
+  linkedDevices: UserLinkedDeviceProfile[];
+}
+
+export interface UserDeviceSecurityProfile {
+  isAvailable: boolean;
+  isComplete: boolean;
+  capturedAtUtc: string | null;
+  scanStatus: string | null;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  explanation: string;
+}
+
+export interface UserDeviceSoftwareItem {
+  name: string;
+  version: string | null;
+  publisher: string | null;
+}
+
+export interface UserDeviceSoftwareProfile {
+  isAvailable: boolean;
+  isComplete: boolean;
+  capturedAtUtc: string | null;
+  installedCount: number;
+  sample: UserDeviceSoftwareItem[];
+  explanation: string;
+}
+
+export interface UserDeviceVulnerabilityProfile {
+  availability: NessusInventoryAvailability;
+  deviceMatched: boolean;
+  capturedAtUtc: string | null;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  explanation: string;
+}
+
+export interface UserIdentityProfile {
+  objectId: string;
+  sid: string | null;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  mail: string | null;
+  employeeId: string | null;
+  department: string | null;
+  title: string | null;
+  managerDistinguishedName: string | null;
+  distinguishedName: string;
+  organizationalUnitPath: string;
+}
+
+export interface UserLifecycleProfile {
+  enabled: boolean | null;
+  createdAtUtc: string | null;
+  accountExpiresAtUtc: string | null;
+  replicatedLastLogonAtUtc: string | null;
+  passwordLastSetAtUtc: string | null;
+  passwordExpiresAtUtc: string | null;
+  passwordNeverExpires: boolean | null;
+}
+
+export interface UserLinkedDeviceProfile {
+  host: string;
+  inventoryCapturedAtUtc: string;
+  relationshipEvidence: UserDeviceRelationshipObservation[];
+  software: UserDeviceSoftwareProfile;
+  health: UserDeviceHealthProfile;
+  security: UserDeviceSecurityProfile;
+  vulnerabilities: UserDeviceVulnerabilityProfile;
+}
+
+export interface UserPageResult {
+  domainJoined: boolean;
+  domainName: string | null;
+  baseDistinguishedName: string | null;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  users: UserSummary[];
+}
+
+export interface UserProfileResult {
+  identity: UserIdentityProfile;
+  lifecycle: UserLifecycleProfile;
+  access: UserAccessProfile;
+  devices: UserDeviceProfile;
+}
+
+export interface UserSummary {
+  objectId: string;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  employeeId: string | null;
+  department: string | null;
+  title: string | null;
+  organizationalUnitPath: string;
+  enabled: boolean | null;
+  replicatedLastLogonAtUtc: string | null;
+}
+
+export interface ExportLeaverReviewRequest {
+  markdown: string;
+}
+
+export interface ExportLeaverReviewResult {
+  cancelled: boolean;
+  filePath: string | null;
+}
+
+export interface GetUserProfileRequest {
+  objectId: string;
+  connection?: UserDirectoryConnectionRequest | null;
+}
+
+export interface ListUsersRequest {
+  search?: string | null;
+  baseDistinguishedName?: string | null;
+  department?: string | null;
+  accountState?: DirectoryUserAccountStateFilter;
+  page?: number;
+  pageSize?: number;
+  sortField?: DirectoryUserSortField;
+  sortDirection?: DirectoryUserSortDirection;
+  connection?: UserDirectoryConnectionRequest | null;
 }
 
 export interface PageResult<T> {

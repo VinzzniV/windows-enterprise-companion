@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import type { HardwareInfoResult, ReportOverview, SecurityScanResult } from '../../shared/api-types';
+import type { ClientOverviewResult, HardwareInfoResult, ReportOverview, SecurityScanResult } from '../../shared/api-types';
 import { TargetProvider } from '../../shared/targets/TargetContext';
 import { EnvironmentProvider } from '../../shared/environment/EnvironmentContext';
 import { ClientDetailPage } from './ClientDetailPage';
@@ -53,6 +53,7 @@ const capturedInventory: HardwareInfoResult = {
     monitors: [],
     installedSoftware: [],
     installedSoftwareError: null,
+    userEvidence: null,
   },
 };
 
@@ -75,6 +76,22 @@ const completedSecurityScan: SecurityScanResult = {
     applicableChecks: 13,
     isComplete: true,
   },
+};
+
+const storedClientOverview: ClientOverviewResult = {
+  host: 'PC1.corp.local',
+  inventory: null,
+  software: null,
+  health: null,
+  security: null,
+  users: null,
+  sources: [
+    { source: 'Inventory', provenance: 'Persisted WMI/CIM hardware snapshot', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored hardware snapshot.', detailSection: 'inventory' },
+    { source: 'Installed software', provenance: 'Persisted Inventory software capture', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored software capture.', detailSection: 'inventory' },
+    { source: 'Health', provenance: 'Latest persisted on-demand Health run', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored Health run.', detailSection: 'diagnostics' },
+    { source: 'Security', provenance: 'Latest persisted Security scan and per-check coverage', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored Security scan.', detailSection: 'security' },
+    { source: 'Linked users', provenance: 'Latest stored WEC Inventory user evidence', freshness: 'MISSING', capturedAtUtc: null, ageSeconds: null, isComplete: false, coverage: 'No stored user/device relationship evidence.', detailSection: 'inventory' },
+  ],
 };
 
 function reportOverview(inventoryAvailable: boolean, securityAvailable: boolean): ReportOverview {
@@ -130,6 +147,9 @@ describe('ClientDetailPage', () => {
       if (module === 'inventory' && action === 'getHardwareInfo') {
         return Promise.reject(new Error('no cached snapshot'));
       }
+      if (module === 'clients' && action === 'getOverview') {
+        return Promise.resolve(storedClientOverview);
+      }
       if (module === 'employeelifecycle' && action === 'getHygiene') {
         return Promise.resolve({
           assessedAtUtc: '2026-08-18T08:00:00Z', domainName: 'corp.local',
@@ -176,6 +196,9 @@ describe('ClientDetailPage', () => {
 
     expect(await screen.findByText('Scanning as current user')).toBeDefined(); // remote → creds needed
     expect((await screen.findByRole('tab', { name: 'Overview' })).getAttribute('aria-selected')).toBe('true');
+    expect(await screen.findByText('Client 360 evidence snapshot')).toBeDefined();
+    expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Load management sources' }));
     expect(await screen.findByText('Environment assessment')).toBeDefined();
     expect(screen.getByText('Warning')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'PowerShell' }));
@@ -201,8 +224,8 @@ describe('ClientDetailPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
     expect(await screen.findByText('Run security scan')).toBeDefined();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Diagnostics' }));
-    expect(await screen.findByText('Run diagnostics')).toBeDefined();
+    fireEvent.click(screen.getByRole('tab', { name: 'Health' }));
+    expect(await screen.findByText('Run health check')).toBeDefined();
 
     fireEvent.click(screen.getByRole('tab', { name: 'Report export' }));
     // Remote reporting now works: the section reports on the scanned host by name

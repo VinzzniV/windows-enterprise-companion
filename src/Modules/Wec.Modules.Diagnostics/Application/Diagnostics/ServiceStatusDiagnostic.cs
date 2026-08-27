@@ -23,7 +23,7 @@ internal sealed class ServiceStatusDiagnostic : IDiagnostic
         _clock = clock;
     }
 
-    public string DiagnosticId => "WEC-DIAG-SYS-SERVICES";
+    public string DiagnosticId => DeviceHealthDiagnosticIds.ServiceStatus;
 
     public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {

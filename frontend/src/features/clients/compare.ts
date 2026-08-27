@@ -13,8 +13,8 @@ export interface SetDiff {
   both: string[];
 }
 
-// ponytail: small local copy of the inventory byte formatter; not worth coupling
-// this pure module to the HardwareInfoPage React module for six lines.
+// Small local copy of the inventory byte formatter keeps this pure comparison
+// module independent from the rendered Inventory snapshot component.
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '—';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

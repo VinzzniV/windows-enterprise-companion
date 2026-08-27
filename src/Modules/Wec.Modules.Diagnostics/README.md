@@ -1,77 +1,64 @@
 # Wec.Modules.Diagnostics
 
-Read-only troubleshooting snapshot per computer. WMI-based checks run
-locally or against remote targets (ADR 0007); the connectivity probes
-(gateway, DNS, DC reachability and event logs) measure *this*
-machine's perspective — for remote targets they return a visible
-`NOT_RUN` / `UnsupportedRemoteOperation` result instead of silently running
-against the wrong machine. The latest run is persisted per host and restored
-when that client is opened again.
+Read-only device-health snapshot per computer. The implementation keeps the
+existing module, bridge actions and persistence names for compatibility while
+the product surface is presented as **Health** (ADR 0018).
+
+Health runs only on demand. WMI-based checks work locally and against remote
+targets. Remote Event Log summaries query only error entries in the configured
+time window and apply the configured result cap; the separate preset-based
+Event Log view continues to provide detailed remote results.
+
+The latest run is persisted per host and restored when that client is opened.
+Existing `diagnostics_runs` payloads remain readable, including results from
+checks that are no longer executed.
 
 ## Bridge actions
 
 | Action | Payload | Result |
 |---|---|---|
-| `diagnostics/runDiagnostics` | `{ target?: TargetRequest }` | `DiagnosticRunResult` — categorized results; empty target = local machine |
+| `diagnostics/runDiagnostics` | `{ target?: TargetRequest }` | `DiagnosticRunResult`; empty target = local machine |
+| `diagnostics/runBatchDiagnostics` | `{ hosts, userName?, domain?, password? }` | `DiagnosticBatchResult` with one typed outcome per host; bounded by `Wec:Remote:MaxBatchHosts` and `MaxParallelScans`; emits `diagnostics/batchRunProgress` |
 | `diagnostics/getLatestDiagnostics` | `{ target?: TargetRequest }` | latest persisted `DiagnosticRunResult` for the host, or `null` |
+| `diagnostics/queryEventLog` | `{ preset, target?: TargetRequest }` | live preset-based Event Log result |
 
-## Diagnostics by category
+The bridge names deliberately remain stable. A later contract migration may
+introduce `health/*` aliases only when compatibility requires it.
+
+Batch Health runs are explicitly started, read-only and cancellable. Each host
+uses its own persistence scope, so one failed target cannot abort or corrupt the
+other completed results.
+
+## Active health checks
 
 | Category | DiagnosticId | What it checks | Remote |
 |---|---|---|---|
-| Network | `WEC-DIAG-NET-CONFIG` | Relevant routed/IP-capable adapters (IP, gateway, DNS, MAC, link speed, DHCP/static, type); virtual/filter/APIPA-only adapters remain collapsed secondary evidence | local perspective |
-| Network | `WEC-DIAG-NET-GATEWAY` | Gateway ping using the interface selected by the Windows route table; deterministic IPv4/relevant-adapter fallback when route selection is unavailable | local perspective |
-| DNS | `WEC-DIAG-NET-DNS` | Resolution of the configured probe hostname | local perspective |
-| DNS | `WEC-DIAG-DNS-SERVERS` | Ping of every configured DNS server (warning-only — ICMP is often filtered) | local perspective |
-| Domain | `WEC-DIAG-SYS-DOMAIN` | Domain/workgroup membership | yes (WMI) |
-| Domain | `WEC-DIAG-DOM-DCREACH` | DC discovery via the domain's A records + ping (skipped on workgroup machines) | local perspective |
-| Time | `WEC-DIAG-SYS-TIMESYNC` | W32Time sync type, NTP server, service state | yes (registry/StdRegProv + WMI) |
-| Services | `WEC-DIAG-SYS-SERVICES` | Monitored services running | yes (WMI) |
-| Event logs | `WEC-DIAG-SYS-EVENTLOG` | Critical/error volume in the configured logs | local (Win32_NTLogEvent too slow over WinRM) |
-| System | `WEC-DIAG-SYS-DISKSPACE` | Free space on fixed drives (Win32_LogicalDisk) | yes (WMI) |
-| System | `WEC-DIAG-SYS-REBOOT` | Pending reboot (CBS, Windows Update, pending file renames) | yes (StdRegProv) |
-| System | `WEC-DIAG-SYS-UPDATES` | Days since the last installed update | yes (WMI) |
+| Services | `WEC-DIAG-SYS-SERVICES` | Configured Windows service states | yes |
+| Event logs | `WEC-DIAG-SYS-EVENTLOG` | Critical/error volume in configured logs | yes |
+| System | `WEC-DIAG-SYS-DISKSPACE` | Free space on fixed drives | yes |
+| System | `WEC-DIAG-SYS-UPDATES` | Age of the most recently installed update | yes |
 
-Statuses: `PASS`, `WARNING` (ran, negative), `FAIL` (broken), `NOT_RUN`
-(could not read — carries the error). A crashing diagnostic becomes a
-visible `FAIL` result; the run continues.
+Network configuration, gateway/DNS/DC probes, domain membership, time
+synchronization and pending-reboot checks are no longer executed. Network Scan
+is an independent module and remains unchanged.
 
-The UI maps these persisted raw states to the canonical presentation semantics
-`Healthy`, `Warning`, `Critical` and `Unknown`, respectively. This does not
-alter the bridge or persistence contract, and operational ordering continues to
-use the raw states.
-
-Results and category sections are ordered `FAIL -> WARNING -> NOT_RUN -> PASS`.
-Suggested actions for every non-pass result are shown before raw evidence;
-successful evidence stays collapsed. Network adapter fixtures include captured
-Npcap, WFP, QoS, Hyper-V and routed VPN shapes so filter interfaces cannot
-silently become the primary network assessment.
-
-Time synchronization is `PASS` only when all required registry and WMI data
-was read and interpreted. Provider failures or incomplete service properties
-produce `NOT_RUN`; missing, disabled or unrecognized configuration produces a
-named `WARNING`.
-
-Known limitation: clock *offset* against the time source is not measured
-(that needs an NTP client); the time diagnostic reports configuration and
-service state.
+Statuses are `PASS`, `WARNING`, `FAIL` and `NOT_RUN`. A crashing check becomes
+a visible `FAIL`; the remaining checks continue. Results are ordered
+`FAIL -> WARNING -> NOT_RUN -> PASS`.
 
 ## Options (`Wec:Diagnostics`)
 
 | Option | Default | Purpose |
 |---|---|---|
-| `DnsProbeHostname` | cloudflare.com | DNS resolution probe target |
-| `ProbeTimeout` | 3 s | Ping/DNS probe timeout |
-| `EventLogNames` | ["System"] | Logs summarized |
+| `EventLogNames` | ["System"] | Logs summarized locally |
 | `EventLogLookback` | 24 h | Summary window |
 | `EventLogMaxEntries` | 500 | Read cap per log |
-| `EventLogErrorWarningThreshold` | 50 | Errors per window before WARNING |
+| `EventLogErrorWarningThreshold` | 50 | Errors per window before warning |
 | `MonitoredServices` | Dhcp, Dnscache, LanmanWorkstation, EventLog | Services expected to run |
 | `MinimumFreeDiskSpacePercent` | 10 | Free-space threshold per drive |
-| `MaxDaysSinceLastInstalledUpdate` | 60 | Update recency threshold |
+| `MaxDaysSinceLastInstalledUpdate` | 60 | Update-recency threshold |
 
 ## Tests
 
-`tests/Wec.Modules.Diagnostics.Tests` — all seams mocked
-(`INetworkInfoProvider`, `IPingProbe`, `IDnsResolver`,
-`IRegistryReader`, `IWmiQueryService`, `IEventLogReader`).
+`tests/Wec.Modules.Diagnostics.Tests` characterizes all four active checks, the
+run ordering/failure behavior, persistence and the preset-based Event Log query.

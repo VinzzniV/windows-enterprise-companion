@@ -28,7 +28,7 @@ internal sealed class DiskFreeSpaceDiagnostic : IDiagnostic
         _clock = clock;
     }
 
-    public string DiagnosticId => "WEC-DIAG-SYS-DISKSPACE";
+    public string DiagnosticId => DeviceHealthDiagnosticIds.DiskFreeSpace;
 
     public async Task<IReadOnlyList<DiagnosticResult>> EvaluateAsync(DiagnosticContext context, CancellationToken cancellationToken)
     {

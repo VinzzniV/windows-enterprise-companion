@@ -14,7 +14,7 @@ import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { CompactErrorState, EmptyState, ErrorState } from '../../shared/ui/States';
-import type { CredentialValues } from '../../shared/targets/TargetSelector';
+import type { CredentialValues } from '../../shared/targets/Credentials';
 import { useTargets } from '../../shared/targets/TargetContext';
 import { SavedTargetsBar } from '../../shared/targets/SavedTargetsBar';
 import { loadView, saveView } from '../../shared/viewCache';

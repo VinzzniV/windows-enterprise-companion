@@ -18,6 +18,7 @@ public sealed class SecurityModule : IModule
         services.AddScoped<BatchSecurityScanService>();
         services.AddScoped<ScanHistoryService>();
         services.AddScoped<ISecurityReportDataProvider, SecurityReportDataProvider>();
+        services.AddScoped<ISecurityActionEvidenceProvider, SecurityActionEvidenceProvider>();
         services.AddScoped<ISecurityCheck, FirewallProfilesCheck>();
         services.AddScoped<ISecurityCheck, DefenderStatusCheck>();
         services.AddScoped<ISecurityCheck, Smb1ProtocolCheck>();

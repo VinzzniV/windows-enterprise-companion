@@ -169,6 +169,7 @@ describe('ClientsPage', () => {
     invokeMock.mockReset();
     invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) => {
       if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (module === 'system' && action === 'getAppInfo') return Promise.resolve({ maxBatchHosts: 50 });
       if (module === 'employeelifecycle' && action === 'listClientWorkspace') return Promise.resolve(pageFor(payload));
       if (module === 'connectivity' && action === 'probeHosts') return Promise.resolve({ results: (payload.hosts as string[]).map((host) => ({ host, reachable: true, manageable: true })) });
       return Promise.reject(new Error(`Unexpected action ${module}/${action}`));
@@ -189,6 +190,47 @@ describe('ClientsPage', () => {
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Unmanaged').length).toBeGreaterThan(0);
     expect(screen.getByText('1–3 of 3')).toBeTruthy();
+  });
+
+  it('runs a batch only after explicit client selection and shows typed per-host failures', async () => {
+    invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) => {
+      if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (module === 'system' && action === 'getAppInfo') return Promise.resolve({ maxBatchHosts: 2 });
+      if (module === 'employeelifecycle' && action === 'listClientWorkspace') return Promise.resolve(pageFor(payload));
+      if (module === 'inventory' && action === 'runBatchScan') return Promise.resolve({
+        startedAtUtc: '2026-08-27T08:00:00Z',
+        completedAtUtc: '2026-08-27T08:01:00Z',
+        hosts: [
+          {
+            host: 'pc01.corp.local',
+            status: 'FAILED',
+            inventory: null,
+            error: {
+              host: 'pc01.corp.local',
+              phase: 'CONNECT',
+              code: 'WIN_RM_UNAVAILABLE',
+              message: 'WinRM did not answer.',
+              details: null,
+            },
+          },
+        ],
+      });
+      return Promise.reject(new Error(`Unexpected action ${module}/${action}`));
+    });
+
+    renderPage();
+    await screen.findByText('PC01');
+    expect(lastInvoke('runBatchScan')).toBeUndefined();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select PC01 for bulk scan' }));
+    expect(screen.getByText('1 of 2 hosts selected')).toBeTruthy();
+    expect(screen.getByText(/Current Windows identity · read-only/)).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Run Inventory' }));
+
+    await waitFor(() => expect(lastInvoke('runBatchScan')?.[2]).toEqual({ hosts: ['pc01.corp.local'] }));
+    expect(await screen.findByText(/WinRM did not answer/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'pc01.corp.local' }).getAttribute('href'))
+      .toBe('/clients/pc01.corp.local?section=inventory');
   });
 
   it('shows the Active Directory description in the device column', async () => {

@@ -94,6 +94,8 @@ public sealed class ItHygieneServiceTests
     [InlineData("16.0.0.253", "16.0.0.254", true)]
     [InlineData("16.0", "16.0.0.0", false)]
     [InlineData("16.1.0", "16.0.99", false)]
+    [InlineData("16.0.0-beta", "16.0.1", false)]
+    [InlineData("16.0.", "16.0.1", false)]
     [InlineData("unknown", "16.0.0.254", false)]
     [InlineData("16.0.0.254", "", false)]
     public void VersionComparison_IsSimpleAndPredictable(string installed, string target, bool expected)

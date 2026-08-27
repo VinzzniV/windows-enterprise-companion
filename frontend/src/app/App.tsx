@@ -1,18 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { DashboardPage } from '../features/dashboard/DashboardPage';
-import { ClientsPage } from '../features/clients/ClientsPage';
-import { ClientDetailPage } from '../features/clients/ClientDetailPage';
-import { ComparePage } from '../features/clients/ComparePage';
-import { ActiveDirectoryPage } from '../features/activedirectory/ActiveDirectoryPage';
-import { EmployeeLifecyclePage } from '../features/employeelifecycle/EmployeeLifecyclePage';
-import { VulnerabilitiesPage } from '../features/vulnerabilities/VulnerabilitiesPage';
-import { PatchManagementPage } from '../features/patchmanagement/PatchManagementPage';
-import { PrintManagementPage } from '../features/printmanagement/PrintManagementPage';
-import { NetworkScanPage } from '../features/networkscan/NetworkScanPage';
-import { ReportingPage } from '../features/reporting/ReportingPage';
-import { SettingsPage } from '../features/verwaltung/SettingsPage';
-import { ErrorLogPage } from '../features/verwaltung/ErrorLogPage';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
@@ -20,53 +7,13 @@ import { LogoMark } from '../shared/ui/LogoMark';
 import { ErrorBoundary } from '../shared/ui/ErrorBoundary';
 import { Button } from '../shared/ui/Button';
 import { CompactErrorState } from '../shared/ui/States';
-import { navIcons } from './navIcons';
 import { TargetProvider } from '../shared/targets/TargetContext';
 import { EnvironmentProvider } from '../shared/environment/EnvironmentContext';
 import { AdminSignIn } from '../shared/targets/AdminSignIn';
 import { presentError, type ErrorPresentation } from '../shared/bridge/errorPresentation';
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: ReactNode;
-}
-
-// Clients is the day-to-day workspace and sits right under the Dashboard.
-// Per-host Inventory/Security/Diagnostics now live inside a client's detail, so
-// they no longer appear as standalone nav entries. Administration holds app-wide
-// settings and the error log.
-const navGroups: { label: string; items: NavItem[] }[] = [
-  {
-    label: 'Fleet',
-    items: [
-      { to: '/', label: 'Dashboard', icon: navIcons.dashboard },
-      { to: '/clients', label: 'Clients', icon: navIcons.clients },
-      { to: '/activedirectory', label: 'Active Directory', icon: navIcons.activedirectory },
-      { to: '/vulnerabilities', label: 'Vulnerabilities', icon: navIcons.vulnerabilities },
-      { to: '/patchmanagement', label: 'Patch Management', icon: navIcons.patchmanagement },
-      { to: '/printmanagement', label: 'Print Management', icon: navIcons.printmanagement },
-      { to: '/networkscan', label: 'Network Scan', icon: navIcons.networkscan },
-      { to: '/reporting', label: 'Report export', icon: navIcons.reporting },
-    ],
-  },
-  {
-    label: 'Administration',
-    items: [
-      { to: '/settings', label: 'Settings', icon: navIcons.settings },
-      { to: '/logs', label: 'Error log', icon: navIcons.logs },
-    ],
-  },
-];
-
-const allNavItems = navGroups.flatMap((group) => group.items);
-
-function sectionLabelFor(pathname: string): string {
-  if (pathname === '/') {
-    return 'Dashboard';
-  }
-  return allNavItems.find((item) => item.to !== '/' && pathname.startsWith(item.to))?.label ?? 'Overview';
-}
+import { appRoutes, navigationGroups, sectionLabelFor, type AppRouteDefinition } from './routeRegistry';
+import { Spinner } from '../shared/ui/Spinner';
+import { GlobalSearch } from './GlobalSearch';
 
 export type AppInfoState =
   | { kind: 'loading' }
@@ -90,11 +37,20 @@ interface TopBarProps {
   appInfo: AppInfoResponse | null;
   navigationOpen: boolean;
   navigationButtonRef: RefObject<HTMLButtonElement | null>;
+  searchButtonRef: RefObject<HTMLButtonElement | null>;
   onOpenNavigation(): void;
+  onOpenSearch(): void;
 }
 
 /** Global status bar: responsive navigation/context (left) + session actions (right). */
-function TopBar({ appInfo, navigationOpen, navigationButtonRef, onOpenNavigation }: TopBarProps) {
+function TopBar({
+  appInfo,
+  navigationOpen,
+  navigationButtonRef,
+  searchButtonRef,
+  onOpenNavigation,
+  onOpenSearch,
+}: TopBarProps) {
   const location = useLocation();
   const [restartError, setRestartError] = useState<ErrorPresentation | null>(null);
   return (
@@ -120,6 +76,18 @@ function TopBar({ appInfo, navigationOpen, navigationButtonRef, onOpenNavigation
         </div>
       </div>
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+        <Button
+          ref={searchButtonRef}
+          variant="secondary"
+          aria-label="Open global search"
+          aria-keyshortcuts="Control+K Meta+K"
+          onClick={onOpenSearch}
+          className="px-2 py-1 text-xs font-normal"
+        >
+          <span className="hidden sm:inline">Search</span>
+          <kbd className="ml-1 hidden text-[10px] text-muted lg:inline">Ctrl K</kbd>
+          <span className="sm:hidden">⌕</span>
+        </Button>
         <AdminSignIn />
         {appInfo && (
           <>
@@ -246,8 +214,8 @@ function NavigationContent({ appInfoState, onNavigate, onClose }: NavigationCont
         )}
       </div>
       <nav className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-2" aria-label="Primary">
-        {navGroups.map((group) => (
-          <div key={group.label} className="flex flex-col gap-1">
+        {navigationGroups.map((group) => (
+          <div key={group.key} className="flex flex-col gap-1">
             <span className="px-3 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
               {group.label}
             </span>
@@ -265,28 +233,26 @@ function NavigationContent({ appInfoState, onNavigate, onClose }: NavigationCont
   );
 }
 
-function AppRoutes() {
+interface AppRoutesProps {
+  routes?: readonly AppRouteDefinition[];
+}
+
+export function AppRoutes({ routes = appRoutes }: AppRoutesProps) {
   const location = useLocation();
 
   return (
     // Key on the path so route changes reset the error boundary.
     <div key={location.pathname}>
       <ErrorBoundary>
-        <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/clients" element={<ClientsPage />} />
-          <Route path="/clients/compare" element={<ComparePage />} />
-          <Route path="/clients/:host" element={<ClientDetailPage />} />
-          <Route path="/activedirectory" element={<ActiveDirectoryPage />} />
-          <Route path="/employeelifecycle" element={<EmployeeLifecyclePage />} />
-          <Route path="/vulnerabilities" element={<VulnerabilitiesPage />} />
-          <Route path="/patchmanagement" element={<PatchManagementPage />} />
-          <Route path="/printmanagement" element={<PrintManagementPage />} />
-          <Route path="/networkscan" element={<NetworkScanPage />} />
-          <Route path="/reporting" element={<ReportingPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/logs" element={<ErrorLogPage />} />
-        </Routes>
+        <Suspense fallback={(
+          <div className="flex min-h-48 items-center justify-center rounded-lg border border-slate-800 bg-slate-950/40">
+            <Spinner label="Loading workspace…" />
+          </div>
+        )}>
+          <Routes>
+            {routes.map(({ id, path, Component }) => <Route key={id} path={path} element={<Component />} />)}
+          </Routes>
+        </Suspense>
       </ErrorBoundary>
     </div>
   );
@@ -295,12 +261,24 @@ function AppRoutes() {
 function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
   const location = useLocation();
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const navigationButtonRef = useRef<HTMLButtonElement>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
   const appInfo = appInfoState.kind === 'loaded' ? appInfoState.appInfo : null;
 
   const closeNavigation = useCallback(() => {
     setNavigationOpen(false);
     navigationButtonRef.current?.focus();
+  }, []);
+
+  const openGlobalSearch = useCallback(() => {
+    setNavigationOpen(false);
+    setGlobalSearchOpen(true);
+  }, []);
+
+  const closeGlobalSearch = useCallback(() => {
+    setGlobalSearchOpen(false);
+    requestAnimationFrame(() => searchButtonRef.current?.focus());
   }, []);
 
   useEffect(() => {
@@ -316,9 +294,24 @@ function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [closeNavigation, navigationOpen]);
 
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'k') {
+        event.preventDefault();
+        openGlobalSearch();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openGlobalSearch]);
+
   return (
     <div className="flex h-dvh overflow-hidden bg-slate-950 text-slate-100">
-      <aside data-testid="desktop-navigation" className="hidden w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900 xl:flex">
+      <aside
+        data-testid="desktop-navigation"
+        inert={globalSearchOpen ? true : undefined}
+        className="hidden w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900 xl:flex"
+      >
         <NavigationContent appInfoState={appInfoState} />
       </aside>
 
@@ -339,14 +332,16 @@ function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
 
       <main
         data-testid="application-main"
-        inert={navigationOpen ? true : undefined}
+        inert={navigationOpen || globalSearchOpen ? true : undefined}
         className="flex min-w-0 flex-1 flex-col overflow-hidden"
       >
         <TopBar
           appInfo={appInfo}
           navigationOpen={navigationOpen}
           navigationButtonRef={navigationButtonRef}
+          searchButtonRef={searchButtonRef}
           onOpenNavigation={() => setNavigationOpen(true)}
+          onOpenSearch={openGlobalSearch}
         />
         <div data-testid="application-scroll-container" className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 xl:p-6">
           <div className="mx-auto max-w-[1400px]">
@@ -354,6 +349,7 @@ function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
           </div>
         </div>
       </main>
+      <GlobalSearch open={globalSearchOpen} onClose={closeGlobalSearch} />
     </div>
   );
 }

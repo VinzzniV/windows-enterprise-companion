@@ -12,6 +12,7 @@ public sealed class ActiveDirectoryModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<DomainContextService>();
+        services.AddScoped<PrivilegedGroupResolver>();
         services.AddScoped<DirectoryOverviewService>();
         services.AddScoped<DirectoryHygieneService>();
         services.AddScoped<ComputerSearchService>();
@@ -25,6 +26,7 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<IActionHandler, TestDirectoryConnectionHandler>();
         services.AddScoped<IActionHandler, SearchAdComputersHandler>();
         services.AddScoped<UserSearchService>();
+        services.AddScoped<IDirectoryUserReadProvider, DirectoryUserReadService>();
         services.AddScoped<IActionHandler, SearchAdUsersHandler>();
     }
 }

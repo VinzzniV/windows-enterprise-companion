@@ -34,4 +34,12 @@ describe('bridgeResponseTimeoutMs', () => {
     expect(bridgeResponseTimeoutMs('patchmanagement', 'previewWingetPackage')).toBe(210_000);
     expect(bridgeResponseTimeoutMs('patchmanagement', 'checkWingetUpdates')).toBe(600_000);
   });
+
+  it.each([
+    ['inventory', 'runBatchScan'],
+    ['security', 'runBatchScan'],
+    ['diagnostics', 'runBatchDiagnostics'],
+  ])('allows the %s batch operation to finish', (module, action) => {
+    expect(bridgeResponseTimeoutMs(module, action)).toBe(600_000);
+  });
 });

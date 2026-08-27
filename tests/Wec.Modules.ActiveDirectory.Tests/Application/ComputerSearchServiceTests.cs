@@ -150,6 +150,31 @@ public sealed class ComputerSearchServiceTests
     }
 
     [Fact]
+    public async Task Search_UsesTheExplicitBoundForATypeaheadLookup()
+    {
+        SetUpDomainJoined();
+        SetUpComputerEntries(
+            Entry("CN=A", ("name", "A"), ("userAccountControl", "4096")),
+            Entry("CN=B", ("name", "B"), ("userAccountControl", "4096")));
+
+        Result<AdComputerSearchResult> result = await CreateService(computerSearchLimit: 500)
+            .SearchAsync(
+                DirectoryConnection.Default,
+                "pc",
+                includeDisabled: false,
+                CancellationToken.None,
+                resultLimit: 1);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value.Computers);
+        Assert.True(result.Value.Truncated);
+        await _directoryReader.Received(1).SearchBoundedAsync(
+            Arg.Any<DirectorySearchQuery>(),
+            1,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task SearchFailure_Propagates()
     {
         SetUpDomainJoined();

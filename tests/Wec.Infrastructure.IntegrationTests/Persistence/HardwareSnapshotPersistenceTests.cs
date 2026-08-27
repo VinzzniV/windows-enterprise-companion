@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -19,11 +20,21 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
 
     private WecDbContext CreateContext() => IntegrationDbContextFactory.Create(_databasePath);
 
-    private static HardwareSnapshot BuildSnapshot() => new(
+    private static HardwareSnapshot BuildSnapshot(bool includeUserEvidence = true) => new(
         new CpuInfo("Integration CPU", 8, 16, 3600),
         [new MemoryBank("IntRAM", "IR-1", 17179869184, 3200)],
         [new DiskDrive("Integration SSD", 512110190592, "SCSI", "Fixed hard disk media")],
-        new OperatingSystemInfo("Windows 11 Pro", "10.0.26200", "26200", "64-bit"));
+        new OperatingSystemInfo("Windows 11 Pro", "10.0.26200", "26200", "64-bit"),
+        UserEvidence: includeUserEvidence
+            ? new DeviceUserEvidence(
+                UserEvidenceSourceState.Available,
+                new InteractiveDomainUserEvidence("S-1-5-21-1-2-3-1104", "CORP", "alex"),
+                null,
+                UserEvidenceSourceState.Available,
+                [new LocalUserProfileEvidence("S-1-5-21-1-2-3-1104", new DateTimeOffset(2026, 8, 27, 8, 0, 0, TimeSpan.Zero))],
+                null,
+                LocalProfilesTruncated: false)
+            : null);
 
     [Fact]
     public async Task Migrations_CreateModulePrefixedTable()
@@ -73,6 +84,34 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         Assert.Equal(snapshot.OperatingSystem, reloaded.Snapshot.OperatingSystem);
         Assert.Equal(snapshot.MemoryBanks, reloaded.Snapshot.MemoryBanks);
         Assert.Equal(snapshot.Disks, reloaded.Snapshot.Disks);
+        Assert.Equal(snapshot.UserEvidence!.InteractiveUser, reloaded.Snapshot.UserEvidence!.InteractiveUser);
+        Assert.Equal(snapshot.UserEvidence.LocalProfiles, reloaded.Snapshot.UserEvidence.LocalProfiles);
+        Assert.Equal(snapshot.UserEvidence.LocalProfilesState, reloaded.Snapshot.UserEvidence.LocalProfilesState);
+    }
+
+    [Fact]
+    public async Task SnapshotWithoutUserEvidenceProperty_RemainsReadableAsNotCaptured()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        string legacyPayload = JsonSerializer.Serialize(BuildSnapshot(includeUserEvidence: false))
+            .Replace(",\"UserEvidence\":null", string.Empty, StringComparison.Ordinal);
+        context.Set<HardwareSnapshotRecord>().Add(new HardwareSnapshotRecord
+        {
+            Host = "PC-LEGACY",
+            CapturedAtUtc = DateTimeOffset.UtcNow,
+            PayloadJson = legacyPayload,
+        });
+        await context.SaveChangesAsync();
+        var repository = new EfHardwareSnapshotRepository(
+            context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+
+        CachedHardwareSnapshot? reloaded = await repository.GetLatestAsync(
+            "PC-LEGACY",
+            CancellationToken.None);
+
+        Assert.NotNull(reloaded);
+        Assert.Null(reloaded.Snapshot.UserEvidence);
     }
 
     [Fact]

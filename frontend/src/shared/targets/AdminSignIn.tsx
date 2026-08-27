@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
-import { CredentialFields, type CredentialValues } from './TargetSelector';
+import { CredentialFields, type CredentialValues } from './Credentials';
 import { useTargetsOptional } from './TargetContext';
 
 const emptyCredentials: CredentialValues = { userName: '', domain: '', password: '' };

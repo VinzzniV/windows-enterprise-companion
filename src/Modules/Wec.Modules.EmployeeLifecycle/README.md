@@ -11,11 +11,17 @@ Kaspersky Security Center (KSC), opsi and Nessus.
 ```text
 Active Directory -- IAdComputerInventoryProvider ---\
 KSC OpenAPI ------ KasperskySecurityCenterClient ----+
-opsi ------------- IOpsiComputerInventoryProvider ---+-> ItHygieneService -> request-bound snapshot
-Nessus ----------- INessusComputerInventoryProvider -/                       |- overview -> UI
+opsi ------------- IOpsiComputerInventoryProvider ---+-> HygieneSourceLoader -> ItHygieneService
+Nessus ----------- INessusComputerInventoryProvider -/                           |- request-bound snapshot -> UI
 Inventory history - IInventoryClientSnapshotProvider --\                     |- filtered/sorted device page -> UI
 Saved targets ----- ISavedClientTargetProvider ---------+-> client merge -----`- filtered/sorted client page -> UI
 ```
+
+`HygieneSourceLoader` owns provider I/O, request-scoped credential resolution
+and source-state mapping. `ItHygieneService` correlates those results into the
+request-bound snapshot. `HygieneAssessmentPolicy` is the pure, characterized
+boundary for finding severity and source-coverage semantics reused by later
+read models.
 
 - AD reuses the existing LDAP reader, domain discovery, credentials and paging.
   `lastLogonTimestamp` is exposed as `LastLogonDate`; like every replicated AD
@@ -55,6 +61,21 @@ The existing bridge module name remains `employeelifecycle`.
 | `getHygieneOverview` | optional AD/KSC overrides, optional `operationId` and explicit `force` refresh | sources, summary, assessment time and known hosts without device rows |
 | `listHygieneDevices` | optional AD/KSC overrides and `operationId` plus search, filter, page, page size and allowlisted sort | at most 100 correlated device rows plus filtered total |
 | `listClientWorkspace` | optional AD/KSC overrides and `operationId` plus client search, posture/source filter, grouping, page, page size, allowlisted sort and explicit `force` refresh | at most 100 de-duplicated rows without grouping; grouping pages complete OS/site groups, paged by at most 100 groups, with exact filtered, snapshot and group totals, source/time/domain metadata and a summary recalculated over those canonical de-duplicated hygiene rows |
+
+Client 360 uses a separate presentation-level bridge action while this project
+remains the host for the existing Clients workspace:
+
+| Module/action | Payload | Result |
+|---|---|---|
+| `clients/getOverview` | required client host | latest persisted Inventory, installed-software, Health, Security and approved user/device observations with per-source freshness, completeness, coverage and detail-tab links |
+
+`clients/getOverview` reads only existing projections. Opening Client 360 never
+starts Inventory, Health, Security or external management-provider work. AD,
+Kaspersky, opsi and Nessus posture remains request-bound and is loaded only by
+an explicit user action. Named user context is limited to the latest stored
+interactive-domain-user observation. Unresolved local-profile SIDs remain an
+aggregate count, and every presentation states that observation is not
+ownership or assignment.
 
 Cold loads with an `operationId` publish the typed event
 `employeelifecycle/hygieneProgress`. It reports the current load phase, elapsed
@@ -158,6 +179,10 @@ screen is removed. Existing SQLite tables and source types are intentionally
 not dropped by this MVP, so installing the read-only replacement cannot destroy
 previous lifecycle data. The legacy route is redirect-only. The hygiene feature
 adds no database tables.
+
+ADR 0019 assigns future User Management to an AD-authoritative read-only module.
+The five legacy tables are frozen: WEC does not write or automatically import
+them, and deleting them requires a separately approved destructive migration.
 
 ## Tests
 

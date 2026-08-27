@@ -47,7 +47,7 @@ public sealed partial class DiagnosticRunService
                     diagnostic.DiagnosticId,
                     "Diagnostic crashed unexpectedly",
                     DiagnosticStatus.Fail,
-                    DiagnosticCategory.Network,
+                    DiagnosticCategory.System,
                     diagnostic.DiagnosticId,
                     new Dictionary<string, string>
                     {

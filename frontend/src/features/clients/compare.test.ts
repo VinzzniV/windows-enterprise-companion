@@ -28,6 +28,7 @@ function snapshot(over: Partial<HardwareSnapshot>): HardwareSnapshot {
     gpus: null,
     monitors: null,
     installedSoftwareError: null,
+    userEvidence: null,
     ...over,
   };
 }

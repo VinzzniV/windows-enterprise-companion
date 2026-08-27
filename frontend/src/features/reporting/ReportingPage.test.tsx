@@ -171,7 +171,7 @@ describe('ReportingPage', () => {
     expect(screen.getByText('Persisted WMI/CIM inventory snapshot')).toBeDefined();
     expect(screen.getByText('5m old')).toBeDefined();
     expect(screen.getByText(/outside the report read contract/)).toBeDefined();
-    expect(screen.getByText(/does not run checks or include the saved latest diagnostics run/)).toBeDefined();
+    expect(screen.getByText(/does not run checks or include the latest saved health snapshot/)).toBeDefined();
     expect(screen.queryByRole('link', { name: 'Open Inventory' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Open Security' }).getAttribute('href'))
       .toBe('/clients/WEC-HOST?section=security');
