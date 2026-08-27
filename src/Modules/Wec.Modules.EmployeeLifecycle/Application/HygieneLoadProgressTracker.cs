@@ -103,16 +103,16 @@ internal sealed class HygieneLoadProgressTracker
 
         InventorySourceState adState = _ad is null
             ? LoadingState()
-            : ItHygieneService.AdState(_ad);
+            : HygieneSourceLoader.AdState(_ad);
         InventorySourceState kasperskyState = _kaspersky is null
             ? LoadingState()
-            : ItHygieneService.KasperskyState(_kaspersky);
+            : HygieneSourceLoader.KasperskyState(_kaspersky);
         InventorySourceState opsiState = _opsi is null
             ? LoadingState()
-            : ItHygieneService.OpsiState(_opsi);
+            : HygieneSourceLoader.OpsiState(_opsi);
         InventorySourceState nessusState = _nessus is null
             ? LoadingState()
-            : ItHygieneService.NessusState(_nessus);
+            : HygieneSourceLoader.NessusState(_nessus);
         var sourceStates = new EnvironmentSourceStates(adState, kasperskyState, opsiState, nessusState);
 
         IReadOnlyList<HygieneDevice> partialDevices = ItHygieneService.CorrelateAndAssess(
