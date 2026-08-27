@@ -143,7 +143,8 @@ Current slice: Define the bounded Leaver assessment and export projection
   explanation, and links into Client 360 and its detail views.
 - Phase 7 full gates passed: Release build without warnings, 699 backend tests,
   457 frontend tests, 352 generated contracts current, production build, zero
-  NPM findings, module dependency check and production credential scan.
+  NPM findings, module dependency check and production credential scan. PR CI
+  run `33025884397` passed for milestone commit `c5efe14`.
 
 ## Blocked
 
