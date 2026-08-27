@@ -74,6 +74,9 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 - User Management is AD-authoritative and read-only first. Stable identity uses
   `objectGUID`; old Employee Lifecycle tables remain frozen and preserved.
   Directory or lifecycle writes require a later ADR (ADR 0019).
+- Action Center is a computed, non-persisted read model over concrete Core
+  projections. It exposes no owner, note, workflow status, write action or
+  automatic remediation, and stored providers never trigger scans (ADR 0020).
 
 ## Current program
 
