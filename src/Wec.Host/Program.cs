@@ -29,6 +29,7 @@ using Wec.Infrastructure.SoftwareUpdates;
 using Wec.Infrastructure.Security;
 using Wec.Infrastructure.RemoteExecution;
 using Wec.Infrastructure.Directory;
+using Wec.Modules.ActionCenter;
 using Wec.Modules.ActiveDirectory;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.EmployeeLifecycle;
@@ -174,6 +175,12 @@ internal static partial class Program
             .ValidateOnStart();
 
         builder.Services
+            .AddOptions<ActionCenterOptions>()
+            .Bind(builder.Configuration.GetSection(ActionCenterOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        builder.Services
             .AddOptions<DiagnosticsOptions>()
             .Bind(builder.Configuration.GetSection(DiagnosticsOptions.SectionName))
             .ValidateDataAnnotations()
@@ -240,6 +247,7 @@ internal static partial class Program
             new ReportingModule(),
             new ActiveDirectoryModule(),
             new UserManagementModule(),
+            new ActionCenterModule(),
             new PatchManagementModule(),
             new PrintManagementModule(),
             new NetworkScanModule(),

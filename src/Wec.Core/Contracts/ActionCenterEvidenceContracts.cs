@@ -47,9 +47,14 @@ public sealed record HygieneActionEvidence(
     ActionEvidenceAvailability Coverage,
     string CoverageExplanation);
 
+public sealed record HygieneActionSubject(
+    string SubjectKey,
+    string Host);
+
 public sealed record HygieneActionEvidenceSnapshot(
     DateTimeOffset AssessedAtUtc,
     IReadOnlyList<ActionEvidenceSourceState> Sources,
+    IReadOnlyList<HygieneActionSubject> Subjects,
     IReadOnlyList<HygieneActionEvidence> Findings);
 
 /// <summary>

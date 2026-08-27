@@ -5,6 +5,14 @@
  * These declarations are generated from every payload/result type reachable
  * from IActionHandler<TPayload, TResult> implementations.
  */
+export type ActionEvidenceAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CONNECTED' | 'UNAVAILABLE' | 'TRUNCATED';
+
+export interface ActionEvidenceSourceState {
+  source: string;
+  availability: ActionEvidenceAvailability;
+  explanation: string | null;
+}
+
 export type DirectoryUserAccessCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'UNAVAILABLE';
 
 export type DirectoryUserAccountStateFilter = 'ALL' | 'ENABLED' | 'DISABLED';
@@ -17,6 +25,22 @@ export interface DirectoryUserGroup {
 export type DirectoryUserSortDirection = 'ASCENDING' | 'DESCENDING';
 
 export type DirectoryUserSortField = 'DISPLAY_NAME' | 'SAM_ACCOUNT_NAME' | 'DEPARTMENT' | 'CREATED_AT' | 'LAST_LOGON';
+
+export interface HygieneActionDirectoryConnection {
+  domain?: string | null;
+  server?: string | null;
+  userName?: string | null;
+  userDomain?: string | null;
+  password?: string | null;
+}
+
+export interface HygieneActionKasperskyConnection {
+  server?: string | null;
+  port?: number | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
+}
 
 export type NessusInventoryAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CONNECTED' | 'UNAVAILABLE';
 
@@ -279,6 +303,67 @@ export interface ServiceCredentialStatus {
 export interface ServiceCredentialStatuses {
   kaspersky: ServiceCredentialStatus;
   opsi: ServiceCredentialStatus;
+}
+
+export interface ActionCenterPage {
+  items: ActionCenterWorkItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  summary: ActionCenterSummary;
+  assessedAtUtc: string;
+  sources: ActionEvidenceSourceState[];
+  itemsTruncated: boolean;
+}
+
+export type ActionCenterSeverity = 'CRITICAL' | 'HIGH' | 'WARNING' | 'MEDIUM' | 'LOW' | 'INFORMATION' | 'UNKNOWN';
+
+export type ActionCenterSortDirection = 'ASCENDING' | 'DESCENDING';
+
+export type ActionCenterSortField = 'SEVERITY' | 'DEVICE' | 'SOURCE' | 'EVIDENCE_AGE' | 'PROBLEM';
+
+export interface ActionCenterSummary {
+  total: number;
+  critical: number;
+  high: number;
+  warning: number;
+  unknownCoverage: number;
+}
+
+export interface ActionCenterWorkItem {
+  id: string;
+  subjectType: string;
+  subjectKey: string;
+  device: string;
+  userObjectId: string | null;
+  userDisplayName: string | null;
+  problemCode: string;
+  problem: string;
+  explanation: string;
+  source: string;
+  severity: ActionCenterSeverity;
+  evidenceAtUtc: string | null;
+  assessedAtUtc: string;
+  evidenceAgeDays: number | null;
+  coverage: ActionEvidenceAvailability;
+  reliability: string;
+  coverageExplanation: string;
+  recommendedAction: string;
+  href: string;
+}
+
+export interface ListActionCenterItemsRequest {
+  activeDirectory?: HygieneActionDirectoryConnection | null;
+  kaspersky?: HygieneActionKasperskyConnection | null;
+  operationId?: string | null;
+  force?: boolean;
+  search?: string | null;
+  severity?: ActionCenterSeverity | null;
+  source?: string | null;
+  page?: number;
+  pageSize?: number;
+  sortField?: ActionCenterSortField;
+  sortDirection?: ActionCenterSortDirection;
 }
 
 export interface AdComputer {

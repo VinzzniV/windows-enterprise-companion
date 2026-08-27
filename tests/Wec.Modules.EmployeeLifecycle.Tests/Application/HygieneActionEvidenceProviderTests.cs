@@ -32,6 +32,7 @@ public sealed class HygieneActionEvidenceProviderTests
         Assert.Equal("Kaspersky result was truncated.",
             snapshot.Sources.Single(source => source.Source == "Kaspersky").Explanation);
         Assert.Equal("PC-A", snapshot.Findings[0].SubjectKey);
+        Assert.Equal(["PC-A", "PC-B"], snapshot.Subjects.Select(subject => subject.SubjectKey));
 
         HygieneActionEvidence ad = snapshot.Findings.Single(finding =>
             finding.SubjectKey == "PC-A" && finding.FindingCode == "StaleAd");

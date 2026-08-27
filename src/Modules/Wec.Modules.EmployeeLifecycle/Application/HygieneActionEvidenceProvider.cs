@@ -50,7 +50,11 @@ internal sealed class HygieneActionEvidenceProvider(
             .OrderBy(finding => finding.SubjectKey, StringComparer.OrdinalIgnoreCase)
             .ThenBy(finding => finding.FindingCode, StringComparer.Ordinal)
             .ToList();
-        return new HygieneActionEvidenceSnapshot(result.AssessedAtUtc, sources, findings);
+        IReadOnlyList<HygieneActionSubject> subjects = result.Devices
+            .Select(device => new HygieneActionSubject(device.ComputerName, device.HostName))
+            .OrderBy(subject => subject.SubjectKey, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return new HygieneActionEvidenceSnapshot(result.AssessedAtUtc, sources, subjects, findings);
     }
 
     private static HygieneActionEvidence Project(
