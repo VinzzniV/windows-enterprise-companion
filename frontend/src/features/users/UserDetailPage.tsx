@@ -20,12 +20,14 @@ import {
   type UserDirectoryEndpoint,
 } from './users';
 import { UserDevicesSection } from './UserDevicesSection';
+import { LeaverReviewSection } from './LeaverReviewSection';
 
-type UserSection = 'overview' | 'access' | 'devices';
+type UserSection = 'overview' | 'access' | 'devices' | 'leaver';
 const sections: { key: UserSection; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'access', label: 'Access' },
   { key: 'devices', label: 'Devices' },
+  { key: 'leaver', label: 'Leaver review' },
 ];
 
 function isUserSection(value: string | null): value is UserSection {
@@ -140,6 +142,7 @@ export function UserDetailPage() {
   return <div className="flex flex-col gap-4">
     <PageHeader title={identity.displayName} subtitle="User 360 · AD-authoritative read-only profile">
       <Badge tone={stateTone}>{stateLabel}</Badge>
+      <Button variant="ghost" onClick={() => selectSection('leaver')}>Start Leaver review</Button>
       <Button variant="ghost" onClick={() => navigate('/users')}>← All users</Button>
     </PageHeader>
 
@@ -254,6 +257,10 @@ export function UserDetailPage() {
 
     <div role="tabpanel" id="userpanel-devices" aria-labelledby="usertab-devices" hidden={section !== 'devices'}>
       <UserDevicesSection profile={profile} />
+    </div>
+
+    <div role="tabpanel" id="userpanel-leaver" aria-labelledby="usertab-leaver" hidden={section !== 'leaver'}>
+      <LeaverReviewSection profile={profile} />
     </div>
   </div>;
 }

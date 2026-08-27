@@ -231,4 +231,20 @@ describe('UserDetailPage', () => {
     expect(within(panel).getByText('No linked devices')).toBeDefined();
     expect(within(panel).getByText(/does not infer device ownership/)).toBeDefined();
   });
+
+  it('opens a read-only leaver assessment from the selected user without invoking write actions', async () => {
+    renderProfile(profileWithDevice);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Start Leaver review' }));
+
+    const panel = screen.getByRole('tabpanel', { name: 'Leaver review' });
+    expect(within(panel).getByRole('heading', { name: 'Read-only Leaver review' })).toBeDefined();
+    expect(within(panel).getByText('The AD account remains enabled.')).toBeDefined();
+    expect(within(panel).getByText('1 direct privileged membership remains.')).toBeDefined();
+    expect(within(panel).getByRole('link', { name: 'PC-42' }).getAttribute('href')).toBe('/clients/PC-42');
+    expect(within(panel).getByText('Return unresolved')).toBeDefined();
+    expect(within(panel).queryByRole('button', { name: /disable|delete|remove/i })).toBeNull();
+    expect(invokeMock.mock.calls.map(([module, action]) => `${module}/${action}`).sort())
+      .toEqual(['targets/list', 'usermanagement/getUserProfile'].sort());
+  });
 });
