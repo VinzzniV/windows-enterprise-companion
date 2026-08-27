@@ -17,6 +17,7 @@ public sealed class EmployeeLifecycleModule : IModule
         services.AddSingleton<ItHygieneSnapshotCache>();
         services.AddScoped<ItHygieneService>();
         services.AddScoped<IHygieneActionEvidenceProvider, HygieneActionEvidenceProvider>();
+        services.AddScoped<IDeviceCleanupEvidenceProvider, DeviceCleanupEvidenceProvider>();
         services.AddScoped<ClientOverviewService>();
         services.AddScoped<IActionHandler, GetItHygieneHandler>();
         services.AddScoped<IActionHandler, GetItHygieneOverviewHandler>();
