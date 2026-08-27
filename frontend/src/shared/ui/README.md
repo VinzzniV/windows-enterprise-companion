@@ -47,8 +47,8 @@ must not rebuild `CODE: message details` strings. Place retry or recovery contro
 `ErrorState.controls` so the action stays attached to the affected operation.
 
 - One result-context line per result view (host · status · timestamp · counts).
-- Multi-host scans use the shared `TargetSelector` (Local / Remote / Multiple
-  + AD computer picker) and the `runWithConcurrencyLimit` pool.
+- Multi-host Inventory, Security and Health scans use explicit bounded selection
+  in the canonical Clients workspace. Selecting a row never starts a scan.
 - Every icon-only control has an `aria-label`; focus is visible everywhere
   (`:focus-visible` accent ring); `prefers-reduced-motion` is respected.
 - `api-types.generated.ts` is generated from the C# bridge DTOs;
