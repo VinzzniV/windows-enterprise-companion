@@ -11,15 +11,17 @@ Kaspersky Security Center (KSC), opsi and Nessus.
 ```text
 Active Directory -- IAdComputerInventoryProvider ---\
 KSC OpenAPI ------ KasperskySecurityCenterClient ----+
-opsi ------------- IOpsiComputerInventoryProvider ---+-> ItHygieneService -> request-bound snapshot
-Nessus ----------- INessusComputerInventoryProvider -/                       |- overview -> UI
+opsi ------------- IOpsiComputerInventoryProvider ---+-> HygieneSourceLoader -> ItHygieneService
+Nessus ----------- INessusComputerInventoryProvider -/                           |- request-bound snapshot -> UI
 Inventory history - IInventoryClientSnapshotProvider --\                     |- filtered/sorted device page -> UI
 Saved targets ----- ISavedClientTargetProvider ---------+-> client merge -----`- filtered/sorted client page -> UI
 ```
 
-`ItHygieneService` owns source loading and the request-bound snapshot.
-`HygieneAssessmentPolicy` is the pure, characterized boundary for correlation,
-finding severity and source-coverage semantics reused by later read models.
+`HygieneSourceLoader` owns provider I/O, request-scoped credential resolution
+and source-state mapping. `ItHygieneService` correlates those results into the
+request-bound snapshot. `HygieneAssessmentPolicy` is the pure, characterized
+boundary for finding severity and source-coverage semantics reused by later
+read models.
 
 - AD reuses the existing LDAP reader, domain discovery, credentials and paging.
   `lastLogonTimestamp` is exposed as `LastLogonDate`; like every replicated AD

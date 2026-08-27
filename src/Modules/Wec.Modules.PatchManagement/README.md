@@ -72,6 +72,12 @@ invalidates the preview. Every write records Product ID, Winget ID in preview da
 depot, old/new versions, result and error. Target client lists remain empty because
 the module performs no client action.
 
+`WingetPackageService` remains the public orchestration facade. Catalog lookup,
+validation and preview/update planning live in `WingetPackagePlanner`; package
+generation, upload, remote installation, depot verification and temporary-file
+cleanup live in `WingetPackageExecutor`. Confirmation checks and audit writes stay
+in the facade so the side-effect boundary remains explicit.
+
 ## Persistence
 
 `patchmanagement_winget_packages` stores the management link and last catalog
