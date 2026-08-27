@@ -35,6 +35,9 @@ describe('global search result builders', () => {
     expect(navigationResults('attention')).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Action Center', to: '/actions' }),
     ]));
+    expect(navigationResults('retirement')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Device Cleanup', to: '/cleanup' }),
+    ]));
   });
 
   it('merges client evidence by short host name and keeps the result set bounded', () => {

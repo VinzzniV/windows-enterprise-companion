@@ -11,6 +11,7 @@ describe('routeRegistry', () => {
     expect(navigationItems.map((item) => item.label)).toEqual([
       'Dashboard',
       'Action Center',
+      'Device Cleanup',
       'Clients',
       'Users',
       'Active Directory',

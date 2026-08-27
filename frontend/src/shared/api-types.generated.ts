@@ -13,6 +13,24 @@ export interface ActionEvidenceSourceState {
   explanation: string | null;
 }
 
+export interface DeviceCleanupFindingEvidence {
+  code: string;
+  severity: string;
+  message: string;
+}
+
+export type DeviceCleanupUserEvidenceAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CAPTURED' | 'UNAVAILABLE' | 'TRUNCATED';
+
+export interface DeviceCleanupUserObservation {
+  relationshipType: string;
+  sid: string;
+  accountDisplay: string | null;
+  observedAtUtc: string;
+  profileLastUseAtUtc: string | null;
+  confidence: string;
+  explanation: string;
+}
+
 export type DirectoryUserAccessCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'UNAVAILABLE';
 
 export type DirectoryUserAccountStateFilter = 'ALL' | 'ENABLED' | 'DISABLED';
@@ -535,6 +553,72 @@ export interface TestDirectoryConnectionResult {
   domainJoined: boolean;
   domainName: string | null;
   defaultNamingContext: string | null;
+}
+
+export interface DeviceCleanupAssessment {
+  candidate: DeviceCleanupCandidate;
+  sources: DeviceCleanupSourceFact[];
+  findings: DeviceCleanupFindingEvidence[];
+  userEvidenceAvailability: DeviceCleanupUserEvidenceAvailability;
+  userEvidenceExplanation: string;
+  userObservations: DeviceCleanupUserObservation[];
+}
+
+export interface DeviceCleanupCandidate {
+  subjectKey: string;
+  host: string;
+  classification: DeviceCleanupClassification;
+  classificationExplanation: string;
+  activeDirectoryEnabled: boolean | null;
+  activeDirectoryLastLogonAtUtc: string | null;
+  kasperskyLastSeenAtUtc: string | null;
+  opsiLastSeenAtUtc: string | null;
+  nessusLastScanAtUtc: string | null;
+  inventoryCapturedAtUtc: string | null;
+  relevantFindingCount: number;
+}
+
+export type DeviceCleanupClassification = 'POTENTIAL_CLEANUP' | 'REVIEW' | 'INSUFFICIENT_EVIDENCE' | 'NO_CLEANUP_SIGNAL';
+
+export interface DeviceCleanupPage {
+  candidates: DeviceCleanupCandidate[];
+  total: number;
+  page: number;
+  pageSize: number;
+  assessedAtUtc: string;
+  sources: ActionEvidenceSourceState[];
+  selectedAssessment: DeviceCleanupAssessment | null;
+  subjectsTruncated: boolean;
+}
+
+export interface DeviceCleanupSourceFact {
+  source: string;
+  coverage: ActionEvidenceAvailability;
+  exists: boolean | null;
+  state: string;
+  observedAtUtc: string | null;
+  explanation: string;
+}
+
+export interface ListDeviceCleanupCandidatesRequest {
+  activeDirectory?: HygieneActionDirectoryConnection | null;
+  kaspersky?: HygieneActionKasperskyConnection | null;
+  operationId?: string | null;
+  force?: boolean;
+  search?: string | null;
+  selectedHost?: string | null;
+  includeWithoutSignals?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ExportDeviceCleanupAssessmentRequest {
+  markdown: string;
+}
+
+export interface ExportDeviceCleanupAssessmentResult {
+  cancelled: boolean;
+  filePath: string | null;
 }
 
 export interface EventLogQueryResult {
