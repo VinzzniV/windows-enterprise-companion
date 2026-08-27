@@ -17,6 +17,10 @@ Inventory history - IInventoryClientSnapshotProvider --\                     |- 
 Saved targets ----- ISavedClientTargetProvider ---------+-> client merge -----`- filtered/sorted client page -> UI
 ```
 
+`ItHygieneService` owns source loading and the request-bound snapshot.
+`HygieneAssessmentPolicy` is the pure, characterized boundary for correlation,
+finding severity and source-coverage semantics reused by later read models.
+
 - AD reuses the existing LDAP reader, domain discovery, credentials and paging.
   `lastLogonTimestamp` is exposed as `LastLogonDate`; like every replicated AD
   last-logon value it can lag behind the exact logon time.
