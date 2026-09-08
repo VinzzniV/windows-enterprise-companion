@@ -52,7 +52,7 @@ function TopBar({
   onOpenSearch,
 }: TopBarProps) {
   const location = useLocation();
-  const [restartError, setRestartError] = useState<ErrorPresentation | null>(null);
+
   return (
     <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-950 px-3 py-2 sm:px-4 xl:px-6">
       <div className="flex min-w-0 items-center gap-2.5 text-xs text-muted">
@@ -94,29 +94,7 @@ function TopBar({
             <StatusBadge variant={appInfo.isElevated ? 'elevation' : 'neutral'}>
               {appInfo.isElevated ? 'Local app: administrator' : 'Local app: standard rights'}
             </StatusBadge>
-            {!appInfo.isElevated && (
-              <Button
-                variant="secondary"
-                title="Restarts this app with local administrator rights through Windows UAC. Remote target permissions remain separate."
-                aria-label="Restart local app as administrator"
-                onClick={() => {
-                  setRestartError(null);
-                  invoke('system', 'restartElevated', {}).catch((caught: unknown) =>
-                    setRestartError(presentError(caught, {
-                      message: 'The elevated application could not be started.',
-                    })),
-                  );
-                }}
-                className="px-2 py-0.5 text-xs font-normal"
-              >
-                <span className="hidden sm:inline">Elevate local app</span>
-                <span className="sm:hidden">Local elevation</span>
-              </Button>
-            )}
           </>
-        )}
-        {restartError && (
-          <CompactErrorState title="Elevation failed" {...restartError} className="w-full sm:max-w-80" />
         )}
       </div>
     </header>

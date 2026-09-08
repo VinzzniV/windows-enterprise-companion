@@ -224,23 +224,4 @@ describe('responsive application shell', () => {
       .toHaveLength(1);
   });
 
-  it('keeps an elevation failure actionable and its diagnostics collapsed', async () => {
-    invokeMock.mockImplementation((module: string, action: string) => {
-      if (module === 'system' && action === 'getAppInfo') return Promise.resolve(loadedState.appInfo);
-      if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
-      if (module === 'system' && action === 'restartElevated') {
-        return Promise.reject(new Error('raw elevation launch failure'));
-      }
-      return Promise.resolve({});
-    });
-
-    render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: /Restart local app as administrator/ }));
-
-    const alert = await screen.findByRole('alert');
-    expect(within(alert).getByText('The elevated application could not be started.')).toBeDefined();
-    expect(within(alert).getByText('Next action')).toBeDefined();
-    const details = within(alert).getByText('Technical details').closest('details') as HTMLDetailsElement;
-    expect(details.open).toBe(false);
-  });
 });

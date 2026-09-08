@@ -19,6 +19,10 @@ reported separately. Shared table wrapping and fixed layouts for Users and Actio
 Center improve long-value handling. Existing relationship-map sizing corrections
 from the preceding acceptance slice remain in place.
 
+User follow-up: removed the local-administrator restart button and its obsolete
+error state/test from the top bar. The nine remaining shell tests and production
+frontend build passed after removal. Visual verification still awaits GO.
+
 Verification: 467 frontend tests passed; TypeScript and the production frontend
 build passed; `git diff --check` passed. Backend code and contracts are unchanged.
 No Computer Use, app restart or live-system queries were performed for this slice.
