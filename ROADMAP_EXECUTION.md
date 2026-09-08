@@ -5,10 +5,9 @@ Status: `IMPLEMENTED_ACCEPTANCE_PARTIAL`
 Current phase: Company-environment release acceptance
 
 Current slice: Client UI/UX follow-up on `codex/client-ux-followup`
-(started 2026-09-08). User explicitly requested code and automated checks only;
-Computer Use and visual acceptance must wait for the user's GO.
+(started 2026-09-08). The user authorized Computer Use with GO after code completion.
 
-Slice state: `CODE_COMPLETE_AWAITING_VISUAL_GO` (2026-09-08).
+Slice state: `VISUAL_SMOKE_CHECKED` (2026-09-08).
 Client 360 now prioritizes compact source and management status, with source
 coverage, software previews and management details available through disclosures.
 Successful Inventory, Health and Security operations refresh the stored overview
@@ -21,14 +20,21 @@ from the preceding acceptance slice remain in place.
 
 User follow-up: removed the local-administrator restart button and its obsolete
 error state/test from the top bar. The nine remaining shell tests and production
-frontend build passed after removal. Visual verification still awaits GO.
+frontend build passed after removal. The user subsequently authorized visual verification.
 
 Verification: 467 frontend tests passed; TypeScript and the production frontend
 build passed; `git diff --check` passed. Backend code and contracts are unchanged.
-No Computer Use, app restart or live-system queries were performed for this slice.
-After the user's GO, verify Client 360 scrolling/disclosures and refresh behavior,
-map/list readability, long provider errors, remote/local account guidance, separate
-connectivity results and Users/Action Center tables at normal and narrow widths.
+After GO, the current Release host built with zero warnings/errors and was launched.
+Visual checks covered compact Client 360 source/management status, management
+disclosures, map/list rendering, collapsed and expanded certificate diagnostics,
+remote/local labels, absence of the local restart button, and Users/Action Center
+table wrapping. Larger WebView zoom exercised compact navigation and text reflow.
+The designated client answered Ping and exposed TCP 5985, shown separately.
+A wrapping Confidence heading was widened, rebuilt and visually rechecked.
+No screenshots or live identities were saved to the repository.
+Physical narrow-window resizing was not verified. Successful scan-to-overview
+refresh remains automated-test coverage in this pass: the newly started session
+had no remote credentials, and no fresh authenticated scan was run.
 
 PR #28 is merged at `e89395f`. The user explicitly designated one non-critical
 remote client in the acceptance conversation on 2026-09-08. Its hostname stays

@@ -80,7 +80,7 @@ function RelationshipListView({ primary, related, edges }: {
 }) {
   return <div className="overflow-x-auto rounded-lg border border-slate-800">
     <table className="w-full min-w-[52rem] table-fixed border-collapse break-words text-left text-sm">
-      <colgroup><col className="w-[30%]" /><col className="w-[14%]" /><col className="w-[28%]" /><col className="w-[18%]" /><col className="w-[10%]" /></colgroup>
+      <colgroup><col className="w-[28%]" /><col className="w-[14%]" /><col className="w-[26%]" /><col className="w-[18%]" /><col className="w-[14%]" /></colgroup>
       <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-500">
         <tr><th className="px-3 py-2">Entity</th><th className="px-3 py-2">Relationship</th><th className="px-3 py-2">Evidence</th><th className="px-3 py-2">Observed</th><th className="px-3 py-2">Confidence</th></tr>
       </thead>
