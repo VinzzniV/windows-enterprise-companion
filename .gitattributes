@@ -2,3 +2,7 @@
 *.png binary
 *.ico binary
 frontend/src/shared/api-types.generated.ts text eol=lf
+# Preserve the immutable audit bytes and intentional Markdown hard line breaks.
+docs/2026-09-08-blind-ux-audit.md -text whitespace=-blank-at-eol
+docs/2026-09-08-technischer-ux-audit.md whitespace=-blank-at-eol
+docs/2026-09-08-konsolidierte-massnahmenliste.md whitespace=-blank-at-eol

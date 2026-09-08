@@ -1,5 +1,23 @@
 # Windows Enterprise Companion — Roadmap Execution
 
+## Audit follow-up (2026-09-08)
+
+The blind audit is preserved unchanged. The technical follow-up and prioritized
+M01-M16 backlog are now versioned under docs; see [documentation index](docs/README.md).
+Only documentation cleanup is authorized in this slice. Product implementation
+has not started. The proposed first slice is M01 (coverage and known findings),
+followed by M02 (refresh and cache state); identity and persistence changes need
+their documented compatibility decisions before migrations.
+
+Documentation branch: codex/docs-audit-cleanup. Product-code baseline: 17ae57a.
+The new audit ran 467 frontend and 162 selected backend tests (629 passed);
+this is a targeted audit run, not a new full backend/release acceptance.
+The implementation and acceptance evidence below remains historical evidence
+for the preceding code slices. External acceptance gates remain open.
+
+## Last implementation baseline
+
+
 Status: `IMPLEMENTED_ACCEPTANCE_PARTIAL`
 
 Current phase: Company-environment release acceptance

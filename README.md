@@ -40,6 +40,8 @@ belongs to; results for a previously selected target are never shown next
 to a newly selected one.
 
 Current product scope is maintained in this README and the module READMEs.
+Start with the [documentation index](docs/README.md) for the current audit,
+proposed implementation backlog and acceptance gates.
 Accepted architecture decisions are in [docs/adr/](docs/adr/). The
 [foundation/M1 plan](docs/architecture-and-m1-plan.md) is retained as a
 historical record and is not the current implementation plan. `Claude.md` is
