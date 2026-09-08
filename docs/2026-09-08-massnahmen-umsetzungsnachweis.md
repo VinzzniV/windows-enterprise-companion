@@ -18,7 +18,8 @@ the applicable milestone checks are green.
 | M07 | Implemented; WebView smoke pending | `DataTable` keeps native row semantics, activates a focused row with Enter/Space, exposes selection with `aria-selected`, shows a focus outline and ignores bubbled events from inputs, labels, buttons, links and other interactive descendants. Shared and Clients-page tests prove that Space changes exactly the checkbox without navigation; all interactive table callers were inventoried and their affected tests pass. Native-window automation is unavailable in this session, so the required real-WebView keyboard check remains an external acceptance gate. |
 | M08 | Implemented; layout smoke pending | Cleanup, Error log and Action Center use the same viewport-bound detail dialog with Escape, focus containment and focus return. A 500-row Error-log regression proves that the first selection opens without relying on the page end. Client Event Logs expose an explicit full-message action with host, time, source, safe wrapped text, copy feedback and a warning for the existing 500-character truncation convention. The required real-browser/WebView layout check remains external because this session cannot automate the native window or inject the host bridge into its isolated browser. |
 | M09 | Implemented; layout smoke pending | Clients keeps only compact source state, snapshot time and coverage guidance above search. Eleven posture/filter metrics are collapsed by default, and the batch workbench is absent until a client is selected. Running progress stays visible when batch options collapse. The fixed client table orders Device and Overall before explicitly sized provider columns, while semantic badges prohibit mid-word wrapping. The physical 1026 x 671 WebView and higher-zoom check remains external. |
-| M10-M11 | Planned | Not yet accepted. |
+| M10 | Complete | The Patch Management contract and UI call the sum outdated product installations; one client with two outdated products remains two installations. Dashboard labels stored hosts as stored, Clients separates posture assessment from filtered merged candidates, and Compare explicitly identifies its enabled-AD/stored/saved picker population and exclusions. |
+| M11 | Planned | Not yet accepted. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13-M16 | Planned | Not yet accepted. |
 
@@ -158,6 +159,26 @@ non-mutation regression.
 - All 508 frontend tests pass, including focused dialog, table, 500-row Error
   log, Cleanup, Action Center and Event Log regressions. The TypeScript and
   production Vite build and `git diff --check` pass.
+
+## M10 technical reassessment and verification
+
+- The existing opsi aggregate counts client-product states, not distinct
+  clients. Its backend and generated frontend contract now use
+  `OutdatedInstallationCount`; the arithmetic is deliberately unchanged.
+- A backend fixture proves that one device behind on two products yields two
+  outdated installations while the dashboard client population remains one.
+  The product table and summary use the same unit and explain the optional
+  depot filter.
+- The Dashboard Inventory tile says `stored hosts` and exposes its stored
+  source, freshness window and capture time. A 41-host regression prevents
+  those snapshots from being presented as the complete fleet.
+- Clients distinguishes the unfiltered cross-management posture population
+  from the filtered table merged with stored Inventory and saved targets.
+  Compare explicitly documents its different picker basis: enabled AD
+  computers plus stored Inventory/Security hosts and saved client targets.
+- 37 Patch Management backend tests and 47 focused frontend tests passed. The
+  Release solution and production frontend builds passed with zero compiler
+  errors, and all 390 generated bridge contracts are current.
 - A local real-browser run at 1026 × 671 was prepared, but the isolated browser
   cannot receive the WebView host bridge fixture and native-window automation
   is unavailable. Actual visual fit, focus-ring visibility and scrolling in

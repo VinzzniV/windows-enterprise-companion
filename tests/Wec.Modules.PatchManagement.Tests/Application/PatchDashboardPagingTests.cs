@@ -115,7 +115,7 @@ public sealed class PatchDashboardPagingTests
             PackageStatus: PatchPackageStatus.Current,
             State: PatchWorkflowState.Completed,
             InstalledClientCount: clients.Count,
-            OutdatedClientCount: clients.Count(client => client.State == PatchWorkflowState.UpdateAvailable),
+            OutdatedInstallationCount: clients.Count(client => client.State == PatchWorkflowState.UpdateAvailable),
             FailedClientCount: clients.Count(client => client.State == PatchWorkflowState.Failed),
             PendingActionCount: clients.Count(client => client.State == PatchWorkflowState.ActionPending),
             LastError: null,

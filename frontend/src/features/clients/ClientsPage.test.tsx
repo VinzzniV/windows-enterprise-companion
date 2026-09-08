@@ -315,6 +315,8 @@ describe('ClientsPage', () => {
     expect(await screen.findByText('Fleet posture')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'AD: Available' })).toBeTruthy();
     expect(screen.getByText(/corp\.local/)).toBeTruthy();
+    expect(screen.getByText(/Posture counters cover unique devices/)).toBeTruthy();
+    expect(screen.getByText(/matching devices.*with stored Inventory.*merged candidates/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Filter clients by Missing Kaspersky (1)' }));
 
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/clients?posture=MISSING_KASPERSKY'));

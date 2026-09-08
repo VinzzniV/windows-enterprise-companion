@@ -403,6 +403,10 @@ export function ClientsPage() {
       {!coverageComplete && <p className="mt-2 text-xs text-warn-300" role="status">
         Counts are known results only; one or more sources have incomplete coverage.
       </p>}
+      <p className="mt-2 text-xs text-slate-400" title="Stored-only and saved-only clients remain in the table but are excluded from posture counters.">
+        Posture counters cover unique devices in the current AD, Kaspersky, opsi and Nessus assessment before table filters.
+        Stored-Inventory-only and saved-target-only devices are excluded from these counters.
+      </p>
       <div className="mt-2">
         <DetailsDisclosure summary={`${workspace.summary.total} assessed · ${workspace.summary.problems} known problem devices · ${workspace.summary.incomplete} with incomplete coverage — show posture filters`}>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-2">
@@ -442,7 +446,9 @@ export function ClientsPage() {
       onRunningChange={setBatchRunning}
       onCompleted={() => setRefreshRevision((current) => current + 1)}
     />}
-    <p className="text-sm text-slate-400">{workspace?.total ?? 0} devices · {workspace?.scannedTotal ?? 0} scanned{workspace && workspace.total !== workspace.snapshotTotal ? ` · ${workspace.snapshotTotal} total` : ''}</p>
+    <p className="text-sm text-slate-400">
+      {workspace?.total ?? 0} matching devices · {workspace?.scannedTotal ?? 0} with stored Inventory · {workspace?.snapshotTotal ?? 0} merged candidates before table filters
+    </p>
     {loading && showEnvironmentProgress && <HygieneLoadStatus progress={hygieneOperation.progress} elapsedSeconds={hygieneOperation.elapsedSeconds} onCancel={() => { setCancelled(true); activeLoad.current?.cancel(); }} />}
     {cancelled && !loading && <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-4"><p className="text-sm text-slate-300">Environment load cancelled. The previous successful data remains unchanged.</p><Button variant="secondary" onClick={retry}>Retry</Button></div>}
     {loadError && <ErrorState

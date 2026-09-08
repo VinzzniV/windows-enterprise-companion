@@ -22,8 +22,11 @@ collapses the eleven posture drill-down metrics, mounts the batch workbench
 only for an actual selection and keeps running progress outside its collapsed
 options. Device and Overall columns precede explicitly sized provider columns,
 and semantic badges prohibit mid-word wrapping. Automated acceptance is green;
-the physical 1026 x 671 WebView/zoom check remains external. The active slice
-is M10: units and population labels.
+the physical 1026 x 671 WebView/zoom check remains external. M10 now names the
+opsi aggregate as outdated product installations without changing its unit,
+and Dashboard, Clients and Compare state their distinct source populations and
+filter boundaries. Its contract, focused tests and builds are green. The active
+slice is M11: navigation and filter-state restoration.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.

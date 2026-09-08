@@ -188,7 +188,10 @@ describe('ComparePage data truthfulness', () => {
   it('searches client choices and exposes known inventory availability before comparison', async () => {
     renderPage();
 
-    const picker = await screen.findByRole('combobox', { name: 'First client' });
+    expect(await screen.findByText(/Choices combine enabled computers from the current AD search/)).toBeTruthy();
+    expect(screen.getByText(/excludes disabled AD computers/)).toBeTruthy();
+
+    const picker = screen.getByRole('combobox', { name: 'First client' });
     expect(picker.tagName).toBe('INPUT');
 
     await userEvent.click(picker);

@@ -1529,7 +1529,7 @@ export interface PatchDashboardSummary {
   productsWithDepotDeviation: number;
   productsMissingOnDepots: number;
   productsWithFailures: number;
-  outdatedClientCount: number;
+  outdatedInstallationCount: number;
   clientCount: number;
   depotCount: number;
   wingetManagedCount: number;
@@ -1560,7 +1560,7 @@ export interface PatchProductOverviewRow {
   packageStatus: PatchPackageStatus;
   state: PatchWorkflowState;
   installedClientCount: number;
-  outdatedClientCount: number;
+  outdatedInstallationCount: number;
   failedClientCount: number;
   pendingActionCount: number;
   lastError: string | null;

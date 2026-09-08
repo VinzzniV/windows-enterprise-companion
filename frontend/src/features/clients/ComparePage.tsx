@@ -403,8 +403,10 @@ export function ComparePage() {
       </Toolbar>
 
       <p className="text-xs text-slate-400">
-        Availability reflects the latest stored Inventory and Security timestamps. The stored data is read and verified only
-        when you compare; comparison never starts a scan.
+        Choices combine enabled computers from the current AD search, stored Inventory and Security hosts, and saved client
+        targets. Unlike Clients posture, this picker excludes disabled AD computers and does not add Kaspersky-, opsi- or
+        Nessus-only devices unless they also occur in a stored or saved source. Availability reflects the latest stored
+        timestamps; comparison reads stored data and never starts a scan.
       </p>
 
       {selectionSourcesLoading && <Spinner label="Loading client sources …" />}

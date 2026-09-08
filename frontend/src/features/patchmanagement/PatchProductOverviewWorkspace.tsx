@@ -27,7 +27,7 @@ export function PatchProductOverviewWorkspace({ dashboard }: { dashboard: PatchD
         <SummaryMetric label="Packages" value={dashboard.summary.productCount} />
         <SummaryMetric label="Winget managed" value={dashboard.summary.wingetManagedCount} />
         <SummaryMetric label="Winget updates" value={dashboard.summary.wingetUpdatesAvailable} tone={dashboard.summary.wingetUpdatesAvailable ? 'warning' : 'success'} />
-        <SummaryMetric label="Outdated clients" value={dashboard.summary.outdatedClientCount} tone={dashboard.summary.outdatedClientCount ? 'warning' : 'success'} />
+        <SummaryMetric label="Outdated product installations" value={dashboard.summary.outdatedInstallationCount} tone={dashboard.summary.outdatedInstallationCount ? 'warning' : 'success'} />
         <SummaryMetric label="Depot deviations" value={dashboard.summary.productsWithDepotDeviation} tone={dashboard.summary.productsWithDepotDeviation ? 'warning' : 'success'} />
         <SummaryMetric label="Failures" value={dashboard.summary.productsWithFailures} tone={dashboard.summary.productsWithFailures ? 'danger' : 'success'} />
       </div>
@@ -35,6 +35,10 @@ export function PatchProductOverviewWorkspace({ dashboard }: { dashboard: PatchD
         <p className="mb-3 text-sm text-slate-400">
           Manual means that WEC has not registered this Product ID as Winget-managed yet. Existing
           Winget-based opsi packages remain manual until they are searched, previewed and explicitly adopted.
+        </p>
+        <p className="mb-3 text-xs text-slate-400" title="One outdated product on one client counts as one installation.">
+          Counts cover products and clients returned by the connected opsi server and optional depot filter.
+          Each outdated client-product pair is one product installation; the total is not a distinct-device count.
         </p>
         <div className="mb-3 max-w-md">
           <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Package, product ID, or Winget ID" aria-label="Filter packages" />
@@ -46,7 +50,7 @@ export function PatchProductOverviewWorkspace({ dashboard }: { dashboard: PatchD
             { header: 'Depot version', mono: true, cell: (row: PatchProductOverviewRow) => row.referenceVersion ?? '—' },
             { header: 'Latest Winget', mono: true, cell: (row: PatchProductOverviewRow) => row.latestWingetVersion ?? '—' },
             { header: 'Depots', cell: (row: PatchProductOverviewRow) => `${row.depotVersions.length}/${dashboard.depots.length}` },
-            { header: 'Clients behind', align: 'right', cell: (row: PatchProductOverviewRow) => row.outdatedClientCount },
+            { header: 'Outdated installations', align: 'right', cell: (row: PatchProductOverviewRow) => row.outdatedInstallationCount },
             { header: 'Status', cell: (row: PatchProductOverviewRow) => <PatchPackageBadge status={row.packageStatus} /> },
           ]}
           rows={products}

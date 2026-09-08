@@ -217,7 +217,7 @@ export function DashboardPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Dashboard"
-        subtitle="At a glance across the modules — from the last stored scan of each. Open a module to run a fresh one."
+        subtitle="Each tile states its own source, capture time and coverage. Counts do not share one fleet population."
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <ModuleTile
