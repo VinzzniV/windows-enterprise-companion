@@ -22,19 +22,24 @@ describe('EventLogSection', () => {
     const message = '<script>alert("unsafe")</script> diagnostic text …';
     invokeMock.mockResolvedValue({
       presetKey: 'system-errors',
+      windowStartUtc: '2026-09-08T07:00:00Z',
+      windowEndUtc: '2026-09-08T09:00:00Z',
+      resultLimit: 200,
       totalMatched: 1,
-      truncated: false,
+      truncated: true,
       entries: [{
         timeGenerated: '2026-09-08T08:30:00Z',
         level: 'Error',
         source: 'Service Control Manager',
         eventCode: 7000,
         message,
+        messageTruncated: true,
       }],
     });
 
     render(<EventLogSection host="PC-041.corp.example" target={{ host: 'PC-041.corp.example' }} />);
     await userEvent.click(screen.getByRole('button', { name: 'Run query' }));
+    expect(await screen.findByText(/Queried .*1 matching event.*200-entry result limit/)).toBeDefined();
     const open = await screen.findByRole('button', { name: 'View full message from Service Control Manager, event 7000' });
     await userEvent.click(open);
 
@@ -43,7 +48,7 @@ describe('EventLogSection', () => {
     expect(within(dialog).getAllByText('Service Control Manager').length).toBeGreaterThan(0);
     expect(within(dialog).getByText(message)).toBeDefined();
     expect(dialog.querySelector('script')).toBeNull();
-    expect(within(dialog).getByText(/500-character detail limit/)).toBeDefined();
+    expect(within(dialog).getByText(/exceeded the 500-character detail limit/)).toBeDefined();
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Copy message' }));
     expect(writeText).toHaveBeenCalledWith(message);

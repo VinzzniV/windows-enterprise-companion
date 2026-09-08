@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LogEntry, RecentLogEntriesResult } from '../../shared/api-types';
 import { ErrorLogPage } from './ErrorLogPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
@@ -13,12 +14,34 @@ vi.mock('../../shared/bridge/bridgeClient', () => ({
   BridgeUnavailableError: class extends Error {},
 }));
 
+function logResult(
+  entries: LogEntry[],
+  overrides: Partial<RecentLogEntriesResult> = {},
+): RecentLogEntriesResult {
+  return {
+    entries,
+    source: 'wec-20260819.log',
+    clearedAtUtc: null,
+    coverage: {
+      availableFileCount: 1,
+      evaluatedFileCount: 1,
+      fileSelectionTruncated: false,
+      evaluatedBytes: 4096,
+      byteWindowTruncated: false,
+      resultLimit: 500,
+      totalMatched: entries.length,
+      resultTruncated: false,
+      truncatedDetailCount: entries.filter((entry) => entry.technicalDetailsTruncated).length,
+    },
+    ...overrides,
+  };
+}
+
 describe('ErrorLogPage', () => {
   beforeEach(() => invokeMock.mockReset());
 
   it('keeps the table compact and opens complete raw evidence on demand', async () => {
-    invokeMock.mockResolvedValue({
-      entries: [{
+    invokeMock.mockResolvedValue(logResult([{
         timestamp: '2026-08-19 16:12:00.000 +02:00',
         level: 'ERR',
         source: 'Wec.Infrastructure.Wmi',
@@ -29,10 +52,8 @@ describe('ErrorLogPage', () => {
           '{"host":"PC-041"}',
           '   at Wec.Scan()',
         ].join('\n'),
-      }],
-      source: 'wec-20260819.log',
-      clearedAtUtc: null,
-    });
+        technicalDetailsTruncated: false,
+      }]));
 
     render(<ErrorLogPage />);
 
@@ -56,7 +77,7 @@ describe('ErrorLogPage', () => {
   it('keeps load diagnostics collapsed and offers a local retry', async () => {
     invokeMock
       .mockRejectedValueOnce(new Error('raw log read failure'))
-      .mockResolvedValue({ entries: [], source: null, clearedAtUtc: null });
+      .mockResolvedValue(logResult([], { source: null }));
 
     render(<ErrorLogPage />);
 
@@ -69,17 +90,15 @@ describe('ErrorLogPage', () => {
   });
 
   it('opens the first of 500 rows in the viewport-bound dialog', async () => {
-    invokeMock.mockResolvedValue({
-      entries: Array.from({ length: 500 }, (_, index) => ({
+    const entries = Array.from({ length: 500 }, (_, index) => ({
         timestamp: `2026-08-19 16:${String(index % 60).padStart(2, '0')}:00.000 +02:00`,
         level: 'ERR',
         source: `Source ${index}`,
         summary: `Failure ${index}`,
         technicalDetails: `Technical evidence ${index}`,
-      })),
-      source: 'wec-20260819.log',
-      clearedAtUtc: null,
-    });
+        technicalDetailsTruncated: false,
+      }));
+    invokeMock.mockResolvedValue(logResult(entries));
     render(<ErrorLogPage />);
     const firstSummary = await screen.findByText('Failure 0');
 
@@ -91,29 +110,22 @@ describe('ErrorLogPage', () => {
   });
 
   it('explains and performs the view-only history boundary without claiming to delete logs', async () => {
-    const initialResult = {
-      entries: [{
+    const initialResult = logResult([{
         timestamp: '2026-08-19 16:12:00.000 +02:00',
         level: 'ERR',
         source: 'Wec.Infrastructure.Wmi',
         summary: 'Printer scan failed.',
         technicalDetails: 'raw printer failure',
-      }],
-      source: 'wec-20260819.log',
-      clearedAtUtc: null,
-    };
+        technicalDetailsTruncated: false,
+      }]);
     invokeMock
       .mockResolvedValueOnce(initialResult)
       .mockResolvedValueOnce({ clearedAtUtc: '2026-08-20T08:30:00Z' })
-      .mockResolvedValueOnce({
-        entries: [],
-        source: 'wec-20260819.log',
-        clearedAtUtc: '2026-08-20T08:30:00Z',
-      });
+      .mockResolvedValueOnce(logResult([], { clearedAtUtc: '2026-08-20T08:30:00Z' }));
 
     render(<ErrorLogPage />);
     expect(await screen.findByText('Printer scan failed.')).toBeDefined();
-    expect(screen.getByText('Hides the entries currently shown. Log files stay on disk, and new warnings and errors will appear here.')).toBeDefined();
+    expect(screen.getByText('Sets a local visibility marker at the current time. All earlier entries are hidden from this view; log files stay on disk.')).toBeDefined();
     expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull();
 
     await userEvent.click(screen.getByRole('button', { name: 'Hide previous entries' }));
@@ -126,17 +138,14 @@ describe('ErrorLogPage', () => {
   });
 
   it('keeps loaded entries visible when clearing fails', async () => {
-    const result = {
-      entries: [{
+    const result = logResult([{
         timestamp: '2026-08-19 16:12:00.000 +02:00',
         level: 'ERR',
         source: 'Wec.Infrastructure.Wmi',
         summary: 'Printer scan failed.',
         technicalDetails: 'raw printer failure',
-      }],
-      source: 'wec-20260819.log',
-      clearedAtUtc: null,
-    };
+        technicalDetailsTruncated: false,
+      }]);
     invokeMock.mockResolvedValueOnce(result).mockRejectedValueOnce(new Error('raw clear marker failure'));
 
     render(<ErrorLogPage />);
@@ -148,5 +157,74 @@ describe('ErrorLogPage', () => {
     expect(within(alert).getByText('The previous error-log entries could not be hidden.')).toBeDefined();
     expect(within(alert).getByText('Next action')).toBeDefined();
     expect(within(alert).getByText('Technical details').closest('details')?.hasAttribute('open')).toBe(false);
+  });
+
+  it('applies the error filter before the result limit', async () => {
+    const warnings = Array.from({ length: 500 }, (_, index): LogEntry => ({
+      timestamp: `2026-08-19 16:${String(index % 60).padStart(2, '0')}:00.000 +02:00`,
+      level: 'WRN',
+      source: 'Wec.WarningSource',
+      summary: `Warning ${index}`,
+      technicalDetails: `Warning ${index}`,
+      technicalDetailsTruncated: false,
+    }));
+    const relevantError: LogEntry = {
+      timestamp: '2026-08-19 08:00:00.000 +02:00',
+      level: 'ERR',
+      source: 'Wec.ErrorSource',
+      summary: 'Older relevant error',
+      technicalDetails: 'Older relevant error',
+      technicalDetailsTruncated: false,
+    };
+    invokeMock
+      .mockResolvedValueOnce(logResult(warnings, {
+        coverage: {
+          ...logResult([]).coverage,
+          totalMatched: 501,
+          resultTruncated: true,
+        },
+      }))
+      .mockResolvedValueOnce(logResult([relevantError]));
+
+    render(<ErrorLogPage />);
+    await screen.findByText('Warning 0');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Log level filter' }), 'errors');
+
+    expect(await screen.findByText('Older relevant error')).toBeDefined();
+    expect(invokeMock).toHaveBeenLastCalledWith('logs', 'recent', { limit: 500, levelFilter: 'ERRORS' });
+  });
+
+  it('discloses file, byte, result and per-entry coverage limits', async () => {
+    const entry: LogEntry = {
+      timestamp: '2026-08-19 16:12:00.000 +02:00',
+      level: 'ERR',
+      source: 'Wec.Infrastructure.Wmi',
+      summary: 'Bounded failure',
+      technicalDetails: 'line 1\nline 40',
+      technicalDetailsTruncated: true,
+    };
+    invokeMock.mockResolvedValue(logResult([entry], {
+      coverage: {
+        availableFileCount: 9,
+        evaluatedFileCount: 7,
+        fileSelectionTruncated: true,
+        evaluatedBytes: 4194304,
+        byteWindowTruncated: true,
+        resultLimit: 500,
+        totalMatched: 725,
+        resultTruncated: true,
+        truncatedDetailCount: 1,
+      },
+    }));
+
+    render(<ErrorLogPage />);
+    const summary = await screen.findByText('Bounded failure');
+    expect(screen.getByText(/Evaluated 7 of 9 retained log files/)).toBeDefined();
+    expect(screen.getByText(/Coverage is limited/)).toBeDefined();
+    expect(screen.getByText(/Showing the newest 1 matching entries/)).toBeDefined();
+    expect(screen.getByText(/1 shown entry has truncated continuation details/)).toBeDefined();
+
+    await userEvent.click(summary.closest('tr')!);
+    expect(screen.getByText(/configured per-entry line limit/)).toBeDefined();
   });
 });

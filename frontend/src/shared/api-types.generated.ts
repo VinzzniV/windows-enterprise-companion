@@ -220,6 +220,7 @@ export interface LogEntry {
   source: string;
   summary: string;
   technicalDetails: string;
+  technicalDetailsTruncated: boolean;
 }
 
 export interface NessusSettingsResult {
@@ -290,12 +291,28 @@ export interface ProbeHostsResponse {
 
 export interface RecentLogEntriesRequest {
   limit: number | null;
+  levelFilter?: RecentLogLevelFilter | null;
 }
 
 export interface RecentLogEntriesResponse {
   entries: LogEntry[];
   source: string | null;
   clearedAtUtc: string | null;
+  coverage: RecentLogReadCoverage;
+}
+
+export type RecentLogLevelFilter = 'ALL' | 'ERRORS';
+
+export interface RecentLogReadCoverage {
+  availableFileCount: number;
+  evaluatedFileCount: number;
+  fileSelectionTruncated: boolean;
+  evaluatedBytes: number;
+  byteWindowTruncated: boolean;
+  resultLimit: number;
+  totalMatched: number;
+  resultTruncated: boolean;
+  truncatedDetailCount: number;
 }
 
 export interface RestartElevatedRequest {
@@ -642,7 +659,10 @@ export interface DiagnosticBatchProgress {
 
 export interface EventLogQueryResult {
   presetKey: string;
+  windowStartUtc: string;
+  windowEndUtc: string;
   totalMatched: number;
+  resultLimit: number;
   truncated: boolean;
   entries: RemoteEventLogEntry[];
 }
@@ -653,6 +673,7 @@ export interface RemoteEventLogEntry {
   source: string;
   eventCode: number;
   message: string;
+  messageTruncated: boolean;
 }
 
 export interface DiagnosticBatchHostOutcome {

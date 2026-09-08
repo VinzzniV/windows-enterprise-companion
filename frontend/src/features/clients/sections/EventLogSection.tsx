@@ -91,7 +91,7 @@ export function EventLogSection({ host, target }: { host: string; target: Target
     }
   };
 
-  const messageWasTruncated = selectedEntry?.message.trimEnd().endsWith(' …') ?? false;
+  const messageWasTruncated = selectedEntry?.messageTruncated ?? false;
 
   return (
     <div className="flex flex-col gap-3">
@@ -128,8 +128,9 @@ export function EventLogSection({ host, target }: { host: string; target: Target
       {state.kind === 'done' && (
         <>
           <div className="text-sm text-slate-400">
-            {state.result.totalMatched} matching event{state.result.totalMatched === 1 ? '' : 's'}
-            {state.result.truncated && ` — showing the newest ${state.result.entries.length}`}
+            Queried {new Date(state.result.windowStartUtc).toLocaleString()} to {new Date(state.result.windowEndUtc).toLocaleString()}.
+            {' '}{state.result.totalMatched} matching event{state.result.totalMatched === 1 ? '' : 's'}.
+            {state.result.truncated && ` Showing the newest ${state.result.entries.length} within the ${state.result.resultLimit}-entry result limit.`}
           </div>
           <DataTable
             columns={columns}
@@ -153,7 +154,7 @@ export function EventLogSection({ host, target }: { host: string; target: Target
           <dt className="text-muted">Event</dt><dd className="font-mono">{selectedEntry.eventCode}</dd>
         </dl>
         {messageWasTruncated && <p className="mb-3 rounded border border-warn-800 bg-warn-950/20 px-3 py-2 text-sm text-warn-200" role="status">
-          The provider message was truncated by the current 500-character detail limit.
+          The provider message exceeded the 500-character detail limit and was truncated.
         </p>}
         <pre className="max-h-[55vh] overflow-auto whitespace-pre-wrap break-words rounded border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-slate-200">
           {selectedEntry.message || 'No message was returned.'}

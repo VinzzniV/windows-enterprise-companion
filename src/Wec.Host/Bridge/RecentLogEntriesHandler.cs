@@ -10,19 +10,38 @@ using Wec.Infrastructure.Logging;
 
 namespace Wec.Host.Bridge;
 
-public sealed record RecentLogEntriesRequest(int? Limit);
+public enum RecentLogLevelFilter
+{
+    All = 0,
+    Errors,
+}
+
+public sealed record RecentLogEntriesRequest(int? Limit, RecentLogLevelFilter? LevelFilter = null);
 
 public sealed record LogEntry(
     string Timestamp,
     string Level,
     string Source,
     string Summary,
-    string TechnicalDetails);
+    string TechnicalDetails,
+    bool TechnicalDetailsTruncated);
+
+public sealed record RecentLogReadCoverage(
+    int AvailableFileCount,
+    int EvaluatedFileCount,
+    bool FileSelectionTruncated,
+    long EvaluatedBytes,
+    bool ByteWindowTruncated,
+    int ResultLimit,
+    int TotalMatched,
+    bool ResultTruncated,
+    int TruncatedDetailCount);
 
 public sealed record RecentLogEntriesResponse(
     IReadOnlyList<LogEntry> Entries,
     string? Source,
-    DateTimeOffset? ClearedAtUtc);
+    DateTimeOffset? ClearedAtUtc,
+    RecentLogReadCoverage Coverage);
 
 /// <summary>
 /// Reads the recent Serilog files and returns their warning/error/fatal
@@ -35,15 +54,13 @@ internal sealed partial class RecentLogEntriesHandler
 {
     private const int DefaultLimit = 200;
     private const int MaxLimit = 1000;
-    private const int MaxContinuationLines = 40;
-    // ponytail: 7 daily files ≈ one week of history; raise if ops needs more.
-    private const int MaxLogFiles = 7;
 
     // Serilog outputTemplate: "yyyy-MM-dd HH:mm:ss.fff zzz [LVL] Source: message …"
     private static readonly Regex HeaderPattern = BuildHeaderPattern();
     private static readonly Regex LoggerSourcePattern = BuildLoggerSourcePattern();
 
-    private static readonly HashSet<string> KeptLevels = new(StringComparer.Ordinal) { "WRN", "ERR", "FTL" };
+    private static readonly HashSet<string> AllLevels = new(StringComparer.Ordinal) { "WRN", "ERR", "FTL" };
+    private static readonly HashSet<string> ErrorLevels = new(StringComparer.Ordinal) { "ERR", "FTL" };
 
     private readonly LoggingOptions _options;
     private readonly ILogger<RecentLogEntriesHandler> _logger;
@@ -62,21 +79,22 @@ internal sealed partial class RecentLogEntriesHandler
         RecentLogEntriesRequest payload, CancellationToken cancellationToken)
     {
         int limit = Math.Clamp(payload.Limit ?? DefaultLimit, 1, MaxLimit);
+        RecentLogLevelFilter levelFilter = payload.LevelFilter ?? RecentLogLevelFilter.All;
         string directory = LogFiles.ResolveDirectory(_options);
         if (!Directory.Exists(directory))
         {
-            return Result.Success(new RecentLogEntriesResponse([], null, null));
+            return Result.Success(EmptyResponse(limit));
         }
 
-        // Oldest of the kept files first so entries stay in chronological order.
-        List<FileInfo> files = [.. new DirectoryInfo(directory)
+        List<FileInfo> availableFiles = [.. new DirectoryInfo(directory)
             .GetFiles("wec-*.log")
-            .OrderByDescending(file => file.LastWriteTimeUtc)
-            .Take(MaxLogFiles)
+            .OrderByDescending(file => file.LastWriteTimeUtc)];
+        List<FileInfo> files = [.. availableFiles
+            .Take(_options.RecentLogFileLimit)
             .OrderBy(file => file.LastWriteTimeUtc)];
         if (files.Count == 0)
         {
-            return Result.Success(new RecentLogEntriesResponse([], null, null));
+            return Result.Success(EmptyResponse(limit));
         }
 
         DateTimeOffset? clearedAt = LogFiles.ReadClearMarker(directory);
@@ -84,16 +102,40 @@ internal sealed partial class RecentLogEntriesHandler
         try
         {
             var lines = new List<string>();
+            long evaluatedBytes = 0;
+            bool byteWindowTruncated = false;
             foreach (FileInfo file in files)
             {
-                lines.AddRange(await ReadSharedLinesAsync(file.FullName, cancellationToken));
+                LogFileReadResult read = await ReadSharedTailAsync(
+                    file.FullName, _options.RecentLogMaxBytesPerFile, cancellationToken);
+                lines.AddRange(read.Lines);
+                evaluatedBytes += read.EvaluatedBytes;
+                byteWindowTruncated |= read.Truncated;
             }
 
-            IReadOnlyList<LogEntry> entries = ParseWarnAndError(lines, limit, clearedAt);
+            ParsedLogEntries parsed = ParseWarnAndError(
+                lines,
+                limit,
+                clearedAt,
+                levelFilter,
+                _options.RecentLogMaxContinuationLines);
             string source = files.Count == 1
                 ? files[0].Name
                 : $"{files.Count} log files ({files[0].Name} … {files[^1].Name})";
-            return Result.Success(new RecentLogEntriesResponse(entries, source, clearedAt));
+            return Result.Success(new RecentLogEntriesResponse(
+                parsed.Entries,
+                source,
+                clearedAt,
+                new RecentLogReadCoverage(
+                    availableFiles.Count,
+                    files.Count,
+                    availableFiles.Count > files.Count,
+                    evaluatedBytes,
+                    byteWindowTruncated,
+                    limit,
+                    parsed.TotalMatched,
+                    parsed.ResultTruncated,
+                    parsed.Entries.Count(entry => entry.TechnicalDetailsTruncated))));
         }
         catch (IOException exception)
         {
@@ -104,35 +146,51 @@ internal sealed partial class RecentLogEntriesHandler
     }
 
     // Serilog keeps the current file open; share read+write to read it live.
-    private static async Task<List<string>> ReadSharedLinesAsync(string path, CancellationToken cancellationToken)
+    internal static async Task<LogFileReadResult> ReadSharedTailAsync(
+        string path,
+        int maxBytes,
+        CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        long length = stream.Length;
+        long start = Math.Max(0, length - maxBytes);
+        stream.Seek(start, SeekOrigin.Begin);
         using var reader = new StreamReader(stream);
         var lines = new List<string>();
+        if (start > 0)
+        {
+            await reader.ReadLineAsync(cancellationToken);
+        }
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
             lines.Add(line);
         }
-        return lines;
+        return new LogFileReadResult(lines, length - start, start > 0);
     }
 
     /// <summary>
     /// Groups multi-line entries, keeps warnings/errors/fatals after the clear
     /// marker, newest first, capped at <paramref name="limit"/>.
     /// </summary>
-    internal static IReadOnlyList<LogEntry> ParseWarnAndError(
-        IReadOnlyList<string> lines, int limit, DateTimeOffset? clearedAtUtc = null)
+    internal static ParsedLogEntries ParseWarnAndError(
+        IReadOnlyList<string> lines,
+        int limit,
+        DateTimeOffset? clearedAtUtc = null,
+        RecentLogLevelFilter levelFilter = RecentLogLevelFilter.All,
+        int maxContinuationLines = 40)
     {
         var kept = new List<LogEntry>();
         string? timestamp = null;
         string? level = null;
         var message = new List<string>();
+        bool technicalDetailsTruncated = false;
+        HashSet<string> keptLevels = levelFilter == RecentLogLevelFilter.Errors ? ErrorLevels : AllLevels;
 
         void Flush()
         {
-            if (level is not null && KeptLevels.Contains(level) && IsAfterClearMarker(timestamp, clearedAtUtc))
+            if (level is not null && keptLevels.Contains(level) && IsAfterClearMarker(timestamp, clearedAtUtc))
             {
-                kept.Add(ToLogEntry(timestamp ?? string.Empty, level, message));
+                kept.Add(ToLogEntry(timestamp ?? string.Empty, level, message, technicalDetailsTruncated));
             }
         }
 
@@ -145,21 +203,32 @@ internal sealed partial class RecentLogEntriesHandler
                 timestamp = header.Groups["ts"].Value;
                 level = header.Groups["lvl"].Value;
                 message = [header.Groups["msg"].Value];
+                technicalDetailsTruncated = false;
             }
-            else if (level is not null && message.Count <= MaxContinuationLines)
+            else if (level is not null && message.Count - 1 < maxContinuationLines)
             {
-                // Continuation of the current entry (exception/stack lines).
                 message.Add(line);
+            }
+            else if (level is not null)
+            {
+                technicalDetailsTruncated = true;
             }
         }
         Flush();
 
-        // Newest first, capped.
         kept.Reverse();
-        return kept.Count > limit ? kept.GetRange(0, limit) : kept;
+        bool resultTruncated = kept.Count > limit;
+        return new ParsedLogEntries(
+            resultTruncated ? kept.GetRange(0, limit) : kept,
+            kept.Count,
+            resultTruncated);
     }
 
-    private static LogEntry ToLogEntry(string timestamp, string level, List<string> message)
+    private static LogEntry ToLogEntry(
+        string timestamp,
+        string level,
+        List<string> message,
+        bool technicalDetailsTruncated)
     {
         string technicalDetails = string.Join('\n', message).TrimEnd();
         string firstLine = message.Count > 0 ? message[0].Trim() : string.Empty;
@@ -182,7 +251,7 @@ internal sealed partial class RecentLogEntriesHandler
             summary = "No summary available.";
         }
 
-        return new LogEntry(timestamp, level, source, summary, technicalDetails);
+        return new LogEntry(timestamp, level, source, summary, technicalDetails, technicalDetailsTruncated);
     }
 
     private static string WithoutStructuredMetadata(string summary)
@@ -217,7 +286,17 @@ internal sealed partial class RecentLogEntriesHandler
 
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_.+`]+$")]
     private static partial Regex BuildLoggerSourcePattern();
+
+    private static RecentLogEntriesResponse EmptyResponse(int limit) => new(
+        [],
+        null,
+        null,
+        new RecentLogReadCoverage(0, 0, false, 0, false, limit, 0, false, 0));
 }
+
+internal sealed record LogFileReadResult(IReadOnlyList<string> Lines, long EvaluatedBytes, bool Truncated);
+
+internal sealed record ParsedLogEntries(IReadOnlyList<LogEntry> Entries, int TotalMatched, bool ResultTruncated);
 
 public sealed record ClearRecentLogEntriesRequest;
 

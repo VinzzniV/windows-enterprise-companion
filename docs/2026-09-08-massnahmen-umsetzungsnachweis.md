@@ -21,7 +21,8 @@ the applicable milestone checks are green.
 | M10 | Complete | The Patch Management contract and UI call the sum outdated product installations; one client with two outdated products remains two installations. Dashboard labels stored hosts as stored, Clients separates posture assessment from filtered merged candidates, and Compare explicitly identifies its enabled-AD/stored/saved picker population and exclusions. |
 | M11 | Complete | Search, posture, source, grouping, page, page size and sort are URL-backed and directly linkable. Detail tabs preserve the exact return URL; button return and browser Back restore the inner app scroll container once. Primary navigation retains the last list URL only for the same directory/management context, Reset clears it, and text typing is debounced to one server read per burst. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
-| M13-M16 | Planned | Not yet accepted. |
+| M13 | Complete | Local log level filtering precedes the result limit. Configured file-count, byte and continuation-line bounds are returned and displayed with exact coverage and truncation metadata. Remote Event Log results expose their query window, result limit and explicit per-message truncation. The hide action remains a local visibility marker and never claims deletion. |
+| M14-M16 | Planned | Not yet accepted. |
 
 ## M01/M02 technical reassessment
 
@@ -153,9 +154,8 @@ non-mutation regression.
 - Client Event Logs now use an explicit `View full message` control. The detail
   surface keeps host, event time, source, level and event code visible, renders
   the provider message as escaped text with preserved wrapping, and offers
-  clipboard feedback. Until M13 supplies an explicit per-message flag, the
-  current backend's trailing truncation marker exposes its existing
-  500-character limit instead of presenting the returned text as complete.
+  clipboard feedback. The backend now supplies an explicit per-message
+  truncation flag, so the UI does not infer completeness from message text.
 - All 508 frontend tests pass, including focused dialog, table, 500-row Error
   log, Cleanup, Action Center and Event Log regressions. The TypeScript and
   production Vite build and `git diff --check` pass.
@@ -234,3 +234,24 @@ non-mutation regression.
   cannot receive the WebView host bridge fixture. The exact 1026 x 671 visual
   fit, higher zoom, sticky header and horizontal scrollbar remain the external
   M09 acceptance gate rather than being claimed from DOM tests.
+
+## M13 technical reassessment and verification
+
+- The `Errors` selection is part of the Host request and is applied while
+  parsing, before the result cap. A regression with one older error followed by
+  500 warnings proves that the relevant error remains available.
+- Local reads are bounded independently of the returned row count: the newest
+  configured number of retained files is considered, and only the configured
+  tail byte window of each selected file is read. The response distinguishes
+  file-selection, byte-window, result-count and continuation-detail truncation;
+  the UI states each active boundary instead of claiming complete history.
+- More than the configured 40 continuation lines sets an explicit flag on the
+  affected entry. The detail dialog displays that flag. `Hide previous entries`
+  is described and implemented as a local timestamp visibility marker; log
+  files remain untouched.
+- Remote Event Log results now include their exact UTC start/end timestamps,
+  result limit and an explicit message-truncation bit. The existing severity
+  policy and 500-character provider-message limit are unchanged.
+- 76 Host tests, 32 Diagnostics tests and 8 focused frontend tests passed. The
+  Release solution build, generated-contract check (392 types), production
+  frontend build and `git diff --check` passed.

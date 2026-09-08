@@ -29,8 +29,13 @@ filter boundaries. Its contract, focused tests and builds are green. M11 now
 keeps search, posture, source, grouping, paging and sorting in the Clients URL,
 restores the actual app scroll container on detail return, retains scoped list
 state through primary navigation and provides an explicit reset. Its focused
-navigation tests and production build are green. The active slice is M13: log
-filtering, bounded coverage and truncation metadata.
+navigation tests and production build are green. M13 now applies the local
+log level filter before the result limit, bounds file and byte reads through
+validated options and exposes file, byte, result and continuation-detail
+coverage. Remote Event Log results expose the exact query window, result limit
+and explicit message truncation. Parser, service and focused UI tests, the
+contract check and both builds are green. The active slice is M14: consistent
+action-effect explanations and guarded action execution.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.
