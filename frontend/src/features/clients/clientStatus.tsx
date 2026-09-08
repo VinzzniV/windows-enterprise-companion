@@ -70,7 +70,7 @@ export function ClientSemanticStatus({
   status: SemanticStatus;
   context?: string | null;
 }) {
-  return <span className="inline-flex items-center gap-1.5">
+  return <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
     <SemanticStatusBadge status={status} />
     {context && <span className="text-xs text-slate-400">{context}</span>}
   </span>;

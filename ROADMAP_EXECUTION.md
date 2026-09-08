@@ -10,20 +10,18 @@ and cache state), M03 (canonical device identity), M04 (atomic inventory
 snapshots), M05 (stored-data missing and failure states) and M12
 (side-effect-free legacy reads) are implemented and verified. M06
 (coverage-aware, explainable comparison) is also complete. M07 shared table
-keyboard behavior is implemented and automated-test verified; its native
-WebView keyboard smoke remains external because native-window automation is
-unavailable. M08 now uses one viewport-bound, focus-managed detail workflow in
+keyboard behavior is implemented, automated-test verified and confirmed in the
+native WebView. M08 now uses one viewport-bound, focus-managed detail workflow in
 Cleanup, Error log and Action Center, and exposes complete returned Client
 Event Log messages with copy and truncation context. Its automated acceptance
-is green; the required real-WebView layout smoke remains external for the same
-automation limitation. M09 now keeps the compact source/coverage context above
-the Clients search,
+and native small-window detail/focus checks are green. M09 now keeps the compact
+source/coverage context above the Clients search,
 collapses the eleven posture drill-down metrics, mounts the batch workbench
 only for an actual selection and keeps running progress outside its collapsed
 options. Device and Overall columns precede explicitly sized provider columns,
-and semantic badges prohibit mid-word wrapping. Automated acceptance is green;
-the physical 1026 x 671 WebView/zoom check remains external. M10 now names the
-opsi aggregate as outdated product installations without changing its unit,
+and semantic badges prohibit mid-word wrapping. Automated acceptance and the
+physical approximately 1026 x 671 WebView/higher-zoom check are green. M10 now
+names the opsi aggregate as outdated product installations without changing its unit,
 and Dashboard, Clients and Compare state their distinct source populations and
 filter boundaries. Its contract, focused tests and builds are green. M11 now
 keeps search, posture, source, grouping, paging and sorting in the Clients URL,
@@ -48,9 +46,10 @@ are green. M16 now names Kaspersky, opsi and Nessus in the existing workflows,
 marks local Security and report entry points before navigation, and centralizes
 Client Overview freshness and coverage while removing repeated source badges.
 Internal routes, anchors and configuration contracts remain unchanged. All
-implementable M01-M16 work is complete and verified. External acceptance gates
-remain for the M07 keyboard smoke, M08/M09 physical WebView layout checks and
-the short M16 human comprehension test.
+implementable M01-M16 work is complete and verified. The M07-M09 native gates
+are closed. The sole remaining external acceptance gate is the short M16 human
+comprehension test; the native operator walkthrough is recorded separately and
+does not claim to replace a human participant.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.
@@ -59,7 +58,7 @@ this is a targeted audit run, not a new full backend/release acceptance.
 Measure-specific evidence and reassessments are recorded in
 `docs/2026-09-08-massnahmen-umsetzungsnachweis.md`. The implementation and
 acceptance evidence below remains historical evidence for the preceding code
-slices. External acceptance gates remain open.
+slices. Only the external M16 human comprehension test remains open.
 
 ## Last implementation baseline
 

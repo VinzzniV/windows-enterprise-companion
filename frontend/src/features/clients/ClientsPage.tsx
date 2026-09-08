@@ -365,7 +365,7 @@ export function ClientsPage() {
             {client.scanned && <Badge tone="info">Scanned</Badge>}{client.saved && <Badge tone="accent">Saved</Badge>}
           </div>
         </div></div> },
-      { id: 'overall', header: 'Overall', sortable: true, className: 'w-36', cell: (client) => <ClientSemanticStatus {...hygieneAssessmentStatus(client.environment?.assessment.status ?? null)} /> },
+      { id: 'overall', header: 'Overall', sortable: true, className: 'w-56 min-w-56', cell: (client) => <ClientSemanticStatus {...hygieneAssessmentStatus(client.environment?.assessment.status ?? null)} /> },
       { header: 'AD', className: 'w-28', cell: (client) => <SourceBadge client={client} state={sources?.activeDirectory ?? unavailableSource} source="ad" /> },
       { header: 'Kaspersky', className: 'w-32', cell: (client) => <SourceBadge client={client} state={sources?.kaspersky ?? unavailableSource} source="ksc" /> },
       { header: 'opsi', className: 'w-28', cell: (client) => <SourceBadge client={client} state={sources?.opsi ?? unavailableSource} source="opsi" /> },

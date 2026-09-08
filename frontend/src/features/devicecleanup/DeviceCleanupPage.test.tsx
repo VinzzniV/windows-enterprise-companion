@@ -125,6 +125,8 @@ describe('DeviceCleanupPage', () => {
     expect(invokeMock.mock.calls.filter(([module]) => module === 'connectivity')).toHaveLength(0);
 
     const reviewTrigger = screen.getByRole('button', { name: 'Review evidence' });
+    expect(reviewTrigger.className).toContain('whitespace-nowrap');
+    expect(reviewTrigger.textContent).toBe('Review');
     await user.click(reviewTrigger);
     expect(await screen.findByRole('dialog', { name: `Review ${candidate.host}` })).toBeDefined();
     expect(screen.getByText('CORP\\alex')).toBeDefined();

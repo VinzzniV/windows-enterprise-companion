@@ -198,11 +198,30 @@ describe('ClientsPage', () => {
     }
     const headers = screen.getAllByRole('columnheader').map((header) => header.textContent);
     expect(headers.indexOf('Overall')).toBeLessThan(headers.indexOf('AD'));
+    expect(screen.getByRole('columnheader', { name: /Overall/ }).className).toContain('min-w-56');
     expect(screen.getByText('Disabled')).toBeTruthy();
     expect(screen.queryAllByText('OK')).toHaveLength(0);
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Unmanaged').length).toBeGreaterThan(0);
     expect(screen.getByText('1–3 of 3')).toBeTruthy();
+  });
+
+  it('keeps an assessment context together in the compact status column', async () => {
+    const cleanupDevice = device('CLEANUP-PC');
+    cleanupDevice.assessment = { status: 'CLEANUP_CANDIDATE', findings: [] };
+    invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) => {
+      if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (module === 'system' && action === 'getAppInfo') return Promise.resolve({ maxBatchHosts: 50 });
+      if (module === 'employeelifecycle' && action === 'listClientWorkspace') {
+        return Promise.resolve(pageFor(payload, [item(cleanupDevice, 'CLEANUP-PC')]));
+      }
+      return Promise.reject(new Error(`Unexpected action ${module}/${action}`));
+    });
+
+    renderPage();
+
+    const context = await screen.findByText('Cleanup candidate');
+    expect(context.parentElement?.className).toContain('whitespace-nowrap');
   });
 
   it('runs a batch only after explicit client selection and shows typed per-host failures', async () => {

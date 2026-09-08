@@ -205,14 +205,14 @@ export function DeviceCleanupPage() {
         </Badge>,
     },
     {
-      header: 'Most recent source time',
-      cell: (candidate) => <span className="text-xs text-slate-300">{sourceTimestampSummary(candidate)}</span>,
+      header: 'Review',
+      cell: (candidate) => <Button aria-label="Review evidence" className="whitespace-nowrap" variant="secondary" onClick={() => chooseCandidate(candidate)}>
+        Review
+      </Button>,
     },
     {
-      header: 'Review',
-      cell: (candidate) => <Button variant="secondary" onClick={() => chooseCandidate(candidate)}>
-        Review evidence
-      </Button>,
+      header: 'Most recent source time',
+      cell: (candidate) => <span className="whitespace-nowrap text-xs text-slate-300">{sourceTimestampSummary(candidate)}</span>,
     },
   ], [searchParams, setSearchParams]);
 

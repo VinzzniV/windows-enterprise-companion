@@ -15,16 +15,16 @@ the applicable milestone checks are green.
 | M04 | Complete | A non-destructive migration adds nullable normalized identity keys and a filtered unique index. Real-SQLite tests cover newest-capture-wins concurrency, failure injection, retained legacy duplicates and atomic replacement. |
 | M05 | Complete | Inventory, Security and Health use explicit loading, missing, stored-read failure and live-run failure states. The same UI matrix covers timeout, unavailable bridge, database failure and unreadable payload; stored reloads remain read-only and failed live refreshes retain the previous result. |
 | M06 | Complete | Comparison blocks absence claims when either software capture is unavailable, separates product presence from version differences, normalizes GPU order/whitespace, applies documented byte tolerances to raw RAM/disk totals and permanently displays Inventory/Security capture times and coverage per client. |
-| M07 | Implemented; WebView smoke pending | `DataTable` keeps native row semantics, activates a focused row with Enter/Space, exposes selection with `aria-selected`, shows a focus outline and ignores bubbled events from inputs, labels, buttons, links and other interactive descendants. Shared and Clients-page tests prove that Space changes exactly the checkbox without navigation; all interactive table callers were inventoried and their affected tests pass. Native-window automation is unavailable in this session, so the required real-WebView keyboard check remains an external acceptance gate. |
-| M08 | Implemented; layout smoke pending | Cleanup, Error log and Action Center use the same viewport-bound detail dialog with Escape, focus containment and focus return. A 500-row Error-log regression proves that the first selection opens without relying on the page end. Client Event Logs expose an explicit full-message action with host, time, source, safe wrapped text, copy feedback and a warning for the existing 500-character truncation convention. The required real-browser/WebView layout check remains external because this session cannot automate the native window or inject the host bridge into its isolated browser. |
-| M09 | Implemented; layout smoke pending | Clients keeps only compact source state, snapshot time and coverage guidance above search. Eleven posture/filter metrics are collapsed by default, and the batch workbench is absent until a client is selected. Running progress stays visible when batch options collapse. The fixed client table orders Device and Overall before explicitly sized provider columns, while semantic badges prohibit mid-word wrapping. The physical 1026 x 671 WebView and higher-zoom check remains external. |
+| M07 | Complete | `DataTable` keeps native row semantics, activates a focused row with Enter/Space, exposes selection with `aria-selected`, shows a focus outline and ignores bubbled events from inputs, labels, buttons, links and other interactive descendants. Shared and Clients-page tests prove that Space changes exactly the checkbox without navigation; all interactive table callers were inventoried and their affected tests pass. The native WebView follow-up confirmed visible checkbox and row focus, checkbox-only Space handling and row activation with Enter. |
+| M08 | Complete | Cleanup, Error log and Action Center use the same viewport-bound detail dialog with Escape, focus containment and focus return. A 500-row Error-log regression proves that the first selection opens without relying on the page end. Client Event Logs expose an explicit full-message action with host, time, source, safe wrapped text, copy feedback and a warning for the existing 500-character truncation convention. Native WebView checks at approximately 1026 x 671 confirmed that the first Cleanup, Error-log and Action-Center details open in the visible work area and return focus on close. |
+| M09 | Complete | Clients keeps only compact source state, snapshot time and coverage guidance above search. Eleven posture/filter metrics are collapsed by default, and the batch workbench is absent until a client is selected. Running progress stays visible when batch options collapse. Device and Overall precede provider columns; status context and Cleanup review actions remain whole, while the table provides horizontal scrolling. Native checks at approximately 1026 x 671 and at two higher zoom steps confirmed visible search/first results, operable selection/main actions and a working sticky header/horizontal scroll. |
 | M10 | Complete | The Patch Management contract and UI call the sum outdated product installations; one client with two outdated products remains two installations. Dashboard labels stored hosts as stored, Clients separates posture assessment from filtered merged candidates, and Compare explicitly identifies its enabled-AD/stored/saved picker population and exclusions. |
 | M11 | Complete | Search, posture, source, grouping, page, page size and sort are URL-backed and directly linkable. Detail tabs preserve the exact return URL; button return and browser Back restore the inner app scroll container once. Primary navigation retains the last list URL only for the same directory/management context, Reset clears it, and text typing is debounced to one server read per burst. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13 | Complete | Local log level filtering precedes the result limit. Configured file-count, byte and continuation-line bounds are returned and displayed with exact coverage and truncation metadata. Remote Event Log results expose their query window, result limit and explicit per-message truncation. The hide action remains a local visibility marker and never claims deletion. |
 | M14 | Complete | Client actions distinguish live read-only access, locally replaced scan evidence and locally saved target metadata. Save/unsave failures remain visible and duplicate in-flight target mutations are suppressed; no password enters `SaveTarget`. Network Scan previews its target, exact configured TCP ports, DHCP/account context, non-persistence and no-write behavior, and rejects duplicate starts. The Print port-removal action retains its explicit external-effect text and confirmation. |
 | M15 | Complete | Trend x-positions derive from UTC dates, axes name date and finding units, and a keyboard-accessible table exposes every daily severity/asset value without color or hover. Daily totals explicitly cover all assets, while the verdict evidence names start/end dates, common cohort, added/removed assets, common-cohort start/end values and the first deciding severity under the unchanged Critical-to-Low policy. Empty and one-point states remain explicit. |
-| M16 | Implemented; user test pending | Navigation and settings name Kaspersky, opsi and Nessus directly; global search for Kaspersky returns both Clients and Settings without exposing the legacy IT Lifecycle name. Dashboard Security opens the local machine's Security section, and the report entry names its local scope before navigation. Client Overview keeps one compact saved-data notice and one source ledger with age, capture time and coverage while removing repeated status badges from the detail cards. Settings anchors, dirty markers, credentials and restart guidance remain covered. The required short human comprehension test remains an external acceptance gate. |
+| M16 | Implemented; human test pending | Navigation and settings name Kaspersky, opsi and Nessus directly; the native global search for Kaspersky returned exactly Clients and Settings without exposing the legacy IT Lifecycle name. Dashboard Security and the report entry visibly name their local scope before navigation. A native task walkthrough found Client Overview source details and read the Action-Center relationship as `Reported by`, not ownership. Settings anchors, dirty markers, credentials and restart guidance remain covered. This operator walkthrough does not replace the required short test with a human participant, which remains the sole external acceptance gate. |
 
 ## M01/M02 technical reassessment
 
@@ -136,9 +136,10 @@ non-mutation regression.
 - Shared component tests cover row activation, focus styling and child controls;
   the Clients-page regression proves Space selects exactly one client and keeps
   the route unchanged. Scoped caller suites and the production build pass.
-- The Release host can be started, but this session exposes no native window to
-  automation. Keyboard order and visible focus in the actual WebView remain a
-  focused external smoke gate; the blind audit was not changed.
+- A native WebView follow-up focused the first client checkbox, verified its
+  visible focus ring, changed only that checkbox with Space and stayed on the
+  Clients route. Shift+Tab exposed the row focus outline and Enter opened the
+  corresponding Client 360 page. The blind audit was not changed.
 
 ## M08 technical reassessment and verification
 
@@ -161,6 +162,11 @@ non-mutation regression.
 - All 508 frontend tests pass, including focused dialog, table, 500-row Error
   log, Cleanup, Action Center and Event Log regressions. The TypeScript and
   production Vite build and `git diff --check` pass.
+- In the native WebView, the first Error-log row opened a viewport-bound dialog
+  at approximately 1026 x 671 with source, time and full technical text visible;
+  Escape closed it and restored the row focus outline. The first Cleanup review
+  and Action-Center context opened in the same visible dialog workflow and
+  returned focus to their triggers.
 
 ## M10 technical reassessment and verification
 
@@ -204,11 +210,8 @@ non-mutation regression.
   changes reset paging as appropriate.
 - 47 focused App-shell, Clients, Client-detail, Dashboard and scope tests pass;
   all 519 frontend tests and the production TypeScript/Vite build pass.
-- A local real-browser run at 1026 × 671 was prepared, but the isolated browser
-  cannot receive the WebView host bridge fixture and native-window automation
-  is unavailable. Actual visual fit, focus-ring visibility and scrolling in
-  WebView2 remain the documented external M08 acceptance gate; the blind audit
-  remains unchanged.
+- The later native WebView follow-up completed the M08/M09 layout, focus and
+  scrolling acceptance; the blind audit remains unchanged.
 
 ## M09 technical reassessment and verification
 
@@ -225,17 +228,20 @@ non-mutation regression.
   and Nessus follow. Device description and all existing last-seen evidence
   remain present in a denser row. Shared `DataTable` only exposes the opt-in
   column class; it applies no new global compact behavior.
-- The common Badge explicitly resets inherited arbitrary word wrapping, so
-  labels such as `Cleanup candidate` stay whole. Tests cover the class on all
-  canonical semantic states.
+- The common Badge explicitly resets inherited arbitrary word wrapping. The
+  compact Overall column also gives its contextual status enough minimum width,
+  and Cleanup prioritizes a non-wrapping Review action before its timestamp.
+  Tests cover the resulting feature-owned classes and canonical status states.
 - All 509 frontend tests and the production TypeScript/Vite build pass. The
   focused Clients and batch tests prove default workbench absence, collapsed
   posture metrics, column order, explicit selection and progress visibility
   outside collapsed options.
-- Native-window automation remains unavailable, and the isolated local browser
-  cannot receive the WebView host bridge fixture. The exact 1026 x 671 visual
-  fit, higher zoom, sticky header and horizontal scrollbar remain the external
-  M09 acceptance gate rather than being claimed from DOM tests.
+- The running WebView was resized to approximately 1026 x 671. Search and the
+  first client row were visible without prior scrolling. Two higher zoom steps
+  retained the selection and primary actions; scrolling confirmed the sticky
+  header and horizontal table movement. This check exposed and drove the final
+  non-wrapping Overall/Cleanup column adjustment, which was rebuilt and checked
+  again in the native app.
 
 ## M13 technical reassessment and verification
 
@@ -336,7 +342,21 @@ non-mutation regression.
   frontend build and a zero-finding dependency audit. After the last naming
   cleanup, 75 affected navigation, Settings, reporting, relationship and Compare
   tests and the production build passed again; `git diff --check` passed.
-- Native-window automation is unavailable in this session. The acceptance
-  criterion requiring a short human test of detail discoverability and the
-  observation-versus-ownership wording therefore remains external and is not
-  inferred from DOM tests.
+- A native task walkthrough searched for `Kaspersky`, reached Clients and
+  Settings, found the local Security/report scope before navigation, opened
+  Client Overview source details and inspected an Action-Center relationship
+  labelled `Reported by`. This validates the implemented task path, but it is
+  not a human comprehension study. The short test with a human participant
+  therefore remains the sole external acceptance condition.
+
+## Native WebView follow-up verification
+
+- The running application used rebuilt local assets; no isolated browser or
+  synthetic bridge fixture was used.
+- Native interaction covered M07 keyboard behavior, all three M08 detail
+  contexts, M09 at approximately 1026 x 671 and two higher zoom steps, and the
+  M16 discoverability task path. No remote scan or write action was started.
+- The follow-up layout adjustment is covered by 28 focused tests and the full
+  frontend suite: 526 tests passed. The production frontend build and Debug
+  host build passed. The subsequent full Release solution build passed with
+  zero warnings and zero errors.
