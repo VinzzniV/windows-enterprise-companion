@@ -36,29 +36,30 @@ export function AdminSignIn() {
     <div className="relative">
       {displayName ? (
         <div className="flex items-center gap-2">
-          <Badge tone="accent">Admin: {displayName}</Badge>
+          <Badge tone="accent">Remote account: {displayName}</Badge>
           <button
             type="button"
             className="text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
             onClick={signOutAdmin}
           >
-            Sign out
+            Clear remote account
           </button>
         </div>
       ) : (
         <Button variant="secondary" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-          Sign in as admin
+          Set remote account
         </Button>
       )}
 
       {open && !displayName && (
         <div
           role="dialog"
-          aria-label="Admin sign-in"
-          className="absolute right-0 top-full z-30 mt-2 w-80 rounded-lg border border-slate-700 bg-slate-900 p-3 shadow-xl"
+          aria-label="Remote access account"
+          className="absolute right-0 top-full z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-700 bg-slate-900 p-3 shadow-xl"
         >
           <p className="mb-2 text-xs text-slate-400">
-            Used for every remote target this session. Kept in memory only — never stored.
+            Used for remote requests this session. This does not elevate the local app.
+            Credentials stay in memory and are checked when a request runs.
           </p>
           <form
             onSubmit={(event) => {
@@ -70,7 +71,7 @@ export function AdminSignIn() {
             <CredentialFields values={draft} onChange={(patch) => setDraft({ ...draft, ...patch })} />
             <div className="flex gap-2">
               <Button type="submit" variant="primary" disabled={draft.userName.trim() === ''}>
-                Sign in
+                Use remote account
               </Button>
               <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
                 Cancel

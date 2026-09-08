@@ -52,6 +52,7 @@ public sealed record HygieneActionSubject(
     string Host);
 
 public sealed record HygieneActionEvidenceSnapshot(
+    long SnapshotRevision,
     DateTimeOffset AssessedAtUtc,
     IReadOnlyList<ActionEvidenceSourceState> Sources,
     IReadOnlyList<HygieneActionSubject> Subjects,

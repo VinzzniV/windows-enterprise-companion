@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   DiskEncryptionStatus,
   EncryptableVolume,
@@ -8,6 +8,7 @@ import type {
 } from '../../shared/api-types';
 import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
 import { Card } from '../../shared/ui/Card';
+import { Button } from '../../shared/ui/Button';
 import { DataTable } from '../../shared/ui/DataTable';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { Spinner } from '../../shared/ui/Spinner';
@@ -54,29 +55,42 @@ function errorText(error: unknown): string {
 }
 
 type EncryptionState =
+  | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; volumes: EncryptableVolume[] }
   | { kind: 'requiresElevation'; message: string }
   | { kind: 'error'; message: string };
 
 function EncryptionCard({ target }: { target: TargetRequest | null }) {
-  const [state, setState] = useState<EncryptionState>({ kind: 'loading' });
+  const [state, setState] = useState<EncryptionState>({ kind: 'idle' });
+  const requestVersion = useRef(0);
 
   useEffect(() => {
+    setState({ kind: 'idle' });
+    return () => { requestVersion.current += 1; };
+  }, [target]);
+
+  function checkEncryption() {
+    const version = ++requestVersion.current;
     setState({ kind: 'loading' });
     invoke<DiskEncryptionStatus>('inventory', 'getDiskEncryptionStatus', { target })
-      .then((status) => setState({ kind: 'loaded', volumes: status.volumes }))
+      .then((status) => {
+        if (version === requestVersion.current) setState({ kind: 'loaded', volumes: status.volumes });
+      })
       .catch((error: unknown) => {
-        if (error instanceof BridgeInvokeError && error.error.code === 'ACCESS_DENIED') {
+        if (version !== requestVersion.current) return;
+        if (error instanceof BridgeInvokeError && error.error.requiredPrivilege === 'ADMINISTRATOR' && !target?.host) {
           setState({ kind: 'requiresElevation', message: error.error.message });
         } else {
           setState({ kind: 'error', message: errorText(error) });
         }
       });
-  }, [target]);
+  }
 
   return (
     <Card title="BitLocker">
+      <Button onClick={checkEncryption} disabled={state.kind === 'loading'}>Check BitLocker</Button>
+      {state.kind === 'idle' && <p className="text-sm text-slate-400">Run this check to read the current encryption status.</p>}
       {state.kind === 'loading' && <Spinner label="Checking encryption status …" />}
 
       {state.kind === 'requiresElevation' && (

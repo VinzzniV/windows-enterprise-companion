@@ -55,9 +55,13 @@ public sealed partial class HardwareInfoService
         string hostKey = target.CacheKey;
         if (cacheOnly)
         {
-            // Restores stored results without touching the network — used when
-            // the page reloads previously scanned hosts
-            CachedHardwareSnapshot? stored = await _repository.GetLatestAsync(hostKey, cancellationToken);
+            Result<CachedHardwareSnapshot?> storedRead = await ReadStoredSnapshotAsync(hostKey, cancellationToken);
+            if (storedRead.IsFailure)
+            {
+                return Result.Failure<HardwareInfoResult>(storedRead.Error!);
+            }
+
+            CachedHardwareSnapshot? stored = storedRead.Value;
             return stored is null
                 ? Result.Failure<HardwareInfoResult>(Error.NotFound(
                     $"No stored snapshot for '{target.DisplayName}'."))
@@ -67,7 +71,13 @@ public sealed partial class HardwareInfoService
 
         if (!forceRefresh)
         {
-            CachedHardwareSnapshot? cached = await _repository.GetLatestAsync(hostKey, cancellationToken);
+            Result<CachedHardwareSnapshot?> cachedRead = await ReadStoredSnapshotAsync(hostKey, cancellationToken);
+            if (cachedRead.IsFailure)
+            {
+                return Result.Failure<HardwareInfoResult>(cachedRead.Error!);
+            }
+
+            CachedHardwareSnapshot? cached = cachedRead.Value;
             if (cached is not null && _clock.UtcNow - cached.CapturedAtUtc < _options.CacheTtl)
             {
                 LogServedFromCache(hostKey, cached.CapturedAtUtc);
@@ -87,6 +97,22 @@ public sealed partial class HardwareInfoService
         LogCapturedFresh(hostKey, capturedAtUtc);
         return Result.Success(new HardwareInfoResult(
             target.DisplayName, snapshotResult.Value, capturedAtUtc, FromCache: false));
+    }
+
+    private async Task<Result<CachedHardwareSnapshot?>> ReadStoredSnapshotAsync(
+        string hostKey,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Result.Success(await _repository.GetLatestAsync(hostKey, cancellationToken));
+        }
+        catch (InvalidDataException)
+        {
+            return Result.Failure<CachedHardwareSnapshot?>(new Error(
+                ErrorCode.StoredDataUnreadable,
+                "The stored hardware snapshot is unreadable."));
+        }
     }
 
     [LoggerMessage(

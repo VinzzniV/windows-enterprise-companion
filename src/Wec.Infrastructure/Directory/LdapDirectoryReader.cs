@@ -105,13 +105,7 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
             request.Controls.Add(pageControl);
             if (!string.IsNullOrWhiteSpace(query.SortAttribute))
             {
-                SortKey[] sortKeys = string.IsNullOrWhiteSpace(query.SortTieBreakerAttribute)
-                    ? [new SortKey(query.SortAttribute, null, query.SortDescending)]
-                    : [
-                        new SortKey(query.SortAttribute, null, query.SortDescending),
-                        new SortKey(query.SortTieBreakerAttribute, null, query.SortDescending),
-                    ];
-                request.Controls.Add(new SortRequestControl(sortKeys));
+                request.Controls.Add(CreateSortControl(query.SortAttribute, query.SortDescending));
             }
 
             var accumulator = new BoundedDirectoryResultAccumulator(entryOffset, entryLimit);
@@ -154,26 +148,27 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
             LogSearchCompleted(
                 result.TotalCount,
                 result.Entries.Count,
-                query.LdapFilter,
                 connectionTarget);
             return Result.Success(result);
         }
         catch (LdapException exception)
         {
             Error error = LdapErrorMapper.MapLdapException(exception.ErrorCode, exception.Message, connectionTarget);
-            _logger.LogWarning(
-                exception, "Directory search failed with {ErrorCode}: {LdapFilter}", error.Code, query.LdapFilter);
+            _logger.LogWarning("Directory search failed with {ErrorCode}", error.Code);
             return Result.Failure<BoundedDirectorySearchResult>(error);
         }
         catch (DirectoryOperationException exception)
         {
             Error error = LdapErrorMapper.MapOperationResult(
                 exception.Response?.ResultCode, exception.Message, connectionTarget);
-            _logger.LogWarning(
-                exception, "Directory search failed with {ErrorCode}: {LdapFilter}", error.Code, query.LdapFilter);
+            _logger.LogWarning("Directory search failed with {ErrorCode}", error.Code);
             return Result.Failure<BoundedDirectorySearchResult>(error);
         }
     }
+
+    internal static SortRequestControl CreateSortControl(string attribute, bool descending) =>
+        // AD DS rejects multiple sort keys even though RFC 2891 permits them.
+        new(new SortKey(attribute, null, descending));
 
     private static Error? ProbeDnsResolution(string target)
     {
@@ -252,11 +247,10 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
 
     [LoggerMessage(
         Level = LogLevel.Debug,
-        Message = "Directory search counted {TotalCount} entries and retained {RetainedCount} for {LdapFilter} against {DomainDnsName}")]
+        Message = "Directory search counted {TotalCount} entries and retained {RetainedCount} against {DomainDnsName}")]
     private partial void LogSearchCompleted(
         int totalCount,
         int retainedCount,
-        string ldapFilter,
         string domainDnsName);
 }
 

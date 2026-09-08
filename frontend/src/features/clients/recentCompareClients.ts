@@ -2,7 +2,7 @@ import { loadView, saveView } from '../../shared/viewCache';
 import { clientKey } from './clients';
 
 const recentCompareViewKey = 'client-compare-recent';
-const recentCompareViewVersion = 1;
+const recentCompareViewVersion = 2;
 const maximumRecentHosts = 8;
 
 interface RecentCompareView {

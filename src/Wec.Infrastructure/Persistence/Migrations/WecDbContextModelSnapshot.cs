@@ -336,6 +336,10 @@ namespace Wec.Infrastructure.Persistence.Migrations
                         .HasDefaultValue("")
                         .HasColumnName("host");
 
+                    b.Property<string>("IdentityKey")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("identity_key");
+
                     b.Property<string>("PayloadJson")
                         .IsRequired()
                         .HasColumnType("TEXT")
@@ -348,6 +352,11 @@ namespace Wec.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Host")
                         .HasDatabaseName("ix_inventory_hardware_snapshots_host");
+
+                    b.HasIndex("IdentityKey")
+                        .IsUnique()
+                        .HasDatabaseName("ux_inventory_hardware_snapshots_identity_key")
+                        .HasFilter("identity_key IS NOT NULL");
 
                     b.ToTable("inventory_hardware_snapshots", (string)null);
                 });

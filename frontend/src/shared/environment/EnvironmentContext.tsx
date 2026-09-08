@@ -21,10 +21,11 @@ interface EnvironmentContextValue {
   progress: HygieneLoadProgress | null;
   elapsedSeconds: number;
   cancelled: boolean;
+  refreshRevision: number;
   ensureLoaded(): Promise<ItHygieneResult | null>;
   refresh(): Promise<ItHygieneResult | null>;
   cancel(): void;
-  invalidate(): void;
+  invalidate(forceBackendRefresh?: boolean): void;
 }
 
 const EnvironmentContext = createContext<EnvironmentContextValue | null>(null);
@@ -78,19 +79,24 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorPresentation | null>(null);
   const [cancelled, setCancelled] = useState(false);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const resultRef = useRef<ItHygieneResult | null>(null);
   const inFlight = useRef<Promise<ItHygieneResult | null> | null>(null);
   const generation = useRef(0);
+  const forceNextLoad = useRef(false);
   const activeLoad = useRef<CancellableBridgeInvocation<ItHygieneResult> | null>(null);
   const previousRequest = useRef<ItHygieneRequest | null>(null);
 
-  const invalidate = useCallback(() => {
+  const invalidate = useCallback((forceBackendRefresh = true) => {
     generation.current += 1;
     resultRef.current = null;
     inFlight.current = null;
     activeLoad.current?.cancel();
     activeLoad.current = null;
+    forceNextLoad.current = forceBackendRefresh;
+    if (forceBackendRefresh) setRefreshRevision((current) => current + 1);
     hygieneOperation.end();
+    setLoading(false);
     setResult(null);
     setError(null);
     setCancelled(false);
@@ -109,8 +115,16 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   }, [request, invalidate]);
 
   const load = useCallback((force: boolean) => {
-    if (!force && resultRef.current) return Promise.resolve(resultRef.current);
-    if (!force && inFlight.current) return inFlight.current;
+    const effectiveForce = force || forceNextLoad.current;
+    if (!effectiveForce && resultRef.current) return Promise.resolve(resultRef.current);
+    if (!effectiveForce && inFlight.current) return inFlight.current;
+
+    if (effectiveForce) {
+      generation.current += 1;
+      activeLoad.current?.cancel();
+      activeLoad.current = null;
+      inFlight.current = null;
+    }
 
     const loadGeneration = generation.current;
     const operationId = hygieneOperation.begin();
@@ -120,12 +134,13 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
     const invocation = invokeCancellable<ItHygieneResult>(
       'employeelifecycle',
       'getHygiene',
-      { ...request, operationId },
+      { ...request, operationId, force: effectiveForce },
     );
     activeLoad.current = invocation;
     const promise = invocation.promise
       .then((next) => {
         if (generation.current === loadGeneration) {
+          forceNextLoad.current = false;
           resultRef.current = next;
           setResult(next);
         }
@@ -163,11 +178,12 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
     progress: hygieneOperation.progress,
     elapsedSeconds: hygieneOperation.elapsedSeconds,
     cancelled,
+    refreshRevision,
     ensureLoaded,
     refresh,
     cancel,
     invalidate,
-  }), [result, loading, error, hygieneOperation.progress, hygieneOperation.elapsedSeconds, cancelled, ensureLoaded, refresh, cancel, invalidate]);
+  }), [result, loading, error, hygieneOperation.progress, hygieneOperation.elapsedSeconds, cancelled, refreshRevision, ensureLoaded, refresh, cancel, invalidate]);
 
   return <EnvironmentContext.Provider value={value}>{children}</EnvironmentContext.Provider>;
 }

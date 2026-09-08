@@ -80,8 +80,17 @@ internal sealed class GetLatestDiagnosticsHandler
         GetLatestDiagnosticsRequest payload, CancellationToken cancellationToken)
     {
         TargetRequest target = payload.Target ?? new TargetRequest();
-        DiagnosticRunResult? run = await _repository.GetLatestAsync(
-            target.ToScanTarget().CacheKey, cancellationToken);
-        return Result.Success(new LatestDiagnosticRunResult(run));
+        try
+        {
+            DiagnosticRunResult? run = await _repository.GetLatestAsync(
+                target.ToScanTarget().CacheKey, cancellationToken);
+            return Result.Success(new LatestDiagnosticRunResult(run));
+        }
+        catch (InvalidDataException)
+        {
+            return Result.Failure<LatestDiagnosticRunResult>(new Error(
+                ErrorCode.StoredDataUnreadable,
+                "The stored health snapshot is unreadable."));
+        }
     }
 }

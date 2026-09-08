@@ -14,4 +14,13 @@ public sealed class LoggingOptions
 
     [Range(1, 365)]
     public int RetainedFileCountLimit { get; set; } = 14;
+
+    [Range(1, 365)]
+    public int RecentLogFileLimit { get; set; } = 7;
+
+    [Range(65536, int.MaxValue)]
+    public int RecentLogMaxBytesPerFile { get; set; } = 4194304;
+
+    [Range(1, 1000)]
+    public int RecentLogMaxContinuationLines { get; set; } = 40;
 }

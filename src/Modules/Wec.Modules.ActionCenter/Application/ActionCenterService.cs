@@ -98,6 +98,7 @@ internal sealed class ActionCenterService(
             request.Page,
             request.PageSize,
             Summarize(matches),
+            hygiene.SnapshotRevision,
             hygiene.AssessedAtUtc,
             sources,
             itemsTruncated));
@@ -194,6 +195,7 @@ internal sealed class ActionCenterService(
 
     private static ActionCenterSummary Summarize(List<ActionCenterWorkItem> items) => new(
         items.Count,
+        items.Select(item => item.SubjectKey).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
         items.Count(item => item.Severity == ActionCenterSeverity.Critical),
         items.Count(item => item.Severity == ActionCenterSeverity.High),
         items.Count(item => item.Severity == ActionCenterSeverity.Warning),

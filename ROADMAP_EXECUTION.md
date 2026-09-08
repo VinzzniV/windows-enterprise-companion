@@ -1,10 +1,128 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `COMPLETE_PENDING_MERGE`
+## Audit follow-up (2026-09-08)
 
-Current phase: Roadmap completion audit and release verification
+The blind audit is preserved unchanged. The technical follow-up and prioritized
+M01-M16 backlog are now versioned under docs; see [documentation index](docs/README.md).
+Implementation was explicitly authorized on 2026-09-08. Work is active on
+`codex/m01-m16-audit-measures`. M01 (coverage and known findings), M02 (refresh
+and cache state), M03 (canonical device identity), M04 (atomic inventory
+snapshots), M05 (stored-data missing and failure states) and M12
+(side-effect-free legacy reads) are implemented and verified. M06
+(coverage-aware, explainable comparison) is also complete. M07 shared table
+keyboard behavior is implemented, automated-test verified and confirmed in the
+native WebView. M08 now uses one viewport-bound, focus-managed detail workflow in
+Cleanup, Error log and Action Center, and exposes complete returned Client
+Event Log messages with copy and truncation context. Its automated acceptance
+and native small-window detail/focus checks are green. M09 now keeps the compact
+source/coverage context above the Clients search,
+collapses the eleven posture drill-down metrics, mounts the batch workbench
+only for an actual selection and keeps running progress outside its collapsed
+options. Device and Overall columns precede explicitly sized provider columns,
+and semantic badges prohibit mid-word wrapping. Automated acceptance and the
+physical approximately 1026 x 671 WebView/higher-zoom check are green. M10 now
+names the opsi aggregate as outdated product installations without changing its unit,
+and Dashboard, Clients and Compare state their distinct source populations and
+filter boundaries. Its contract, focused tests and builds are green. M11 now
+keeps search, posture, source, grouping, paging and sorting in the Clients URL,
+restores the actual app scroll container on detail return, retains scoped list
+state through primary navigation and provides an explicit reset. Its focused
+navigation tests and production build are green. M13 now applies the local
+log level filter before the result limit, bounds file and byte reads through
+validated options and exposes file, byte, result and continuation-detail
+coverage. Remote Event Log results expose the exact query window, result limit
+and explicit message truncation. Parser, service and focused UI tests, the
+contract check and both builds are green. M14 now distinguishes live reads,
+local replacement/storage and external changes at the relevant Client,
+Network Scan and Print actions. Client target mutations expose failures and
+reject duplicate in-flight actions; Network Scan shows its configured port
+scope and also rejects duplicate starts. Focused tests, the contract check and
+both builds are green. M15 now positions Nessus trend samples by elapsed UTC
+days, labels both axes, exposes accessible daily values and separates all-asset
+daily totals from the common-asset verdict. The response and UI state the
+start/end cohort, added/removed assets and first deciding severity while
+preserving the existing Critical-to-Low policy. Focused tests and both builds
+are green. M16 now names Kaspersky, opsi and Nessus in the existing workflows,
+marks local Security and report entry points before navigation, and centralizes
+Client Overview freshness and coverage while removing repeated source badges.
+Internal routes, anchors and configuration contracts remain unchanged. All
+implementable M01-M16 work is complete and verified. The M07-M09 native gates
+are closed. The sole remaining external acceptance gate is the short M16 human
+comprehension test; the native operator walkthrough is recorded separately and
+does not claim to replace a human participant.
 
-Current slice: Merge the fully verified roadmap branch through Draft PR #28
+Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
+baseline: 17ae57a.
+The new audit ran 467 frontend and 162 selected backend tests (629 passed);
+this is a targeted audit run, not a new full backend/release acceptance.
+Measure-specific evidence and reassessments are recorded in
+`docs/2026-09-08-massnahmen-umsetzungsnachweis.md`. The implementation and
+acceptance evidence below remains historical evidence for the preceding code
+slices. Only the external M16 human comprehension test remains open.
+
+## Last implementation baseline
+
+
+Status: `IMPLEMENTED_ACCEPTANCE_PARTIAL`
+
+Current phase: Company-environment release acceptance
+
+Current slice: Kaspersky HTTPS certificate fingerprint reader on
+`codex/kaspersky-certificate-fingerprint` (started 2026-09-08).
+
+Slice state: `IMPLEMENTED_VERIFIED` (2026-09-08).
+The settings UI exposes the same explicit certificate-inspection workflow for
+Kaspersky Security Center that already exists for Nessus. The action reads the
+configured KSC HTTPS endpoint, displays the certificate subject and validity,
+and copies its SHA-256 fingerprint only into the unsaved settings draft for
+manual verification. It does not trust or save the received fingerprint
+automatically.
+
+Verification: Release build passed with zero warnings/errors; all 745 backend
+tests and 467 frontend tests passed; 390 generated bridge contracts are current;
+the production frontend build and `git diff --check` passed. No live Kaspersky
+connection was opened during this implementation pass.
+
+Previous slice: Client UI/UX follow-up on `codex/client-ux-followup`.
+State: `VISUAL_SMOKE_CHECKED` (2026-09-08).
+Client 360 now prioritizes compact source and management status, with source
+coverage, software previews and management details available through disclosures.
+Successful Inventory, Health and Security operations refresh the stored overview
+without triggering management queries or connectivity probes. Provider errors
+separate concise guidance from technical details. Remote-account controls and
+local elevation have distinct labels; Ping and the WinRM TCP-port result are
+reported separately. Shared table wrapping and fixed layouts for Users and Action
+Center improve long-value handling. Existing relationship-map sizing corrections
+from the preceding acceptance slice remain in place.
+
+User follow-up: removed the local-administrator restart button and its obsolete
+error state/test from the top bar. The nine remaining shell tests and production
+frontend build passed after removal. The user subsequently authorized visual verification.
+
+Verification: 467 frontend tests passed; TypeScript and the production frontend
+build passed; `git diff --check` passed. Backend code and contracts are unchanged.
+After GO, the current Release host built with zero warnings/errors and was launched.
+Visual checks covered compact Client 360 source/management status, management
+disclosures, map/list rendering, collapsed and expanded certificate diagnostics,
+remote/local labels, absence of the local restart button, and Users/Action Center
+table wrapping. Larger WebView zoom exercised compact navigation and text reflow.
+The designated client answered Ping and exposed TCP 5985, shown separately.
+A wrapping Confidence heading was widened, rebuilt and visually rechecked.
+No screenshots or live identities were saved to the repository.
+Physical narrow-window resizing was not verified. Successful scan-to-overview
+refresh remains automated-test coverage in this pass: the newly started session
+had no remote credentials, and no fresh authenticated scan was run.
+
+PR #28 is merged at `e89395f`. The user explicitly designated one non-critical
+remote client in the acceptance conversation on 2026-09-08. Its hostname stays
+outside source control under D-008; no other remote client is in scope.
+
+Company acceptance results and remaining gates are recorded in
+`docs/domain-acceptance-2026-09-08.md`. AD, opsi, Nessus and the designated
+client's Inventory/Health/Event Log paths were exercised successfully.
+Kaspersky remains blocked by a mismatched configured certificate fingerprint.
+Release build, 743 backend tests, 460 frontend tests, 388 generated contracts
+and the zero-finding NPM audit passed after the acceptance corrections.
 
 ## Done
 
@@ -359,9 +477,11 @@ Current slice: Merge the fully verified roadmap branch through Draft PR #28
 
 ## Next
 
-1. Require green pull-request CI on the exact final documentation head.
-2. Preserve a successful release-free packaging proof for that head or its
-   documentation-only predecessor.
-3. When both repository merge gates are green, mark Draft PR #28 ready and
-   merge it under D-006. Do not create a version tag, publish an installer or
-   create a GitHub Release without explicit user approval.
+1. Resolve the Kaspersky certificate identity mismatch through independently
+   verified trust and rerun its read-only acceptance test.
+2. Complete the dedicated AD lab, broader accessibility/DPI and export-file
+   gates listed in `docs/domain-acceptance-2026-09-08.md`.
+3. Require green PR CI and release-free packaging for `codex/domain-acceptance`
+   before merging its corrections. PR #28 has already been merged.
+4. Do not create a version tag, publish an installer or create a GitHub Release
+   without explicit user approval.

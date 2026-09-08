@@ -37,6 +37,7 @@ const loadedState: AppInfoState = {
     maxParallelScans: 4,
     maxBatchHosts: 50,
     machineName: 'TESTHOST',
+    machineFqdn: 'TESTHOST.corp.example',
     runtimeProfile: 'Installed',
   },
 };
@@ -101,6 +102,7 @@ describe('AppInfoFooter', () => {
 describe('responsive application shell', () => {
   beforeEach(() => {
     window.location.hash = '#/';
+    sessionStorage.clear();
     invokeMock.mockReset();
     invokeMock.mockImplementation((module: string, action: string) => {
       if (module === 'system' && action === 'getAppInfo') return Promise.resolve(loadedState.appInfo);
@@ -125,6 +127,10 @@ describe('responsive application shell', () => {
     expect(screen.getByTestId('application-main').hasAttribute('inert')).toBe(true);
     expect(within(drawer).getByRole('link', { name: 'Error log' })).toBeDefined();
     expect(within(drawer).getByRole('link', { name: 'Network Scan' })).toBeDefined();
+    expect(within(drawer).getByRole('link', { name: 'Clients' })).toBeDefined();
+    expect(within(drawer).getByRole('link', { name: 'Nessus vulnerabilities' })).toBeDefined();
+    expect(within(drawer).getByRole('link', { name: 'opsi & Winget' })).toBeDefined();
+    expect(within(drawer).getByRole('link', { name: 'Local report export' })).toBeDefined();
     expect(within(drawer).getByText('Administration')).toBeDefined();
     expect(within(drawer).queryByText('Netzwerkscan')).toBeNull();
     expect(within(drawer).queryByText('Verwaltung')).toBeNull();
@@ -144,6 +150,19 @@ describe('responsive application shell', () => {
 
     expect(await screen.findByText('Clients content')).toBeDefined();
     expect(window.location.hash).toBe('#/clients');
+  });
+
+  it('keeps the last scoped Clients URL through primary navigation', async () => {
+    window.location.hash = '#/clients?q=PC&source=OPSI&page=2';
+    render(<App />);
+    expect(await screen.findByText('Clients content')).toBeDefined();
+
+    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Dashboard' }));
+    expect(await screen.findByText('Dashboard content')).toBeDefined();
+    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Clients' }));
+
+    expect(await screen.findByText('Clients content')).toBeDefined();
+    expect(window.location.hash).toBe('#/clients?q=PC&source=OPSI&page=2');
   });
 
   it('opens global search with Ctrl+K and restores focus after Escape', async () => {
@@ -224,23 +243,4 @@ describe('responsive application shell', () => {
       .toHaveLength(1);
   });
 
-  it('keeps an elevation failure actionable and its diagnostics collapsed', async () => {
-    invokeMock.mockImplementation((module: string, action: string) => {
-      if (module === 'system' && action === 'getAppInfo') return Promise.resolve(loadedState.appInfo);
-      if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
-      if (module === 'system' && action === 'restartElevated') {
-        return Promise.reject(new Error('raw elevation launch failure'));
-      }
-      return Promise.resolve({});
-    });
-
-    render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: /Restart as administrator/ }));
-
-    const alert = await screen.findByRole('alert');
-    expect(within(alert).getByText('The elevated application could not be started.')).toBeDefined();
-    expect(within(alert).getByText('Next action')).toBeDefined();
-    const details = within(alert).getByText('Technical details').closest('details') as HTMLDetailsElement;
-    expect(details.open).toBe(false);
-  });
 });

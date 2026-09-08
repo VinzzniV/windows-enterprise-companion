@@ -31,7 +31,7 @@ interface BadgeProps {
 export function Badge({ tone = 'neutral', dot = true, children }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium ${toneStyles[tone]}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap break-normal rounded border px-2 py-0.5 text-xs font-medium ${toneStyles[tone]}`}
     >
       {dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotStyles[tone]}`} aria-hidden="true" />}
       {children}

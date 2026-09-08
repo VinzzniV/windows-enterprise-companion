@@ -39,7 +39,7 @@ function isValidHttpsUrl(value: string) {
 
 export function validateItLifecycleSettings(value: ItLifecycleSettingsValue): SettingsValidationIssue[] {
   const section = 'environment-health';
-  const label = 'Environment Health';
+  const label = 'Kaspersky';
   const issues: SettingsValidationIssue[] = [];
   if (!inRange(value.inventoryLimit, 1, 100_000)) {
     issues.push(issue(section, label, 'inventoryLimit', 'Inventory limit must be between 1 and 100000.'));
@@ -67,7 +67,7 @@ export function validateItLifecycleSettings(value: ItLifecycleSettingsValue): Se
 
 export function validateNessusSettings(value: NessusSettingsValue): SettingsValidationIssue[] {
   const section = 'vulnerability-management';
-  const label = 'Vulnerability Management';
+  const label = 'Nessus';
   const issues: SettingsValidationIssue[] = [];
   if (!isValidHttpsUrl(value.serverUrl)) {
     issues.push(issue(section, label, 'serverUrl', 'Nessus HTTPS URL must be a valid HTTPS URL.'));
@@ -101,7 +101,7 @@ export function validateNessusSettings(value: NessusSettingsValue): SettingsVali
 
 export function validateOpsiSettings(value: OpsiSettingsValue): SettingsValidationIssue[] {
   const section = 'patch-management';
-  const label = 'Patch Management';
+  const label = 'opsi';
   const issues: SettingsValidationIssue[] = [];
   if (!inRange(value.port, 1, 65_535)) {
     issues.push(issue(section, label, 'port', 'opsi port must be between 1 and 65535.'));

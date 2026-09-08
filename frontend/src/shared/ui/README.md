@@ -33,6 +33,7 @@ feature pages — build pages from these, don't re-style ad-hoc.
 | `StatusBadge`, `SeverityBadge` | Existing feature/provider mappings that have not yet moved to the canonical multidimensional contract |
 | `SummaryMetric` | Number-over-label tile; tones map to the status semantics above. Optional `onClick`/`active` props render a keyboard-focusable filter button with `aria-pressed`; provide a task-specific `ariaLabel`. |
 | `DataTable` | Dense table; local sort for small datasets or controlled sort/pagination/loading for feature-owned server queries; per-column `align` + `mono`, `zebra` (default), `stickyHeader` |
+| `DetailDialog` | Viewport-bound detail workflow for long lists; traps focus, closes with Escape and returns focus to the triggering row or control |
 | `Card`, `PageHeader`, `DetailsDisclosure`, `EvidenceList`, `Spinner` | Structure and disclosure |
 | `EmptyState`, `ErrorState` | The only empty/error presentation — no bespoke alert divs |
 | `LogoMark`, `ErrorBoundary` | Branding, per-route error isolation |

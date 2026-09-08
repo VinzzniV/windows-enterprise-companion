@@ -2,10 +2,10 @@ import { Link, useLocation } from 'react-router-dom';
 
 export const settingsSections = [
   { id: 'overview', label: 'Effective configuration' },
-  { id: 'environment-health', label: 'Environment Health' },
-  { id: 'vulnerability-management', label: 'Vulnerability Management' },
-  { id: 'patch-management', label: 'Patch Management' },
-  { id: 'policy', label: 'Configuration policy' },
+  { id: 'environment-health', label: 'Kaspersky' },
+  { id: 'vulnerability-management', label: 'Nessus' },
+  { id: 'patch-management', label: 'opsi' },
+  { id: 'policy', label: 'Storage & credentials' },
 ] as const;
 
 export type SettingsSectionId = (typeof settingsSections)[number]['id'];

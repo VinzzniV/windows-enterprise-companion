@@ -20,6 +20,7 @@ public sealed record AppInfoResponse(
     int MaxParallelScans,
     int MaxBatchHosts,
     string MachineName,
+    string? MachineFqdn,
     string RuntimeProfile);
 
 internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppInfoResponse>
@@ -58,6 +59,8 @@ internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppI
         // The SDK appends "+<git commit hash>" build metadata; not display-worthy
         string version = informationalVersion.Split('+')[0];
 
+        IReadOnlyList<string> localAliases = Wec.Core.Targets.DeviceIdentity.LocalHostAliases();
+        string? machineFqdn = localAliases.FirstOrDefault(alias => alias.Contains('.', StringComparison.Ordinal));
         return Task.FromResult(Result.Success(new AppInfoResponse(
             version,
             Path.GetFullPath(Environment.ExpandEnvironmentVariables(_databaseOptions.DatabasePath)),
@@ -66,6 +69,7 @@ internal sealed class GetAppInfoHandler : IActionHandler<GetAppInfoRequest, AppI
             _remoteScanOptions.MaxParallelScans,
             _remoteScanOptions.MaxBatchHosts,
             Environment.MachineName,
+            machineFqdn,
             _runtimeProfile.Name)));
     }
 }

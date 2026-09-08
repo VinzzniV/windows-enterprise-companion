@@ -1,4 +1,4 @@
-import { Fragment, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { compareSortKeys, type SortKey } from '../sort';
 import { Button } from './Button';
 import { Select } from './Select';
@@ -29,6 +29,8 @@ export interface DataColumn<T> {
   align?: 'left' | 'right' | 'center';
   /** Monospace the cell (serials, IPs, MACs, versions, OIDs). */
   mono?: boolean;
+  /** Optional responsive width/visibility classes owned by the feature. */
+  className?: string;
   /**
    * Explicit sort key. When omitted, a primitive (string/number) cell value is
    * used automatically; columns whose cells render JSX stay unsortable unless
@@ -45,6 +47,7 @@ export interface DataTableGroup {
 }
 
 interface DataTableProps<T> {
+  layout?: 'auto' | 'fixed';
   columns: readonly DataColumn<T>[];
   /** The rows for the current page. DataTable never fetches or slices them. */
   rows: readonly T[];
@@ -87,6 +90,7 @@ export function DataTable<T>({
   pagination,
   loading = false,
   groupBy,
+  layout = 'auto',
 }: DataTableProps<T>) {
   const [localSort, setLocalSort] = useState<{ index: number; dir: DataTableSortDirection } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(new Set());
@@ -127,10 +131,21 @@ export function DataTable<T>({
   };
 
   const handleKey = (event: KeyboardEvent<HTMLTableRowElement>, row: T) => {
+    if (event.target !== event.currentTarget) return;
     if (onRowClick && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       onRowClick(row);
     }
+  };
+
+  const handleRowClick = (event: MouseEvent<HTMLTableRowElement>, row: T) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const interactiveTarget = target?.closest(
+      'a, button, input, select, textarea, label, summary, [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"]',
+    );
+    if (interactiveTarget && interactiveTarget !== event.currentTarget) return;
+    event.currentTarget.focus({ preventScroll: true });
+    onRowClick?.(row);
   };
 
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize)) : 1;
@@ -160,21 +175,20 @@ export function DataTable<T>({
     return (
       <tr
         key={getRowKey ? getRowKey(row, rowIndex) : rowIndex}
-        onClick={onRowClick ? () => onRowClick(row) : undefined}
+        onClick={onRowClick ? (event) => handleRowClick(event, row) : undefined}
         onKeyDown={onRowClick ? (event) => handleKey(event, row) : undefined}
         tabIndex={onRowClick ? 0 : undefined}
-        role={onRowClick ? 'button' : undefined}
-        aria-pressed={onRowClick ? active : undefined}
+        aria-selected={onRowClick ? active : undefined}
         className={`border-t border-slate-800/70 ${
           zebra ? 'even:bg-slate-800/20' : ''
         } ${active ? 'bg-accent-500/10' : ''} ${
-          onRowClick ? 'cursor-pointer transition-colors hover:bg-slate-800/40' : ''
+          onRowClick ? 'cursor-pointer transition-colors hover:bg-slate-800/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-400' : ''
         }`}
       >
         {columns.map((column) => (
           <td
             key={column.header}
-            className={`px-3 py-1.5 align-top ${column.align ? alignClass[column.align] : ''} ${
+            className={`px-3 py-1.5 align-top [overflow-wrap:anywhere] ${column.align ? alignClass[column.align] : ''} ${column.className ?? ''} ${
               column.mono ? 'font-mono text-[13px] tabular-nums' : ''
             }`}
           >
@@ -186,13 +200,13 @@ export function DataTable<T>({
   };
 
   return (
-    <div aria-busy={loading}>
+    <div aria-busy={loading} className="min-w-0 max-w-full">
       <div className="overflow-x-auto">
       {rows.length === 0 ? (
         <p className="text-sm text-slate-400" role={loading ? 'status' : undefined}>
           {loading ? 'Loading table data…' : emptyMessage}
         </p>
-      ) : <table className="w-full border-collapse text-left text-sm">
+      ) : <table className={`w-full border-collapse text-left text-sm ${layout === 'fixed' ? 'table-fixed min-w-[44rem]' : ''}`}>
         <thead>
           <tr>
             {columns.map((column, index) => {
@@ -209,7 +223,7 @@ export function DataTable<T>({
                   aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
                   className={`border-b border-slate-800 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted ${
                     column.align ? alignClass[column.align] : 'text-left'
-                  } ${stickyHeader ? 'sticky top-0 z-10 bg-slate-900' : ''}`}
+                  } ${stickyHeader ? 'sticky top-0 z-10 bg-slate-900' : ''} ${column.className ?? ''}`}
                 >
                   <button
                     type="button"

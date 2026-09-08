@@ -211,11 +211,11 @@ public sealed class PatchDashboardService
             nowUtc,
             new PatchDashboardSummary(
                 rows.Count,
-                rows.Count(row => row.OutdatedClientCount > 0 || row.WingetUpdateAvailable),
+                rows.Count(row => row.OutdatedInstallationCount > 0 || row.WingetUpdateAvailable),
                 rows.Count(row => row.DepotVersions.Select(version => version.Version).Distinct().Count() > 1),
                 rows.Count(row => row.MissingDepotIds.Count > 0),
                 rows.Count(row => row.PackageStatus == PatchPackageStatus.CheckFailed),
-                rows.Sum(row => row.OutdatedClientCount),
+                rows.Sum(row => row.OutdatedInstallationCount),
                 filteredClients.Count,
                 depots.Count,
                 rows.Count(row => row.WingetManaged),
@@ -265,7 +265,7 @@ public sealed class PatchDashboardService
     internal static PatchPackageStatus DerivePackageStatus(
         int missingDepotCount,
         int distinctDepotVersionCount,
-        int outdatedClientCount,
+        int outdatedInstallationCount,
         int failedClientCount,
         int pendingActionCount,
         bool wingetUpdateAvailable = false,
@@ -287,7 +287,7 @@ public sealed class PatchDashboardService
         {
             return PatchPackageStatus.ActionPending;
         }
-        return outdatedClientCount > 0 || wingetUpdateAvailable ? PatchPackageStatus.UpdateAvailable : PatchPackageStatus.Current;
+        return outdatedInstallationCount > 0 || wingetUpdateAvailable ? PatchPackageStatus.UpdateAvailable : PatchPackageStatus.Current;
     }
 
     private static string FormatVersion(string productVersion, string packageVersion) =>

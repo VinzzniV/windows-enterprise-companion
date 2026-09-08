@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { controlClass } from '../../shared/ui/Input';
 import { semanticStatusPresentation } from '../../shared/ui/SemanticStatusBadge';
-import { clientKey, type ClientEntry } from './clients';
+import { findClientByHost, type ClientEntry } from './clients';
 import { ClientSemanticStatus, snapshotAvailabilityStatus } from './clientStatus';
 
 const maximumVisibleMatches = 50;
@@ -67,13 +67,11 @@ export function ClientComparePicker({
   );
   const recentClients = useMemo(() => {
     if (query.trim() !== '') return [];
-    const byKey = new Map(clients.map((client) => [client.key, client]));
     const seen = new Set<string>();
     return recentHosts.flatMap((host) => {
-      const key = clientKey(host);
-      const client = byKey.get(key);
-      if (!client || seen.has(key)) return [];
-      seen.add(key);
+      const client = findClientByHost(clients, host);
+      if (!client || seen.has(client.key)) return [];
+      seen.add(client.key);
       return [client];
     });
   }, [clients, query, recentHosts]);

@@ -53,11 +53,24 @@ describe('dashboard tile derivation', () => {
       { host: 'PC2', capturedAtUtc: '2026-07-03T08:00:00Z' },
     ];
     const tile = deriveInventoryTile(hosts, 86_400, new Date('2026-07-03T09:00:00Z'));
-    expect(tile.value).toBe('2 hosts');
+    expect(tile.value).toBe('2 stored hosts');
     expect(tile.state).toBe('partial');
     expect(tile.capturedAtUtc).toBe('2026-07-03T08:00:00Z');
     expect(tile.coverage).toBe('1 of 2 hosts within 24h freshness window');
     expect(tile.note).toContain(new Date('2026-07-03T08:00:00Z').toLocaleString());
+  });
+
+  it('inventory: never presents stored hosts as the entire fleet', () => {
+    const hosts = Array.from({ length: 41 }, (_, index): StoredInventoryHost => ({
+      host: `PC-${index + 1}`,
+      capturedAtUtc: '2026-07-03T08:00:00Z',
+    }));
+
+    const tile = deriveInventoryTile(hosts, 86_400, new Date('2026-07-03T09:00:00Z'));
+
+    expect(tile.value).toBe('41 stored hosts');
+    expect(tile.source).toBe('Stored WMI/CIM inventory snapshots');
+    expect(tile.coverage).toBe('41 of 41 hosts within 24h freshness window');
   });
 
   it('security: critical findings drive the danger tone', () => {
@@ -213,6 +226,12 @@ describe('dashboard tile derivation', () => {
       commonAssets: 20,
       newAssets: 0,
       removedAssets: 0,
+      comparison: {
+        startDayUtc: '2026-07-01', endDayUtc: '2026-07-03',
+        startCritical: 0, endCritical: 0, startHigh: 0, endHigh: 0,
+        startMedium: 0, endMedium: 0, startLow: 0, endLow: 0,
+        decidingSeverity: null,
+      },
     };
 
     expect(deriveVulnerabilityTile(overview, trend)).toMatchObject({
@@ -220,7 +239,7 @@ describe('dashboard tile derivation', () => {
       state: 'fresh',
       tone: 'success',
       capturedAtUtc: '2026-07-03T08:05:00Z',
-      coverage: '5 included scans · 0 stale',
+      coverage: '5 included scans · 0 stale · trend compares 20 common assets (2026-07-01 → 2026-07-03)',
     });
     expect(deriveVulnerabilityTile({ ...overview, staleScans: 5 }, trend)).toMatchObject({
       value: '0',

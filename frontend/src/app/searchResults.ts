@@ -61,7 +61,7 @@ interface ClientCandidate {
 }
 
 function clientKey(host: string): string {
-  return host.trim().split('.')[0].toLocaleUpperCase();
+  return host.trim().replace(/\.+$/, '').toLocaleUpperCase();
 }
 
 export function clientResults(
@@ -73,7 +73,8 @@ export function clientResults(
 ): GlobalSearchResult[] {
   if (query.trim() === '') return [];
   const candidates = new Map<string, ClientCandidate>();
-  const ensure = (host: string, name: string) => {
+  const aliasOwners = new Map<string, Set<string>>();
+  const ensureExact = (host: string, name: string) => {
     const key = clientKey(host);
     const existing = candidates.get(key);
     if (existing) return existing;
@@ -81,9 +82,25 @@ export function clientResults(
     candidates.set(key, created);
     return created;
   };
+  const addAlias = (alias: string, canonicalKey: string) => {
+    const key = clientKey(alias);
+    const owners = aliasOwners.get(key) ?? new Set<string>();
+    owners.add(canonicalKey);
+    aliasOwners.set(key, owners);
+  };
+  const ensure = (host: string, name: string) => {
+    const exactKey = clientKey(host);
+    const owners = aliasOwners.get(exactKey);
+    const key = candidates.has(exactKey) || owners?.size !== 1 ? exactKey : [...owners][0];
+    return candidates.get(key) ?? ensureExact(host, name);
+  };
 
   for (const computer of directory) {
-    const candidate = ensure(computer.dnsHostName ?? computer.name, computer.name);
+    const host = computer.dnsHostName ?? computer.name;
+    const candidate = ensureExact(host, computer.name);
+    const canonicalKey = clientKey(host);
+    addAlias(host, canonicalKey);
+    addAlias(computer.name, canonicalKey);
     candidate.details.add(computer.enabled ? 'Active Directory' : 'AD disabled');
     if (computer.operatingSystem) candidate.details.add(computer.operatingSystem);
   }

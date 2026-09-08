@@ -162,7 +162,7 @@ describe('ReportingPage', () => {
 
     renderPage();
 
-    expect(screen.getByRole('heading', { name: 'Report export' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Local report export' })).toBeDefined();
     expect(await screen.findByText(/12\/13 applicable checks evaluated — incomplete/)).toBeDefined();
     const aggregateContext = screen.getByText('One or more report sources are missing, stale, or incomplete.');
     expect(aggregateContext.previousElementSibling?.textContent).toBe('Partial');
@@ -170,8 +170,8 @@ describe('ReportingPage', () => {
     expect(screen.queryByText('REFRESH REQUIRED')).toBeNull();
     expect(screen.getByText('Persisted WMI/CIM inventory snapshot')).toBeDefined();
     expect(screen.getByText('5m old')).toBeDefined();
-    expect(screen.getByText(/outside the report read contract/)).toBeDefined();
-    expect(screen.getByText(/does not run checks or include the latest saved health snapshot/)).toBeDefined();
+    expect(screen.getByText(/Not included in this report/)).toBeDefined();
+    expect(screen.getByText(/does not run checks or include the latest saved Health results/)).toBeDefined();
     expect(screen.queryByRole('link', { name: 'Open Inventory' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Open Security' }).getAttribute('href'))
       .toBe('/clients/WEC-HOST?section=security');

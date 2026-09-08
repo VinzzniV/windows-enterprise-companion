@@ -1,5 +1,6 @@
 using Wec.Core.Contracts;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
@@ -49,7 +50,7 @@ internal sealed class DeviceCleanupEvidenceProvider(
             .Select(Project)]);
 
     private static DeviceCleanupSubjectEvidence Project(HygieneDevice device) => new(
-        device.ComputerName,
+        DeviceIdentity.NormalizeHost(device.HostName),
         device.HostName,
         device.Assessment.Status.ToString(),
         new DeviceCleanupAdEvidence(
@@ -73,7 +74,8 @@ internal sealed class DeviceCleanupEvidenceProvider(
         [.. device.Assessment.Findings.Select(finding => new DeviceCleanupFindingEvidence(
             finding.Code.ToString(),
             finding.Severity.ToString(),
-            finding.Message))]);
+            finding.Message))],
+        [device.ComputerName, device.HostName]);
 
     private static ActionEvidenceSourceState Source(string source, InventorySourceState state) => new(
         source,

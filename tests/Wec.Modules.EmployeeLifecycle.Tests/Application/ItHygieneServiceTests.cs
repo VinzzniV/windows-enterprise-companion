@@ -4,6 +4,7 @@ using Wec.Core.Contracts;
 using Wec.Core.Messaging;
 using Wec.Core.Results;
 using Wec.Modules.EmployeeLifecycle.Application;
+using Wec.Modules.EmployeeLifecycle.Handlers;
 
 namespace Wec.Modules.EmployeeLifecycle.Tests.Application;
 
@@ -21,10 +22,33 @@ public sealed class ItHygieneServiceTests
     };
 
     [Fact]
+    public async Task GetHygieneHandler_UsesTheRequestForceFlagAndReturnsANewSnapshotRevision()
+    {
+        var service = new ItHygieneService(
+            new AdProvider(Result.Success(new AdComputerInventory(true, "example.test", [], false))),
+            new KasperskyProvider(Result.Success(new KasperskyInventory([], false))),
+            new OpsiProvider(Result.Success(new OpsiComputerInventory([]))),
+            new NessusProvider(),
+            new CredentialStore(),
+            new EventPublisher(),
+            new TestClock(),
+            Microsoft.Extensions.Options.Options.Create(Options));
+        using var cache = new ItHygieneSnapshotCache();
+        var handler = new GetItHygieneHandler(service, cache);
+
+        Result<ItHygieneResult> first = await handler.HandleAsync(new ItHygieneRequest(), CancellationToken.None);
+        Result<ItHygieneResult> refreshed = await handler.HandleAsync(new ItHygieneRequest(Force: true), CancellationToken.None);
+
+        Assert.True(first.IsSuccess);
+        Assert.True(refreshed.IsSuccess);
+        Assert.True(refreshed.Value.SnapshotRevision > first.Value.SnapshotRevision);
+    }
+
+    [Fact]
     public void Correlation_NormalizesCaseAndFqdn()
     {
         IReadOnlyList<HygieneDevice> devices = Correlate(
-            [Ad("pc001.example.test")],
+            [Ad("pc001")],
             [Ksc("PC001")]);
 
         HygieneDevice device = Assert.Single(devices);
@@ -32,6 +56,27 @@ public sealed class ItHygieneServiceTests
         Assert.True(device.ActiveDirectory.Exists);
         Assert.True(device.Kaspersky.Exists);
         Assert.Equal(HygieneStatus.Healthy, device.Assessment.Status);
+        Assert.Equal("pc001.example.test", device.HostName);
+    }
+
+    [Fact]
+    public void Correlation_DoesNotMergeAnAmbiguousShortAliasAcrossDomains()
+    {
+        var domainA = new AdComputerInventoryItem(
+            "PC-01", "PC-01.domain-a.example", null, null, true,
+            "CN=PC-01,DC=domain-a,DC=example", Now);
+        var domainB = new AdComputerInventoryItem(
+            "PC-01", "PC-01.domain-b.example", null, null, true,
+            "CN=PC-01,DC=domain-b,DC=example", Now);
+
+        IReadOnlyList<HygieneDevice> devices = Correlate(
+            [domainA, domainB],
+            [Ksc("PC-01")]);
+
+        Assert.Equal(3, devices.Count);
+        Assert.Contains(devices, device => device.HostName == "PC-01.domain-a.example");
+        Assert.Contains(devices, device => device.HostName == "PC-01.domain-b.example");
+        Assert.Contains(devices, device => device.HostName == "PC-01" && device.Kaspersky.Exists);
     }
 
     [Fact]
@@ -104,10 +149,10 @@ public sealed class ItHygieneServiceTests
     }
 
     [Theory]
-    [InlineData(" pc001.EXAMPLE.test ", "PC001")]
+    [InlineData(" pc001.EXAMPLE.test ", "PC001.EXAMPLE.TEST")]
     [InlineData("PC002.", "PC002")]
     [InlineData("", "")]
-    public void ComputerNameNormalization_ReturnsShortUppercaseName(string input, string expected)
+    public void ComputerNameNormalization_PreservesTheCompleteUppercaseIdentity(string input, string expected)
     {
         Assert.Equal(expected, ItHygieneService.NormalizeComputerName(input));
     }
@@ -217,6 +262,54 @@ public sealed class ItHygieneServiceTests
             [Ad("CLIENT", operatingSystem: "Windows 11")], [Ksc("CLIENT")], [Opsi("CLIENT")], excluded,
             new EnvironmentSourceStates(Available, Available, Available, Available), Now, Options));
         Assert.DoesNotContain(ignored.Assessment.Findings, x => x.Code == HygieneFindingCode.MissingNessus);
+    }
+
+    [Fact]
+    public void NessusAssessment_PreservesKnownCriticalAndHighEvidenceWhenCoverageIsPartial()
+    {
+        var inventory = new NessusComputerInventory(
+            [new NessusComputerInventoryItem("CLIENT", "asset", "10.0.0.1", Now.AddDays(-2), 2, 4, 0, 0, 0, [], ["Partial scan"])],
+            NessusInventoryAvailability.Partial,
+            Now.AddDays(-2),
+            "One included scan could not be synchronized.");
+        var sources = new EnvironmentSourceStates(
+            Available,
+            Available,
+            Available,
+            new InventorySourceState(InventorySourceAvailability.Partial, "One included scan could not be synchronized."));
+
+        HygieneDevice device = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("CLIENT", operatingSystem: "Windows 11")],
+            [Ksc("CLIENT")],
+            [Opsi("CLIENT")],
+            inventory,
+            sources,
+            Now,
+            Options));
+        HygieneSummary summary = ItHygieneService.Summarize([device], sources);
+        HygieneActionEvidenceSnapshot actionEvidence = HygieneActionEvidenceProvider.Project(new ItHygieneResult(
+            Now,
+            "example.test",
+            sources,
+            summary,
+            [device],
+            SnapshotRevision: 3));
+
+        Assert.Equal(HygieneStatus.Critical, device.Assessment.Status);
+        AssertFinding([device], "CLIENT", HygieneFindingCode.NessusCriticalVulnerabilities);
+        AssertFinding([device], "CLIENT", HygieneFindingCode.NessusHighVulnerabilities);
+        Assert.DoesNotContain(device.Assessment.Findings, finding => finding.Code == HygieneFindingCode.MissingNessus);
+        Assert.Equal(1, summary.Problems);
+        Assert.Equal(1, summary.Incomplete);
+        Assert.Equal(1, summary.NessusCritical);
+        Assert.Equal(1, summary.NessusHigh);
+        Assert.All(
+            actionEvidence.Findings.Where(finding => finding.Source == "Nessus"),
+            finding =>
+            {
+                Assert.Equal(ActionEvidenceAvailability.Partial, finding.Coverage);
+                Assert.Equal(Now.AddDays(-2), finding.EvidenceAtUtc);
+            });
     }
 
     [Fact]
@@ -444,15 +537,19 @@ public sealed class ItHygieneServiceTests
         string name,
         bool enabled = true,
         DateTimeOffset? lastLogon = null,
-        string? operatingSystem = null) =>
-        new(
-            name,
-            $"{name}.example.test",
+        string? operatingSystem = null)
+    {
+        string computerName = name.Split('.')[0];
+        string dnsHostName = name.Contains('.', StringComparison.Ordinal) ? name : $"{name}.example.test";
+        return new(
+            computerName,
+            dnsHostName,
             operatingSystem,
             "Test client",
             enabled,
             $"CN={name},OU=Clients,DC=example,DC=test",
             lastLogon ?? Now.AddDays(-1));
+    }
 
     private static KasperskyComputer Ksc(
         string name,

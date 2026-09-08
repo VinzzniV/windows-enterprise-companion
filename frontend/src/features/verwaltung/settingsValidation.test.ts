@@ -31,7 +31,7 @@ describe('settings validation', () => {
     expect(validateOpsiSettings({ server: '', port: 1, requestTimeoutSeconds: 600, defaultDepotFilter: '', trustServerCertificate: false })).toEqual([]);
   });
 
-  it('reports every invalid Environment Health boundary', () => {
+  it('reports every invalid Kaspersky boundary', () => {
     const issues = validateItLifecycleSettings({
       ...lifecycle,
       inventoryLimit: 0,

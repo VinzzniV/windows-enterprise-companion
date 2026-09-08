@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { MouseEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { DataTable, type DataColumn } from './DataTable';
 
@@ -70,5 +71,91 @@ describe('DataTable', () => {
 
     expect(screen.getByRole('status').textContent).toContain('Loading table data');
     expect(screen.queryByText('No rows')).toBeNull();
+  });
+
+  it('applies feature-owned responsive sizing to both header and cells', () => {
+    render(
+      <DataTable
+        columns={[{ ...columns[0], className: 'w-72' }]}
+        rows={[{ id: 1, name: 'Alpha' }]}
+        emptyMessage="No rows"
+      />,
+    );
+
+    expect(screen.getByRole('columnheader', { name: /Name/ }).className).toContain('w-72');
+    expect(screen.getByText('Alpha').closest('td')?.className).toContain('w-72');
+  });
+
+  it('activates a focused row with Enter or Space', async () => {
+    const onRowClick = vi.fn();
+    render(
+      <DataTable
+        columns={columns}
+        rows={[{ id: 1, name: 'Alpha' }]}
+        emptyMessage="No rows"
+        onRowClick={onRowClick}
+        isRowActive={() => true}
+      />,
+    );
+    const row = screen.getAllByRole('row')[1];
+
+    row.focus();
+    await userEvent.keyboard('{Enter} ');
+
+    expect(onRowClick).toHaveBeenCalledTimes(2);
+    expect(row.getAttribute('aria-selected')).toBe('true');
+    expect(row.className).toContain('focus-visible:outline');
+  });
+
+  it('focuses a clicked selectable row before opening its details', async () => {
+    let focusedAtSelection: Element | null = null;
+    render(
+      <DataTable
+        columns={columns}
+        rows={[{ id: 1, name: 'Alpha' }]}
+        emptyMessage="No rows"
+        onRowClick={() => { focusedAtSelection = document.activeElement; }}
+      />,
+    );
+    const row = screen.getAllByRole('row')[1];
+
+    await userEvent.click(row);
+
+    expect(focusedAtSelection).toBe(row);
+  });
+
+  it('leaves checkbox, button and link activation to the child controls', async () => {
+    const onRowClick = vi.fn();
+    const onButtonClick = vi.fn();
+    const onLinkClick = vi.fn((event: MouseEvent<HTMLAnchorElement>) => event.preventDefault());
+    const interactiveColumns: DataColumn<Row>[] = [{
+      header: 'Actions',
+      cell: () => (
+        <span>
+          <label><input type="checkbox" aria-label="Select Alpha" /> Select</label>
+          <button type="button" onClick={onButtonClick}>Inspect</button>
+          <a href="/alpha" onClick={onLinkClick}>Open</a>
+        </span>
+      ),
+    }];
+    render(
+      <DataTable
+        columns={interactiveColumns}
+        rows={[{ id: 1, name: 'Alpha' }]}
+        emptyMessage="No rows"
+        onRowClick={onRowClick}
+      />,
+    );
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Select Alpha' });
+    checkbox.focus();
+    await userEvent.keyboard(' ');
+    await userEvent.click(screen.getByRole('button', { name: 'Inspect' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open' }));
+
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect(onButtonClick).toHaveBeenCalledOnce();
+    expect(onLinkClick).toHaveBeenCalledOnce();
+    expect(onRowClick).not.toHaveBeenCalled();
   });
 });

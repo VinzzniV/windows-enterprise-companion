@@ -70,18 +70,16 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
                 }
             }
 
-            LogQueryReturned(target.DisplayName, instances.Count, wqlQuery);
+            LogQueryReturned(target.DisplayName, instances.Count);
             return Result.Success<IReadOnlyList<WmiInstance>>(instances);
         }
         catch (CimException exception)
         {
             Error error = RemoteCimErrorMapper.Map(exception, !target.IsLocal, target.DisplayName);
             _logger.LogWarning(
-                exception,
-                "CIM query against {Target} failed with {ErrorCode}: {WqlQuery}",
+                "CIM query against {Target} failed with {ErrorCode}",
                 target.DisplayName,
-                error.Code,
-                wqlQuery);
+                error.Code);
             return Result.Failure<IReadOnlyList<WmiInstance>>(error);
         }
     }
@@ -153,7 +151,6 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
         {
             Error error = RemoteCimErrorMapper.Map(exception, !target.IsLocal, target.DisplayName);
             _logger.LogWarning(
-                exception,
                 "CIM method {ClassName}.{MethodName} against {Target} failed with {ErrorCode}",
                 className,
                 methodName,
@@ -221,8 +218,8 @@ public sealed partial class CimWmiQueryService : IWmiQueryService
         return secure;
     }
 
-    [LoggerMessage(Level = LogLevel.Debug, Message = "CIM query against {Target} returned {InstanceCount} instances: {WqlQuery}")]
-    private partial void LogQueryReturned(string target, int instanceCount, string wqlQuery);
+    [LoggerMessage(Level = LogLevel.Debug, Message = "CIM query against {Target} returned {InstanceCount} instances")]
+    private partial void LogQueryReturned(string target, int instanceCount);
 
     private static WmiInstance ToWmiInstance(CimInstance cimInstance)
     {

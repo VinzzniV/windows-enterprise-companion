@@ -145,7 +145,8 @@ public sealed record ItHygieneResult(
     string? DomainName,
     EnvironmentSourceStates Sources,
     HygieneSummary Summary,
-    IReadOnlyList<HygieneDevice> Devices);
+    IReadOnlyList<HygieneDevice> Devices,
+    long SnapshotRevision = 0);
 
 public sealed record DirectoryInventoryConnection(
     string? Domain = null,
@@ -164,7 +165,8 @@ public sealed record KasperskyInventoryConnection(
 public sealed record ItHygieneRequest(
     DirectoryInventoryConnection? ActiveDirectory = null,
     KasperskyInventoryConnection? Kaspersky = null,
-    string? OperationId = null);
+    string? OperationId = null,
+    bool Force = false);
 
 public enum HygieneLoadPhase
 {
@@ -265,7 +267,7 @@ internal sealed class ItHygieneService
             now,
             _options);
 
-        HygieneSummary summary = Summarize(devices);
+        HygieneSummary summary = Summarize(devices, sourceLoad.States);
         progress.Complete(summary);
         return Result.Success(new ItHygieneResult(
             now,
@@ -295,23 +297,37 @@ internal sealed class ItHygieneService
         ItLifecycleOptions options,
         bool assessNessus = true)
     {
+        var identities = new DeviceIdentityIndex();
+        foreach (AdComputerInventoryItem computer in adComputers)
+        {
+            string canonicalHost = computer.DnsHostName ?? computer.ComputerName;
+            identities.AddAnchor(canonicalHost, computer.ComputerName, computer.DnsHostName);
+        }
+        foreach (string host in opsiComputers.Select(computer => computer.ComputerName)
+                     .Concat(kasperskyComputers.Select(computer => computer.ComputerName))
+                     .Concat(nessusInventory.Computers.Select(computer => computer.ComputerName))
+                     .Where(DeviceIdentityIndex.IsQualifiedHost))
+        {
+            identities.AddAnchor(host);
+        }
+
         Dictionary<string, AdComputerInventoryItem> adByName = adComputers
-            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(computer => identities.Resolve(computer.DnsHostName ?? computer.ComputerName), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Key.Length > 0)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         Dictionary<string, KasperskyComputer> kscByName = kasperskyComputers
-            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(computer => identities.Resolve(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Key.Length > 0)
             .ToDictionary(
                 group => group.Key,
                 group => group.OrderByDescending(computer => computer.LastSeen).First(),
                 StringComparer.OrdinalIgnoreCase);
         Dictionary<string, NessusComputerInventoryItem> nessusByName = nessusInventory.Computers
-            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(computer => identities.Resolve(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Key.Length > 0)
             .ToDictionary(group => group.Key, group => group.OrderByDescending(computer => computer.LastCompletedScanUtc).First(), StringComparer.OrdinalIgnoreCase);
         Dictionary<string, OpsiComputerInventoryItem> opsiByName = opsiComputers
-            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(computer => identities.Resolve(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Key.Length > 0)
             .ToDictionary(
                 group => group.Key,
@@ -335,9 +351,12 @@ internal sealed class ItHygieneService
                     ?? opsi?.ComputerName
                     ?? ksc?.ComputerName
                     ?? name;
+                string computerName = NormalizeComputerName(ad?.ComputerName
+                    ?? Wec.Core.Targets.DeviceIdentity.GetShortDnsAlias(hostName)
+                    ?? hostName);
 
                 return new HygieneDevice(
-                    name,
+                    computerName,
                     hostName,
                     new AdDeviceData(
                         ad is not null,
@@ -380,26 +399,27 @@ internal sealed class ItHygieneService
 
     internal static string NormalizeComputerName(string? computerName)
     {
-        string value = computerName?.Trim().TrimEnd('.') ?? string.Empty;
-        int dot = value.IndexOf('.', StringComparison.Ordinal);
-        if (dot > 0)
-        {
-            value = value[..dot];
-        }
-
-        return value.ToUpperInvariant();
+        return string.IsNullOrWhiteSpace(computerName)
+            ? string.Empty
+            : Wec.Core.Targets.DeviceIdentity.NormalizeHost(computerName);
     }
 
     internal static bool IsVersionOlder(string? installed, string? target) =>
         HygieneAssessmentPolicy.IsVersionOlder(installed, target);
 
-    internal static HygieneSummary Summarize(IReadOnlyList<HygieneDevice> devices)
+    internal static HygieneSummary Summarize(
+        IReadOnlyList<HygieneDevice> devices,
+        EnvironmentSourceStates? sources = null)
     {
         static bool Has(HygieneDevice device, params HygieneFindingCode[] codes) =>
             device.Assessment.Findings.Any(finding => codes.Contains(finding.Code));
 
         int healthy = devices.Count(device => device.Assessment.Status == HygieneStatus.Healthy);
-        int incomplete = devices.Count(device => device.Assessment.Status == HygieneStatus.Incomplete);
+        int incomplete = sources is null
+            ? devices.Count(device => device.Assessment.Status == HygieneStatus.Incomplete)
+            : HygieneAssessmentPolicy.SourcesComplete(sources, requireNessus: true)
+                ? 0
+                : devices.Count;
         int problems = devices.Count(device => device.Assessment.Status is
             HygieneStatus.Warning or HygieneStatus.CleanupCandidate or HygieneStatus.Critical);
         return new HygieneSummary(

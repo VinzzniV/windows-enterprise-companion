@@ -123,7 +123,7 @@ export type PrivilegeLevel = 'STANDARD_USER' | 'ADMINISTRATOR';
 
 export type CheckStatus = 'SUCCEEDED' | 'FAILED' | 'REQUIRES_ELEVATION' | 'NOT_APPLICABLE';
 
-export type ErrorCode = 'INTERNAL_ERROR' | 'ACCESS_DENIED' | 'NOT_FOUND' | 'WMI_UNAVAILABLE' | 'INVALID_REQUEST' | 'UNKNOWN_ACTION' | 'NETWORK_PROBE_FAILED' | 'EVENT_LOG_UNAVAILABLE' | 'FILE_WRITE_FAILED' | 'DIRECTORY_UNAVAILABLE' | 'DNS_RESOLUTION_FAILED' | 'CONNECTION_TIMEOUT' | 'AUTHENTICATION_FAILED' | 'WIN_RM_UNAVAILABLE' | 'UNSUPPORTED_REMOTE_OPERATION' | 'SERVICE_UNAVAILABLE' | 'REMOTE_COMMAND_FAILED';
+export type ErrorCode = 'INTERNAL_ERROR' | 'ACCESS_DENIED' | 'NOT_FOUND' | 'WMI_UNAVAILABLE' | 'INVALID_REQUEST' | 'UNKNOWN_ACTION' | 'NETWORK_PROBE_FAILED' | 'EVENT_LOG_UNAVAILABLE' | 'FILE_WRITE_FAILED' | 'DIRECTORY_UNAVAILABLE' | 'DNS_RESOLUTION_FAILED' | 'CONNECTION_TIMEOUT' | 'AUTHENTICATION_FAILED' | 'WIN_RM_UNAVAILABLE' | 'UNSUPPORTED_REMOTE_OPERATION' | 'SERVICE_UNAVAILABLE' | 'REMOTE_COMMAND_FAILED' | 'STORED_DATA_UNREADABLE';
 
 export interface WingetPackageInfo {
   id: string;
@@ -156,6 +156,7 @@ export interface AppInfoResponse {
   maxParallelScans: number;
   maxBatchHosts: number;
   machineName: string;
+  machineFqdn: string | null;
   runtimeProfile: string;
 }
 
@@ -219,6 +220,7 @@ export interface LogEntry {
   source: string;
   summary: string;
   technicalDetails: string;
+  technicalDetailsTruncated: boolean;
 }
 
 export interface NessusSettingsResult {
@@ -289,12 +291,28 @@ export interface ProbeHostsResponse {
 
 export interface RecentLogEntriesRequest {
   limit: number | null;
+  levelFilter?: RecentLogLevelFilter | null;
 }
 
 export interface RecentLogEntriesResponse {
   entries: LogEntry[];
   source: string | null;
   clearedAtUtc: string | null;
+  coverage: RecentLogReadCoverage;
+}
+
+export type RecentLogLevelFilter = 'ALL' | 'ERRORS';
+
+export interface RecentLogReadCoverage {
+  availableFileCount: number;
+  evaluatedFileCount: number;
+  fileSelectionTruncated: boolean;
+  evaluatedBytes: number;
+  byteWindowTruncated: boolean;
+  resultLimit: number;
+  totalMatched: number;
+  resultTruncated: boolean;
+  truncatedDetailCount: number;
 }
 
 export interface RestartElevatedRequest {
@@ -340,6 +358,7 @@ export interface ActionCenterPage {
   page: number;
   pageSize: number;
   summary: ActionCenterSummary;
+  snapshotRevision: number;
   assessedAtUtc: string;
   sources: ActionEvidenceSourceState[];
   itemsTruncated: boolean;
@@ -353,6 +372,7 @@ export type ActionCenterSortField = 'SEVERITY' | 'DEVICE' | 'SOURCE' | 'EVIDENCE
 
 export interface ActionCenterSummary {
   total: number;
+  affectedDevices: number;
   critical: number;
   high: number;
   warning: number;
@@ -639,7 +659,10 @@ export interface DiagnosticBatchProgress {
 
 export interface EventLogQueryResult {
   presetKey: string;
+  windowStartUtc: string;
+  windowEndUtc: string;
   totalMatched: number;
+  resultLimit: number;
   truncated: boolean;
   entries: RemoteEventLogEntry[];
 }
@@ -650,6 +673,7 @@ export interface RemoteEventLogEntry {
   source: string;
   eventCode: number;
   message: string;
+  messageTruncated: boolean;
 }
 
 export interface DiagnosticBatchHostOutcome {
@@ -863,6 +887,7 @@ export interface ClientWorkspacePage {
   page: number;
   pageSize: number;
   groupCount: number | null;
+  snapshotRevision: number;
   assessedAtUtc: string;
   domainName: string | null;
   summary: HygieneSummary;
@@ -1048,6 +1073,7 @@ export interface InventorySourceState {
 }
 
 export interface ItHygieneOverview {
+  snapshotRevision: number;
   assessedAtUtc: string;
   domainName: string | null;
   sources: EnvironmentSourceStates;
@@ -1059,6 +1085,7 @@ export interface ItHygieneRequest {
   activeDirectory?: DirectoryInventoryConnection | null;
   kaspersky?: KasperskyInventoryConnection | null;
   operationId?: string | null;
+  force?: boolean;
 }
 
 export interface ItHygieneResult {
@@ -1067,6 +1094,7 @@ export interface ItHygieneResult {
   sources: EnvironmentSourceStates;
   summary: HygieneSummary;
   devices: HygieneDevice[];
+  snapshotRevision: number;
 }
 
 export interface KasperskyDeviceData {
@@ -1203,6 +1231,19 @@ export interface GetClientOverviewRequest {
 
 export interface GetEmployeeRequest {
   employeeId?: number;
+}
+
+export interface GetKasperskyCertificateRequest {
+  server: string;
+  port: number;
+  requestTimeoutSeconds?: number;
+}
+
+export interface KasperskyCertificateResult {
+  sha256Fingerprint: string;
+  subject: string;
+  validFromUtc: string;
+  validToUtc: string;
 }
 
 export interface ListAuditEntriesRequest {
@@ -1450,6 +1491,13 @@ export interface NetworkScanResult {
   hosts: NetworkHostRow[];
 }
 
+export interface GetNetworkScanPolicyRequest {
+}
+
+export interface NetworkScanPolicyResult {
+  scanPorts: number[];
+}
+
 export interface ScanNetworkRequest {
   target: string | null;
   scanPorts: boolean;
@@ -1509,7 +1557,7 @@ export interface PatchDashboardSummary {
   productsWithDepotDeviation: number;
   productsMissingOnDepots: number;
   productsWithFailures: number;
-  outdatedClientCount: number;
+  outdatedInstallationCount: number;
   clientCount: number;
   depotCount: number;
   wingetManagedCount: number;
@@ -1540,7 +1588,7 @@ export interface PatchProductOverviewRow {
   packageStatus: PatchPackageStatus;
   state: PatchWorkflowState;
   installedClientCount: number;
-  outdatedClientCount: number;
+  outdatedInstallationCount: number;
   failedClientCount: number;
   pendingActionCount: number;
   lastError: string | null;
@@ -2354,6 +2402,20 @@ export interface PageResult<T> {
   pageSize: number;
 }
 
+export interface TrendCohortComparison {
+  startDayUtc: string;
+  endDayUtc: string;
+  startCritical: number;
+  endCritical: number;
+  startHigh: number;
+  endHigh: number;
+  startMedium: number;
+  endMedium: number;
+  startLow: number;
+  endLow: number;
+  decidingSeverity: NessusSeverity | null;
+}
+
 export interface TrendPoint {
   dayUtc: string;
   critical: number;
@@ -2408,6 +2470,7 @@ export interface VulnerabilityTrend {
   commonAssets: number;
   newAssets: number;
   removedAssets: number;
+  comparison: TrendCohortComparison | null;
 }
 
 export interface NessusAsset {

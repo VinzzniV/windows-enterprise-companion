@@ -19,4 +19,5 @@ public enum ErrorCode
     UnsupportedRemoteOperation,
     ServiceUnavailable,
     RemoteCommandFailed,
+    StoredDataUnreadable,
 }

@@ -12,15 +12,16 @@ import type {
   InventorySourceState,
 } from '../../../shared/api-types';
 import { invoke } from '../../../shared/bridge/bridgeClient';
-import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
+import { presentError, presentSourceError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import { useEnvironment } from '../../../shared/environment/EnvironmentContext';
 import { HygieneLoadStatus } from '../../../shared/environment/HygieneLoadStatus';
 import { inventorySourceStatus } from '../../../shared/environment/inventorySourceStatus';
 import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
+import { DetailsDisclosure } from '../../../shared/ui/DetailsDisclosure';
 import { CompactErrorState, ErrorState } from '../../../shared/ui/States';
 import type { SemanticStatus } from '../../../shared/ui/SemanticStatusBadge';
-import { clientKey } from '../clients';
+import { findDeviceByHost } from '../clients';
 import {
   ClientSemanticStatus,
   hygieneAssessmentStatus,
@@ -84,10 +85,9 @@ function DetailLink({ host, metadata, children }: {
 }
 
 function SourceEvidence({ host, metadata }: { host: string; metadata: ClientOverviewSourceMetadata }) {
-  return <li className="grid gap-2 border-b border-slate-800/80 py-3 last:border-b-0 sm:grid-cols-[minmax(9rem,0.7fr)_minmax(16rem,1.5fr)_auto] sm:items-center">
+  return <li className="flex min-w-0 flex-col gap-2 rounded border border-slate-800 p-3">
     <div>
       <p className="font-medium text-slate-200">{metadata.source}</p>
-      <p className="mt-0.5 text-xs text-slate-500">{metadata.provenance}</p>
     </div>
     <div>
       <div className="flex flex-wrap items-center gap-2">
@@ -97,16 +97,19 @@ function SourceEvidence({ host, metadata }: { host: string; metadata: ClientOver
         )}
         <span className="text-xs tabular-nums text-slate-500">{formatAge(metadata.ageSeconds)}</span>
       </div>
-      <p className="mt-1 text-xs text-slate-400">{metadata.coverage}</p>
+      <DetailsDisclosure summary="Why this status">
+        <p className="text-xs text-slate-500">{metadata.provenance}</p>
+        <p className="mt-1 text-xs text-slate-400">Captured {date(metadata.capturedAtUtc)}</p>
+        <p className="mt-1 text-xs text-slate-400">{metadata.coverage}</p>
+      </DetailsDisclosure>
     </div>
     <DetailLink host={host} metadata={metadata}>Open details</DetailLink>
   </li>;
 }
 
 function SourceLedger({ host, sources }: { host: string; sources: ClientOverviewSourceMetadata[] }) {
-  return <Card title="Stored source evidence">
-    <p className="mb-1 text-sm text-slate-400">Latest saved evidence only. Opening this page does not start a scan.</p>
-    <ul>{sources.map((source) => <SourceEvidence key={source.source} host={host} metadata={source} />)}</ul>
+  return <Card title="Data freshness and coverage">
+    <ul className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))]">{sources.map((source) => <SourceEvidence key={source.source} host={host} metadata={source} />)}</ul>
   </Card>;
 }
 
@@ -117,11 +120,7 @@ function InventorySummary({ host, inventory, metadata }: {
 }) {
   const totalStorage = inventory?.disks.reduce((sum, disk) => sum + disk.sizeBytes, 0) ?? 0;
   return <Card title="Device & operating system">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
-        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
-      </div>
+    <div className="mb-4 flex justify-end">
       <DetailLink host={host} metadata={metadata}>Open Inventory</DetailLink>
     </div>
     {inventory ? <>
@@ -145,11 +144,7 @@ function HealthSummary({ host, health, metadata }: {
   metadata: ClientOverviewSourceMetadata;
 }) {
   return <Card title="Health">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
-        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
-      </div>
+    <div className="mb-4 flex justify-end">
       <DetailLink host={host} metadata={metadata}>Open Health</DetailLink>
     </div>
     {health ? <>
@@ -175,21 +170,17 @@ function SoftwareSummary({ host, software, metadata }: {
   metadata: ClientOverviewSourceMetadata;
 }) {
   return <Card title="Installed software">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
-        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
-      </div>
+    <div className="mb-4 flex justify-end">
       <DetailLink host={host} metadata={metadata}>Open software inventory</DetailLink>
     </div>
     {software ? <>
       <p className="mb-3 text-lg font-semibold tabular-nums text-slate-100">{software.installedCount} installed applications</p>
-      {software.sample.length > 0 ? <ul className="divide-y divide-slate-800/80">
+      {software.sample.length > 0 ? <DetailsDisclosure summary={`Preview ${software.sample.length} applications`}><ul className="divide-y divide-slate-800/80">
         {software.sample.map((item) => <li key={`${item.name}\u0000${item.version ?? ''}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2 text-sm">
           <span className="font-medium text-slate-200">{item.name}</span>
           <span className="text-xs text-slate-500">{value(item.version)}{item.publisher ? ` · ${item.publisher}` : ''}</span>
         </li>)}
-      </ul> : <p className="text-sm text-slate-400">The saved capture contains no installed applications.</p>}
+      </ul></DetailsDisclosure> : <p className="text-sm text-slate-400">The saved capture contains no installed applications.</p>}
       {software.installedCount > software.sample.length && <p className="mt-3 text-xs text-slate-500">Showing {software.sample.length} of {software.installedCount}. Open Inventory for the complete list.</p>}
     </> : <p className="text-sm text-slate-400">No stored software capture. Open Inventory to run an explicit scan.</p>}
   </Card>;
@@ -209,12 +200,8 @@ function SecuritySummary({ host, security, metadata }: {
   security: ClientSecurityOverview | null;
   metadata: ClientOverviewSourceMetadata;
 }) {
-  return <Card title="Security posture">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
-        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
-      </div>
+  return <Card title="Security status">
+    <div className="mb-4 flex justify-end">
       <DetailLink host={host} metadata={metadata}>Open Security</DetailLink>
     </div>
     {security ? <>
@@ -245,12 +232,8 @@ function UserSummary({ host, users, metadata }: {
   metadata: ClientOverviewSourceMetadata;
 }) {
   return <Card title="Linked users">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <ClientSemanticStatus status={storedSourceStatus(metadata)} />
-        {!metadata.isComplete && metadata.freshness !== 'MISSING' && <ClientSemanticStatus status={{ dimension: 'execution', value: 'partial' }} />}
-      </div>
-      <DetailLink host={host} metadata={metadata}>Open Inventory evidence</DetailLink>
+    <div className="mb-4 flex justify-end">
+      <DetailLink host={host} metadata={metadata}>Open Inventory details</DetailLink>
     </div>
     {users ? <>
       {users.observations.length > 0 ? <ul className="space-y-2" aria-label="Observed user relationships">
@@ -263,9 +246,9 @@ function UserSummary({ host, users, metadata }: {
           <p className="mt-1 text-xs text-slate-500">{observation.explanation}</p>
         </li>)}
       </ul> : <p className="text-sm text-slate-400">The latest Inventory scan contains no named interactive-user observation.</p>}
-      {users.unresolvedProfileCount > 0 && <p className="mt-3 text-xs text-slate-400">{users.unresolvedProfileCount} additional local profile{users.unresolvedProfileCount === 1 ? '' : 's'} cannot be linked to a displayed directory identity from stored evidence alone.</p>}
+      {users.unresolvedProfileCount > 0 && <p className="mt-3 text-xs text-slate-400">{users.unresolvedProfileCount} additional local profile{users.unresolvedProfileCount === 1 ? '' : 's'} cannot be linked to a displayed directory identity from saved observations alone.</p>}
       <p className="mt-3 text-xs text-warn-300">These are timestamped observations, not device ownership or assignment claims.</p>
-    </> : <p className="text-sm text-slate-400">No stored user/device relationship evidence. Run an explicit Inventory scan to collect the approved evidence.</p>}
+    </> : <p className="text-sm text-slate-400">No saved user/device observations. Run an explicit Inventory scan to collect the approved relationship data.</p>}
   </Card>;
 }
 
@@ -282,7 +265,7 @@ function SourceHeader({ name, state, present, missingApplies, stale = false }: {
 }
 
 function SourceError({ state }: { state: InventorySourceState }) {
-  return state.error ? <p className="mb-3 text-sm text-slate-400">{state.error}</p> : null;
+  return state.error ? <CompactErrorState className="mb-3" {...presentSourceError(state.error)} /> : null;
 }
 
 function DeviceOverview({ device, overview }: { device: HygieneDevice; overview: ClientOverviewResult }) {
@@ -292,6 +275,17 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
   const nessusSource = sources.nessus ?? { availability: 'NOT_CONNECTED' as const, error: 'Nessus is not configured.' };
   const hasFinding = (...codes: string[]) => device.assessment.findings.some((finding) => codes.includes(finding.code));
   return <div className="flex flex-col gap-4">
+    <Card title="Management systems">
+      <div className="flex flex-wrap gap-x-5 gap-y-2" aria-label="Management source status">
+        <SourceHeader name="Active Directory" state={sources.activeDirectory} present={device.activeDirectory.exists} missingApplies={hasFinding('ORPHAN_KASPERSKY', 'ORPHAN_OPSI')} stale={hasFinding('STALE_AD')} />
+        <SourceHeader name="Kaspersky" state={sources.kaspersky} present={device.kaspersky.exists && !hasFinding('MISSING_KASPERSKY_AGENT', 'MISSING_KES')} missingApplies={hasFinding('MISSING_KASPERSKY', 'MISSING_KASPERSKY_AGENT', 'MISSING_KES')} stale={hasFinding('STALE_KASPERSKY')} />
+        <SourceHeader name="opsi" state={sources.opsi} present={device.opsi.exists} missingApplies={hasFinding('MISSING_OPSI')} stale={hasFinding('STALE_OPSI')} />
+        <SourceHeader name="Nessus" state={nessusSource} present={nessus.exists && nessus.lastCompletedScanUtc !== null} missingApplies={hasFinding('MISSING_NESSUS')} stale={hasFinding('STALE_NESSUS')} />
+      </div>
+      <p className="text-xs text-muted">Snapshot {environment.result!.snapshotRevision} assessed {new Date(environment.result!.assessedAtUtc).toLocaleString()}.</p>
+    </Card>
+    <DetailsDisclosure summary="Management details and device relationships">
+    <div className="flex flex-col gap-4">
     <DeviceRelationshipMap
       device={device}
       sources={{ ...sources, nessus: nessusSource }}
@@ -315,6 +309,8 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
         <Rows entries={[["Last completed scan", date(nessus.lastCompletedScanUtc)], ["Critical", String(nessus.critical)], ["High", String(nessus.high)], ["Medium", String(nessus.medium)], ["Low", String(nessus.low)], ["Ports", nessus.ports.join(', ') || '—'], ["Scans", nessus.scanSources.join(', ') || '—']]} />
         {nessus.exists && <a className="mt-3 inline-block text-sm text-accent-400 hover:text-accent-300" href={`#/vulnerabilities?tab=findings&asset=${encodeURIComponent(device.computerName)}`}>Open findings in Vulnerabilities</a>}</Card>
     </div>
+    </div>
+    </DetailsDisclosure>
   </div>;
 }
 
@@ -330,15 +326,15 @@ function ManagementContext({ host, overview }: { host: string; overview: ClientO
   />;
   if (!environment.result) return <Card title="Management systems">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="text-sm font-medium text-slate-200">AD, Kaspersky, opsi and Nessus are not loaded</p><p className="mt-1 text-xs text-slate-400">Load these read-only sources only when their current posture is needed.</p></div>
+      <div><p className="text-sm font-medium text-slate-200">AD, Kaspersky, opsi and Nessus are not loaded</p><p className="mt-1 text-xs text-slate-400">Load these read-only sources only when their current status is needed.</p></div>
       <Button onClick={() => { void environment.ensureLoaded(); }}>Load management sources</Button>
     </div>
   </Card>;
-  const device = environment.result.devices.find((entry) => clientKey(entry.hostName) === clientKey(host) || clientKey(entry.computerName) === clientKey(host));
+  const device = findDeviceByHost(environment.result.devices, host);
   return device ? <DeviceOverview device={device} overview={overview} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
 }
 
-export function OverviewSection({ host }: { host: string }) {
+export function OverviewSection({ host, refreshKey = 0 }: { host: string; refreshKey?: number }) {
   const [state, setState] = useState<OverviewLoadState>({ kind: 'loading' });
   const requestGeneration = useRef(0);
 
@@ -361,11 +357,11 @@ export function OverviewSection({ host }: { host: string }) {
   }, [host]);
 
   useEffect(() => {
-    loadOverview(false);
+    loadOverview(true);
     return () => { requestGeneration.current += 1; };
-  }, [loadOverview]);
+  }, [loadOverview, refreshKey]);
 
-  if (state.kind === 'loading') return <p className="py-6 text-sm text-slate-400" role="status">Loading stored client evidence …</p>;
+  if (state.kind === 'loading') return <p className="py-6 text-sm text-slate-400" role="status">Loading saved client data …</p>;
   if (state.kind === 'error') return <ErrorState {...state.error} controls={<Button onClick={() => loadOverview(false)}>Retry overview</Button>} />;
 
   const inventoryMetadata = state.result.sources.find((source) => source.source === 'Inventory')!;
@@ -375,18 +371,18 @@ export function OverviewSection({ host }: { host: string }) {
   const usersMetadata = state.result.sources.find((source) => source.source === 'Linked users')!;
   return <div className="flex flex-col gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3">
-      <div><p className="text-sm font-medium text-slate-200">Client 360 evidence snapshot</p><p className="mt-0.5 text-xs text-slate-400">Stored data is read-only and never refreshed remotely on open.</p></div>
+      <div><p className="text-sm font-medium text-slate-200">Client overview</p><p className="mt-0.5 text-xs text-slate-400">Shows locally saved data; opening this page does not contact the client.</p></div>
       <Button disabled={state.refreshing} onClick={() => loadOverview(true)}>{state.refreshing ? 'Refreshing …' : 'Refresh stored summaries'}</Button>
     </div>
     {state.refreshError && <CompactErrorState {...state.refreshError} />}
     <SourceLedger host={host} sources={state.result.sources} />
+    <ManagementContext host={host} overview={state.result} />
     <div className="grid gap-4 xl:grid-cols-2">
       <InventorySummary host={host} inventory={state.result.inventory} metadata={inventoryMetadata} />
       <HealthSummary host={host} health={state.result.health} metadata={healthMetadata} />
-      <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
       <SecuritySummary host={host} security={state.result.security} metadata={securityMetadata} />
       <UserSummary host={host} users={state.result.users} metadata={usersMetadata} />
+      <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
     </div>
-    <ManagementContext host={host} overview={state.result} />
   </div>;
 }

@@ -60,12 +60,12 @@ public sealed class DeviceCleanupServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Total);
-        Assert.Equal("PC-OLD", result.Value.Candidates[0].SubjectKey);
+        Assert.Equal("PC-OLD.CORP.EXAMPLE", result.Value.Candidates[0].SubjectKey);
         Assert.Equal(DeviceCleanupClassification.PotentialCleanup, result.Value.Candidates[0].Classification);
         Assert.Contains("cleanup threshold", result.Value.Candidates[0].ClassificationExplanation);
         Assert.Equal("PC-INVENTORY-ONLY", result.Value.Candidates[1].SubjectKey);
         Assert.Equal(DeviceCleanupClassification.Review, result.Value.Candidates[1].Classification);
-        Assert.DoesNotContain(result.Value.Candidates, candidate => candidate.SubjectKey == "PC-ACTIVE");
+        Assert.DoesNotContain(result.Value.Candidates, candidate => candidate.SubjectKey == "PC-ACTIVE.CORP.EXAMPLE");
         await _inventoryEvidence.DidNotReceiveWithAnyArgs()
             .GetLatestAsync(default!, default);
     }
@@ -111,7 +111,7 @@ public sealed class DeviceCleanupServiceTests
 
         Assert.Equal(3, result.Value.Total);
         Assert.Contains(result.Value.Candidates, candidate =>
-            candidate.SubjectKey == "PC-ACTIVE"
+            candidate.SubjectKey == "PC-ACTIVE.CORP.EXAMPLE"
             && candidate.Classification == DeviceCleanupClassification.NoCleanupSignal);
     }
 
@@ -154,12 +154,13 @@ public sealed class DeviceCleanupServiceTests
         bool enabled,
         DateTimeOffset lastLogon,
         params DeviceCleanupFindingEvidence[] findings) => new(
-        host,
+        $"{host}.corp.example",
         $"{host}.corp.example",
         findings.Any(finding => finding.Severity == "Critical") ? "CleanupCandidate" : "Healthy",
         new DeviceCleanupAdEvidence(true, enabled, "Windows 11", null, "Clients", lastLogon),
         new DeviceCleanupKasperskyEvidence(true, AssessedAt.AddDays(-1), "Clients"),
         new DeviceCleanupOpsiEvidence(true, AssessedAt.AddDays(-1), "Depot-A"),
         new DeviceCleanupNessusEvidence(true, AssessedAt.AddDays(-1)),
-        findings);
+        findings,
+        [host, $"{host}.corp.example"]);
 }

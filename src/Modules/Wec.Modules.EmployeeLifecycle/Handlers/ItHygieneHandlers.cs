@@ -23,7 +23,7 @@ internal sealed class GetItHygieneHandler : IActionHandler<ItHygieneRequest, ItH
     public Task<Result<ItHygieneResult>> HandleAsync(
         ItHygieneRequest payload,
         CancellationToken cancellationToken) =>
-        _cache.GetAsync(payload, force: false, _service.LoadAsync, cancellationToken);
+        _cache.GetAsync(payload, payload.Force, _service.LoadAsync, cancellationToken);
 }
 
 internal sealed class GetItHygieneOverviewHandler(

@@ -93,7 +93,7 @@ internal static class PatchDashboardPaging
         product.PackageStatus,
         product.State,
         product.InstalledClientCount,
-        product.OutdatedClientCount,
+        product.OutdatedInstallationCount,
         product.FailedClientCount,
         product.PendingActionCount,
         product.LastError,

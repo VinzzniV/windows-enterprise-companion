@@ -87,9 +87,15 @@ internal static class HygieneAssessmentPolicy
                 $"KES {ksc.KesVersion} is below target {options.TargetKesVersion}."));
         }
 
-        if (assessNessus && sources.Nessus.Availability == InventorySourceAvailability.Available)
+        if (assessNessus)
         {
-            if (ad is { Enabled: true }
+            bool nessusAbsenceIsKnown = sources.Nessus.Availability == InventorySourceAvailability.Available;
+            bool nessusEvidenceIsUsable = sources.Nessus.Availability is
+                InventorySourceAvailability.Available or
+                InventorySourceAvailability.Partial or
+                InventorySourceAvailability.Truncated;
+            if (nessusAbsenceIsKnown
+                && ad is { Enabled: true }
                 && IsWindows(ad.OperatingSystem)
                 && (nessus is null || nessus.LastCompletedScanUtc is null)
                 && !MatchesAny(ad.ComputerName, nessusInventory.MissingExcludedHostPatterns)
@@ -101,7 +107,7 @@ internal static class HygieneAssessmentPolicy
                     "Enabled Windows computer in Active Directory, but no matching Nessus asset was found."));
             }
 
-            if (nessus?.LastCompletedScanUtc is not null)
+            if (nessusEvidenceIsUsable && nessus?.LastCompletedScanUtc is not null)
             {
                 AddStaleFinding(
                     findings,
@@ -118,7 +124,7 @@ internal static class HygieneAssessmentPolicy
                         HygieneFindingSeverity.Critical,
                         $"Nessus reports {nessus.Critical} critical finding instance(s)."));
                 }
-                else if (nessus.High > 0)
+                if (nessus.High > 0)
                 {
                     findings.Add(new HygieneFinding(
                         HygieneFindingCode.NessusHighVulnerabilities,
@@ -167,7 +173,7 @@ internal static class HygieneAssessmentPolicy
         return false;
     }
 
-    private static bool SourcesComplete(EnvironmentSourceStates sources, bool requireNessus) =>
+    internal static bool SourcesComplete(EnvironmentSourceStates sources, bool requireNessus) =>
         sources.ActiveDirectory.Availability == InventorySourceAvailability.Available
         && sources.Kaspersky.Availability == InventorySourceAvailability.Available
         && sources.Opsi.Availability == InventorySourceAvailability.Available

@@ -14,6 +14,8 @@ public sealed class HardwareSnapshotRecordConfiguration : IEntityTypeConfigurati
             .HasColumnName("host")
             .HasDefaultValue(string.Empty)
             .IsRequired();
+        builder.Property(record => record.IdentityKey)
+            .HasColumnName("identity_key");
         // SQLite cannot order/compare DateTimeOffset columns; store UTC ticks instead
         builder.Property(record => record.CapturedAtUtc)
             .HasColumnName("captured_at_utc")
@@ -26,5 +28,9 @@ public sealed class HardwareSnapshotRecordConfiguration : IEntityTypeConfigurati
             .HasDatabaseName("ix_inventory_hardware_snapshots_captured_at_utc");
         builder.HasIndex(record => record.Host)
             .HasDatabaseName("ix_inventory_hardware_snapshots_host");
+        builder.HasIndex(record => record.IdentityKey)
+            .IsUnique()
+            .HasFilter("identity_key IS NOT NULL")
+            .HasDatabaseName("ux_inventory_hardware_snapshots_identity_key");
     }
 }

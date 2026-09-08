@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
@@ -9,7 +9,7 @@ import { Button } from '../../shared/ui/Button';
 import { Badge } from '../../shared/ui/Badge';
 import { Spinner } from '../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
-import { clientKey, isLocalClient, toClientTarget } from './clients';
+import { clientKey, findDeviceByHost, isLocalClient, toClientTarget } from './clients';
 import { InventorySection } from './sections/InventorySection';
 import { SecuritySection } from './sections/SecuritySection';
 import { HealthSection } from './sections/HealthSection';
@@ -19,6 +19,8 @@ import { ReportingSection } from '../reporting/ReportingSection';
 import { OverviewSection } from './sections/OverviewSection';
 import { openPsSession } from '../../shared/ps/openPsSession';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
+import { useEnvironmentOptional, useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
+import { clientListScope, isClientListUrl } from './clientListNavigation';
 
 type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
 
@@ -44,11 +46,11 @@ function ClientScanIdentity({ credentials }: { credentials: CredentialValues | u
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm">
       {displayUser ? (
-        <Badge tone="accent">Scanning as {displayUser}</Badge>
+        <Badge tone="accent">Remote account: {displayUser}</Badge>
       ) : (
         <>
-          <Badge tone="neutral">Scanning as current user</Badge>
-          <span className="text-xs text-slate-400">Sign in as admin (top right) to scan with the admin account.</span>
+          <Badge tone="neutral">Remote account: current Windows user</Badge>
+          <span className="text-xs text-slate-400">Use “Set remote account” above to supply an account authorized on this client.</span>
         </>
       )}
     </div>
@@ -63,35 +65,48 @@ export function ClientDetailPage() {
   const host = decodeURIComponent(rawHost ?? '');
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
-  // undefined = getAppInfo not resolved yet; string|null once known. Sections
+  const environment = useEnvironmentOptional();
+  const environmentRequest = useEnvironmentRequest();
+  const navigationState = location.state as { returnTo?: unknown; scope?: unknown } | null;
+  const returnTo = navigationState?.scope === clientListScope(environmentRequest) && isClientListUrl(navigationState.returnTo)
+    ? navigationState.returnTo
+    : '/clients';
+  // undefined = getAppInfo not resolved yet; value or null once known. Sections
   // must wait for this so the local machine is never scanned as a remote target.
-  const [machineName, setMachineName] = useState<string | null | undefined>(undefined);
+  const [appInfo, setAppInfo] = useState<AppInfoResponse | null | undefined>(undefined);
   const requestedSection = searchParams.get('section');
   const section: SectionKey = isSectionKey(requestedSection) ? requestedSection : 'overview';
   const [powerShellError, setPowerShellError] = useState<ErrorPresentation | null>(null);
+  const [targetMutationError, setTargetMutationError] = useState<ErrorPresentation | null>(null);
+  const [targetMutationPending, setTargetMutationPending] = useState(false);
+  const targetMutationInFlight = useRef(false);
   const [reportRevision, setReportRevision] = useState(0);
 
   useEffect(() => {
     invoke<AppInfoResponse>('system', 'getAppInfo')
-      .then((info) => setMachineName(info.machineName))
-      .catch(() => setMachineName(null));
+      .then(setAppInfo)
+      .catch(() => setAppInfo(null));
   }, []);
 
-  const appInfoResolved = machineName !== undefined;
-  const resolvedMachineName = machineName ?? null;
-  const local = isLocalClient(host, resolvedMachineName);
+  const appInfoResolved = appInfo !== undefined;
+  const resolvedMachineName = appInfo?.machineName ?? null;
+  const resolvedMachineFqdn = appInfo?.machineFqdn ?? null;
+  const local = isLocalClient(host, resolvedMachineName, resolvedMachineFqdn);
   const credentials = credentialsFor(host);
   const target = useMemo(
-    () => toClientTarget(host, resolvedMachineName, credentials),
-    [host, resolvedMachineName, credentials],
+    () => toClientTarget(host, resolvedMachineName, credentials, resolvedMachineFqdn),
+    [host, resolvedMachineName, resolvedMachineFqdn, credentials],
   );
   const refreshReport = useCallback(() => setReportRevision((revision) => revision + 1), []);
 
   const savedEntry = useMemo(
-    // Match by the same short-name key the Clients list merges on, so a client
-    // saved under its short name is recognized when opened by FQDN.
-    () => savedTargets.find((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
-    [savedTargets, host],
+    () => {
+      const device = environment?.result ? findDeviceByHost(environment.result.devices, host) : null;
+      const routeAliases = new Set((device ? [device.computerName, device.hostName] : [host]).map(clientKey));
+      routeAliases.add(clientKey(host));
+      return savedTargets.find((target) => target.role === 'Client' && routeAliases.has(clientKey(target.host)));
+    },
+    [environment?.result, savedTargets, host],
   );
 
   const selectSection = useCallback((nextSection: SectionKey) => {
@@ -101,8 +116,8 @@ export function ClientDetailPage() {
     } else {
       nextParams.set('section', nextSection);
     }
-    setSearchParams(nextParams);
-  }, [searchParams, setSearchParams]);
+    setSearchParams(nextParams, { replace: true, state: location.state });
+  }, [location.state, searchParams, setSearchParams]);
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
@@ -113,6 +128,29 @@ export function ClientDetailPage() {
     document.getElementById(`clienttab-${next.key}`)?.focus();
   };
 
+  const mutateSavedTarget = useCallback(async () => {
+    if (targetMutationInFlight.current) return;
+    targetMutationInFlight.current = true;
+    setTargetMutationPending(true);
+    setTargetMutationError(null);
+    try {
+      if (savedEntry) {
+        await deleteTarget(savedEntry.id);
+      } else {
+        await saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null });
+      }
+    } catch (caught: unknown) {
+      setTargetMutationError(presentError(caught, {
+        message: savedEntry
+          ? 'The locally saved client target could not be removed.'
+          : 'The client target could not be saved locally.',
+      }));
+    } finally {
+      targetMutationInFlight.current = false;
+      setTargetMutationPending(false);
+    }
+  }, [credentials?.userName, deleteTarget, host, savedEntry, saveTarget]);
+
   if (host === '') {
     return <EmptyState title="No client selected" message="Pick a client from the Clients list." />;
   }
@@ -121,7 +159,7 @@ export function ClientDetailPage() {
     <div className="flex flex-col gap-4">
       <PageHeader title={host} subtitle={local ? 'This machine · scanned as the current user' : 'Remote client'}>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => navigate('/clients', { state: location.state })}>
+          <Button variant="ghost" onClick={() => navigate(returnTo, { state: location.state })}>
             ← All clients
           </Button>
           {!local && (
@@ -141,17 +179,16 @@ export function ClientDetailPage() {
             </Button>
           )}
           {savedEntry ? (
-            <Button variant="secondary" onClick={() => void deleteTarget(savedEntry.id)}>
-              Unsave client
+            <Button variant="secondary" onClick={() => void mutateSavedTarget()} disabled={targetMutationPending}>
+              {targetMutationPending ? 'Removing…' : 'Unsave client'}
             </Button>
           ) : (
             <Button
               variant="secondary"
-              onClick={() =>
-                void saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null })
-              }
+              onClick={() => void mutateSavedTarget()}
+              disabled={targetMutationPending}
             >
-              Save client
+              {targetMutationPending ? 'Saving…' : 'Save client'}
             </Button>
           )}
         </div>
@@ -159,6 +196,13 @@ export function ClientDetailPage() {
       {powerShellError && (
         <ErrorState title="PowerShell session unavailable" {...powerShellError} />
       )}
+      {targetMutationError && (
+        <ErrorState title="Saved target unchanged" {...targetMutationError} />
+      )}
+
+      <p className="rounded border border-slate-800 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+        Save client stores this host, label, role and optional username in WEC's local database. Session passwords are never saved. Unsave removes only this local shortcut.
+      </p>
 
       {!local && <ClientScanIdentity credentials={credentials} />}
 
@@ -192,7 +236,7 @@ export function ClientDetailPage() {
         // in-progress scan keeps running and its result is never discarded.
         <>
           <div role="tabpanel" id="clientpanel-overview" aria-labelledby="clienttab-overview" hidden={section !== 'overview'}>
-            <OverviewSection host={host} />
+            <OverviewSection key={host} host={host} refreshKey={reportRevision} />
           </div>
           <div role="tabpanel" id="clientpanel-inventory" aria-labelledby="clienttab-inventory" hidden={section !== 'inventory'}>
             <InventorySection key={host} target={target} onDataChanged={refreshReport} />
@@ -201,10 +245,10 @@ export function ClientDetailPage() {
             <SecuritySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-diagnostics" aria-labelledby="clienttab-diagnostics" hidden={section !== 'diagnostics'}>
-            <HealthSection key={host} target={target} />
+            <HealthSection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-events" aria-labelledby="clienttab-events" hidden={section !== 'events'}>
-            <EventLogSection key={host} target={target} />
+            <EventLogSection key={host} host={host} target={target} />
           </div>
           <div role="tabpanel" id="clientpanel-printers" aria-labelledby="clienttab-printers" hidden={section !== 'printers'}>
             <PrintersSection key={host} target={target} />

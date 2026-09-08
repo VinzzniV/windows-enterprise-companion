@@ -81,6 +81,13 @@ rejected as `INVALID_REQUEST` naming the accepted forms.
   search, account-state, department and OU filters; uses AD `objectGUID` as the
   stable identity; and exposes only the approved identity, lifecycle and direct
   group fields. The legacy bounded `searchUsers` bridge action is unchanged.
+- AD DS supports only one server-side sort key. User pages send the selected
+  attribute without an additional account-name key. Equal values retain the
+  directory's order; independent page requests are not a frozen directory
+  snapshot. Account-name sorting avoids display-name or department ties.
+- LDAP filters and provider exception payloads are excluded from logs because
+  they can contain user search text, group DNs and identifiers. Logs retain
+  counts, typed error codes and the existing correlation context.
 
 ## Options (`Wec:ActiveDirectory`)
 

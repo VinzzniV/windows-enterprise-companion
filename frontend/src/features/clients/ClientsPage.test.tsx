@@ -68,7 +68,7 @@ function item(environment: HygieneDevice | null, fallback: string, overrides: Pa
   const host = environment?.hostName ?? fallback;
   return {
     host,
-    key: host.split('.')[0].toUpperCase(),
+    key: host.toUpperCase(),
     name: environment?.computerName ?? fallback,
     os: environment?.activeDirectory.operatingSystem ?? null,
     description: null,
@@ -115,6 +115,7 @@ function pageFor(payload: Record<string, unknown>, rows: ClientWorkspaceListItem
     page,
     pageSize,
     groupCount: grouped ? groups.length : null,
+    snapshotRevision: 2,
     assessedAtUtc: '2026-08-19T10:00:00Z',
     domainName: 'corp.local',
     summary: postureSummary,
@@ -130,7 +131,11 @@ function LocationProbe() {
 function ReturnToClients() {
   const location = useLocation();
   const navigate = useNavigate();
-  return <button type="button" onClick={() => navigate('/clients', { state: location.state })}>Return to clients</button>;
+  const state = location.state as { returnTo?: string } | null;
+  return <>
+    <button type="button" onClick={() => navigate(state?.returnTo ?? '/clients', { state: location.state })}>Return to clients</button>
+    <button type="button" onClick={() => navigate(-1)}>Browser back</button>
+  </>;
 }
 
 function renderPage(initialEntry = '/clients') {
@@ -138,11 +143,13 @@ function renderPage(initialEntry = '/clients') {
     <MemoryRouter initialEntries={[initialEntry]}>
       <TargetProvider>
         <EnvironmentProvider>
-          <LocationProbe />
-          <Routes>
-            <Route path="/clients" element={<ClientsPage />} />
-            <Route path="/clients/:host" element={<ReturnToClients />} />
-          </Routes>
+          <div data-scroll-container="application">
+            <LocationProbe />
+            <Routes>
+              <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/clients/:host" element={<ReturnToClients />} />
+            </Routes>
+          </div>
         </EnvironmentProvider>
       </TargetProvider>
     </MemoryRouter>,
@@ -182,14 +189,39 @@ describe('ClientsPage', () => {
     expect(await screen.findByText('DISABLED-PC')).toBeTruthy();
     expect(screen.getByText('PC01')).toBeTruthy();
     expect(screen.getByText('SCAN-ONLY')).toBeTruthy();
+    expect(screen.getByRole('searchbox', { name: 'Filter clients' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Bulk scan workbench' })).toBeNull();
+    const postureDetails = screen.getByText(/show status filters/).closest('details') as HTMLDetailsElement;
+    expect(postureDetails.open).toBe(false);
     for (const heading of ['Device', 'AD', 'Kaspersky', 'opsi', 'Nessus', 'Overall']) {
       expect(screen.getByRole('columnheader', { name: new RegExp(heading) })).toBeTruthy();
     }
+    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers.indexOf('Overall')).toBeLessThan(headers.indexOf('AD'));
+    expect(screen.getByRole('columnheader', { name: /Overall/ }).className).toContain('min-w-56');
     expect(screen.getByText('Disabled')).toBeTruthy();
     expect(screen.queryAllByText('OK')).toHaveLength(0);
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Unmanaged').length).toBeGreaterThan(0);
     expect(screen.getByText('1–3 of 3')).toBeTruthy();
+  });
+
+  it('keeps an assessment context together in the compact status column', async () => {
+    const cleanupDevice = device('CLEANUP-PC');
+    cleanupDevice.assessment = { status: 'CLEANUP_CANDIDATE', findings: [] };
+    invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) => {
+      if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (module === 'system' && action === 'getAppInfo') return Promise.resolve({ maxBatchHosts: 50 });
+      if (module === 'employeelifecycle' && action === 'listClientWorkspace') {
+        return Promise.resolve(pageFor(payload, [item(cleanupDevice, 'CLEANUP-PC')]));
+      }
+      return Promise.reject(new Error(`Unexpected action ${module}/${action}`));
+    });
+
+    renderPage();
+
+    const context = await screen.findByText('Cleanup candidate');
+    expect(context.parentElement?.className).toContain('whitespace-nowrap');
   });
 
   it('runs a batch only after explicit client selection and shows typed per-host failures', async () => {
@@ -223,6 +255,7 @@ describe('ClientsPage', () => {
     expect(lastInvoke('runBatchScan')).toBeUndefined();
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select PC01 for bulk scan' }));
+    expect(screen.getByRole('heading', { name: 'Bulk scan workbench' })).toBeTruthy();
     expect(screen.getByText('1 of 2 hosts selected')).toBeTruthy();
     expect(screen.getByText(/Current Windows identity · read-only/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Run Inventory' }));
@@ -231,6 +264,17 @@ describe('ClientsPage', () => {
     expect(await screen.findByText(/WinRM did not answer/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'pc01.corp.local' }).getAttribute('href'))
       .toBe('/clients/pc01.corp.local?section=inventory');
+  });
+
+  it('changes a client checkbox with Space without activating its row', async () => {
+    renderPage();
+    const checkbox = await screen.findByRole('checkbox', { name: 'Select PC01 for bulk scan' });
+
+    checkbox.focus();
+    await userEvent.keyboard(' ');
+
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByTestId('location').textContent).toBe('/clients');
   });
 
   it('shows the Active Directory description in the device column', async () => {
@@ -262,8 +306,14 @@ describe('ClientsPage', () => {
     invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) => {
       if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
       if (module === 'employeelifecycle' && action === 'listClientWorkspace') {
+        const critical = device('PC01', { opsi: true });
+        critical.nessus.critical = 3;
+        critical.assessment = {
+          status: 'CRITICAL',
+          findings: [{ code: 'NESSUS_CRITICAL_VULNERABILITIES', severity: 'CRITICAL', message: 'Nessus reports 3 critical finding instances.' }],
+        };
         return Promise.resolve({
-          ...pageFor(payload),
+          ...pageFor(payload, [item(critical, 'PC01'), item(device('DISABLED-PC', { enabled: false }), 'DISABLED-PC')]),
           sources: { ...sources, nessus: { availability: 'PARTIAL' as const, error: 'Refreshing cached inventory.' } },
         });
       }
@@ -276,38 +326,109 @@ describe('ClientsPage', () => {
     const disabledRow = screen.getByText('DISABLED-PC').closest('tr');
     expect(pcRow).not.toBeNull();
     expect(disabledRow).not.toBeNull();
-    expect(within(pcRow!).getAllByText('Fresh')).toHaveLength(4);
-    expect(within(pcRow!).queryByText('Partial')).toBeNull();
+    expect(within(pcRow!).getByText('Critical · 3 instances')).toBeTruthy();
+    expect(within(pcRow!).getByText('Partial coverage')).toBeTruthy();
+    expect(within(pcRow!).getByText(/^Scan /)).toBeTruthy();
     expect(within(disabledRow!).getByText('Partial')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Nessus: Partial' })).toBeTruthy();
+    expect(screen.getByText(/Counts are known results only/)).toBeTruthy();
   });
 
-  it('shows fleet posture and writes KPI filters to the canonical URL', async () => {
+  it('shows device status and writes KPI filters to the canonical URL', async () => {
     renderPage();
 
-    expect(await screen.findByText('Fleet posture')).toBeTruthy();
+    expect(await screen.findByText('Device status')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'AD: Available' })).toBeTruthy();
     expect(screen.getByText(/corp\.local/)).toBeTruthy();
+    expect(screen.getByText(/Status counts cover unique devices/)).toBeTruthy();
+    expect(screen.getByText(/matching devices.*with stored Inventory.*merged candidates/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Filter clients by Missing Kaspersky (1)' }));
 
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/clients?posture=MISSING_KASPERSKY'));
     expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ statusFilter: 'MISSING_KASPERSKY', page: 1 });
-    expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('MISSING_KASPERSKY');
+    expect((screen.getByLabelText('Filter clients by status') as HTMLSelectElement).value).toBe('MISSING_KASPERSKY');
   });
 
   it('restores a posture drill-down from a direct URL', async () => {
     renderPage('/clients?posture=NESSUS_CRITICAL');
 
-    await screen.findByText('Fleet posture');
+    await screen.findByText('Device status');
     await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ statusFilter: 'NESSUS_CRITICAL', page: 1 }));
-    expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('NESSUS_CRITICAL');
+    expect((screen.getByLabelText('Filter clients by status') as HTMLSelectElement).value).toBe('NESSUS_CRITICAL');
+  });
+
+  it('restores the complete list state from a direct URL and resets it explicitly', async () => {
+    renderPage('/clients?q=PC&posture=NESSUS_CRITICAL&source=OPSI&group=site&page=2&pageSize=25&sort=overall&direction=desc');
+
+    await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({
+      search: 'PC',
+      statusFilter: 'NESSUS_CRITICAL',
+      sourceFilter: 'OPSI',
+      groupMode: 'site',
+      page: 2,
+      pageSize: 25,
+      sortColumn: 'overall',
+      sortDirection: 'desc',
+    }));
+    expect((screen.getByLabelText('Filter clients') as HTMLInputElement).value).toBe('PC');
+    expect((screen.getByLabelText('Filter clients by source') as HTMLSelectElement).value).toBe('OPSI');
+    expect((screen.getByLabelText('Group clients by') as HTMLSelectElement).value).toBe('site');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/clients'));
+    await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({
+      search: '', statusFilter: 'ALL', sourceFilter: 'ALL', groupMode: 'none', page: 1, pageSize: 50,
+      sortColumn: 'device', sortDirection: 'asc',
+    }));
+  });
+
+  it('returns from detail to the complete URL and restores the inner scroll container once', async () => {
+    renderPage('/clients?q=PC&source=OPSI&sort=overall&direction=desc');
+    const row = (await screen.findByText('PC01')).closest('tr');
+    const scrollContainer = document.querySelector<HTMLElement>('[data-scroll-container="application"]')!;
+    scrollContainer.scrollTop = 240;
+
+    await userEvent.click(row!);
+    expect(screen.getByTestId('location').textContent).toMatch(/^\/clients\/pc01/);
+    scrollContainer.scrollTop = 0;
+    await userEvent.click(screen.getByRole('button', { name: 'Return to clients' }));
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent)
+      .toBe('/clients?q=PC&source=OPSI&sort=overall&direction=desc'));
+    await waitFor(() => expect(scrollContainer.scrollTop).toBe(240));
+    expect((screen.getByLabelText('Filter clients') as HTMLInputElement).value).toBe('PC');
+    expect((screen.getByLabelText('Filter clients by source') as HTMLSelectElement).value).toBe('OPSI');
+  });
+
+  it('keeps the complete list state through browser back', async () => {
+    renderPage('/clients?q=PC&posture=OUTDATED&source=OPSI');
+    await userEvent.click((await screen.findByText('PC01')).closest('tr')!);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Browser back' }));
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent)
+      .toBe('/clients?q=PC&posture=OUTDATED&source=OPSI'));
+    expect((screen.getByLabelText('Filter clients') as HTMLInputElement).value).toBe('PC');
+    expect((screen.getByLabelText('Filter clients by status') as HTMLSelectElement).value).toBe('OUTDATED');
+  });
+
+  it('debounces immediate text filtering to one server request for a typing burst', async () => {
+    renderPage();
+    await screen.findByText('PC01');
+    const callsBeforeTyping = invokeMock.mock.calls.filter((call) => call[1] === 'listClientWorkspace').length;
+
+    await userEvent.type(screen.getByLabelText('Filter clients'), 'SERVER');
+
+    await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ search: 'SERVER' }));
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'listClientWorkspace')).toHaveLength(callsBeforeTyping + 1);
   });
 
   it('offers focused cleanup filters for stale and missing AD clients', async () => {
     renderPage();
-    await screen.findByText('Fleet posture');
+    await screen.findByText('Device status');
 
-    const filter = screen.getByLabelText('Filter clients by posture') as HTMLSelectElement;
+    const filter = screen.getByLabelText('Filter clients by status') as HTMLSelectElement;
     expect([...filter.options].map((option) => option.value)).toEqual(expect.arrayContaining([
       'STALE_AD', 'STALE_KASPERSKY', 'STALE_OPSI', 'MISSING_AD', 'DISABLED_AD',
     ]));
@@ -318,9 +439,9 @@ describe('ClientsPage', () => {
   it('falls back safely when the posture URL contains an unknown value', async () => {
     renderPage('/clients?posture=UNKNOWN');
 
-    await screen.findByText('Fleet posture');
+    await screen.findByText('Device status');
     await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ statusFilter: 'ALL', page: 1 }));
-    expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('ALL');
+    expect((screen.getByLabelText('Filter clients by status') as HTMLSelectElement).value).toBe('ALL');
   });
 
   it('filters by source on the host and opens the common detail route', async () => {

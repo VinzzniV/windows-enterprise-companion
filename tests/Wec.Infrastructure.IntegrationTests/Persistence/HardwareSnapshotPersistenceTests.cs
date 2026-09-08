@@ -134,6 +134,108 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync_KeepsTheNewerCaptureWhenAnOlderResultFinishesLater()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        var repository = new EfHardwareSnapshotRepository(
+            context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+        DateTimeOffset newer = DateTimeOffset.UtcNow;
+
+        await repository.SaveAsync("PC-ORDER", BuildSnapshot(), newer, CancellationToken.None);
+        await repository.SaveAsync("pc-order.", BuildSnapshot(), newer.AddMinutes(-5), CancellationToken.None);
+
+        CachedHardwareSnapshot? stored = await repository.GetLatestAsync("pc-order", CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.Equal(newer, stored.CapturedAtUtc);
+        Assert.Equal(1, await context.Set<HardwareSnapshotRecord>()
+            .CountAsync(record => record.IdentityKey == "PC-ORDER"));
+    }
+
+    [Fact]
+    public async Task SaveAsync_FailureDuringAtomicReplacementPreservesThePreviousSnapshot()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        var repository = new EfHardwareSnapshotRepository(
+            context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+        DateTimeOffset originalCapturedAt = DateTimeOffset.UtcNow.AddHours(-1);
+        DateTimeOffset rejectedCapturedAt = DateTimeOffset.UtcNow;
+        await repository.SaveAsync("PC-ATOMIC", BuildSnapshot(), originalCapturedAt, CancellationToken.None);
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER reject_injected_inventory_capture
+            BEFORE INSERT ON inventory_hardware_snapshots
+            WHEN NEW.identity_key = 'PC-ATOMIC'
+            BEGIN
+                SELECT RAISE(ABORT, 'injected replacement failure');
+            END;
+            """);
+
+        await Assert.ThrowsAsync<SqliteException>(() => repository.SaveAsync(
+            "PC-ATOMIC", BuildSnapshot(), rejectedCapturedAt, CancellationToken.None));
+
+        CachedHardwareSnapshot? stored = await repository.GetLatestAsync("PC-ATOMIC", CancellationToken.None);
+        Assert.NotNull(stored);
+        Assert.Equal(originalCapturedAt, stored.CapturedAtUtc);
+        Assert.Equal(1, await context.Set<HardwareSnapshotRecord>()
+            .CountAsync(record => record.IdentityKey == "PC-ATOMIC"));
+    }
+
+    [Fact]
+    public async Task ConcurrentSavesFromSeparateContextsLeaveOneNewestCurrentSnapshot()
+    {
+        using (WecDbContext migrationContext = CreateContext())
+        {
+            await migrationContext.Database.MigrateAsync();
+        }
+
+        DateTimeOffset older = DateTimeOffset.UtcNow.AddMinutes(-1);
+        DateTimeOffset newer = DateTimeOffset.UtcNow;
+        async Task SaveAsync(string host, DateTimeOffset capturedAtUtc)
+        {
+            using WecDbContext context = CreateContext();
+            var repository = new EfHardwareSnapshotRepository(
+                context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+            await repository.SaveAsync(host, BuildSnapshot(), capturedAtUtc, CancellationToken.None);
+        }
+
+        await Task.WhenAll(
+            SaveAsync("pc-concurrent.corp.example", older),
+            SaveAsync("PC-CONCURRENT.CORP.EXAMPLE.", newer));
+
+        using WecDbContext verificationContext = CreateContext();
+        HardwareSnapshotRecord current = Assert.Single(await verificationContext.Set<HardwareSnapshotRecord>()
+            .Where(record => record.IdentityKey == "PC-CONCURRENT.CORP.EXAMPLE")
+            .ToListAsync());
+        Assert.Equal(newer, current.CapturedAtUtc);
+    }
+
+    [Fact]
+    public async Task IdentityMigrationBackfillsUniqueRowsWithoutMergingLegacyDuplicates()
+    {
+        using (WecDbContext oldContext = CreateContext())
+        {
+            await oldContext.Database.MigrateAsync("20260826090316_ReplacePatchAutomationWithWinget");
+            await oldContext.Database.ExecuteSqlRawAsync(
+                "INSERT INTO inventory_hardware_snapshots (host, captured_at_utc, payload_json) VALUES ({0}, {1}, {2}), ({3}, {4}, {5}), ({6}, {7}, {8})",
+                "UNIQUE.corp.example", DateTimeOffset.UtcNow.UtcTicks, "{}",
+                "DUPLICATE", DateTimeOffset.UtcNow.UtcTicks, "{}",
+                "duplicate", DateTimeOffset.UtcNow.UtcTicks, "{}");
+        }
+
+        using WecDbContext migratedContext = CreateContext();
+        await migratedContext.Database.MigrateAsync();
+        List<HardwareSnapshotRecord> rows = await migratedContext.Set<HardwareSnapshotRecord>()
+            .OrderBy(record => record.Id)
+            .ToListAsync();
+
+        Assert.Equal("UNIQUE.CORP.EXAMPLE", rows.Single(record => record.Host.StartsWith("UNIQUE", StringComparison.Ordinal)).IdentityKey);
+        Assert.All(rows.Where(record => record.Host.StartsWith("DUPLICATE", StringComparison.OrdinalIgnoreCase)),
+            record => Assert.Null(record.IdentityKey));
+        Assert.Equal(3, rows.Count);
+    }
+
+    [Fact]
     public async Task ListHostsAsync_ReturnsAllStoredHosts_AndDeleteRemovesOne()
     {
         using WecDbContext context = CreateContext();
@@ -153,7 +255,7 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
     }
 
     [Fact]
-    public async Task ListHostsAsync_RemovesLegacySnapshotsWithoutAHost()
+    public async Task ListHostsAsync_FiltersLegacySnapshotsWithoutMutatingThem()
     {
         using WecDbContext context = CreateContext();
         await context.Database.MigrateAsync();
@@ -177,7 +279,7 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         IReadOnlyList<StoredInventoryHost> hosts = await repository.ListHostsAsync(CancellationToken.None);
 
         Assert.Empty(hosts);
-        Assert.Equal(0, await context.Set<HardwareSnapshotRecord>().CountAsync());
+        Assert.Equal(2, await context.Set<HardwareSnapshotRecord>().CountAsync());
     }
 
     [Fact]
@@ -192,6 +294,27 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         CachedHardwareSnapshot? other = await repository.GetLatestAsync("PC-999", CancellationToken.None);
 
         Assert.Null(other);
+    }
+
+    [Fact]
+    public async Task GetLatestAsync_WithDamagedPayload_DoesNotReportMissing()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        context.Set<HardwareSnapshotRecord>().Add(new HardwareSnapshotRecord
+        {
+            Host = "PC-DAMAGED",
+            IdentityKey = "PC-DAMAGED",
+            CapturedAtUtc = DateTimeOffset.UtcNow,
+            PayloadJson = "{not-json",
+        });
+        await context.SaveChangesAsync();
+        var repository = new EfHardwareSnapshotRepository(
+            context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => repository.GetLatestAsync(
+            "PC-DAMAGED",
+            CancellationToken.None));
     }
 
     public void Dispose()

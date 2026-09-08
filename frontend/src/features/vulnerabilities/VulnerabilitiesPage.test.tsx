@@ -6,7 +6,7 @@ import type { NessusSyncStatus } from '../../shared/api-types';
 import { EnvironmentProvider } from '../../shared/environment/EnvironmentContext';
 import { TargetProvider } from '../../shared/targets/TargetContext';
 import { semanticStatusPresentation } from '../../shared/ui/SemanticStatusBadge';
-import { nessusSyncSemanticStatus, VulnerabilitiesPage } from './VulnerabilitiesPage';
+import { nessusSyncSemanticStatus, trendXPositions, VulnerabilitiesPage } from './VulnerabilitiesPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('../../shared/bridge/bridgeClient', () => ({
@@ -40,7 +40,22 @@ describe('VulnerabilitiesPage', () => {
       if (action === 'listAssets') return Promise.resolve({ items: [{ matched: false, asset: { assetKey: 'IP:10.0.0.9', displayName: 'Printer', hostName: null, fqdn: null, ipAddress: '10.0.0.9', assetId: null, lastScanUtc: '2026-08-18T10:00:00Z', critical: 0, high: 1, medium: 0, low: 0, info: 0, ports: [80], scanSources: ['Network'] } }], total: 1, page: 1, pageSize: 250 });
       if (action === 'listFindings') return Promise.resolve({ items: [{ pluginId: 123, name: 'Critical TLS', severity: 'CRITICAL', cves: ['CVE-2026-1'], affectedAssets: 1, instances: 1 }], total: 1, page: 1, pageSize: 250 });
       if (action === 'listScans') return Promise.resolve([{ id: 1, name: 'Clients', excluded: false, status: 'completed', latestCompletedHistoryId: 9, latestCompletedUtc: '2026-08-18T10:00:00Z', error: null }]);
-      if (action === 'getTrend') return Promise.resolve({ verdict: 'BETTER', points: [{ dayUtc: '2026-08-17', critical: 2, high: 3, medium: 4, low: 5, info: 0, assets: 4 }, { dayUtc: '2026-08-18', critical: 1, high: 3, medium: 4, low: 5, info: 0, assets: 5 }], commonAssets: 4, newAssets: 1, removedAssets: 0 });
+      if (action === 'getTrend') return Promise.resolve({
+        verdict: 'BETTER',
+        points: [
+          { dayUtc: '2026-08-17', critical: 2, high: 3, medium: 4, low: 5, info: 0, assets: 4 },
+          { dayUtc: '2026-08-18', critical: 1, high: 3, medium: 4, low: 5, info: 0, assets: 5 },
+        ],
+        commonAssets: 4,
+        newAssets: 1,
+        removedAssets: 0,
+        comparison: {
+          startDayUtc: '2026-08-17', endDayUtc: '2026-08-18',
+          startCritical: 2, endCritical: 1, startHigh: 3, endHigh: 3,
+          startMedium: 4, endMedium: 4, startLow: 5, endLow: 5,
+          decidingSeverity: 'CRITICAL',
+        },
+      });
       return Promise.resolve({ started: false });
     });
   });
@@ -51,6 +66,12 @@ describe('VulnerabilitiesPage', () => {
     expect(screen.getByText('Succeeded').className).toContain('border-ok-');
     expect(screen.queryByText('COMPLETED')).toBeNull();
     expect(screen.getByText(/30-day trend/i)).toBeTruthy();
+    expect(screen.getByText(/Verdict compares Aug 17, 2026 to Aug 18, 2026 using only the 4 assets/)).toBeTruthy();
+    expect(screen.getByText(/Critical is the first changed severity.*2 → 1.*verdict is better/)).toBeTruthy();
+    expect(screen.getByText('1 added')).toBeTruthy();
+    await userEvent.click(screen.getByText('Daily values (2)'));
+    expect(screen.getByRole('columnheader', { name: 'UTC date' })).toBeTruthy();
+    expect(screen.getByRole('row', { name: /Aug 17, 2026 2 3 4 5 4/ })).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Assets' }));
     expect(await screen.findByText('Printer')).toBeTruthy();
     expect(screen.getByText(/Unmatched/)).toBeTruthy();
@@ -73,6 +94,7 @@ describe('VulnerabilitiesPage', () => {
         commonAssets: 0,
         newAssets: 0,
         removedAssets: 0,
+        comparison: null,
       });
       return baseImplementation(module, action, payload);
     });
@@ -85,6 +107,16 @@ describe('VulnerabilitiesPage', () => {
     expect(earliestDate.getAttribute('datetime')).toBe('2026-08-19');
     expect(screen.getByText(/another snapshot captures at least one previously seen asset/i)).toBeTruthy();
     expect(screen.queryByRole('img', { name: 'Nessus severity trend' })).toBeNull();
+    expect(screen.getByText(/First daily snapshot: 2 Critical, 3 High, 4 Medium, 5 Low across 4 assets/)).toBeTruthy();
+  });
+
+  it('positions irregular trend dates by elapsed UTC days', () => {
+    expect(trendXPositions(
+      [{ dayUtc: '2026-08-01' }, { dayUtc: '2026-08-02' }, { dayUtc: '2026-08-05' }],
+      100,
+      0,
+      0,
+    )).toEqual([0, 25, 100]);
   });
 
   it('opens a client link directly on findings filtered to that asset', async () => {
@@ -222,7 +254,7 @@ describe('VulnerabilitiesPage', () => {
 
     render(<MemoryRouter initialEntries={['/vulnerabilities?tab=findings']}><TargetProvider><EnvironmentProvider><VulnerabilitiesPage /></EnvironmentProvider></TargetProvider></MemoryRouter>);
 
-    const findingRow = await screen.findByRole('button', { name: /Critical TLS/ });
+    const findingRow = (await screen.findByText('Critical TLS')).closest('tr')!;
     expect(findingRow.textContent).toContain('12 CVEs');
     expect(findingRow.textContent).not.toContain('CVE-2026-0001');
 
@@ -244,7 +276,7 @@ describe('VulnerabilitiesPage', () => {
     });
     render(<MemoryRouter initialEntries={['/vulnerabilities?tab=findings']}><TargetProvider><EnvironmentProvider><VulnerabilitiesPage /></EnvironmentProvider></TargetProvider></MemoryRouter>);
 
-    await userEvent.click(await screen.findByRole('button', { name: /Critical TLS/ }));
+    await userEvent.click((await screen.findByText('Critical TLS')).closest('tr')!);
     const details = await screen.findByRole('region', { name: 'Finding details' });
     expect(await within(details).findByText('Finding details could not be loaded')).toBeTruthy();
     expect(within(details).getByText('The selected finding details could not be loaded.')).toBeTruthy();

@@ -24,7 +24,7 @@ export const clientPostureFilters = [
 export type ClientPostureFilter = typeof clientPostureFilters[number];
 
 export const clientPostureLabels: Record<ClientPostureFilter, string> = {
-  ALL: 'All postures',
+  ALL: 'All statuses',
   HEALTHY: 'Healthy',
   PROBLEMS: 'Problems',
   INCOMPLETE: 'Incomplete',

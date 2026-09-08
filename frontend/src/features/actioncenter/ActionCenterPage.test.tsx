@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActionCenterPage as ActionCenterPageResult } from '../../shared/api-types';
+import { EnvironmentProvider } from '../../shared/environment/EnvironmentContext';
 import { TargetProvider } from '../../shared/targets/TargetContext';
 import { ActionCenterPage } from './ActionCenterPage';
 
@@ -51,7 +52,8 @@ const result: ActionCenterPageResult = {
   total: 1,
   page: 1,
   pageSize: 25,
-  summary: { total: 1, critical: 1, high: 0, warning: 0, unknownCoverage: 0 },
+  summary: { total: 1, affectedDevices: 1, critical: 1, high: 0, warning: 0, unknownCoverage: 0 },
+  snapshotRevision: 4,
   assessedAtUtc: '2026-08-27T12:00:00Z',
   sources: [
     { source: 'Nessus', availability: 'AVAILABLE', explanation: 'Nessus inventory was available.' },
@@ -60,13 +62,15 @@ const result: ActionCenterPageResult = {
   itemsTruncated: true,
 };
 
-function renderPage() {
-  invokeMock.mockImplementation((module: string, action: string) => {
+function renderPage(actionResult: ActionCenterPageResult | ((payload: Record<string, unknown>) => ActionCenterPageResult) = result) {
+  invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown>) => {
     if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
-    if (module === 'actioncenter' && action === 'listItems') return Promise.resolve(result);
+    if (module === 'actioncenter' && action === 'listItems') {
+      return Promise.resolve(typeof actionResult === 'function' ? actionResult(payload) : actionResult);
+    }
     return Promise.resolve({});
   });
-  return render(<MemoryRouter><TargetProvider><ActionCenterPage /></TargetProvider></MemoryRouter>);
+  return render(<MemoryRouter><TargetProvider><EnvironmentProvider><ActionCenterPage /></EnvironmentProvider></TargetProvider></MemoryRouter>);
 }
 
 describe('ActionCenterPage', () => {
@@ -87,16 +91,20 @@ describe('ActionCenterPage', () => {
     expect(screen.getByRole('link', { name: 'Inspect evidence →' }).getAttribute('href'))
       .toBe('/vulnerabilities?tab=findings&asset=PC-01');
     expect(screen.getByText(/reached a configured limit/)).toBeDefined();
+    expect(screen.getByText(/Coverage incomplete: WEC Security/)).toBeDefined();
+    expect(screen.getByText(/Snapshot 4/)).toBeDefined();
     expect(screen.getByText('Read-only')).toBeDefined();
     expect(screen.queryByRole('button', { name: /remediate|resolve|assign/i })).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Show context' }));
-    expect(screen.getByRole('heading', { name: 'Action context · PC-01' })).toBeDefined();
+    const contextTrigger = screen.getByRole('button', { name: 'Show context' });
+    await userEvent.click(contextTrigger);
+    expect(screen.getByRole('dialog', { name: 'Action context · PC-01' })).toBeDefined();
     expect(screen.getByText('Reported by')).toBeDefined();
     expect(screen.getByText(/high confidence/)).toBeDefined();
     expect(screen.queryByText(/User:/)).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Close context' }));
-    expect(screen.queryByRole('heading', { name: 'Action context · PC-01' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Close action context' }));
+    expect(screen.queryByRole('dialog', { name: 'Action context · PC-01' })).toBeNull();
+    expect(document.activeElement).toBe(contextTrigger);
   });
 
   it('applies filters, server sorting and explicit force refresh without querying each keystroke', async () => {
@@ -127,5 +135,28 @@ describe('ActionCenterPage', () => {
       'listItems',
       expect.objectContaining({ force: true }),
     ));
+  });
+
+  it('replaces the open context with current details for the same stable item id', async () => {
+    const refreshed = {
+      ...result,
+      snapshotRevision: 5,
+      items: result.items.map((item) => ({
+        ...item,
+        coverage: 'PARTIAL' as const,
+        reliability: 'Medium',
+        coverageExplanation: 'The refreshed snapshot has partial Nessus coverage.',
+      })),
+    };
+    renderPage((payload) => payload.force ? refreshed : result);
+    await screen.findByText('Nessus reports critical vulnerabilities');
+    await userEvent.click(screen.getByRole('button', { name: 'Show context' }));
+    await userEvent.click(screen.getByRole('button', { name: 'List' }));
+    expect(screen.getAllByText('Nessus inventory was available.').length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh sources' }));
+
+    expect(await screen.findByText('The refreshed snapshot has partial Nessus coverage.')).toBeDefined();
+    expect(screen.getByText(/Snapshot 5/)).toBeDefined();
   });
 });

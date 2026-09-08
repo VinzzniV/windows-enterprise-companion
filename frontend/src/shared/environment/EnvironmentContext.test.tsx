@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ItHygieneResult } from '../api-types';
 import { TargetProvider, useTargets } from '../targets/TargetContext';
@@ -18,6 +19,7 @@ vi.mock('../bridge/bridgeClient', () => ({
 }));
 
 const result: ItHygieneResult = {
+  snapshotRevision: 1,
   assessedAtUtc: '2026-08-18T06:00:00Z',
   domainName: 'example.test',
   sources: {
@@ -38,6 +40,16 @@ function Consumer({ name }: { name: string }) {
   const environment = useEnvironment();
   useEffect(() => { void environment.ensureLoaded(); }, [environment.ensureLoaded]);
   return <span>{name}:{environment.result ? 'loaded' : 'waiting'}</span>;
+}
+
+function Controls() {
+  const environment = useEnvironment();
+  return <div>
+    <span>{environment.loading ? 'loading' : environment.result ? `snapshot-${environment.result.snapshotRevision}` : 'empty'}</span>
+    <button type="button" onClick={() => { void environment.refresh(); }}>refresh</button>
+    <button type="button" onClick={() => environment.invalidate()}>invalidate</button>
+    <button type="button" onClick={() => { void environment.ensureLoaded(); }}>load</button>
+  </div>;
 }
 
 function KasperskyRequestProbe() {
@@ -80,5 +92,51 @@ describe('EnvironmentProvider', () => {
     render(<TargetProvider><KasperskyRequestProbe /></TargetProvider>);
 
     expect(await screen.findByText('no KSC override')).toBeTruthy();
+  });
+
+  it('forwards an explicit refresh to the backend', async () => {
+    const user = userEvent.setup();
+    render(<TargetProvider><EnvironmentProvider><Controls /></EnvironmentProvider></TargetProvider>);
+
+    await user.click(screen.getByRole('button', { name: 'refresh' }));
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
+      'employeelifecycle',
+      'getHygiene',
+      expect.objectContaining({ force: true }),
+    ));
+  });
+
+  it('ends loading on invalidate and forces the next load without accepting the old response', async () => {
+    const user = userEvent.setup();
+    let resolveFirst!: (value: ItHygieneResult) => void;
+    const first = new Promise<ItHygieneResult>((resolve) => { resolveFirst = resolve; });
+    invokeMock.mockImplementation((module: string, action: string) => {
+      if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (module === 'employeelifecycle' && action === 'getHygiene') return first;
+      return Promise.reject(new Error(`Unexpected action ${module}/${action}`));
+    });
+    render(<TargetProvider><EnvironmentProvider><Controls /></EnvironmentProvider></TargetProvider>);
+
+    await user.click(screen.getByRole('button', { name: 'load' }));
+    expect(await screen.findByText('loading')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'invalidate' }));
+    expect(await screen.findByText('empty')).toBeTruthy();
+
+    invokeMock.mockImplementation((module: string, action: string) => {
+      if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (module === 'employeelifecycle' && action === 'getHygiene') {
+        return Promise.resolve({ ...result, snapshotRevision: 2 });
+      }
+      return Promise.reject(new Error(`Unexpected action ${module}/${action}`));
+    });
+    await user.click(screen.getByRole('button', { name: 'load' }));
+    expect(await screen.findByText('snapshot-2')).toBeTruthy();
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'getHygiene').at(-1)?.[2]).toEqual(
+      expect.objectContaining({ force: true }),
+    );
+
+    resolveFirst({ ...result, snapshotRevision: 1 });
+    await waitFor(() => expect(screen.getByText('snapshot-2')).toBeTruthy());
   });
 });

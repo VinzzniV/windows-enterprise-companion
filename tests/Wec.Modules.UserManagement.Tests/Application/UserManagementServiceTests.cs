@@ -124,7 +124,7 @@ public sealed class UserManagementServiceTests
             .Returns(Result.Success(new NessusComputerInventory(
                 [
                     new NessusComputerInventoryItem(
-                        "pc-42.corp.example",
+                        "PC-42",
                         "asset-42",
                         "192.0.2.42",
                         capturedAt,

@@ -15,8 +15,8 @@ Before writing or changing any code, read:
    boundaries.
 2. `ROADMAP_EXECUTION.md` — current phase, slice, blockers and last verified
    baseline.
-3. `docs/ultimate-admin-tool-roadmap.md` — ordered product and implementation
-   roadmap.
+3. `docs/README.md` — documentation index and the proposed audit backlog;
+   `docs/ultimate-admin-tool-roadmap.md` retains completed product phases.
 4. `docs/architecture-and-m1-plan.md` — original structure and dependency
    rules. Its M1 sequence is historical, not the current milestone.
 5. All accepted ADRs relevant to the current slice, especially ADR 0001–0007
@@ -80,11 +80,16 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 - Device Cleanup is a guided read-only assessment. It reuses hygiene and stored
   Inventory/user evidence, runs Ping/WinRM only after an explicit action, keeps
   decisions in the current frontend session and exposes no AD write action.
+- Device identity keeps the complete normalized hostname, FQDN or IP as its
+  key. Short names are aliases only when one source proves an unambiguous
+  relation. Inventory uses a non-destructive nullable transition key and atomic
+  newest-capture-wins replacement (ADR 0021).
 
 ## Current program
 
-The active program is `docs/ultimate-admin-tool-roadmap.md`. Follow its phases
-and slices in order unless a verified dependency requires a documented reorder.
+The product roadmap phases 0–11 are implemented. The proposed next backlog is
+`docs/2026-09-08-konsolidierte-massnahmenliste.md` (M01–M16). Consult
+`docs/README.md` and `ROADMAP_EXECUTION.md`; do not repeat completed phases.
 The original M1 is complete and remains architectural history.
 
 Do not start roadmap implementation without an explicit user start instruction.

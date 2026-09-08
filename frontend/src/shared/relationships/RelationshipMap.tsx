@@ -21,19 +21,19 @@ function formatObservedAt(value: string | null): string {
   return value ? new Date(value).toLocaleString() : 'Not observed';
 }
 
-function NodeCard({ node, primary = false }: { node: RelationshipNode; primary?: boolean }) {
+function NodeCard({ node, primary = false, detailed = false }: { node: RelationshipNode; primary?: boolean; detailed?: boolean }) {
   const content = <>
     <span className="flex min-w-0 flex-1 flex-col">
       <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
         {primary ? 'Primary context' : node.entityType.replaceAll('-', ' ')}
       </span>
-      <strong className="truncate text-sm text-slate-100">{node.label}</strong>
-      <span className="truncate text-xs text-slate-400">{node.context}</span>
-      <span className="truncate text-[11px] tabular-nums text-slate-500">Observed: {formatObservedAt(node.observedAtUtc)}</span>
+      <strong className="break-words text-sm text-slate-100">{node.label}</strong>
+      <span className={`${detailed ? '' : 'line-clamp-2'} break-words text-xs text-slate-400`} title={node.context}>{node.context}</span>
+      <span className="text-[11px] tabular-nums text-slate-500">Observed: {formatObservedAt(node.observedAtUtc)}</span>
     </span>
     <Badge tone={statusPresentation[node.status].tone}>{statusPresentation[node.status].label}</Badge>
   </>;
-  const classes = `flex min-w-0 items-center gap-3 rounded-lg border px-3 py-2 text-left motion-reduce:transition-none ${primary
+  const classes = `flex min-w-0 flex-col items-start gap-2 rounded-lg border px-3 py-2 text-left motion-reduce:transition-none ${primary
     ? 'border-accent-700/80 bg-accent-950/30 shadow-[0_0_24px_rgb(99_102_241_/_0.12)]'
     : 'border-slate-700 bg-slate-900/90 transition-colors hover:border-slate-500 hover:bg-slate-800/90'}`;
 
@@ -44,8 +44,8 @@ function NodeCard({ node, primary = false }: { node: RelationshipNode; primary?:
 
 function EdgeEvidence({ edge }: { edge: RelationshipEdge }) {
   return <div className="min-w-0 border-l border-accent-700/60 pl-3">
-    <p className="truncate text-xs font-medium text-accent-300">{edge.relationshipType}</p>
-    <p className="truncate text-[11px] text-slate-500">{edge.evidenceSource} · {edge.confidence} confidence</p>
+    <p className="break-words text-xs font-medium text-accent-300">{edge.relationshipType}</p>
+    <p className="break-words text-[11px] text-slate-500">{edge.evidenceSource} · {edge.confidence} confidence</p>
   </div>;
 }
 
@@ -61,7 +61,7 @@ function RelationshipMapView({ primary, related, edges }: {
 }) {
   return <div className="grid gap-4 rounded-lg border border-slate-800 bg-slate-950/35 p-4 lg:grid-cols-[minmax(12rem,0.72fr)_minmax(18rem,1.4fr)] lg:items-center">
     <NodeCard node={primary} primary />
-    <ul className="grid gap-2 sm:grid-cols-2" aria-label="Related entities">
+    <ul className="grid min-w-0 gap-2 grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))]" aria-label="Related entities">
       {related.map((node) => {
         const edge = edgeFor(primary.id, node.id, edges);
         return <li key={node.id} className="grid min-w-0 grid-cols-[minmax(5rem,0.65fr)_minmax(8rem,1fr)] items-center gap-2">
@@ -79,7 +79,8 @@ function RelationshipListView({ primary, related, edges }: {
   edges: readonly RelationshipEdge[];
 }) {
   return <div className="overflow-x-auto rounded-lg border border-slate-800">
-    <table className="w-full min-w-[52rem] border-collapse text-left text-sm">
+    <table className="w-full min-w-[52rem] table-fixed border-collapse break-words text-left text-sm">
+      <colgroup><col className="w-[28%]" /><col className="w-[14%]" /><col className="w-[26%]" /><col className="w-[18%]" /><col className="w-[14%]" /></colgroup>
       <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-500">
         <tr><th className="px-3 py-2">Entity</th><th className="px-3 py-2">Relationship</th><th className="px-3 py-2">Evidence</th><th className="px-3 py-2">Observed</th><th className="px-3 py-2">Confidence</th></tr>
       </thead>
@@ -87,10 +88,10 @@ function RelationshipListView({ primary, related, edges }: {
         {related.map((node) => {
           const edge = edgeFor(primary.id, node.id, edges);
           return <tr key={node.id} className="align-top">
-            <td className="px-3 py-3"><NodeCard node={node} /></td>
+            <td className="px-3 py-3"><NodeCard node={node} detailed /></td>
             <td className="px-3 py-3 text-slate-300">{edge?.relationshipType ?? 'Related to'}<p className="mt-1 text-xs text-slate-500">{primary.label}</p></td>
             <td className="max-w-sm px-3 py-3 text-slate-300">{edge?.evidenceSource ?? 'Unknown'}<p className="mt-1 text-xs text-slate-500">{edge?.explanation ?? 'No relationship explanation is available.'}</p></td>
-            <td className="whitespace-nowrap px-3 py-3 tabular-nums text-slate-400">{formatObservedAt(edge?.observedAtUtc ?? node.observedAtUtc)}</td>
+            <td className="px-3 py-3 tabular-nums text-slate-400">{formatObservedAt(edge?.observedAtUtc ?? node.observedAtUtc)}</td>
             <td className="px-3 py-3 capitalize text-slate-300">{edge?.confidence ?? 'unknown'}</td>
           </tr>;
         })}

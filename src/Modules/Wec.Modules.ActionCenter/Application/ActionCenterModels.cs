@@ -51,6 +51,7 @@ public sealed record ActionCenterWorkItem(
 
 public sealed record ActionCenterSummary(
     int Total,
+    int AffectedDevices,
     int Critical,
     int High,
     int Warning,
@@ -62,6 +63,7 @@ public sealed record ActionCenterPage(
     int Page,
     int PageSize,
     ActionCenterSummary Summary,
+    long SnapshotRevision,
     DateTimeOffset AssessedAtUtc,
     IReadOnlyList<ActionEvidenceSourceState> Sources,
     bool ItemsTruncated);

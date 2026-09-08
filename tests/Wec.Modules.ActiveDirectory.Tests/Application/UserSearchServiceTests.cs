@@ -172,7 +172,6 @@ public sealed class UserSearchServiceTests
                     && query.LdapFilter.Contains("(displayName=*Alex\\2a*)", StringComparison.Ordinal)
                     && query.SortAttribute == "displayName"
                     && query.SortDescending
-                    && query.SortTieBreakerAttribute == "sAMAccountName"
                     && query.Attributes.Contains("objectGUID", StringComparer.Ordinal)
                     && query.Attributes.Contains("msDS-UserPasswordExpiryTimeComputed", StringComparer.Ordinal)),
                 25,
