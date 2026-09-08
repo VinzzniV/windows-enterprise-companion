@@ -80,6 +80,12 @@ Until a concrete remote test client is explicitly designated:
 
 No write endpoint or mutation is authorized by this decision.
 
+Acceptance update (2026-09-08): the user explicitly designated one non-critical
+Windows client in the acceptance conversation for Inventory, Health, Event Log,
+Ping and WinRM reads. The target hostname is retained only in that conversation,
+not in source control, following D-008. This does not authorize other targets
+or any remote write.
+
 ## D-004 — GitHub Actions artifacts may be cleaned up
 
 Decision: confirmed recommendation.

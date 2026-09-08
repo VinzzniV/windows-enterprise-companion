@@ -1,10 +1,22 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `COMPLETE_PENDING_MERGE`
+Status: `IMPLEMENTED_ACCEPTANCE_PARTIAL`
 
-Current phase: Roadmap completion audit and release verification
+Current phase: Company-environment release acceptance
 
-Current slice: Merge the fully verified roadmap branch through Draft PR #28
+Current slice: Bounded read-only provider and designated-client validation on
+`codex/domain-acceptance` (started 2026-09-08).
+
+PR #28 is merged at `e89395f`. The user explicitly designated one non-critical
+remote client in the acceptance conversation on 2026-09-08. Its hostname stays
+outside source control under D-008; no other remote client is in scope.
+
+Company acceptance results and remaining gates are recorded in
+`docs/domain-acceptance-2026-09-08.md`. AD, opsi, Nessus and the designated
+client's Inventory/Health/Event Log paths were exercised successfully.
+Kaspersky remains blocked by a mismatched configured certificate fingerprint.
+Release build, 743 backend tests, 460 frontend tests, 388 generated contracts
+and the zero-finding NPM audit passed after the acceptance corrections.
 
 ## Done
 
@@ -359,9 +371,11 @@ Current slice: Merge the fully verified roadmap branch through Draft PR #28
 
 ## Next
 
-1. Require green pull-request CI on the exact final documentation head.
-2. Preserve a successful release-free packaging proof for that head or its
-   documentation-only predecessor.
-3. When both repository merge gates are green, mark Draft PR #28 ready and
-   merge it under D-006. Do not create a version tag, publish an installer or
-   create a GitHub Release without explicit user approval.
+1. Resolve the Kaspersky certificate identity mismatch through independently
+   verified trust and rerun its read-only acceptance test.
+2. Complete the dedicated AD lab, broader accessibility/DPI and export-file
+   gates listed in `docs/domain-acceptance-2026-09-08.md`.
+3. Require green PR CI and release-free packaging for `codex/domain-acceptance`
+   before merging its corrections. PR #28 has already been merged.
+4. Do not create a version tag, publish an installer or create a GitHub Release
+   without explicit user approval.
