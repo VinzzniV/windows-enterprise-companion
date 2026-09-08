@@ -31,7 +31,7 @@ const FINDINGS: Record<IntegrationKey, { stale?: string; missing?: readonly stri
 
 const missingMetadata = (source: string, detailSection: string): ClientOverviewSourceMetadata => ({
   source,
-  provenance: 'Stored WEC evidence',
+  provenance: 'Saved WEC data',
   freshness: 'UNKNOWN',
   capturedAtUtc: null,
   ageSeconds: null,
@@ -200,7 +200,7 @@ export function buildDeviceRelationshipModel(
     {
       id: 'wec:security',
       entityType: 'security',
-      label: 'Security posture',
+      label: 'Security status',
       context: overview.security
         ? `${overview.security.criticalCount} critical · ${overview.security.highCount} high · ${overview.security.mediumCount} medium`
         : 'No stored Security scan',
@@ -247,10 +247,10 @@ export function buildDeviceRelationshipModel(
   };
 
   const edges: RelationshipEdge[] = [
-    relationshipEdge(primaryId, related[0], 'Represented in', 'Active Directory computer inventory', 'Matched by normalized computer identity in the explicitly loaded directory evidence.', false, managementObservedAtUtc),
-    relationshipEdge(primaryId, related[1], 'Managed by', 'Kaspersky managed-device inventory', 'Matched by normalized client identity in the explicitly loaded Kaspersky evidence.', false, managementObservedAtUtc),
-    relationshipEdge(primaryId, related[2], 'Managed by', 'opsi client inventory', 'Matched by normalized client identity in the explicitly loaded opsi evidence.', false, managementObservedAtUtc),
-    relationshipEdge(primaryId, related[3], 'Assessed by', 'Nessus completed-scan inventory', 'Matched by normalized asset identity in the explicitly loaded Nessus evidence.', false, managementObservedAtUtc),
+    relationshipEdge(primaryId, related[0], 'Represented in', 'Active Directory computer inventory', 'Matched by normalized computer identity in the explicitly loaded directory data.', false, managementObservedAtUtc),
+    relationshipEdge(primaryId, related[1], 'Managed by', 'Kaspersky managed-device inventory', 'Matched by normalized client identity in the explicitly loaded Kaspersky data.', false, managementObservedAtUtc),
+    relationshipEdge(primaryId, related[2], 'Managed by', 'opsi client inventory', 'Matched by normalized client identity in the explicitly loaded opsi data.', false, managementObservedAtUtc),
+    relationshipEdge(primaryId, related[3], 'Assessed by', 'Nessus completed-scan inventory', 'Matched by normalized asset identity in the explicitly loaded Nessus data.', false, managementObservedAtUtc),
     relationshipEdge(primaryId, related[4], 'Described by', inventoryMetadata.provenance, inventoryMetadata.coverage, true),
     relationshipEdge(primaryId, related[5], 'Observed by', healthMetadata.provenance, healthMetadata.coverage, true),
     relationshipEdge(primaryId, related[6], 'Assessed by', securityMetadata.provenance, securityMetadata.coverage, true),
@@ -271,7 +271,7 @@ export function buildDeviceRelationshipModel(
 
   return {
     title: 'Device relationships',
-    description: 'Stored WEC evidence and explicitly loaded management-source matches. Relationships are observations, not ownership claims.',
+    description: 'Saved WEC data and explicitly loaded management-source matches. Relationships are observations, not ownership claims.',
     primaryNodeId: primaryId,
     nodes: [primary, ...related],
     edges,

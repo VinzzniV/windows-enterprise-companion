@@ -94,12 +94,12 @@ describe('DeviceRelationshipMap', () => {
     const model = buildDeviceRelationshipModel(device, sources, overview, 'unknown', '2026-08-20T12:30:00Z');
 
     expect(model.nodes.map((node) => node.label)).toEqual([
-      'PC-42', 'Active Directory', 'Kaspersky', 'opsi', 'Nessus', 'WEC Inventory', 'Device Health', 'Security posture', 'CORP\\alex',
+      'PC-42', 'Active Directory', 'Kaspersky', 'opsi', 'Nessus', 'WEC Inventory', 'Device Health', 'Security status', 'CORP\\alex',
     ]);
     expect(model.edges).toHaveLength(8);
     expect(model.nodes.find((node) => node.label === 'WEC Inventory')?.context).toContain('42 installed applications');
     expect(model.nodes.find((node) => node.label === 'Device Health')?.status).toBe('stale');
-    expect(model.nodes.find((node) => node.label === 'Security posture')?.status).toBe('partial');
+    expect(model.nodes.find((node) => node.label === 'Security status')?.status).toBe('partial');
     expect(model.edges.find((edge) => edge.toNodeId === 'wec:inventory')?.confidence).toBe('confirmed');
     expect(model.edges.find((edge) => edge.toNodeId === 'management:active-directory')?.observedAtUtc)
       .toBe('2026-08-20T12:30:00Z');

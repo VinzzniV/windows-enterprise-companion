@@ -401,16 +401,16 @@ export function SettingsPage() {
 
       {itLifecycle && (
         <div id={settingsSectionElementId('environment-health')} className="scroll-mt-20">
-          <Card title="IT Lifecycle / Environment Health">
+          <Card title="Kaspersky integration">
           <div className="mb-5 rounded-md border border-slate-700 bg-slate-900/40 p-4">
             <h3 className="mb-1 text-sm font-semibold text-slate-200">Kaspersky session account</h3>
             {credentialStatuses?.kaspersky.saved && (
               <div className="mb-3 flex flex-wrap items-center gap-3 rounded border border-emerald-800/60 bg-emerald-950/20 px-3 py-2">
-                <p className="text-sm text-slate-300">Saved securely in Windows Credential Manager as <span className="font-mono text-slate-100">{credentialStatuses.kaspersky.domain ? `${credentialStatuses.kaspersky.domain}\\` : ''}{credentialStatuses.kaspersky.userName}</span>. Environment Health uses it automatically.</p>
+                <p className="text-sm text-slate-300">Saved securely in Windows Credential Manager as <span className="font-mono text-slate-100">{credentialStatuses.kaspersky.domain ? `${credentialStatuses.kaspersky.domain}\\` : ''}{credentialStatuses.kaspersky.userName}</span>. Kaspersky read-only queries use it automatically.</p>
                 <ConfirmDangerAction
                   subject="saved KSC credential"
                   triggerLabel="Remove saved KSC credential"
-                  description="Removes the KSC account from Windows Credential Manager. Automatic Environment Health access will stop until a credential is saved again."
+                  description="Removes the KSC account from Windows Credential Manager. Automatic Kaspersky access will stop until a credential is saved again."
                   onConfirm={() => deleteCredential('KASPERSKY')}
                   disabled={saving}
                 />
@@ -574,7 +574,7 @@ export function SettingsPage() {
               onClick={saveItLifecycle}
               disabled={saving || kasperskyCertificateBusy || itLifecycleIssues.length > 0}
             >
-              {saving ? 'Saving…' : 'Save IT Lifecycle settings'}
+              {saving ? 'Saving…' : 'Save Kaspersky settings'}
             </Button>
             <Button
               variant="secondary"
@@ -609,7 +609,7 @@ export function SettingsPage() {
 
       {nessus && (
         <div id={settingsSectionElementId('vulnerability-management')} className="scroll-mt-20">
-          <Card title="Nessus / Vulnerability Management">
+          <Card title="Nessus integration">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Nessus HTTPS URL" hint="Local Nessus Professional/Expert; default port 8834.">{(id) => <Input id={id} value={nessus.serverUrl} onChange={(event) => setNessus({ ...nessus, serverUrl: event.target.value })} placeholder="https://nessus.example.local:8834" />}</Field>
             <Field label="Timeout (seconds)">{(id) => <Input id={id} type="number" min={1} max={600} value={nessus.requestTimeoutSeconds} onChange={(event) => setNessus({ ...nessus, requestTimeoutSeconds: Number(event.target.value) })} />}</Field>
@@ -636,7 +636,7 @@ export function SettingsPage() {
 
       {opsi && (
         <div id={settingsSectionElementId('patch-management')} className="scroll-mt-20">
-          <Card title="opsi / Patch Management">
+          <Card title="opsi integration">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Field label="opsi server" hint="Host name or HTTPS URL used by all WEC areas.">{(id) => <Input id={id} value={opsi.server} onChange={(event) => setOpsi({ ...opsi, server: event.target.value })} placeholder="opsi.example.local" />}</Field>
             <Field label="opsi port">{(id) => <Input id={id} type="number" min={1} max={65535} value={opsi.port} onChange={(event) => setOpsi({ ...opsi, port: Number(event.target.value) })} />}</Field>
@@ -667,12 +667,11 @@ export function SettingsPage() {
       )}
 
       <div id={settingsSectionElementId('policy')} className="scroll-mt-20">
-        <Card title="Configuration policy">
+        <Card title="Storage & credentials">
           <p className="text-sm text-slate-400">
-            User-configurable operating parameters belong on this page. Future modules should add their settings here.
-            Deployment defaults remain in <span className="font-mono text-slate-300">appsettings.json</span>; saved values are
-            merged into <span className="font-mono text-slate-300">%APPDATA%\Wec\usersettings.json</span>. KSC, opsi and Nessus secrets
-            can be stored in the current Windows user's Credential Manager; the normal admin sign-in remains session-only.
+            WEC saves these settings for the current Windows user. Kaspersky, opsi and Nessus secrets can be stored in
+            Windows Credential Manager; the normal admin sign-in remains session-only. Deployment defaults can still be
+            managed centrally.
           </p>
         </Card>
       </div>

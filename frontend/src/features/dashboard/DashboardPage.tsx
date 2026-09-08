@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type {
+  AppInfoResponse,
   LatestScanResult,
   ListInventoryHostsResult,
   ListPrintServersResult,
@@ -108,6 +109,7 @@ function ModuleTile({ to, icon, title, description, metric }: TileProps) {
 }
 
 export function DashboardPage() {
+  const [localMachineName, setLocalMachineName] = useState<string | null>(null);
   const [inventory, setInventory] = useState<TileMetric>(() => loadingTile('Stored WMI/CIM inventory snapshots'));
   const [security, setSecurity] = useState<TileMetric>(() => loadingTile('Persisted Security scan and per-check outcomes'));
   const [print, setPrint] = useState<TileMetric>(() => loadingTile('Stored print-server snapshots'));
@@ -119,6 +121,12 @@ export function DashboardPage() {
     let active = true;
     let vulnerabilityTimer: ReturnType<typeof setTimeout> | undefined;
     const policy = invoke<ReportReadinessPolicy>('reporting', 'getReadinessPolicy', {});
+
+    invoke<AppInfoResponse>('system', 'getAppInfo', {})
+      .then((appInfo) => {
+        if (active && appInfo.machineName.trim()) setLocalMachineName(appInfo.machineName);
+      })
+      .catch(() => undefined);
 
     Promise.all([
       invoke<ListInventoryHostsResult>('inventory', 'listHosts', {}),
@@ -235,10 +243,10 @@ export function DashboardPage() {
           metric={inventory}
         />
         <ModuleTile
-          to="/clients"
+          to={localMachineName ? `/clients/${encodeURIComponent(localMachineName)}?section=security` : '/clients'}
           icon={navIcons.security}
-          title="Security"
-          description="Read-only security posture from the last per-client scan."
+          title="This computer · Security"
+          description="Read-only results from the last local Security scan."
           metric={security}
         />
         <ModuleTile
@@ -264,8 +272,8 @@ export function DashboardPage() {
         <ModuleTile
           to="/reporting"
           icon={navIcons.reporting}
-          title="Report export"
-          description="Executive HTML/JSON summary from saved Inventory and Security data."
+          title="Local report export"
+          description="HTML/JSON summary for this WEC computer from saved Inventory and Security data."
         />
       </div>
 

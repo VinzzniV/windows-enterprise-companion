@@ -38,6 +38,10 @@ describe('global search result builders', () => {
     expect(navigationResults('retirement')).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Device Cleanup', to: '/cleanup' }),
     ]));
+    expect(navigationResults('kaspersky')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Clients', to: '/clients' }),
+      expect.objectContaining({ label: 'Settings', to: '/settings' }),
+    ]));
   });
 
   it('merges client evidence through a proven AD alias and keeps the result set bounded', () => {

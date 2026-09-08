@@ -22,6 +22,9 @@ describe('DashboardPage', () => {
           hosts: [{ host: 'PC1', capturedAtUtc: '2026-07-03T08:00:00Z' }],
         });
       }
+      if (module === 'system' && action === 'getAppInfo') {
+        return Promise.resolve({ machineName: 'WEC-HOST' });
+      }
       if (module === 'security' && action === 'getLatestScan') {
         return Promise.resolve({
           scan: {
@@ -78,7 +81,7 @@ describe('DashboardPage', () => {
     // Tiles for every module are present with links into them
     expect(screen.getByText('Clients')).toBeDefined();
     expect(screen.getByText('Active Directory')).toBeDefined();
-    expect(screen.getByText('Report export')).toBeDefined();
+    expect(screen.getByText('Local report export')).toBeDefined();
     // Derived metrics from stored data
     expect(await screen.findByText('1 stored host')).toBeDefined();
     expect(await screen.findByText('1 critical/high')).toBeDefined();
@@ -86,6 +89,8 @@ describe('DashboardPage', () => {
 
     const clientsLink = screen.getByText('Clients').closest('a');
     expect(clientsLink?.getAttribute('href')).toBe('/clients');
+    expect(screen.getByText('This computer · Security').closest('a')?.getAttribute('href'))
+      .toBe('/clients/WEC-HOST?section=security');
   });
 
   it('degrades to empty tiles when the bridge is unavailable', async () => {

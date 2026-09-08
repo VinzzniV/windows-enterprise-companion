@@ -24,7 +24,7 @@ the applicable milestone checks are green.
 | M13 | Complete | Local log level filtering precedes the result limit. Configured file-count, byte and continuation-line bounds are returned and displayed with exact coverage and truncation metadata. Remote Event Log results expose their query window, result limit and explicit per-message truncation. The hide action remains a local visibility marker and never claims deletion. |
 | M14 | Complete | Client actions distinguish live read-only access, locally replaced scan evidence and locally saved target metadata. Save/unsave failures remain visible and duplicate in-flight target mutations are suppressed; no password enters `SaveTarget`. Network Scan previews its target, exact configured TCP ports, DHCP/account context, non-persistence and no-write behavior, and rejects duplicate starts. The Print port-removal action retains its explicit external-effect text and confirmation. |
 | M15 | Complete | Trend x-positions derive from UTC dates, axes name date and finding units, and a keyboard-accessible table exposes every daily severity/asset value without color or hover. Daily totals explicitly cover all assets, while the verdict evidence names start/end dates, common cohort, added/removed assets, common-cohort start/end values and the first deciding severity under the unchanged Critical-to-Low policy. Empty and one-point states remain explicit. |
-| M16 | Planned | Not yet accepted. |
+| M16 | Implemented; user test pending | Navigation and settings name Kaspersky, opsi and Nessus directly; global search for Kaspersky returns both Clients and Settings without exposing the legacy IT Lifecycle name. Dashboard Security opens the local machine's Security section, and the report entry names its local scope before navigation. Client Overview keeps one compact saved-data notice and one source ledger with age, capture time and coverage while removing repeated status badges from the detail cards. Settings anchors, dirty markers, credentials and restart guidance remain covered. The required short human comprehension test remains an external acceptance gate. |
 
 ## M01/M02 technical reassessment
 
@@ -305,3 +305,38 @@ non-mutation regression.
   Dashboard frontend tests passed. The Release solution build,
   generated-contract check (395 types), production frontend build and
   `git diff --check` passed.
+
+## M16 technical reassessment and verification
+
+- Kaspersky belongs in the existing Clients and Settings workflows; adding a
+  separate integration workspace would duplicate the same device population.
+  The visible Settings section is now `Kaspersky`, and the existing global
+  search metadata makes both Clients and Settings discoverable by `Kaspersky`
+  or `KSC`. Nessus and opsi are named directly in primary navigation and in
+  their Settings sections. Route paths, module names, configuration keys and
+  the `environment-health` anchor remain unchanged.
+- Dashboard Security resolves the existing local machine identity and links to
+  that Client 360 Security section. If app identity is temporarily unavailable,
+  it safely falls back to Clients. The dashboard and primary report entry both
+  state their local scope before navigation; this does not imply or add a fleet
+  report.
+- Client Overview now owns one saved-data explanation and one compact freshness
+  and coverage ledger. Every source retains status, age, capture timestamp,
+  provenance, coverage and its detail link. The five summaries no longer repeat
+  the same source badges. Relationship text continues to call user/device links
+  timestamped observations and explicitly rejects ownership or assignment.
+- Settings regressions retain section deep links, dirty and validation markers,
+  password exclusion, Credential Manager actions and restart guidance. The
+  changed normal task flows replace the historical IT Lifecycle name and the
+  prominent `canonical`, `posture`, `evidence` and `read contract` labels with
+  task-oriented wording; internal identifiers and precise coverage explanations
+  remain intact.
+- The final full milestone passed 776 backend tests and 525 frontend tests, a
+  zero-warning Release build, 395 current generated contracts, the production
+  frontend build and a zero-finding dependency audit. After the last naming
+  cleanup, 75 affected navigation, Settings, reporting, relationship and Compare
+  tests and the production build passed again; `git diff --check` passed.
+- Native-window automation is unavailable in this session. The acceptance
+  criterion requiring a short human test of detail discoverability and the
+  observation-versus-ownership wording therefore remains external and is not
+  inferred from DOM tests.

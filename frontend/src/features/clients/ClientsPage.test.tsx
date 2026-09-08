@@ -191,7 +191,7 @@ describe('ClientsPage', () => {
     expect(screen.getByText('SCAN-ONLY')).toBeTruthy();
     expect(screen.getByRole('searchbox', { name: 'Filter clients' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Bulk scan workbench' })).toBeNull();
-    const postureDetails = screen.getByText(/show posture filters/).closest('details') as HTMLDetailsElement;
+    const postureDetails = screen.getByText(/show status filters/).closest('details') as HTMLDetailsElement;
     expect(postureDetails.open).toBe(false);
     for (const heading of ['Device', 'AD', 'Kaspersky', 'opsi', 'Nessus', 'Overall']) {
       expect(screen.getByRole('columnheader', { name: new RegExp(heading) })).toBeTruthy();
@@ -315,27 +315,27 @@ describe('ClientsPage', () => {
     expect(screen.getByText(/Counts are known results only/)).toBeTruthy();
   });
 
-  it('shows fleet posture and writes KPI filters to the canonical URL', async () => {
+  it('shows device status and writes KPI filters to the canonical URL', async () => {
     renderPage();
 
-    expect(await screen.findByText('Fleet posture')).toBeTruthy();
+    expect(await screen.findByText('Device status')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'AD: Available' })).toBeTruthy();
     expect(screen.getByText(/corp\.local/)).toBeTruthy();
-    expect(screen.getByText(/Posture counters cover unique devices/)).toBeTruthy();
+    expect(screen.getByText(/Status counts cover unique devices/)).toBeTruthy();
     expect(screen.getByText(/matching devices.*with stored Inventory.*merged candidates/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Filter clients by Missing Kaspersky (1)' }));
 
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/clients?posture=MISSING_KASPERSKY'));
     expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ statusFilter: 'MISSING_KASPERSKY', page: 1 });
-    expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('MISSING_KASPERSKY');
+    expect((screen.getByLabelText('Filter clients by status') as HTMLSelectElement).value).toBe('MISSING_KASPERSKY');
   });
 
   it('restores a posture drill-down from a direct URL', async () => {
     renderPage('/clients?posture=NESSUS_CRITICAL');
 
-    await screen.findByText('Fleet posture');
+    await screen.findByText('Device status');
     await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ statusFilter: 'NESSUS_CRITICAL', page: 1 }));
-    expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('NESSUS_CRITICAL');
+    expect((screen.getByLabelText('Filter clients by status') as HTMLSelectElement).value).toBe('NESSUS_CRITICAL');
   });
 
   it('restores the complete list state from a direct URL and resets it explicitly', async () => {
@@ -391,7 +391,7 @@ describe('ClientsPage', () => {
     await waitFor(() => expect(screen.getByTestId('location').textContent)
       .toBe('/clients?q=PC&posture=OUTDATED&source=OPSI'));
     expect((screen.getByLabelText('Filter clients') as HTMLInputElement).value).toBe('PC');
-    expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('OUTDATED');
+    expect((screen.getByLabelText('Filter clients by status') as HTMLSelectElement).value).toBe('OUTDATED');
   });
 
   it('debounces immediate text filtering to one server request for a typing burst', async () => {
@@ -407,9 +407,9 @@ describe('ClientsPage', () => {
 
   it('offers focused cleanup filters for stale and missing AD clients', async () => {
     renderPage();
-    await screen.findByText('Fleet posture');
+    await screen.findByText('Device status');
 
-    const filter = screen.getByLabelText('Filter clients by posture') as HTMLSelectElement;
+    const filter = screen.getByLabelText('Filter clients by status') as HTMLSelectElement;
     expect([...filter.options].map((option) => option.value)).toEqual(expect.arrayContaining([
       'STALE_AD', 'STALE_KASPERSKY', 'STALE_OPSI', 'MISSING_AD', 'DISABLED_AD',
     ]));
@@ -420,9 +420,9 @@ describe('ClientsPage', () => {
   it('falls back safely when the posture URL contains an unknown value', async () => {
     renderPage('/clients?posture=UNKNOWN');
 
-    await screen.findByText('Fleet posture');
+    await screen.findByText('Device status');
     await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ statusFilter: 'ALL', page: 1 }));
-    expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('ALL');
+    expect((screen.getByLabelText('Filter clients by status') as HTMLSelectElement).value).toBe('ALL');
   });
 
   it('filters by source on the host and opens the common detail route', async () => {

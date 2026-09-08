@@ -127,6 +127,10 @@ describe('responsive application shell', () => {
     expect(screen.getByTestId('application-main').hasAttribute('inert')).toBe(true);
     expect(within(drawer).getByRole('link', { name: 'Error log' })).toBeDefined();
     expect(within(drawer).getByRole('link', { name: 'Network Scan' })).toBeDefined();
+    expect(within(drawer).getByRole('link', { name: 'Clients' })).toBeDefined();
+    expect(within(drawer).getByRole('link', { name: 'Nessus vulnerabilities' })).toBeDefined();
+    expect(within(drawer).getByRole('link', { name: 'opsi & Winget' })).toBeDefined();
+    expect(within(drawer).getByRole('link', { name: 'Local report export' })).toBeDefined();
     expect(within(drawer).getByText('Administration')).toBeDefined();
     expect(within(drawer).queryByText('Netzwerkscan')).toBeNull();
     expect(within(drawer).queryByText('Verwaltung')).toBeNull();

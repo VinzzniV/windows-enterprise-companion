@@ -431,7 +431,7 @@ export function ClientsPage() {
   };
 
   return <div ref={pageRoot} className="flex flex-col gap-4">
-    <PageHeader title="Clients" subtitle="Canonical device inventory and fleet posture across AD, Kaspersky, opsi, Nessus and WEC scans">
+    <PageHeader title="Clients" subtitle="Combined device list and status across Active Directory, Kaspersky, opsi, Nessus and saved WEC scans">
       <div className="flex gap-2"><Button variant="secondary" onClick={() => navigate('/clients/compare')}>Compare</Button>
         <Button variant="secondary" onClick={probeOnline} disabled={probing || !rows.length}>{probing ? 'Checking…' : 'Check page connectivity'}</Button>
         <Button variant="secondary" onClick={() => { setAppliedSearch(search); updateListUrl({}, true); setRefreshRevision((current) => current + 1); }} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</Button></div>
@@ -443,7 +443,7 @@ export function ClientsPage() {
     />}
     {workspace && <section className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2.5" aria-labelledby="fleet-posture-heading">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 id="fleet-posture-heading" className="text-sm font-semibold text-slate-200">Fleet posture</h2>
+        <h2 id="fleet-posture-heading" className="text-sm font-semibold text-slate-200">Device status</h2>
         <EnvironmentSourceBadge name="AD" state={workspace.sources.activeDirectory} />
         <EnvironmentSourceBadge name="Kaspersky" state={workspace.sources.kaspersky} />
         <EnvironmentSourceBadge name="opsi" state={workspace.sources.opsi} />
@@ -453,14 +453,14 @@ export function ClientsPage() {
       {!coverageComplete && <p className="mt-2 text-xs text-warn-300" role="status">
         Counts are known results only; one or more sources have incomplete coverage.
       </p>}
-      <p className="mt-2 text-xs text-slate-400" title="Stored-only and saved-only clients remain in the table but are excluded from posture counters.">
-        Posture counters cover unique devices in the current AD, Kaspersky, opsi and Nessus assessment before table filters.
+      <p className="mt-2 text-xs text-slate-400" title="Stored-only and saved-only clients remain in the table but are excluded from status counts.">
+        Status counts cover unique devices in the current AD, Kaspersky, opsi and Nessus assessment before table filters.
         Stored-Inventory-only and saved-target-only devices are excluded from these counters.
       </p>
       <div className="mt-2">
-        <DetailsDisclosure summary={`${workspace.summary.total} assessed · ${workspace.summary.problems} known problem devices · ${workspace.summary.incomplete} with incomplete coverage — show posture filters`}>
+        <DetailsDisclosure summary={`${workspace.summary.total} evaluated · ${workspace.summary.problems} known problem devices · ${workspace.summary.incomplete} with incomplete coverage — show status filters`}>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-2">
-        <SummaryMetric label="Devices in this assessment" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
+        <SummaryMetric label="Evaluated devices" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
         <SummaryMetric label="Healthy" value={workspace.summary.healthy} tone="success" onClick={() => applyPostureFilter('HEALTHY')} active={postureFilter === 'HEALTHY'} ariaLabel={`Filter clients by Healthy (${workspace.summary.healthy})`} />
         <SummaryMetric label="Known problem devices" value={workspace.summary.problems} tone={zeroKnownTone(workspace.summary.problems, 'warning')} onClick={() => applyPostureFilter('PROBLEMS')} active={postureFilter === 'PROBLEMS'} ariaLabel={`Filter clients by Problems (${workspace.summary.problems})`} />
         <SummaryMetric label="Devices with incomplete coverage" value={workspace.summary.incomplete} tone={workspace.summary.incomplete ? 'warning' : 'success'} onClick={() => applyPostureFilter('INCOMPLETE')} active={postureFilter === 'INCOMPLETE'} ariaLabel={`Filter clients by Incomplete (${workspace.summary.incomplete})`} />
@@ -474,14 +474,14 @@ export function ClientsPage() {
           </div>
         </DetailsDisclosure>
       </div>
-      <p className="mt-2 text-xs text-muted">{workspace.domainName ? `AD domain ${workspace.domainName} · ` : ''}Read-only posture; no remediation starts from this view.</p>
+      <p className="mt-2 text-xs text-muted">{workspace.domainName ? `AD domain ${workspace.domainName} · ` : ''}Read-only status; no remediation starts from this view.</p>
     </section>}
     <Toolbar actions={<>
       <span className="text-xs tabular-nums text-muted">{selectedHosts.length}/{maxBatchHosts ?? '—'} selected</span>
       <Button variant="ghost" onClick={selectVisibleHosts} disabled={batchRunning || maxBatchHosts === null || !rows.length || selectedHosts.length >= maxBatchHosts}>Select page</Button>
       <Button variant="ghost" onClick={() => setSelectedHosts([])} disabled={batchRunning || !selectedHosts.length}>Clear selection</Button>
     </>}><Input type="search" value={search} onChange={(event) => updateListUrl({ q: event.target.value }, true)} placeholder="Filter by device, OS or finding" aria-label="Filter clients" className="w-64" />
-      <Select fullWidth={false} value={postureFilter} onChange={(event) => applyPostureFilter(event.target.value as ClientPostureFilter)} aria-label="Filter clients by posture">
+      <Select fullWidth={false} value={postureFilter} onChange={(event) => applyPostureFilter(event.target.value as ClientPostureFilter)} aria-label="Filter clients by status">
         {clientPostureFilters.map((value) => <option key={value} value={value}>{clientPostureLabels[value]}</option>)}
       </Select>
       <Select fullWidth={false} value={sourceFilter} onChange={(event) => updateListUrl({ source: event.target.value === 'ALL' ? null : event.target.value }, true)} aria-label="Filter clients by source">

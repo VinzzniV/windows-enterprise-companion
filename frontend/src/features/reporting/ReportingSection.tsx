@@ -153,6 +153,7 @@ export function ReportingSection({
           </div>
           <ul className="grid gap-2 xl:grid-cols-2">
             {overview.readiness.sources.map((source) => {
+              const sourceLabel = source.source === 'Security posture' ? 'Security status' : source.source;
               const sourceLink = source.source === 'Hardware inventory'
                 ? sourceLinks?.inventory
                 : source.source === 'Security posture'
@@ -166,7 +167,7 @@ export function ReportingSection({
               return (
                 <li key={source.source} className="rounded border border-slate-800 bg-slate-950/40 p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium text-slate-200">{source.source}</span>
+                    <span className="font-medium text-slate-200">{sourceLabel}</span>
                     <SemanticStatusBadge status={reportSourceStatus(source.state)} />
                   </div>
                   <p className="mt-1 text-sm text-slate-300">{source.summary}</p>
@@ -227,7 +228,7 @@ export function ReportingSection({
           )}
           <dt className="text-slate-400">Health</dt>
           <dd className="text-slate-400">
-            Not included — Health is outside the report read contract. Export does not run checks or include the latest saved health snapshot.
+            Not included in this report. Export does not run checks or include the latest saved Health results.
           </dd>
         </dl>
         <p className="mt-3 text-xs text-muted">

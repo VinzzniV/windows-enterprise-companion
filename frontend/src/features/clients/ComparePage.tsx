@@ -133,12 +133,12 @@ function EvidenceUsed({ comparison }: { comparison: Comparison }) {
   };
 
   return (
-    <Card title="Evidence used">
+    <Card title="Data used">
       <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         {[comparison.a, comparison.b].map((side) => {
           const evidence = describeSide(side);
           return (
-            <section key={side.host} aria-label={`Evidence for ${side.host}`} className="rounded border border-slate-800 p-3">
+            <section key={side.host} aria-label={`Data for ${side.host}`} className="rounded border border-slate-800 p-3">
               <h3 className="font-medium text-slate-200">{side.host}</h3>
               <ul className="mt-1 flex flex-col gap-1 text-slate-400">
                 <li>{evidence.inventory}</li>
@@ -404,7 +404,7 @@ export function ComparePage() {
 
       <p className="text-xs text-slate-400">
         Choices combine enabled computers from the current AD search, stored Inventory and Security hosts, and saved client
-        targets. Unlike Clients posture, this picker excludes disabled AD computers and does not add Kaspersky-, opsi- or
+        targets. Unlike the Clients device-status view, this picker excludes disabled AD computers and does not add Kaspersky-, opsi- or
         Nessus-only devices unless they also occur in a stored or saved source. Availability reflects the latest stored
         timestamps; comparison reads stored data and never starts a scan.
       </p>
@@ -516,7 +516,7 @@ export function ComparePage() {
                 <Card title="Security comparison coverage">
                   <p className="text-sm text-warn-400">
                     The finding comparison is observational only: at least one scan has incomplete or legacy
-                    coverage, so missing findings are not evidence that a condition is absent.
+                    coverage, so missing findings do not prove that a condition is absent.
                   </p>
                 </Card>
               )}

@@ -44,8 +44,13 @@ days, labels both axes, exposes accessible daily values and separates all-asset
 daily totals from the common-asset verdict. The response and UI state the
 start/end cohort, added/removed assets and first deciding severity while
 preserving the existing Critical-to-Low policy. Focused tests and both builds
-are green. The active slice is M16: navigation naming and information-density
-cleanup.
+are green. M16 now names Kaspersky, opsi and Nessus in the existing workflows,
+marks local Security and report entry points before navigation, and centralizes
+Client Overview freshness and coverage while removing repeated source badges.
+Internal routes, anchors and configuration contracts remain unchanged. All
+implementable M01-M16 work is complete and verified. External acceptance gates
+remain for the M07 keyboard smoke, M08/M09 physical WebView layout checks and
+the short M16 human comprehension test.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.

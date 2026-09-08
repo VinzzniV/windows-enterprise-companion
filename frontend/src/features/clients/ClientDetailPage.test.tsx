@@ -227,7 +227,7 @@ describe('ClientDetailPage', () => {
 
     expect(await screen.findByText('Remote account: current Windows user')).toBeDefined(); // remote → creds needed
     expect((await screen.findByRole('tab', { name: 'Overview' })).getAttribute('aria-selected')).toBe('true');
-    expect(await screen.findByText('Client 360 evidence snapshot')).toBeDefined();
+    expect(await screen.findByText('Client overview')).toBeDefined();
     expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Load management sources' }));
     expect(await screen.findByText('Environment assessment')).toBeDefined();

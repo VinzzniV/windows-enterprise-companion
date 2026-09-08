@@ -96,10 +96,15 @@ describe('OverviewSection', () => {
     renderOverview();
 
     expect(await screen.findByText('Windows 11 Enterprise')).toBeDefined();
+    expect(screen.getByText('Client overview')).toBeDefined();
+    expect(screen.getByText('Data freshness and coverage')).toBeDefined();
     expect(screen.getByText('Service stopped')).toBeDefined();
     expect(screen.getAllByText('Stale').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Open Health' }).getAttribute('href'))
       .toBe('/clients/PC-42.corp.local?section=diagnostics');
+    fireEvent.click(screen.getAllByText('Why this status')[0]);
+    expect(screen.getByText('Hardware and operating-system snapshot available.')).toBeDefined();
+    expect(screen.getAllByText(/Captured/).length).toBeGreaterThan(0);
     expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(false);
     expect(invokeMock.mock.calls.some((call) => call[0] === 'connectivity')).toBe(false);
   });
@@ -136,7 +141,7 @@ describe('OverviewSection', () => {
 
     await screen.findByText('No stored software capture.');
     expect(screen.getByText('No stored Security scan.')).toBeDefined();
-    expect(screen.getAllByText('Missing')).toHaveLength(4);
+    expect(screen.getAllByText('Missing')).toHaveLength(2);
   });
 
   it('shows installed-software and Security context with reliable deep links', async () => {
@@ -158,6 +163,7 @@ describe('OverviewSection', () => {
     expect(screen.getByText(/Last interactive user/)).toBeDefined();
     expect(screen.getByText(/not an ownership claim/)).toBeDefined();
     expect(screen.getByText(/2 additional local profiles/)).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Open Inventory details' })).toBeDefined();
     expect(invokeMock.mock.calls.some((call) => call[0] === 'usermanagement')).toBe(false);
     expect(invokeMock.mock.calls.some((call) => call[0] === 'activedirectory')).toBe(false);
   });
