@@ -48,7 +48,7 @@ public sealed class ItHygieneServiceTests
     public void Correlation_NormalizesCaseAndFqdn()
     {
         IReadOnlyList<HygieneDevice> devices = Correlate(
-            [Ad("pc001.example.test")],
+            [Ad("pc001")],
             [Ksc("PC001")]);
 
         HygieneDevice device = Assert.Single(devices);
@@ -56,6 +56,27 @@ public sealed class ItHygieneServiceTests
         Assert.True(device.ActiveDirectory.Exists);
         Assert.True(device.Kaspersky.Exists);
         Assert.Equal(HygieneStatus.Healthy, device.Assessment.Status);
+        Assert.Equal("pc001.example.test", device.HostName);
+    }
+
+    [Fact]
+    public void Correlation_DoesNotMergeAnAmbiguousShortAliasAcrossDomains()
+    {
+        var domainA = new AdComputerInventoryItem(
+            "PC-01", "PC-01.domain-a.example", null, null, true,
+            "CN=PC-01,DC=domain-a,DC=example", Now);
+        var domainB = new AdComputerInventoryItem(
+            "PC-01", "PC-01.domain-b.example", null, null, true,
+            "CN=PC-01,DC=domain-b,DC=example", Now);
+
+        IReadOnlyList<HygieneDevice> devices = Correlate(
+            [domainA, domainB],
+            [Ksc("PC-01")]);
+
+        Assert.Equal(3, devices.Count);
+        Assert.Contains(devices, device => device.HostName == "PC-01.domain-a.example");
+        Assert.Contains(devices, device => device.HostName == "PC-01.domain-b.example");
+        Assert.Contains(devices, device => device.HostName == "PC-01" && device.Kaspersky.Exists);
     }
 
     [Fact]
@@ -128,10 +149,10 @@ public sealed class ItHygieneServiceTests
     }
 
     [Theory]
-    [InlineData(" pc001.EXAMPLE.test ", "PC001")]
+    [InlineData(" pc001.EXAMPLE.test ", "PC001.EXAMPLE.TEST")]
     [InlineData("PC002.", "PC002")]
     [InlineData("", "")]
-    public void ComputerNameNormalization_ReturnsShortUppercaseName(string input, string expected)
+    public void ComputerNameNormalization_PreservesTheCompleteUppercaseIdentity(string input, string expected)
     {
         Assert.Equal(expected, ItHygieneService.NormalizeComputerName(input));
     }
@@ -516,15 +537,19 @@ public sealed class ItHygieneServiceTests
         string name,
         bool enabled = true,
         DateTimeOffset? lastLogon = null,
-        string? operatingSystem = null) =>
-        new(
-            name,
-            $"{name}.example.test",
+        string? operatingSystem = null)
+    {
+        string computerName = name.Split('.')[0];
+        string dnsHostName = name.Contains('.', StringComparison.Ordinal) ? name : $"{name}.example.test";
+        return new(
+            computerName,
+            dnsHostName,
             operatingSystem,
             "Test client",
             enabled,
             $"CN={name},OU=Clients,DC=example,DC=test",
             lastLogon ?? Now.AddDays(-1));
+    }
 
     private static KasperskyComputer Ksc(
         string name,

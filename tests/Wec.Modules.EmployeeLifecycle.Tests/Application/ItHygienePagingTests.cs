@@ -139,7 +139,7 @@ public sealed class ItHygienePagingTests
             Device("ALPHA", HygieneStatus.Healthy));
         InventoryClientSnapshotHost[] scanned =
         [
-            new("alpha.other.test", DateTimeOffset.UnixEpoch.AddHours(1)),
+            new("alpha", DateTimeOffset.UnixEpoch.AddHours(1)),
             new("SCAN-ONLY", DateTimeOffset.UnixEpoch.AddHours(2)),
         ];
         SavedClientTarget[] saved =
@@ -252,7 +252,7 @@ public sealed class ItHygienePagingTests
     }
 
     [Fact]
-    public void ClientWorkspaceSummaryMatchesTheDeduplicatedCanonicalRows()
+    public void ClientWorkspacePreservesEqualShortNamesFromDifferentDomains()
     {
         HygieneDevice missing = Device("DUPLICATE", HygieneStatus.Warning, HygieneFindingCode.MissingKaspersky);
         HygieneDevice canonical = Device("DUPLICATE", HygieneStatus.Healthy) with
@@ -270,9 +270,26 @@ public sealed class ItHygienePagingTests
 
         Assert.Equal(2, result.Summary.Total);
         Assert.Equal(1, result.Summary.MissingKaspersky);
-        Assert.Equal(1, page.SnapshotTotal);
-        Assert.Equal(1, page.Summary.Total);
-        Assert.Equal(0, page.Summary.MissingKaspersky);
+        Assert.Equal(2, page.SnapshotTotal);
+        Assert.Equal(2, page.Summary.Total);
+        Assert.Equal(1, page.Summary.MissingKaspersky);
+    }
+
+    [Fact]
+    public void ClientWorkspacePreservesCompleteIpAddresses()
+    {
+        ClientWorkspacePage page = ClientWorkspacePaging.Page(
+            ResultAt(DateTimeOffset.UnixEpoch),
+            [
+                new InventoryClientSnapshotHost("10.20.30.40", DateTimeOffset.UnixEpoch),
+                new InventoryClientSnapshotHost("10.99.1.2", DateTimeOffset.UnixEpoch),
+            ],
+            [],
+            new ListClientWorkspaceRequest());
+
+        Assert.Equal(2, page.SnapshotTotal);
+        Assert.Contains(page.Items, item => item.Key == "10.20.30.40");
+        Assert.Contains(page.Items, item => item.Key == "10.99.1.2");
     }
 
     [Fact]

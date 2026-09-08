@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Wec.Core.Targets;
 using Wec.Modules.Inventory.Domain;
 
 namespace Wec.Modules.Inventory.Persistence;
@@ -22,8 +23,12 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
 
     public async Task<CachedHardwareSnapshot?> GetLatestAsync(string hostKey, CancellationToken cancellationToken)
     {
+        string identityKey = DeviceIdentity.NormalizeHost(hostKey);
         HardwareSnapshotRecord? record = await _dbContext.Set<HardwareSnapshotRecord>()
-            .Where(snapshot => snapshot.Host == hostKey)
+            .AsNoTracking()
+            .Where(snapshot => snapshot.IdentityKey == identityKey
+                || (snapshot.IdentityKey == null
+                    && EF.Functions.Collate(snapshot.Host.Trim(), "NOCASE") == identityKey))
             .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -55,10 +60,15 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
             .ToListAsync(cancellationToken);
     }
 
-    public Task DeleteAsync(string hostKey, CancellationToken cancellationToken) =>
-        _dbContext.Set<HardwareSnapshotRecord>()
-            .Where(snapshot => snapshot.Host == hostKey)
+    public Task DeleteAsync(string hostKey, CancellationToken cancellationToken)
+    {
+        string identityKey = DeviceIdentity.NormalizeHost(hostKey);
+        return _dbContext.Set<HardwareSnapshotRecord>()
+            .Where(snapshot => snapshot.IdentityKey == identityKey
+                || (snapshot.IdentityKey == null
+                    && EF.Functions.Collate(snapshot.Host.Trim(), "NOCASE") == identityKey))
             .ExecuteDeleteAsync(cancellationToken);
+    }
 
     public async Task SaveAsync(
         string hostKey,
@@ -66,17 +76,18 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
         DateTimeOffset capturedAtUtc,
         CancellationToken cancellationToken)
     {
-        // One cache entry per host; replace instead of accumulating history
-        await _dbContext.Set<HardwareSnapshotRecord>()
-            .Where(existing => existing.Host == hostKey)
-            .ExecuteDeleteAsync(cancellationToken);
-
-        _dbContext.Set<HardwareSnapshotRecord>().Add(new HardwareSnapshotRecord
-        {
-            Host = hostKey,
-            CapturedAtUtc = capturedAtUtc,
-            PayloadJson = JsonSerializer.Serialize(snapshot),
-        });
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        string identityKey = DeviceIdentity.NormalizeHost(hostKey);
+        string payloadJson = JsonSerializer.Serialize(snapshot);
+        long capturedAtUtcTicks = capturedAtUtc.ToUniversalTime().Ticks;
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO inventory_hardware_snapshots (host, identity_key, captured_at_utc, payload_json)
+            VALUES ({identityKey}, {identityKey}, {capturedAtUtcTicks}, {payloadJson})
+            ON CONFLICT(identity_key) WHERE identity_key IS NOT NULL
+            DO UPDATE SET
+                host = excluded.host,
+                captured_at_utc = excluded.captured_at_utc,
+                payload_json = excluded.payload_json
+            WHERE excluded.captured_at_utc >= inventory_hardware_snapshots.captured_at_utc
+            """, cancellationToken);
     }
 }

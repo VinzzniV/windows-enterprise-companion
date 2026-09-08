@@ -37,6 +37,7 @@ const loadedState: AppInfoState = {
     maxParallelScans: 4,
     maxBatchHosts: 50,
     machineName: 'TESTHOST',
+    machineFqdn: 'TESTHOST.corp.example',
     runtimeProfile: 'Installed',
   },
 };

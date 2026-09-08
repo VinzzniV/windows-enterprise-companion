@@ -57,6 +57,7 @@ beforeEach(() => {
         maxParallelScans: 4,
         maxBatchHosts: 50,
         machineName: 'TEST-PC',
+        machineFqdn: 'TEST-PC.corp.example',
         runtimeProfile: 'test',
       });
     }

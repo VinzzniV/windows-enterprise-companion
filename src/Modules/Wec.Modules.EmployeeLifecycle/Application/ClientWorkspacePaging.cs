@@ -1,4 +1,5 @@
 using Wec.Core.Contracts;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
@@ -130,14 +131,16 @@ internal static class ClientWorkspacePaging
         IReadOnlyList<SavedClientTarget> savedClients)
     {
         var byKey = new Dictionary<string, ClientWorkspaceEntry>(StringComparer.OrdinalIgnoreCase);
+        var aliasOwners = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (HygieneDevice device in devices)
         {
             string host = device.HostName;
-            byKey[ClientKey(host)] = new ClientWorkspaceEntry
+            string key = ClientKey(host);
+            byKey[key] = new ClientWorkspaceEntry
             {
                 Host = host,
-                Key = ClientKey(host),
+                Key = key,
                 Name = device.ComputerName,
                 Os = device.ActiveDirectory.OperatingSystem,
                 Description = device.ActiveDirectory.Description,
@@ -145,6 +148,18 @@ internal static class ClientWorkspacePaging
                 InAd = device.ActiveDirectory.Exists,
                 Environment = device,
             };
+            foreach (string alias in new[] { device.ComputerName, device.HostName }
+                         .Append(key)
+                         .Where(alias => !string.IsNullOrWhiteSpace(alias)))
+            {
+                string normalizedAlias = ClientKey(alias);
+                if (!aliasOwners.TryGetValue(normalizedAlias, out HashSet<string>? owners))
+                {
+                    owners = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    aliasOwners[normalizedAlias] = owners;
+                }
+                owners.Add(key);
+            }
         }
 
         foreach (InventoryClientSnapshotHost stored in scannedHosts)
@@ -154,7 +169,7 @@ internal static class ClientWorkspacePaging
                 continue;
             }
 
-            string key = ClientKey(stored.Host);
+            string key = ResolveClientKey(stored.Host, byKey, aliasOwners);
             if (!byKey.TryGetValue(key, out ClientWorkspaceEntry? client))
             {
                 client = new ClientWorkspaceEntry
@@ -173,7 +188,7 @@ internal static class ClientWorkspacePaging
 
         foreach (SavedClientTarget target in savedClients)
         {
-            string key = ClientKey(target.Host);
+            string key = ResolveClientKey(target.Host, byKey, aliasOwners);
             if (!byKey.TryGetValue(key, out ClientWorkspaceEntry? client))
             {
                 client = new ClientWorkspaceEntry
@@ -302,8 +317,23 @@ internal static class ClientWorkspacePaging
         return dash <= 0 ? "Other" : name[..dash].Trim().ToUpperInvariant() is { Length: > 0 } site ? site : "Other";
     }
 
-    private static string ClientKey(string host) =>
-        host.Trim().Split('.')[0].ToUpperInvariant();
+    private static string ClientKey(string host) => DeviceIdentity.NormalizeHost(host);
+
+    private static string ResolveClientKey(
+        string host,
+        Dictionary<string, ClientWorkspaceEntry> clients,
+        Dictionary<string, HashSet<string>> aliasOwners)
+    {
+        string candidate = ClientKey(host);
+        if (clients.ContainsKey(candidate))
+        {
+            return candidate;
+        }
+
+        return aliasOwners.TryGetValue(candidate, out HashSet<string>? owners) && owners.Count == 1
+            ? owners.Single()
+            : candidate;
+    }
 
     private sealed class ClientWorkspaceEntry
     {

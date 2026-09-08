@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
@@ -125,7 +126,7 @@ internal sealed class ClientOverviewService
 
     public async Task<ClientOverviewResult> GetAsync(string host, CancellationToken cancellationToken)
     {
-        string? providerHost = IsLocalHost(host) ? null : host;
+        string? providerHost = DeviceIdentity.IsLocalHost(host) ? null : host;
         InventoryReportData? inventory = await _inventory.GetLatestAsync(providerHost, cancellationToken);
         InstalledSoftwareSnapshotData? software = await _software.GetLatestAsync(providerHost, cancellationToken);
         DeviceHealthSnapshotData? health = await _health.GetLatestAsync(providerHost, cancellationToken);
@@ -315,9 +316,4 @@ internal sealed class ClientOverviewService
             : $"Software capture failed ({software.ErrorCode}).";
     }
 
-    private static bool IsLocalHost(string host)
-    {
-        string candidate = host.Trim().Split('.')[0];
-        return string.Equals(candidate, Environment.MachineName, StringComparison.OrdinalIgnoreCase);
-    }
 }

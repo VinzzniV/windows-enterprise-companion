@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { AdComputer, SavedTarget, StoredInventoryHost, StoredSecurityScanHost } from '../../shared/api-types';
+import type { AdComputer, HygieneDevice, SavedTarget, StoredInventoryHost, StoredSecurityScanHost } from '../../shared/api-types';
 import {
   buildClientList,
+  findClientByHost,
+  findDeviceByHost,
   filterClients,
   groupClients,
   isLocalClient,
@@ -70,6 +72,29 @@ describe('buildClientList', () => {
       inAd: false,
     });
   });
+
+  it('keeps full IP addresses and ambiguous DNS short names separate', () => {
+    const list = buildClientList(
+      [
+        ad({ name: 'PC-01', dnsHostName: 'pc-01.domain-a.example' }),
+        ad({ name: 'PC-01', dnsHostName: 'pc-01.domain-b.example' }),
+      ],
+      [
+        { host: '10.20.30.40', capturedAtUtc: '2026-07-01T00:00:00Z' },
+        { host: '10.99.1.2', capturedAtUtc: '2026-07-01T00:00:00Z' },
+        { host: 'PC-01', capturedAtUtc: '2026-07-01T00:00:00Z' },
+      ],
+      [],
+    );
+
+    expect(list.map((client) => client.key)).toEqual(expect.arrayContaining([
+      'PC-01.DOMAIN-A.EXAMPLE',
+      'PC-01.DOMAIN-B.EXAMPLE',
+      'PC-01',
+      '10.20.30.40',
+      '10.99.1.2',
+    ]));
+  });
 });
 
 describe('filterClients', () => {
@@ -85,11 +110,58 @@ describe('filterClients', () => {
   });
 });
 
+describe('findDeviceByHost', () => {
+  const device = (computerName: string, hostName: string): HygieneDevice => ({
+    computerName,
+    hostName,
+  } as HygieneDevice);
+
+  it('resolves a proven unique legacy short-name alias', () => {
+    const expected = device('PC-01', 'pc-01.corp.example');
+
+    expect(findDeviceByHost([expected], 'pc-01')).toBe(expected);
+  });
+
+  it('prefers exact identities and rejects ambiguous short-name aliases', () => {
+    const first = device('PC-01', 'pc-01.domain-a.example');
+    const second = device('PC-01', 'pc-01.domain-b.example');
+
+    expect(findDeviceByHost([first, second], 'pc-01.domain-b.example')).toBe(second);
+    expect(findDeviceByHost([first, second], 'pc-01')).toBeNull();
+  });
+});
+
+describe('findClientByHost', () => {
+  it('transitions unique short-name references but rejects ambiguous aliases', () => {
+    const unique = buildClientList(
+      [ad({ name: 'PC-01', dnsHostName: 'pc-01.corp.example' })],
+      [],
+      [],
+    );
+    const ambiguous = buildClientList(
+      [
+        ad({ name: 'PC-01', dnsHostName: 'pc-01.domain-a.example' }),
+        ad({ name: 'PC-01', dnsHostName: 'pc-01.domain-b.example' }),
+      ],
+      [],
+      [],
+    );
+
+    expect(findClientByHost(unique, 'PC-01')).toBe(unique[0]);
+    expect(findClientByHost(ambiguous, 'pc-01.domain-b.example')).toBe(ambiguous[1]);
+    expect(findClientByHost(ambiguous, 'PC-01')).toBeNull();
+  });
+});
+
 describe('isLocalClient / toClientTarget', () => {
-  it('treats this machine (short name, any case) as local → null target', () => {
+  it('uses only exact verified local aliases', () => {
     expect(isLocalClient('DESKTOP-1', 'desktop-1')).toBe(true);
-    expect(isLocalClient('desktop-1.corp.local', 'DESKTOP-1')).toBe(true);
+    expect(isLocalClient('desktop-1.corp.local', 'DESKTOP-1', 'desktop-1.corp.local')).toBe(true);
+    expect(isLocalClient('desktop-1.foreign.invalid', 'DESKTOP-1', 'desktop-1.corp.local')).toBe(false);
     expect(toClientTarget('DESKTOP-1', 'desktop-1', undefined)).toBeNull();
+    expect(toClientTarget('desktop-1.foreign.invalid', 'DESKTOP-1', undefined, 'desktop-1.corp.local')).toEqual({
+      host: 'desktop-1.foreign.invalid',
+    });
   });
 
   it('remote host with no credentials scans as the current user', () => {

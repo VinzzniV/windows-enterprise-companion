@@ -33,6 +33,28 @@ public sealed class TargetRequestTests
         Assert.Equal("pc-042.contoso.local", target.DisplayName);
     }
 
+    [Theory]
+    [InlineData("10.20.30.40", "10.20.30.40")]
+    [InlineData("10.99.1.2", "10.99.1.2")]
+    [InlineData(" pc-042.contoso.local. ", "PC-042.CONTOSO.LOCAL")]
+    public void CacheKey_PreservesTheCompleteNormalizedTarget(string host, string expected)
+    {
+        Assert.Equal(expected, ScanTarget.Remote(host).CacheKey);
+    }
+
+    [Fact]
+    public void ShortDnsAlias_IsNeverDerivedFromAnIpAddress()
+    {
+        Assert.Null(DeviceIdentity.GetShortDnsAlias("10.20.30.40"));
+        Assert.Equal("PC-042", DeviceIdentity.GetShortDnsAlias("pc-042.contoso.local"));
+    }
+
+    [Fact]
+    public void ForeignFqdnWithTheLocalShortName_IsNotLocal()
+    {
+        Assert.False(DeviceIdentity.IsLocalHost($"{Environment.MachineName}.foreign.invalid"));
+    }
+
     [Fact]
     public void ToScanCredentials_WithoutUserName_IsCurrentUser()
     {

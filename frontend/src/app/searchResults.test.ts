@@ -40,7 +40,7 @@ describe('global search result builders', () => {
     ]));
   });
 
-  it('merges client evidence by short host name and keeps the result set bounded', () => {
+  it('merges client evidence through a proven AD alias and keeps the result set bounded', () => {
     const inventory: StoredInventoryHost[] = [
       { host: 'PC-42', capturedAtUtc: '2026-08-27T08:00:00Z' },
       ...Array.from({ length: 8 }, (_, index) => ({
@@ -63,6 +63,33 @@ describe('global search result builders', () => {
     }));
     expect(results.find((result) => result.label === 'PC-42')?.description).toContain('Stored security');
     expect(results.find((result) => result.label === 'PC-42')?.description).toContain('Saved client');
+  });
+
+  it('keeps ambiguous domain identities and complete IP addresses separate', () => {
+    const directory = [
+      directoryComputer,
+      { ...directoryComputer, dnsHostName: 'pc-42.other.example', distinguishedName: 'CN=PC-42,DC=other,DC=example' },
+    ];
+    const inventory: StoredInventoryHost[] = [
+      { host: 'PC-42', capturedAtUtc: '2026-08-27T08:00:00Z' },
+      { host: '10.20.30.40', capturedAtUtc: '2026-08-27T08:00:00Z' },
+      { host: '10.99.1.2', capturedAtUtc: '2026-08-27T08:00:00Z' },
+    ];
+
+    const results = clientResults('', directory, inventory, [], []);
+
+    expect(results).toEqual([]);
+    const named = clientResults('PC-42', directory, inventory, [], []);
+    expect(named).toHaveLength(3);
+    expect(named.map((result) => result.to)).toEqual(expect.arrayContaining([
+      '/clients/pc-42.corp.example',
+      '/clients/pc-42.other.example',
+      '/clients/PC-42',
+    ]));
+    expect(clientResults('10.', [], inventory, [], []).map((result) => result.to)).toEqual([
+      '/clients/10.20.30.40',
+      '/clients/10.99.1.2',
+    ]);
   });
 
   it('maps directory users and saved server roles to stable deep links', () => {

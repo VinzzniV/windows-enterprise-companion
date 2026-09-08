@@ -113,6 +113,7 @@ export function ComparePage() {
   const [scannedHosts, setScannedHosts] = useState<StoredInventoryHost[]>([]);
   const [securityHosts, setSecurityHosts] = useState<StoredSecurityScanHost[]>([]);
   const [machineName, setMachineName] = useState<string | null>(null);
+  const [machineFqdn, setMachineFqdn] = useState<string | null>(null);
   const [selectionSourceErrors, setSelectionSourceErrors] = useState<SelectionSourceErrors>({});
   const [selectionSourcesLoading, setSelectionSourcesLoading] = useState(true);
   const [hostA, setHostA] = useState('');
@@ -174,11 +175,13 @@ export function ComparePage() {
 
     if (appInfoResult.status === 'fulfilled' && appInfoResult.value.machineName.trim() !== '') {
       setMachineName(appInfoResult.value.machineName);
+      setMachineFqdn(appInfoResult.value.machineFqdn);
     } else {
       const reason = appInfoResult.status === 'rejected'
         ? appInfoResult.reason
         : new Error('The desktop host returned an empty machine name.');
       setMachineName(null);
+      setMachineFqdn(null);
       errors.identity = presentError(reason, {
         message: 'The local machine identity could not be verified.',
         cause: 'The comparison cannot safely distinguish the local device from a remote target.',
@@ -205,7 +208,7 @@ export function ComparePage() {
 
   const loadSide = useCallback(
     async (host: string): Promise<SideData> => {
-      const target = toClientTarget(host, machineName, undefined);
+      const target = toClientTarget(host, machineName, undefined, machineFqdn);
       const [inventory, scan] = await Promise.all([
         invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', {
           target,
@@ -238,7 +241,7 @@ export function ComparePage() {
       ]);
       return { host, inventory, scan };
     },
-    [machineName],
+    [machineFqdn, machineName],
   );
 
   const compare = useCallback(async () => {

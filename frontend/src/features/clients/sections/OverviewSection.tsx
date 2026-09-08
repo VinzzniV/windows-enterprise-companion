@@ -21,7 +21,7 @@ import { Card } from '../../../shared/ui/Card';
 import { DetailsDisclosure } from '../../../shared/ui/DetailsDisclosure';
 import { CompactErrorState, ErrorState } from '../../../shared/ui/States';
 import type { SemanticStatus } from '../../../shared/ui/SemanticStatusBadge';
-import { clientKey } from '../clients';
+import { findDeviceByHost } from '../clients';
 import {
   ClientSemanticStatus,
   hygieneAssessmentStatus,
@@ -350,7 +350,7 @@ function ManagementContext({ host, overview }: { host: string; overview: ClientO
       <Button onClick={() => { void environment.ensureLoaded(); }}>Load management sources</Button>
     </div>
   </Card>;
-  const device = environment.result.devices.find((entry) => clientKey(entry.hostName) === clientKey(host) || clientKey(entry.computerName) === clientKey(host));
+  const device = findDeviceByHost(environment.result.devices, host);
   return device ? <DeviceOverview device={device} overview={overview} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
 }
 

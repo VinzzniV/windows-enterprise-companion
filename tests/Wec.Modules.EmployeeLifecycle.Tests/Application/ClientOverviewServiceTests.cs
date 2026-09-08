@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
+using Wec.Core.Targets;
 using Wec.Modules.EmployeeLifecycle.Application;
 
 namespace Wec.Modules.EmployeeLifecycle.Tests.Application;
@@ -69,13 +70,14 @@ public sealed class ClientOverviewServiceTests
     }
 
     [Fact]
-    public async Task LocalFqdn_UsesLocalProviderKeysAndFutureTimestampIsUnknown()
+    public async Task VerifiedLocalAlias_UsesLocalProviderKeysAndFutureTimestampIsUnknown()
     {
-        string localFqdn = $"{Environment.MachineName}.corp.example";
+        IReadOnlyList<string> localAliases = DeviceIdentity.LocalHostAliases();
+        string localHost = localAliases[localAliases.Count - 1];
         _health.GetLatestAsync(host: null, Arg.Any<CancellationToken>())
             .Returns(Health(Now.AddMinutes(5)));
 
-        ClientOverviewResult result = await CreateService().GetAsync(localFqdn, CancellationToken.None);
+        ClientOverviewResult result = await CreateService().GetAsync(localHost, CancellationToken.None);
 
         Assert.Equal(ClientOverviewFreshness.Unknown, result.Health!.Metadata.Freshness);
         Assert.Null(result.Health.Metadata.AgeSeconds);
@@ -84,6 +86,20 @@ public sealed class ClientOverviewServiceTests
         await _health.Received(1).GetLatestAsync(host: null, Arg.Any<CancellationToken>());
         await _security.Received(1).GetLatestScanAsync(host: null, Arg.Any<CancellationToken>());
         await _clientUsers.Received(1).GetLatestAsync(host: null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ForeignFqdnWithTheLocalShortName_RemainsRemote()
+    {
+        string foreignHost = $"{Environment.MachineName}.foreign.invalid";
+
+        await CreateService().GetAsync(foreignHost, CancellationToken.None);
+
+        await _inventory.Received(1).GetLatestAsync(foreignHost, Arg.Any<CancellationToken>());
+        await _software.Received(1).GetLatestAsync(foreignHost, Arg.Any<CancellationToken>());
+        await _health.Received(1).GetLatestAsync(foreignHost, Arg.Any<CancellationToken>());
+        await _security.Received(1).GetLatestScanAsync(foreignHost, Arg.Any<CancellationToken>());
+        await _clientUsers.Received(1).GetLatestAsync(foreignHost, Arg.Any<CancellationToken>());
     }
 
     [Fact]

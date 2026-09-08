@@ -80,6 +80,10 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 - Device Cleanup is a guided read-only assessment. It reuses hygiene and stored
   Inventory/user evidence, runs Ping/WinRM only after an explicit action, keeps
   decisions in the current frontend session and exposes no AD write action.
+- Device identity keeps the complete normalized hostname, FQDN or IP as its
+  key. Short names are aliases only when one source proves an unambiguous
+  relation. Inventory uses a non-destructive nullable transition key and atomic
+  newest-capture-wins replacement (ADR 0021).
 
 ## Current program
 

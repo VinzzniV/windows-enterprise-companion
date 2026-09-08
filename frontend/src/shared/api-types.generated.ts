@@ -156,6 +156,7 @@ export interface AppInfoResponse {
   maxParallelScans: number;
   maxBatchHosts: number;
   machineName: string;
+  machineFqdn: string | null;
   runtimeProfile: string;
 }
 

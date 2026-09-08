@@ -141,6 +141,7 @@ describe('ClientDetailPage', () => {
           isElevated: false,
           maxParallelScans: 4,
           machineName: 'WEC-HOST',
+          machineFqdn: 'WEC-HOST.corp.example',
           runtimeProfile: 'test',
         });
       }

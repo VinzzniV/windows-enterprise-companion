@@ -12,7 +12,7 @@ import type { CredentialValues } from '../../shared/targets/Credentials';
 export interface ClientEntry {
   /** Scan target host (FQDN preferred when known). */
   host: string;
-  /** Case-insensitive identity, short name without domain suffix. */
+  /** Case-insensitive complete host or address identity. */
   key: string;
   /** Short display name. */
   name: string;
@@ -35,9 +35,43 @@ export interface ClientEntry {
 
 export type GroupMode = 'none' | 'os' | 'site';
 
-/** Short, domain-less, upper-cased identity so FQDN/short/local names merge. */
+/** Complete normalized hostname, FQDN or address. */
 export function clientKey(host: string): string {
-  return host.trim().split('.')[0].toUpperCase();
+  return host.trim().replace(/\.+$/, '').toUpperCase();
+}
+
+function addAliasOwner(owners: Map<string, Set<string>>, alias: string, canonicalKey: string): void {
+  const key = clientKey(alias);
+  const existing = owners.get(key) ?? new Set<string>();
+  existing.add(canonicalKey);
+  owners.set(key, existing);
+}
+
+function resolveClientKey(host: string, clients: Map<string, ClientEntry>, aliasOwners: Map<string, Set<string>>): string {
+  const key = clientKey(host);
+  if (clients.has(key)) return key;
+  const owners = aliasOwners.get(key);
+  return owners?.size === 1 ? [...owners][0] : key;
+}
+
+export function findDeviceByHost(devices: readonly HygieneDevice[], host: string): HygieneDevice | null {
+  const candidate = clientKey(host);
+  const exact = devices.find((device) => clientKey(device.hostName) === candidate);
+  if (exact) return exact;
+
+  const aliasMatches = devices.filter((device) =>
+    [device.computerName, device.hostName].some((alias) => clientKey(alias) === candidate),
+  );
+  return aliasMatches.length === 1 ? aliasMatches[0] : null;
+}
+
+export function findClientByHost(clients: readonly ClientEntry[], host: string): ClientEntry | null {
+  const candidate = clientKey(host);
+  const exact = clients.find((client) => client.key === candidate);
+  if (exact) return exact;
+
+  const aliasMatches = clients.filter((client) => clientKey(client.name) === candidate);
+  return aliasMatches.length === 1 ? aliasMatches[0] : null;
 }
 
 /** Site code = the name prefix before the first '-' (KF/PK/MA/KW/SU …), else "Other". */
@@ -60,14 +94,16 @@ export function buildClientList(
   securityHosts: readonly StoredSecurityScanHost[] = [],
 ): ClientEntry[] {
   const byKey = new Map<string, ClientEntry>();
+  const aliasOwners = new Map<string, Set<string>>();
 
   for (const item of environmentDevices) {
     const device = 'computerName' in item ? item : null;
     const legacy = device ? null : item as AdComputer;
     const host = device ? device.hostName : legacy!.dnsHostName ?? legacy!.name;
-    byKey.set(clientKey(host), {
+    const key = clientKey(host);
+    byKey.set(key, {
       host,
-      key: clientKey(host),
+      key,
       name: device ? device.computerName : legacy!.name,
       os: device ? device.activeDirectory.operatingSystem : legacy!.operatingSystem,
       description: device ? device.activeDirectory.description ?? device.opsi.description : legacy!.description,
@@ -80,10 +116,12 @@ export function buildClientList(
       inAd: device ? device.activeDirectory.exists : true,
       environment: device,
     });
+    const aliases = [device?.computerName ?? legacy!.name, host];
+    for (const alias of [...aliases, key]) addAliasOwner(aliasOwners, alias, key);
   }
 
   for (const stored of scannedHosts) {
-    const key = clientKey(stored.host);
+    const key = resolveClientKey(stored.host, byKey, aliasOwners);
     const existing = byKey.get(key);
     if (existing) {
       existing.scanned = true;
@@ -108,7 +146,7 @@ export function buildClientList(
   }
 
   for (const target of savedClients) {
-    const key = clientKey(target.host);
+    const key = resolveClientKey(target.host, byKey, aliasOwners);
     const existing = byKey.get(key);
     if (existing) {
       existing.saved = true;
@@ -132,7 +170,7 @@ export function buildClientList(
   }
 
   for (const stored of securityHosts) {
-    const key = clientKey(stored.host);
+    const key = resolveClientKey(stored.host, byKey, aliasOwners);
     const existing = byKey.get(key);
     if (existing) {
       existing.securityScanned = true;
@@ -159,9 +197,13 @@ export function buildClientList(
   return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** True when the host is this machine (matched short-name, case-insensitively). */
-export function isLocalClient(host: string, machineName: string | null): boolean {
-  return machineName != null && machineName.trim() !== '' && clientKey(host) === clientKey(machineName);
+/** True only for an exact local machine-name or locally derived FQDN alias. */
+export function isLocalClient(host: string, machineName: string | null, machineFqdn: string | null = null): boolean {
+  if (machineName == null || machineName.trim() === '') return false;
+  const key = clientKey(host);
+  return [machineName, machineFqdn]
+    .filter((alias): alias is string => alias != null && alias.trim() !== '')
+    .some((alias) => clientKey(alias) === key);
 }
 
 /**
@@ -173,8 +215,9 @@ export function toClientTarget(
   host: string,
   machineName: string | null,
   credentials: CredentialValues | undefined,
+  machineFqdn: string | null = null,
 ): TargetRequest | null {
-  if (isLocalClient(host, machineName)) {
+  if (isLocalClient(host, machineName, machineFqdn)) {
     return null;
   }
   if (credentials && credentials.userName.trim() !== '') {

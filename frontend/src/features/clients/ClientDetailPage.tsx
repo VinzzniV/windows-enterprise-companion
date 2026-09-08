@@ -9,7 +9,7 @@ import { Button } from '../../shared/ui/Button';
 import { Badge } from '../../shared/ui/Badge';
 import { Spinner } from '../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
-import { clientKey, isLocalClient, toClientTarget } from './clients';
+import { clientKey, findDeviceByHost, isLocalClient, toClientTarget } from './clients';
 import { InventorySection } from './sections/InventorySection';
 import { SecuritySection } from './sections/SecuritySection';
 import { HealthSection } from './sections/HealthSection';
@@ -19,6 +19,7 @@ import { ReportingSection } from '../reporting/ReportingSection';
 import { OverviewSection } from './sections/OverviewSection';
 import { openPsSession } from '../../shared/ps/openPsSession';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
+import { useEnvironmentOptional } from '../../shared/environment/EnvironmentContext';
 
 type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
 
@@ -63,9 +64,10 @@ export function ClientDetailPage() {
   const host = decodeURIComponent(rawHost ?? '');
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
-  // undefined = getAppInfo not resolved yet; string|null once known. Sections
+  const environment = useEnvironmentOptional();
+  // undefined = getAppInfo not resolved yet; value or null once known. Sections
   // must wait for this so the local machine is never scanned as a remote target.
-  const [machineName, setMachineName] = useState<string | null | undefined>(undefined);
+  const [appInfo, setAppInfo] = useState<AppInfoResponse | null | undefined>(undefined);
   const requestedSection = searchParams.get('section');
   const section: SectionKey = isSectionKey(requestedSection) ? requestedSection : 'overview';
   const [powerShellError, setPowerShellError] = useState<ErrorPresentation | null>(null);
@@ -73,25 +75,29 @@ export function ClientDetailPage() {
 
   useEffect(() => {
     invoke<AppInfoResponse>('system', 'getAppInfo')
-      .then((info) => setMachineName(info.machineName))
-      .catch(() => setMachineName(null));
+      .then(setAppInfo)
+      .catch(() => setAppInfo(null));
   }, []);
 
-  const appInfoResolved = machineName !== undefined;
-  const resolvedMachineName = machineName ?? null;
-  const local = isLocalClient(host, resolvedMachineName);
+  const appInfoResolved = appInfo !== undefined;
+  const resolvedMachineName = appInfo?.machineName ?? null;
+  const resolvedMachineFqdn = appInfo?.machineFqdn ?? null;
+  const local = isLocalClient(host, resolvedMachineName, resolvedMachineFqdn);
   const credentials = credentialsFor(host);
   const target = useMemo(
-    () => toClientTarget(host, resolvedMachineName, credentials),
-    [host, resolvedMachineName, credentials],
+    () => toClientTarget(host, resolvedMachineName, credentials, resolvedMachineFqdn),
+    [host, resolvedMachineName, resolvedMachineFqdn, credentials],
   );
   const refreshReport = useCallback(() => setReportRevision((revision) => revision + 1), []);
 
   const savedEntry = useMemo(
-    // Match by the same short-name key the Clients list merges on, so a client
-    // saved under its short name is recognized when opened by FQDN.
-    () => savedTargets.find((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
-    [savedTargets, host],
+    () => {
+      const device = environment?.result ? findDeviceByHost(environment.result.devices, host) : null;
+      const routeAliases = new Set((device ? [device.computerName, device.hostName] : [host]).map(clientKey));
+      routeAliases.add(clientKey(host));
+      return savedTargets.find((target) => target.role === 'Client' && routeAliases.has(clientKey(target.host)));
+    },
+    [environment?.result, savedTargets, host],
   );
 
   const selectSection = useCallback((nextSection: SectionKey) => {

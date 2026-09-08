@@ -75,6 +75,7 @@ const appInfo: AppInfoResponse = {
   maxParallelScans: 4,
   maxBatchHosts: 50,
   machineName: 'LOCAL-PC',
+  machineFqdn: 'LOCAL-PC.corp.example',
   runtimeProfile: 'Test',
 };
 
@@ -216,7 +217,7 @@ describe('ComparePage data truthfulness', () => {
 
     expect(await screen.findByText('Hardware inventory')).toBeTruthy();
     expect(JSON.parse(localStorage.getItem('wec.view.client-compare-recent') ?? 'null')).toEqual({
-      version: 1,
+      version: 2,
       hosts: ['pc-a.corp.local', 'pc-b.corp.local'],
     });
 
@@ -238,7 +239,7 @@ describe('ComparePage data truthfulness', () => {
 
   it('hides unavailable and duplicate recent hosts without changing explicit search results', async () => {
     localStorage.setItem('wec.view.client-compare-recent', JSON.stringify({
-      version: 1,
+      version: 2,
       hosts: ['retired.corp.local', 'pc-c.corp.local', 'PC-C', 'pc-a.corp.local'],
     }));
 

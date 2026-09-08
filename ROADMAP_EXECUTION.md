@@ -6,10 +6,10 @@ The blind audit is preserved unchanged. The technical follow-up and prioritized
 M01-M16 backlog are now versioned under docs; see [documentation index](docs/README.md).
 Implementation was explicitly authorized on 2026-09-08. Work is active on
 `codex/m01-m16-audit-measures`. M01 (coverage and known findings), M02 (refresh
-and cache state) and M12 (side-effect-free legacy reads) are implemented and
-verified. The active slice is M03/M04: device identity and atomic snapshot
-replacement, based on a read-only existing-data inventory and a documented
-compatibility rule.
+and cache state), M03 (canonical device identity), M04 (atomic inventory
+snapshots) and M12 (side-effect-free legacy reads) are implemented and
+verified. The active slice is M05: explicit stored-data missing and failure
+states, followed by the dependent comparison and interaction measures.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.

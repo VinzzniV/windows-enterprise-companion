@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Wec.Core.Contracts;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.DeviceCleanup.Application;
 
@@ -52,8 +53,9 @@ internal sealed class DeviceCleanupService(
         Dictionary<string, DeviceCleanupSubjectEvidence> subjects = sourceSnapshot.Subjects
             .GroupBy(subject => Key(subject.SubjectKey), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, HashSet<string>> aliasOwners = BuildAliasOwners(subjects.Values);
         Dictionary<string, InventoryClientSnapshotHost> storedInventory = inventory
-            .GroupBy(item => Key(item.Host), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(item => ResolveKey(item.Host, subjects, aliasOwners), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,
                 group => group.OrderByDescending(item => item.CapturedAtUtc).First(),
@@ -101,7 +103,7 @@ internal sealed class DeviceCleanupService(
         DeviceCleanupAssessment? selected = null;
         if (!string.IsNullOrWhiteSpace(request.SelectedHost))
         {
-            string selectedKey = Key(request.SelectedHost);
+            string selectedKey = ResolveKey(request.SelectedHost, subjects, aliasOwners);
             DeviceCleanupCandidate? candidate = all.FirstOrDefault(item =>
                 string.Equals(item.SubjectKey, selectedKey, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(item.Host, request.SelectedHost.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -112,7 +114,9 @@ internal sealed class DeviceCleanupService(
             }
 
             DeviceCleanupInventoryEvidence? selectedInventory =
-                await inventoryEvidenceProvider.GetLatestAsync(candidate.SubjectKey, cancellationToken);
+                await inventoryEvidenceProvider.GetLatestAsync(
+                    storedInventory.GetValueOrDefault(candidate.SubjectKey)?.Host ?? candidate.SubjectKey,
+                    cancellationToken);
             selected = ComposeAssessment(
                 candidate,
                 subjects.GetValueOrDefault(candidate.SubjectKey),
@@ -302,5 +306,46 @@ internal sealed class DeviceCleanupService(
     private static int AgeDays(DateTimeOffset timestamp, DateTimeOffset assessedAtUtc) =>
         (int)Math.Floor(Math.Max(0, (assessedAtUtc - timestamp).TotalDays));
 
-    private static string Key(string value) => value.Trim().ToUpperInvariant();
+    private static Dictionary<string, HashSet<string>> BuildAliasOwners(
+        IEnumerable<DeviceCleanupSubjectEvidence> subjects)
+    {
+        var ownersByAlias = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (DeviceCleanupSubjectEvidence subject in subjects)
+        {
+            string subjectKey = Key(subject.SubjectKey);
+            foreach (string alias in (subject.Aliases ?? [subject.SubjectKey, subject.Host])
+                         .Where(alias => !string.IsNullOrWhiteSpace(alias)))
+            {
+                string aliasKey = Key(alias);
+                if (!ownersByAlias.TryGetValue(aliasKey, out HashSet<string>? owners))
+                {
+                    owners = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    ownersByAlias[aliasKey] = owners;
+                }
+                owners.Add(subjectKey);
+            }
+        }
+
+        return ownersByAlias;
+    }
+
+    private static string ResolveKey(
+        string value,
+        Dictionary<string, DeviceCleanupSubjectEvidence> subjects,
+        Dictionary<string, HashSet<string>> aliasOwners)
+    {
+        string key = Key(value);
+        if (subjects.ContainsKey(key))
+        {
+            return key;
+        }
+
+        return aliasOwners.TryGetValue(key, out HashSet<string>? owners) && owners.Count == 1
+            ? owners.Single()
+            : key;
+    }
+
+    private static string Key(string value) => string.IsNullOrWhiteSpace(value)
+        ? string.Empty
+        : DeviceIdentity.NormalizeHost(value);
 }

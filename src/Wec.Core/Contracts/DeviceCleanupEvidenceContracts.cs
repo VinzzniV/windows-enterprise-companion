@@ -43,7 +43,8 @@ public sealed record DeviceCleanupSubjectEvidence(
     DeviceCleanupKasperskyEvidence Kaspersky,
     DeviceCleanupOpsiEvidence Opsi,
     DeviceCleanupNessusEvidence Nessus,
-    IReadOnlyList<DeviceCleanupFindingEvidence> Findings);
+    IReadOnlyList<DeviceCleanupFindingEvidence> Findings,
+    IReadOnlyList<string>? Aliases = null);
 
 public sealed record DeviceCleanupEvidenceSnapshot(
     DateTimeOffset AssessedAtUtc,

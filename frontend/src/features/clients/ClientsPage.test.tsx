@@ -68,7 +68,7 @@ function item(environment: HygieneDevice | null, fallback: string, overrides: Pa
   const host = environment?.hostName ?? fallback;
   return {
     host,
-    key: host.split('.')[0].toUpperCase(),
+    key: host.toUpperCase(),
     name: environment?.computerName ?? fallback,
     os: environment?.activeDirectory.operatingSystem ?? null,
     description: null,
