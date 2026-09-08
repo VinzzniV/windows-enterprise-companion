@@ -22,7 +22,8 @@ the applicable milestone checks are green.
 | M11 | Complete | Search, posture, source, grouping, page, page size and sort are URL-backed and directly linkable. Detail tabs preserve the exact return URL; button return and browser Back restore the inner app scroll container once. Primary navigation retains the last list URL only for the same directory/management context, Reset clears it, and text typing is debounced to one server read per burst. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13 | Complete | Local log level filtering precedes the result limit. Configured file-count, byte and continuation-line bounds are returned and displayed with exact coverage and truncation metadata. Remote Event Log results expose their query window, result limit and explicit per-message truncation. The hide action remains a local visibility marker and never claims deletion. |
-| M14-M16 | Planned | Not yet accepted. |
+| M14 | Complete | Client actions distinguish live read-only access, locally replaced scan evidence and locally saved target metadata. Save/unsave failures remain visible and duplicate in-flight target mutations are suppressed; no password enters `SaveTarget`. Network Scan previews its target, exact configured TCP ports, DHCP/account context, non-persistence and no-write behavior, and rejects duplicate starts. The Print port-removal action retains its explicit external-effect text and confirmation. |
+| M15-M16 | Planned | Not yet accepted. |
 
 ## M01/M02 technical reassessment
 
@@ -254,4 +255,27 @@ non-mutation regression.
   policy and 500-character provider-message limit are unchanged.
 - 76 Host tests, 32 Diagnostics tests and 8 focused frontend tests passed. The
   Release solution build, generated-contract check (392 types), production
+  frontend build and `git diff --check` passed.
+
+## M14 technical reassessment and verification
+
+- Saving a client persists only host, label, role and an optional username in
+  the local WEC database. The session password is not part of `SaveTargetInput`
+  or the bridge payload. Unsave removes only that local shortcut.
+- Client target save/delete now await their result, keep the current UI state
+  on failure, expose the typed error presentation and use an in-flight guard.
+  A double-click regression proves that one save request is sent and the
+  inspected bridge payload contains no password.
+- Inventory and Security state their live read scope and local replacement
+  behavior before the action. Event Log names the host/account context and
+  remains live and unpersisted. The existing Print unused-port workflow already
+  names the signed-in admin, permanent external server deletion, server-side
+  refusal boundary and explicit confirmation, so no additional modal was added.
+- Network Scan reads its configurable TCP-port list through a small read-only
+  policy action. Its live preview names the current range/IP, exact ports or
+  disabled port probes, optional DHCP server/account context, active traffic,
+  non-persistence and absence of target configuration changes. An in-flight
+  guard prevents duplicate scan starts.
+- 12 Network Scan backend tests and 39 focused frontend tests passed. The
+  Release solution build, generated-contract check (394 types), production
   frontend build and `git diff --check` passed.

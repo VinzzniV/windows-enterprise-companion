@@ -34,8 +34,13 @@ log level filter before the result limit, bounds file and byte reads through
 validated options and exposes file, byte, result and continuation-detail
 coverage. Remote Event Log results expose the exact query window, result limit
 and explicit message truncation. Parser, service and focused UI tests, the
-contract check and both builds are green. The active slice is M14: consistent
-action-effect explanations and guarded action execution.
+contract check and both builds are green. M14 now distinguishes live reads,
+local replacement/storage and external changes at the relevant Client,
+Network Scan and Print actions. Client target mutations expose failures and
+reject duplicate in-flight actions; Network Scan shows its configured port
+scope and also rejects duplicate starts. Focused tests, the contract check and
+both builds are green. The active slice is M15: trend values, temporal spacing
+and cohort evidence.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.

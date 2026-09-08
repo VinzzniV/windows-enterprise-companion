@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
@@ -77,6 +77,9 @@ export function ClientDetailPage() {
   const requestedSection = searchParams.get('section');
   const section: SectionKey = isSectionKey(requestedSection) ? requestedSection : 'overview';
   const [powerShellError, setPowerShellError] = useState<ErrorPresentation | null>(null);
+  const [targetMutationError, setTargetMutationError] = useState<ErrorPresentation | null>(null);
+  const [targetMutationPending, setTargetMutationPending] = useState(false);
+  const targetMutationInFlight = useRef(false);
   const [reportRevision, setReportRevision] = useState(0);
 
   useEffect(() => {
@@ -125,6 +128,29 @@ export function ClientDetailPage() {
     document.getElementById(`clienttab-${next.key}`)?.focus();
   };
 
+  const mutateSavedTarget = useCallback(async () => {
+    if (targetMutationInFlight.current) return;
+    targetMutationInFlight.current = true;
+    setTargetMutationPending(true);
+    setTargetMutationError(null);
+    try {
+      if (savedEntry) {
+        await deleteTarget(savedEntry.id);
+      } else {
+        await saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null });
+      }
+    } catch (caught: unknown) {
+      setTargetMutationError(presentError(caught, {
+        message: savedEntry
+          ? 'The locally saved client target could not be removed.'
+          : 'The client target could not be saved locally.',
+      }));
+    } finally {
+      targetMutationInFlight.current = false;
+      setTargetMutationPending(false);
+    }
+  }, [credentials?.userName, deleteTarget, host, savedEntry, saveTarget]);
+
   if (host === '') {
     return <EmptyState title="No client selected" message="Pick a client from the Clients list." />;
   }
@@ -153,17 +179,16 @@ export function ClientDetailPage() {
             </Button>
           )}
           {savedEntry ? (
-            <Button variant="secondary" onClick={() => void deleteTarget(savedEntry.id)}>
-              Unsave client
+            <Button variant="secondary" onClick={() => void mutateSavedTarget()} disabled={targetMutationPending}>
+              {targetMutationPending ? 'Removing…' : 'Unsave client'}
             </Button>
           ) : (
             <Button
               variant="secondary"
-              onClick={() =>
-                void saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null })
-              }
+              onClick={() => void mutateSavedTarget()}
+              disabled={targetMutationPending}
             >
-              Save client
+              {targetMutationPending ? 'Saving…' : 'Save client'}
             </Button>
           )}
         </div>
@@ -171,6 +196,13 @@ export function ClientDetailPage() {
       {powerShellError && (
         <ErrorState title="PowerShell session unavailable" {...powerShellError} />
       )}
+      {targetMutationError && (
+        <ErrorState title="Saved target unchanged" {...targetMutationError} />
+      )}
+
+      <p className="rounded border border-slate-800 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+        Save client stores this host, label, role and optional username in WEC's local database. Session passwords are never saved. Unsave removes only this local shortcut.
+      </p>
 
       {!local && <ClientScanIdentity credentials={credentials} />}
 

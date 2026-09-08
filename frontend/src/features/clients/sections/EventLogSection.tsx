@@ -109,7 +109,7 @@ export function EventLogSection({ host, target }: { host: string; target: Target
         <Button variant="primary" onClick={run} disabled={state.kind === 'running'}>
           Run query
         </Button>
-        <span className="text-xs text-muted">Live view — results are not saved.</span>
+        <span className="text-xs text-muted">Reads {host} live using the account context shown above. Results are not saved and the target is not changed.</span>
       </div>
 
       {state.kind === 'running' && <Spinner label="Querying event log …" />}

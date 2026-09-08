@@ -11,6 +11,7 @@ public sealed class NetworkScanModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<NetworkScanService>();
+        services.AddScoped<IActionHandler, GetNetworkScanPolicyHandler>();
         services.AddScoped<IActionHandler, ScanNetworkHandler>();
     }
 }

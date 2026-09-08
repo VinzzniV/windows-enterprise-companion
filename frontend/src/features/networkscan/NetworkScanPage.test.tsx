@@ -1,9 +1,10 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NetworkScanPage } from './NetworkScanPage';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
+const scanPolicy = { scanPorts: [80, 443, 445, 9100] };
 
 vi.mock('../../shared/bridge/bridgeClient', () => ({
   invoke: invokeMock,
@@ -14,10 +15,14 @@ vi.mock('../../shared/bridge/bridgeClient', () => ({
 }));
 
 describe('NetworkScanPage', () => {
-  beforeEach(() => invokeMock.mockReset());
+  beforeEach(() => {
+    invokeMock.mockReset();
+    invokeMock.mockResolvedValue(scanPolicy);
+  });
 
   it('keeps scan diagnostics behind actionable guidance and offers a local retry', async () => {
     invokeMock
+      .mockResolvedValueOnce(scanPolicy)
       .mockRejectedValueOnce(new Error('raw nmap provider failure'))
       .mockResolvedValue({ hosts: [], target: '172.20.20.0/24', dhcpChecked: false });
 
@@ -36,7 +41,7 @@ describe('NetworkScanPage', () => {
   });
 
   it('uses the product language for the complete scan workflow and result vocabulary', async () => {
-    invokeMock.mockResolvedValue({
+    const result = {
       target: '172.20.20.0/24',
       portsScanned: true,
       dhcpChecked: true,
@@ -58,7 +63,9 @@ describe('NetworkScanPage', () => {
           macAddress: null, macVendor: null, hasReservation: true, reservationName: 'unknown-01',
         },
       ],
-    });
+    };
+    invokeMock.mockImplementation((_module: string, action: string) =>
+      Promise.resolve(action === 'getPolicy' ? scanPolicy : result));
 
     render(<NetworkScanPage />);
 
@@ -66,6 +73,9 @@ describe('NetworkScanPage', () => {
     expect(screen.getByText('Target (CIDR, range, or IP)')).toBeDefined();
     expect(screen.getByText('DHCP server (optional)')).toBeDefined();
     expect(screen.getByText('Scan ports')).toBeDefined();
+    const scope = screen.getByRole('status');
+    await waitFor(() => expect(scope.textContent).toMatch(/Target:.*172\.20\.20\.0\/24.*probes TCP ports 80, 443, 445, 9100/));
+    expect(scope.textContent).toMatch(/Results stay in this view and are not persisted; no target configuration is changed/);
 
     await userEvent.click(screen.getByRole('button', { name: 'Scan' }));
 
@@ -86,8 +96,26 @@ describe('NetworkScanPage', () => {
     expect(screen.getByText('Stale reservations')).toBeDefined();
   });
 
+  it('previews the selected read scope and starts only one scan on a double click', async () => {
+    let resolveScan!: (value: unknown) => void;
+    invokeMock.mockImplementation((_module: string, action: string) =>
+      action === 'getPolicy'
+        ? Promise.resolve(scanPolicy)
+        : new Promise((resolve) => { resolveScan = resolve; }));
+    render(<NetworkScanPage />);
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Scan ports' }));
+    expect(screen.getByText(/without TCP service-port probes/)).toBeDefined();
+    await userEvent.type(screen.getByRole('textbox', { name: 'DHCP server (optional)' }), 'dc01');
+    expect(screen.getByText(/reads DHCP reservations from dc01 using the remote-account context/)).toBeDefined();
+
+    await userEvent.dblClick(screen.getByRole('button', { name: 'Scan' }));
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'scan')).toHaveLength(1);
+    resolveScan({ target: '172.20.20.0/24', portsScanned: false, dhcpChecked: true, hosts: [] });
+  });
+
   it('separates active reachability from unchecked DHCP context', async () => {
-    invokeMock.mockResolvedValue({
+    const result = {
       target: '172.20.20.10',
       portsScanned: false,
       dhcpChecked: false,
@@ -95,7 +123,9 @@ describe('NetworkScanPage', () => {
         ip: '172.20.20.10', hostname: 'client-01', isUp: true, kind: 'COMPUTER', openPorts: [],
         macAddress: null, macVendor: null, hasReservation: false, reservationName: null,
       }],
-    });
+    };
+    invokeMock.mockImplementation((_module: string, action: string) =>
+      Promise.resolve(action === 'getPolicy' ? scanPolicy : result));
 
     render(<NetworkScanPage />);
     await userEvent.click(screen.getByRole('button', { name: 'Scan' }));
@@ -116,7 +146,7 @@ describe('NetworkScanPage', () => {
     const alert = screen.getByRole('alert');
     expect(within(alert).getByText('The network scan requires a target.')).toBeDefined();
     expect(within(alert).getByText('The CIDR, IP range, or individual IP field is empty.')).toBeDefined();
-    expect(invokeMock).not.toHaveBeenCalled();
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'scan')).toHaveLength(0);
 
     await userEvent.type(screen.getByRole('textbox', { name: 'DHCP server (optional)' }), 'PK-SRVDC001');
     expect(screen.getByText(/For the DHCP check, use “Set remote account”/)).toBeDefined();

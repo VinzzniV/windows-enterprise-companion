@@ -38,6 +38,7 @@ describe('EventLogSection', () => {
     });
 
     render(<EventLogSection host="PC-041.corp.example" target={{ host: 'PC-041.corp.example' }} />);
+    expect(screen.getByText(/Reads PC-041\.corp\.example live.*Results are not saved and the target is not changed/)).toBeDefined();
     await userEvent.click(screen.getByRole('button', { name: 'Run query' }));
     expect(await screen.findByText(/Queried .*1 matching event.*200-entry result limit/)).toBeDefined();
     const open = await screen.findByRole('button', { name: 'View full message from Service Control Manager, event 7000' });

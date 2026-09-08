@@ -1491,6 +1491,13 @@ export interface NetworkScanResult {
   hosts: NetworkHostRow[];
 }
 
+export interface GetNetworkScanPolicyRequest {
+}
+
+export interface NetworkScanPolicyResult {
+  scanPorts: number[];
+}
+
 export interface ScanNetworkRequest {
   target: string | null;
   scanPorts: boolean;

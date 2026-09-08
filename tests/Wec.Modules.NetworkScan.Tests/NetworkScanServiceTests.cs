@@ -7,6 +7,7 @@ using Wec.Core.Targets;
 using Wec.Modules.NetworkScan;
 using Wec.Modules.NetworkScan.Application;
 using Wec.Modules.NetworkScan.Domain;
+using Wec.Modules.NetworkScan.Handlers;
 
 namespace Wec.Modules.NetworkScan.Tests;
 
@@ -28,6 +29,18 @@ public sealed class NetworkScanServiceTests
 
     private static ScannedHost Live(string ip) =>
         new(ip, IsUp: true, Hostname: null, MacAddress: null, MacVendor: null, []);
+
+    [Fact]
+    public async Task PolicyHandler_ExposesTheConfiguredPortScope()
+    {
+        var options = new NetworkScanOptions { ScanPorts = [80, 443, 9100] };
+        var handler = new GetNetworkScanPolicyHandler(Options.Create(options));
+
+        Result<NetworkScanPolicyResult> result = await handler.HandleAsync(
+            new GetNetworkScanPolicyRequest(), CancellationToken.None);
+
+        Assert.Equal([80, 443, 9100], result.Value.ScanPorts);
+    }
 
     [Fact]
     public async Task WithoutDhcp_DoesDiscoveryOnly_AndDoesNotFlagReservations()

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Wec.Core.Messaging;
 using Wec.Core.Results;
 using Wec.Core.Targets;
@@ -13,6 +14,29 @@ namespace Wec.Modules.NetworkScan.Handlers;
 /// the DHCP server (usually a domain controller) requires, without elevating WEC.
 /// </summary>
 public sealed record ScanNetworkRequest(string? Target, bool ScanPorts, TargetRequest? Dhcp);
+
+public sealed record GetNetworkScanPolicyRequest;
+
+public sealed record NetworkScanPolicyResult(IReadOnlyList<int> ScanPorts);
+
+internal sealed class GetNetworkScanPolicyHandler : IActionHandler<GetNetworkScanPolicyRequest, NetworkScanPolicyResult>
+{
+    private readonly NetworkScanOptions _options;
+
+    public GetNetworkScanPolicyHandler(IOptions<NetworkScanOptions> options)
+    {
+        _options = options.Value;
+    }
+
+    public string Module => "networkscan";
+
+    public string Action => "getPolicy";
+
+    public Task<Result<NetworkScanPolicyResult>> HandleAsync(
+        GetNetworkScanPolicyRequest payload,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Success(new NetworkScanPolicyResult(_options.ScanPorts)));
+}
 
 internal sealed class ScanNetworkHandler : IActionHandler<ScanNetworkRequest, NetworkScanResult>
 {
