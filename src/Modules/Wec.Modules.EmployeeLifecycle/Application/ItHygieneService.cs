@@ -145,7 +145,8 @@ public sealed record ItHygieneResult(
     string? DomainName,
     EnvironmentSourceStates Sources,
     HygieneSummary Summary,
-    IReadOnlyList<HygieneDevice> Devices);
+    IReadOnlyList<HygieneDevice> Devices,
+    long SnapshotRevision = 0);
 
 public sealed record DirectoryInventoryConnection(
     string? Domain = null,
@@ -164,7 +165,8 @@ public sealed record KasperskyInventoryConnection(
 public sealed record ItHygieneRequest(
     DirectoryInventoryConnection? ActiveDirectory = null,
     KasperskyInventoryConnection? Kaspersky = null,
-    string? OperationId = null);
+    string? OperationId = null,
+    bool Force = false);
 
 public enum HygieneLoadPhase
 {
@@ -265,7 +267,7 @@ internal sealed class ItHygieneService
             now,
             _options);
 
-        HygieneSummary summary = Summarize(devices);
+        HygieneSummary summary = Summarize(devices, sourceLoad.States);
         progress.Complete(summary);
         return Result.Success(new ItHygieneResult(
             now,
@@ -393,13 +395,19 @@ internal sealed class ItHygieneService
     internal static bool IsVersionOlder(string? installed, string? target) =>
         HygieneAssessmentPolicy.IsVersionOlder(installed, target);
 
-    internal static HygieneSummary Summarize(IReadOnlyList<HygieneDevice> devices)
+    internal static HygieneSummary Summarize(
+        IReadOnlyList<HygieneDevice> devices,
+        EnvironmentSourceStates? sources = null)
     {
         static bool Has(HygieneDevice device, params HygieneFindingCode[] codes) =>
             device.Assessment.Findings.Any(finding => codes.Contains(finding.Code));
 
         int healthy = devices.Count(device => device.Assessment.Status == HygieneStatus.Healthy);
-        int incomplete = devices.Count(device => device.Assessment.Status == HygieneStatus.Incomplete);
+        int incomplete = sources is null
+            ? devices.Count(device => device.Assessment.Status == HygieneStatus.Incomplete)
+            : HygieneAssessmentPolicy.SourcesComplete(sources, requireNessus: true)
+                ? 0
+                : devices.Count;
         int problems = devices.Count(device => device.Assessment.Status is
             HygieneStatus.Warning or HygieneStatus.CleanupCandidate or HygieneStatus.Critical);
         return new HygieneSummary(

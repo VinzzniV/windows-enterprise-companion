@@ -24,7 +24,9 @@ public sealed class ItHygienePagingTests
 
         Assert.Equal(2, loads);
         Assert.Equal(first.Value.AssessedAtUtc, reused.Value.AssessedAtUtc);
+        Assert.Equal(first.Value.SnapshotRevision, reused.Value.SnapshotRevision);
         Assert.True(refreshed.Value.AssessedAtUtc > reused.Value.AssessedAtUtc);
+        Assert.True(refreshed.Value.SnapshotRevision > reused.Value.SnapshotRevision);
     }
 
     [Fact]
@@ -291,6 +293,24 @@ public sealed class ItHygienePagingTests
         Assert.Equal(100, page.Items.Count);
         Assert.Equal("PC-001", page.Items[0].Name);
         Assert.Equal("PC-100", page.Items[^1].Name);
+    }
+
+    [Fact]
+    public void IncompleteFilterIncludesKnownProblemsWithPartialCoverage()
+    {
+        HygieneDevice critical = Device("CHARLIE", HygieneStatus.Critical, HygieneFindingCode.NessusCriticalVulnerabilities);
+        ItHygieneResult complete = ResultAt(DateTimeOffset.UnixEpoch, critical);
+        ItHygieneResult result = complete with
+        {
+            Sources = complete.Sources with
+            {
+                Nessus = new InventorySourceState(InventorySourceAvailability.Partial, "One scan failed."),
+            },
+        };
+
+        HygieneDevicePage page = ItHygienePaging.Page(result, new ListHygieneDevicesRequest(Filter: "INCOMPLETE"));
+
+        Assert.Equal("CHARLIE", Assert.Single(page.Items).ComputerName);
     }
 
     [Fact]

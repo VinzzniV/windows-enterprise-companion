@@ -12,7 +12,7 @@ import type {
 import { BridgeCancelledError, invoke, invokeCancellable, type CancellableBridgeInvocation } from '../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 import { HygieneLoadStatus } from '../../shared/environment/HygieneLoadStatus';
-import { useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
+import { useEnvironment, useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
 import { inventorySourceStatus } from '../../shared/environment/inventorySourceStatus';
 import { useHygieneOperation } from '../../shared/environment/useHygieneOperation';
 import { Badge } from '../../shared/ui/Badge';
@@ -98,8 +98,16 @@ function SourceBadge({ client, state, source }: { client: ClientWorkspaceListIte
   if (!device.nessus.exists || !device.nessus.lastCompletedScanUtc) {
     return <ClientSemanticStatus status={sourcePresenceStatus(false, hasFinding(device, ['MISSING_NESSUS']))} context={device.nessus.exists ? 'No completed scan' : null} />;
   }
-  if (hasFinding(device, ['NESSUS_CRITICAL_VULNERABILITIES'])) return <Badge tone="fail">Critical</Badge>;
-  if (hasFinding(device, ['NESSUS_HIGH_VULNERABILITIES'])) return <Badge tone="warn">High</Badge>;
+  const coverage = sourceResultIncomplete ? <Badge tone="warn">Partial coverage</Badge> : null;
+  const observed = <span className="text-xs text-muted">Scan {new Date(device.nessus.lastCompletedScanUtc).toLocaleString()}</span>;
+  if (hasFinding(device, ['NESSUS_CRITICAL_VULNERABILITIES'])) return <span className="flex flex-col items-start gap-1">
+    <span className="flex flex-wrap gap-1"><Badge tone="fail">Critical · {device.nessus.critical} instances</Badge>{coverage}</span>
+    {observed}
+  </span>;
+  if (hasFinding(device, ['NESSUS_HIGH_VULNERABILITIES'])) return <span className="flex flex-col items-start gap-1">
+    <span className="flex flex-wrap gap-1"><Badge tone="warn">High · {device.nessus.high} instances</Badge>{coverage}</span>
+    {observed}
+  </span>;
   return <ClientSemanticStatus status={sourceFreshnessStatus(hasFinding(device, ['STALE_NESSUS']), device.nessus.lastCompletedScanUtc)} />;
 }
 
@@ -135,6 +143,10 @@ function SourceLastSeen({ source, value }: { source: string; value: string | nul
 }
 
 export function ClientsPage() {
+  const environment = useEnvironment();
+  const invalidateEnvironment = environment.invalidate;
+  const environmentRefreshRevision = environment.refreshRevision;
+  const lastEnvironmentRefreshRevision = useRef(0);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -181,8 +193,8 @@ export function ClientsPage() {
 
   useEffect(() => {
     const currentRequest = ++requestId.current;
-    const force = refreshRevision > lastForcedRevision.current;
-    lastForcedRevision.current = refreshRevision;
+    const force = environmentRefreshRevision > lastEnvironmentRefreshRevision.current
+      || refreshRevision > lastForcedRevision.current;
     const operationId = hygieneOperation.begin();
     setLoading(true);
     setShowEnvironmentProgress(workspace === null || force);
@@ -204,7 +216,12 @@ export function ClientsPage() {
     activeLoad.current = invocation;
     void invocation.promise.then((value) => {
       if (requestId.current === currentRequest) {
+        if (force) {
+          lastEnvironmentRefreshRevision.current = environmentRefreshRevision;
+          lastForcedRevision.current = refreshRevision;
+        }
         setWorkspace(value);
+        if (force) invalidateEnvironment(false);
         if (restoredScrollY) {
           requestAnimationFrame(() => window.scrollTo({ top: restoredScrollY }));
         }
@@ -222,7 +239,7 @@ export function ClientsPage() {
       }
     });
     return () => invocation.cancel();
-  }, [groupMode, page, pageSize, postureFilter, refreshRevision, request, restoredScrollY, search, sort, sourceFilter, hygieneOperation.begin, hygieneOperation.end]);
+  }, [environmentRefreshRevision, groupMode, page, pageSize, postureFilter, refreshRevision, request, restoredScrollY, search, sort, sourceFilter, hygieneOperation.begin, hygieneOperation.end, invalidateEnvironment]);
 
   const probeOnline = () => {
     const hosts = workspace?.items.map((client) => client.host) ?? [];
@@ -326,6 +343,12 @@ export function ClientsPage() {
     resetPage();
   };
   const rows = workspace?.items ?? [];
+  const coverageComplete = workspace ? Object.values(workspace.sources).every((source) => source.availability === 'AVAILABLE') : false;
+  const zeroKnownTone = (count: number, problemTone: 'warning' | 'danger') => count > 0
+    ? problemTone
+    : coverageComplete
+      ? 'success'
+      : 'neutral';
   const rowGroup = groupMode === 'none' ? undefined : (client: ClientWorkspaceListItem): DataTableGroup => {
     const label = client.groupLabel ?? (groupMode === 'os' ? 'Unknown OS' : 'Other');
     return {
@@ -376,19 +399,22 @@ export function ClientsPage() {
         <EnvironmentSourceBadge name="Nessus" state={workspace.sources.nessus} />
       </div>
       <div className="flex flex-wrap gap-3">
-        <SummaryMetric label="Assessed devices" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
+        <SummaryMetric label="Devices in this assessment" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
         <SummaryMetric label="Healthy" value={workspace.summary.healthy} tone="success" onClick={() => applyPostureFilter('HEALTHY')} active={postureFilter === 'HEALTHY'} ariaLabel={`Filter clients by Healthy (${workspace.summary.healthy})`} />
-        <SummaryMetric label="Problems" value={workspace.summary.problems} tone={workspace.summary.problems ? 'warning' : 'success'} onClick={() => applyPostureFilter('PROBLEMS')} active={postureFilter === 'PROBLEMS'} ariaLabel={`Filter clients by Problems (${workspace.summary.problems})`} />
-        <SummaryMetric label="Incomplete" value={workspace.summary.incomplete} onClick={() => applyPostureFilter('INCOMPLETE')} active={postureFilter === 'INCOMPLETE'} ariaLabel={`Filter clients by Incomplete (${workspace.summary.incomplete})`} />
-        <SummaryMetric label="Stale" value={workspace.summary.stale} tone={workspace.summary.stale ? 'danger' : 'success'} onClick={() => applyPostureFilter('STALE')} active={postureFilter === 'STALE'} ariaLabel={`Filter clients by Stale (${workspace.summary.stale})`} />
-        <SummaryMetric label="Missing Kaspersky" value={workspace.summary.missingKaspersky} tone={workspace.summary.missingKaspersky ? 'warning' : 'success'} onClick={() => applyPostureFilter('MISSING_KASPERSKY')} active={postureFilter === 'MISSING_KASPERSKY'} ariaLabel={`Filter clients by Missing Kaspersky (${workspace.summary.missingKaspersky})`} />
-        <SummaryMetric label="Missing opsi" value={workspace.summary.missingOpsi} tone={workspace.summary.missingOpsi ? 'warning' : 'success'} onClick={() => applyPostureFilter('MISSING_OPSI')} active={postureFilter === 'MISSING_OPSI'} ariaLabel={`Filter clients by Missing opsi (${workspace.summary.missingOpsi})`} />
-        <SummaryMetric label="Outdated" value={workspace.summary.outdated} tone={workspace.summary.outdated ? 'warning' : 'success'} onClick={() => applyPostureFilter('OUTDATED')} active={postureFilter === 'OUTDATED'} ariaLabel={`Filter clients by Outdated (${workspace.summary.outdated})`} />
-        <SummaryMetric label="Missing Nessus" value={workspace.summary.missingNessus} tone={workspace.summary.missingNessus ? 'warning' : 'success'} onClick={() => applyPostureFilter('MISSING_NESSUS')} active={postureFilter === 'MISSING_NESSUS'} ariaLabel={`Filter clients by Missing Nessus (${workspace.summary.missingNessus})`} />
-        <SummaryMetric label="Nessus Critical" value={workspace.summary.nessusCritical} tone={workspace.summary.nessusCritical ? 'danger' : 'success'} onClick={() => applyPostureFilter('NESSUS_CRITICAL')} active={postureFilter === 'NESSUS_CRITICAL'} ariaLabel={`Filter clients by Nessus Critical (${workspace.summary.nessusCritical})`} />
-        <SummaryMetric label="Nessus High" value={workspace.summary.nessusHigh} tone={workspace.summary.nessusHigh ? 'warning' : 'success'} onClick={() => applyPostureFilter('NESSUS_HIGH')} active={postureFilter === 'NESSUS_HIGH'} ariaLabel={`Filter clients by Nessus High (${workspace.summary.nessusHigh})`} />
+        <SummaryMetric label="Known problem devices" value={workspace.summary.problems} tone={zeroKnownTone(workspace.summary.problems, 'warning')} onClick={() => applyPostureFilter('PROBLEMS')} active={postureFilter === 'PROBLEMS'} ariaLabel={`Filter clients by Problems (${workspace.summary.problems})`} />
+        <SummaryMetric label="Devices with incomplete coverage" value={workspace.summary.incomplete} tone={workspace.summary.incomplete ? 'warning' : 'success'} onClick={() => applyPostureFilter('INCOMPLETE')} active={postureFilter === 'INCOMPLETE'} ariaLabel={`Filter clients by Incomplete (${workspace.summary.incomplete})`} />
+        <SummaryMetric label="Known stale devices" value={workspace.summary.stale} tone={zeroKnownTone(workspace.summary.stale, 'danger')} onClick={() => applyPostureFilter('STALE')} active={postureFilter === 'STALE'} ariaLabel={`Filter clients by Stale (${workspace.summary.stale})`} />
+        <SummaryMetric label="Known missing Kaspersky devices" value={workspace.summary.missingKaspersky} tone={zeroKnownTone(workspace.summary.missingKaspersky, 'warning')} onClick={() => applyPostureFilter('MISSING_KASPERSKY')} active={postureFilter === 'MISSING_KASPERSKY'} ariaLabel={`Filter clients by Missing Kaspersky (${workspace.summary.missingKaspersky})`} />
+        <SummaryMetric label="Known missing opsi devices" value={workspace.summary.missingOpsi} tone={zeroKnownTone(workspace.summary.missingOpsi, 'warning')} onClick={() => applyPostureFilter('MISSING_OPSI')} active={postureFilter === 'MISSING_OPSI'} ariaLabel={`Filter clients by Missing opsi (${workspace.summary.missingOpsi})`} />
+        <SummaryMetric label="Known outdated devices" value={workspace.summary.outdated} tone={zeroKnownTone(workspace.summary.outdated, 'warning')} onClick={() => applyPostureFilter('OUTDATED')} active={postureFilter === 'OUTDATED'} ariaLabel={`Filter clients by Outdated (${workspace.summary.outdated})`} />
+        <SummaryMetric label="Known missing Nessus devices" value={workspace.summary.missingNessus} tone={zeroKnownTone(workspace.summary.missingNessus, 'warning')} onClick={() => applyPostureFilter('MISSING_NESSUS')} active={postureFilter === 'MISSING_NESSUS'} ariaLabel={`Filter clients by Missing Nessus (${workspace.summary.missingNessus})`} />
+        <SummaryMetric label="Devices with known Nessus Critical" value={workspace.summary.nessusCritical} tone={zeroKnownTone(workspace.summary.nessusCritical, 'danger')} onClick={() => applyPostureFilter('NESSUS_CRITICAL')} active={postureFilter === 'NESSUS_CRITICAL'} ariaLabel={`Filter clients by Nessus Critical (${workspace.summary.nessusCritical})`} />
+        <SummaryMetric label="Devices with known Nessus High" value={workspace.summary.nessusHigh} tone={zeroKnownTone(workspace.summary.nessusHigh, 'warning')} onClick={() => applyPostureFilter('NESSUS_HIGH')} active={postureFilter === 'NESSUS_HIGH'} ariaLabel={`Filter clients by Nessus High (${workspace.summary.nessusHigh})`} />
       </div>
-      <p className="mt-3 text-xs text-muted">Assessed {new Date(workspace.assessedAtUtc).toLocaleString()}{workspace.domainName ? ` · AD domain ${workspace.domainName}` : ''}. Read-only posture; no remediation starts from this view.</p>
+      <p className={`mt-3 text-xs ${coverageComplete ? 'text-muted' : 'text-warn-300'}`}>
+        Snapshot {workspace.snapshotRevision} assessed {new Date(workspace.assessedAtUtc).toLocaleString()}{workspace.domainName ? ` · AD domain ${workspace.domainName}` : ''}.
+        {!coverageComplete && ' Counts are known results only; one or more sources have incomplete coverage.'} Read-only posture; no remediation starts from this view.
+      </p>
     </Card>}
     <Toolbar actions={<>
       <span className="text-xs tabular-nums text-muted">{selectedHosts.length}/{maxBatchHosts ?? '—'} selected</span>

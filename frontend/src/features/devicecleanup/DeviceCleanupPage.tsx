@@ -17,7 +17,7 @@ import {
 import { errorText } from '../../shared/bridge/errorText';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 import { HygieneLoadStatus } from '../../shared/environment/HygieneLoadStatus';
-import { useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
+import { useEnvironment, useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
 import { useHygieneOperation } from '../../shared/environment/useHygieneOperation';
 import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
@@ -78,6 +78,10 @@ function sourceTimestampSummary(candidate: DeviceCleanupCandidate): string {
 }
 
 export function DeviceCleanupPage() {
+  const environment = useEnvironment();
+  const invalidateEnvironment = environment.invalidate;
+  const environmentRefreshRevision = environment.refreshRevision;
+  const lastEnvironmentRefreshRevision = useRef(0);
   const environmentRequest = useEnvironmentRequest();
   const hygieneOperation = useHygieneOperation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -104,8 +108,8 @@ export function DeviceCleanupPage() {
 
   useEffect(() => {
     const currentRequest = ++requestId.current;
-    const force = refreshRevision > forcedRevision.current;
-    forcedRevision.current = refreshRevision;
+    const force = environmentRefreshRevision > lastEnvironmentRefreshRevision.current
+      || refreshRevision > forcedRevision.current;
     const operationId = hygieneOperation.begin();
     setLoading(true);
     setError(null);
@@ -122,7 +126,14 @@ export function DeviceCleanupPage() {
     });
     activeLoad.current = invocation;
     void invocation.promise.then((value) => {
-      if (requestId.current === currentRequest) setResult(value);
+      if (requestId.current === currentRequest) {
+        if (force) {
+          lastEnvironmentRefreshRevision.current = environmentRefreshRevision;
+          forcedRevision.current = refreshRevision;
+        }
+        setResult(value);
+        if (force) invalidateEnvironment(false);
+      }
     }).catch((caught: unknown) => {
       if (requestId.current === currentRequest && !(caught instanceof BridgeCancelledError)) {
         setError(presentError(caught, {
@@ -138,7 +149,7 @@ export function DeviceCleanupPage() {
       }
     });
     return () => invocation.cancel();
-  }, [activeSearch, environmentRequest, hygieneOperation.begin, hygieneOperation.end, includeWithoutSignals, page, pageSize, refreshRevision, selectedHost]);
+  }, [activeSearch, environmentRefreshRevision, environmentRequest, hygieneOperation.begin, hygieneOperation.end, includeWithoutSignals, invalidateEnvironment, page, pageSize, refreshRevision, selectedHost]);
 
   const selectedKey = result?.selectedAssessment?.candidate.subjectKey ?? null;
   useEffect(() => {

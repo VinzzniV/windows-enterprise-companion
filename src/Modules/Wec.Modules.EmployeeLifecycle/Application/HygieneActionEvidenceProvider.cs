@@ -54,7 +54,7 @@ internal sealed class HygieneActionEvidenceProvider(
             .Select(device => new HygieneActionSubject(device.ComputerName, device.HostName))
             .OrderBy(subject => subject.SubjectKey, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        return new HygieneActionEvidenceSnapshot(result.AssessedAtUtc, sources, subjects, findings);
+        return new HygieneActionEvidenceSnapshot(result.SnapshotRevision, result.AssessedAtUtc, sources, subjects, findings);
     }
 
     private static HygieneActionEvidence Project(

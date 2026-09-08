@@ -14,7 +14,7 @@ import {
 } from '../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 import { HygieneLoadStatus } from '../../shared/environment/HygieneLoadStatus';
-import { useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
+import { useEnvironment, useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
 import { useHygieneOperation } from '../../shared/environment/useHygieneOperation';
 import { RelationshipMap } from '../../shared/relationships/RelationshipMap';
 import { Badge, type BadgeTone } from '../../shared/ui/Badge';
@@ -78,6 +78,10 @@ function formatTimestamp(value: string | null): string {
 }
 
 export function ActionCenterPage() {
+  const environment = useEnvironment();
+  const invalidateEnvironment = environment.invalidate;
+  const environmentRefreshRevision = environment.refreshRevision;
+  const lastEnvironmentRefreshRevision = useRef(0);
   const environmentRequest = useEnvironmentRequest();
   const hygieneOperation = useHygieneOperation();
   const [draftFilters, setDraftFilters] = useState<ActionCenterFilters>(emptyFilters);
@@ -97,8 +101,8 @@ export function ActionCenterPage() {
 
   useEffect(() => {
     const currentRequest = ++requestId.current;
-    const force = refreshRevision > lastForcedRevision.current;
-    lastForcedRevision.current = refreshRevision;
+    const force = environmentRefreshRevision > lastEnvironmentRefreshRevision.current
+      || refreshRevision > lastForcedRevision.current;
     const operationId = hygieneOperation.begin();
     setLoading(true);
     setError(null);
@@ -118,8 +122,15 @@ export function ActionCenterPage() {
     activeLoad.current = invocation;
     void invocation.promise.then((value) => {
       if (requestId.current === currentRequest) {
+        if (force) {
+          lastEnvironmentRefreshRevision.current = environmentRefreshRevision;
+          lastForcedRevision.current = refreshRevision;
+        }
         setResult(value);
-        setSelectedItem((current) => current && value.items.some((item) => item.id === current.id) ? current : null);
+        setSelectedItem((current) => current
+          ? value.items.find((item) => item.id === current.id) ?? null
+          : null);
+        if (force) invalidateEnvironment(false);
       }
     }).catch((caught: unknown) => {
       if (requestId.current === currentRequest && !(caught instanceof BridgeCancelledError)) {
@@ -136,7 +147,7 @@ export function ActionCenterPage() {
       }
     });
     return () => invocation.cancel();
-  }, [activeFilters, environmentRequest, hygieneOperation.begin, hygieneOperation.end, page, pageSize, refreshRevision, sortDirection, sortField]);
+  }, [activeFilters, environmentRefreshRevision, environmentRequest, hygieneOperation.begin, hygieneOperation.end, invalidateEnvironment, page, pageSize, refreshRevision, sortDirection, sortField]);
 
   const columns = useMemo<DataColumn<ActionCenterWorkItem>[]>(() => [
     {
@@ -217,6 +228,7 @@ export function ActionCenterPage() {
     setSortField(nextField);
     setSortDirection(next.direction === 'asc' ? 'ASCENDING' : 'DESCENDING');
   };
+  const incompleteSources = result?.sources.filter((source) => source.availability !== 'AVAILABLE') ?? [];
 
   return <div className="flex flex-col gap-4">
     <PageHeader title="Action Center" subtitle="Computed read-only work list from current source evidence">
@@ -245,20 +257,24 @@ export function ActionCenterPage() {
       <section className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3" aria-label="Action Center summary">
         <dl className="flex flex-wrap gap-x-8 gap-y-3">
           {[
-            ['Open evidence', result.summary.total, 'text-slate-100'],
-            ['Critical', result.summary.critical, 'text-fail-300'],
-            ['High', result.summary.high, 'text-fail-300'],
-            ['Warning', result.summary.warning, 'text-warn-300'],
-            ['Unknown coverage', result.summary.unknownCoverage, 'text-slate-300'],
+            ['Filtered work items', result.summary.total, 'text-slate-100'],
+            ['Affected devices', result.summary.affectedDevices, 'text-slate-100'],
+            ['Known critical work items', result.summary.critical, 'text-fail-300'],
+            ['Known high work items', result.summary.high, 'text-fail-300'],
+            ['Known warning work items', result.summary.warning, 'text-warn-300'],
+            ['Work items with limited coverage', result.summary.unknownCoverage, 'text-slate-300'],
           ].map(([label, value, color]) => <div key={label as string}>
             <dt className="text-xs uppercase tracking-wide text-muted">{label}</dt>
             <dd className={`mt-0.5 font-mono text-xl font-semibold tabular-nums ${color}`}>{value}</dd>
           </div>)}
           <div className="ml-auto">
             <dt className="text-xs uppercase tracking-wide text-muted">Assessed</dt>
-            <dd className="mt-1 text-sm text-slate-300">{formatTimestamp(result.assessedAtUtc)}</dd>
+            <dd className="mt-1 text-sm text-slate-300">Snapshot {result.snapshotRevision} · {formatTimestamp(result.assessedAtUtc)}</dd>
           </div>
         </dl>
+        {incompleteSources.length > 0 && <p className="mt-3 text-sm text-warn-300" role="status">
+          Coverage incomplete: {incompleteSources.map((source) => source.source).join(', ')}. Counts show known work only and are not an all-clear.
+        </p>}
       </section>
 
       <DetailsDisclosure summary="Source coverage">

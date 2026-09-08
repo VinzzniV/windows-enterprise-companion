@@ -10,6 +10,7 @@ internal sealed class ItHygieneSnapshotCache : IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _requestFingerprint;
     private ItHygieneResult? _snapshot;
+    private long _revision;
 
     public async Task<Result<ItHygieneResult>> GetAsync(
         ItHygieneRequest request,
@@ -27,10 +28,15 @@ internal sealed class ItHygieneSnapshotCache : IDisposable
             }
 
             Result<ItHygieneResult> loaded = await load(request, cancellationToken);
-            if (loaded.IsSuccess && Cacheable(loaded.Value))
+            if (loaded.IsSuccess)
             {
-                _requestFingerprint = fingerprint;
-                _snapshot = loaded.Value;
+                ItHygieneResult revised = loaded.Value with { SnapshotRevision = ++_revision };
+                loaded = Result.Success(revised);
+                if (Cacheable(revised))
+                {
+                    _requestFingerprint = fingerprint;
+                    _snapshot = revised;
+                }
             }
 
             return loaded;

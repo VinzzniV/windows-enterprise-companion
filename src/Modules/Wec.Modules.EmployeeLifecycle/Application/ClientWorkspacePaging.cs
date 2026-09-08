@@ -25,6 +25,7 @@ public sealed record ClientWorkspacePage(
     int Page,
     int PageSize,
     int? GroupCount,
+    long SnapshotRevision,
     DateTimeOffset AssessedAtUtc,
     string? DomainName,
     HygieneSummary Summary,
@@ -56,7 +57,7 @@ internal static class ClientWorkspacePaging
         HygieneSummary workspaceSummary = ItHygieneService.Summarize(merged
             .Where(client => client.Environment is not null)
             .Select(client => client.Environment!)
-            .ToList());
+            .ToList(), result.Sources);
         IEnumerable<ClientWorkspaceEntry> query = merged;
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -66,7 +67,7 @@ internal static class ClientWorkspacePaging
                 value?.Contains(search, StringComparison.OrdinalIgnoreCase) == true));
         }
 
-        query = ApplyStatusFilter(query, request.StatusFilter);
+        query = ApplyStatusFilter(query, request.StatusFilter, result.Sources);
         query = ApplySourceFilter(query, request.SourceFilter);
         List<ClientWorkspaceEntry> filtered = query.ToList();
 
@@ -116,6 +117,7 @@ internal static class ClientWorkspacePaging
             page,
             pageSize,
             groupCount,
+            result.SnapshotRevision,
             result.AssessedAtUtc,
             result.DomainName,
             workspaceSummary,
@@ -208,14 +210,15 @@ internal static class ClientWorkspacePaging
 
     private static IEnumerable<ClientWorkspaceEntry> ApplyStatusFilter(
         IEnumerable<ClientWorkspaceEntry> clients,
-        string? filter)
+        string? filter,
+        EnvironmentSourceStates sources)
     {
         string normalized = filter?.ToUpperInvariant() ?? "ALL";
         return normalized switch
         {
             "" or "ALL" => clients,
             "UNMANAGED" => clients.Where(client => client.Environment is null),
-            _ => clients.Where(client => client.Environment is not null && ItHygienePaging.MatchesFilter(client.Environment, normalized)),
+            _ => clients.Where(client => client.Environment is not null && ItHygienePaging.MatchesFilter(client.Environment, normalized, sources)),
         };
     }
 

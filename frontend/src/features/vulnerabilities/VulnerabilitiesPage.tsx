@@ -156,7 +156,10 @@ export function VulnerabilitiesPage() {
     try {
       const o = await invoke<VulnerabilityOverview>('vulnerabilitymanagement', 'getOverview', known(hosts));
       setOverview(o);
-      if (syncWasRunning.current && !o.sync.running) setDataRevision((current) => current + 1);
+      if (syncWasRunning.current && !o.sync.running) {
+        setDataRevision((current) => current + 1);
+        void environment.refresh();
+      }
       syncWasRunning.current = o.sync.running;
       const last = o.sync.lastSuccessfulSyncUtc ? Date.now() - new Date(o.sync.lastSuccessfulSyncUtc).getTime() : Number.POSITIVE_INFINITY;
       if (!o.sync.running && last > 15 * 60_000 && !autoRefreshAttempted.current) {
@@ -177,7 +180,7 @@ export function VulnerabilitiesPage() {
         message: 'The Nessus vulnerability overview could not be loaded.',
       }));
     }
-  }, [hosts]);
+  }, [environment.refresh, hosts]);
 
   const startSync = useCallback(async () => {
     setRefreshing(true);

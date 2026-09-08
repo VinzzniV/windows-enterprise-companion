@@ -302,6 +302,7 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
         <SourceHeader name="opsi" state={sources.opsi} present={device.opsi.exists} missingApplies={hasFinding('MISSING_OPSI')} stale={hasFinding('STALE_OPSI')} />
         <SourceHeader name="Nessus" state={nessusSource} present={nessus.exists && nessus.lastCompletedScanUtc !== null} missingApplies={hasFinding('MISSING_NESSUS')} stale={hasFinding('STALE_NESSUS')} />
       </div>
+      <p className="text-xs text-muted">Snapshot {environment.result!.snapshotRevision} assessed {new Date(environment.result!.assessedAtUtc).toLocaleString()}.</p>
     </Card>
     <DetailsDisclosure summary="Management details and device relationships">
     <div className="flex flex-col gap-4">

@@ -4,16 +4,21 @@
 
 The blind audit is preserved unchanged. The technical follow-up and prioritized
 M01-M16 backlog are now versioned under docs; see [documentation index](docs/README.md).
-Only documentation cleanup is authorized in this slice. Product implementation
-has not started. The proposed first slice is M01 (coverage and known findings),
-followed by M02 (refresh and cache state); identity and persistence changes need
-their documented compatibility decisions before migrations.
+Implementation was explicitly authorized on 2026-09-08. Work is active on
+`codex/m01-m16-audit-measures`. M01 (coverage and known findings) and M02
+(refresh and cache state) are implemented and verified. The active slice is
+M03/M04/M12: device identity, atomic snapshot replacement and side-effect-free
+legacy reads, beginning with a read-only existing-data inventory and a
+documented compatibility rule.
 
-Documentation branch: codex/docs-audit-cleanup. Product-code baseline: 17ae57a.
+Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
+baseline: 17ae57a.
 The new audit ran 467 frontend and 162 selected backend tests (629 passed);
 this is a targeted audit run, not a new full backend/release acceptance.
-The implementation and acceptance evidence below remains historical evidence
-for the preceding code slices. External acceptance gates remain open.
+Measure-specific evidence and reassessments are recorded in
+`docs/2026-09-08-massnahmen-umsetzungsnachweis.md`. The implementation and
+acceptance evidence below remains historical evidence for the preceding code
+slices. External acceptance gates remain open.
 
 ## Last implementation baseline
 

@@ -30,6 +30,8 @@ public sealed class ActionCenterServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(4, result.Value.Total);
+        Assert.Equal(4, result.Value.Summary.AffectedDevices);
+        Assert.Equal(12, result.Value.SnapshotRevision);
         Assert.Equal(2, result.Value.Summary.Critical);
         Assert.Equal("hygiene:PC-01:NessusCriticalVulnerabilities", result.Value.Items[0].Id);
         Assert.Equal("/vulnerabilities?tab=findings&asset=PC-01", result.Value.Items[0].Href);
@@ -112,6 +114,7 @@ public sealed class ActionCenterServiceTests
     {
         _hygiene.LoadAsync(Arg.Any<HygieneActionEvidenceQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success(new HygieneActionEvidenceSnapshot(
+                12,
                 AssessedAt,
                 [new ActionEvidenceSourceState("Nessus", ActionEvidenceAvailability.Available, "Available")],
                 [new HygieneActionSubject("PC-01", "PC-01")],

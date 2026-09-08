@@ -20,11 +20,13 @@ public sealed class HygieneActionEvidenceProviderTests
                 new InventorySourceState(InventorySourceAvailability.Available),
                 new InventorySourceState(InventorySourceAvailability.Available)),
             EmptySummary,
-            [Device("PC-B"), Device("PC-A")]);
+            [Device("PC-B"), Device("PC-A")],
+            SnapshotRevision: 7);
 
         HygieneActionEvidenceSnapshot snapshot = HygieneActionEvidenceProvider.Project(result);
 
         Assert.Equal(AssessedAt, snapshot.AssessedAtUtc);
+        Assert.Equal(7, snapshot.SnapshotRevision);
         Assert.Equal(["Active Directory", "Kaspersky", "opsi", "Nessus"],
             snapshot.Sources.Select(source => source.Source));
         Assert.Equal(ActionEvidenceAvailability.Partial,

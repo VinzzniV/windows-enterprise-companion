@@ -9,8 +9,10 @@ Updated: 2026-09-08.
 2. [Execution status](../ROADMAP_EXECUTION.md) records the last verified
    implementation and outstanding acceptance gates.
 3. [Consolidated audit measures](2026-09-08-konsolidierte-massnahmenliste.md)
-   are the proposed next implementation backlog, M01-M16. Implementation has
-   not started; documentation cleanup does not authorize product changes.
+   define the authorized implementation backlog, M01-M16. The separate
+   [implementation evidence](2026-09-08-massnahmen-umsetzungsnachweis.md)
+   records completed acceptance criteria and technical reassessments without
+   changing the blind audit.
 4. [Technical audit](2026-09-08-technischer-ux-audit.md) explains causes,
    affected code, risks and test gaps against commit 17ae57a.
 5. [Blind UX audit](2026-09-08-blind-ux-audit.md) is the immutable original

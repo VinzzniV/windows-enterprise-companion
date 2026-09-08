@@ -19,6 +19,7 @@ vi.mock('../../../shared/bridge/bridgeClient', () => ({
 }));
 
 const environmentResult: ItHygieneResult = {
+  snapshotRevision: 2,
   assessedAtUtc: '2026-08-21T07:00:00Z',
   domainName: 'corp.local',
   sources: {

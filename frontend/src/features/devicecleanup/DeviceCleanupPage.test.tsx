@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DeviceCleanupAssessment, DeviceCleanupPage as DeviceCleanupPageResult } from '../../shared/api-types';
+import { EnvironmentProvider } from '../../shared/environment/EnvironmentContext';
 import { TargetProvider } from '../../shared/targets/TargetContext';
 import { DeviceCleanupPage } from './DeviceCleanupPage';
 
@@ -95,7 +96,15 @@ function renderPage() {
     }
     return Promise.resolve({});
   });
-  return render(<MemoryRouter initialEntries={['/cleanup']}><TargetProvider><DeviceCleanupPage /></TargetProvider></MemoryRouter>);
+  return render(
+    <MemoryRouter initialEntries={['/cleanup']}>
+      <TargetProvider>
+        <EnvironmentProvider>
+          <DeviceCleanupPage />
+        </EnvironmentProvider>
+      </TargetProvider>
+    </MemoryRouter>,
+  );
 }
 
 describe('DeviceCleanupPage', () => {

@@ -115,6 +115,7 @@ function pageFor(payload: Record<string, unknown>, rows: ClientWorkspaceListItem
     page,
     pageSize,
     groupCount: grouped ? groups.length : null,
+    snapshotRevision: 2,
     assessedAtUtc: '2026-08-19T10:00:00Z',
     domainName: 'corp.local',
     summary: postureSummary,
@@ -262,8 +263,14 @@ describe('ClientsPage', () => {
     invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) => {
       if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
       if (module === 'employeelifecycle' && action === 'listClientWorkspace') {
+        const critical = device('PC01', { opsi: true });
+        critical.nessus.critical = 3;
+        critical.assessment = {
+          status: 'CRITICAL',
+          findings: [{ code: 'NESSUS_CRITICAL_VULNERABILITIES', severity: 'CRITICAL', message: 'Nessus reports 3 critical finding instances.' }],
+        };
         return Promise.resolve({
-          ...pageFor(payload),
+          ...pageFor(payload, [item(critical, 'PC01'), item(device('DISABLED-PC', { enabled: false }), 'DISABLED-PC')]),
           sources: { ...sources, nessus: { availability: 'PARTIAL' as const, error: 'Refreshing cached inventory.' } },
         });
       }
@@ -276,10 +283,12 @@ describe('ClientsPage', () => {
     const disabledRow = screen.getByText('DISABLED-PC').closest('tr');
     expect(pcRow).not.toBeNull();
     expect(disabledRow).not.toBeNull();
-    expect(within(pcRow!).getAllByText('Fresh')).toHaveLength(4);
-    expect(within(pcRow!).queryByText('Partial')).toBeNull();
+    expect(within(pcRow!).getByText('Critical · 3 instances')).toBeTruthy();
+    expect(within(pcRow!).getByText('Partial coverage')).toBeTruthy();
+    expect(within(pcRow!).getByText(/^Scan /)).toBeTruthy();
     expect(within(disabledRow!).getByText('Partial')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Nessus: Partial' })).toBeTruthy();
+    expect(screen.getByText(/Counts are known results only/)).toBeTruthy();
   });
 
   it('shows fleet posture and writes KPI filters to the canonical URL', async () => {

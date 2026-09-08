@@ -1,6 +1,7 @@
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
 public sealed record ItHygieneOverview(
+    long SnapshotRevision,
     DateTimeOffset AssessedAtUtc,
     string? DomainName,
     EnvironmentSourceStates Sources,
@@ -33,6 +34,7 @@ public sealed record ListHygieneDevicesRequest(
 internal static class ItHygienePaging
 {
     public static ItHygieneOverview Overview(ItHygieneResult result) => new(
+        result.SnapshotRevision,
         result.AssessedAtUtc,
         result.DomainName,
         result.Sources,
@@ -49,7 +51,7 @@ internal static class ItHygienePaging
                 value?.Contains(search, StringComparison.OrdinalIgnoreCase) == true));
         }
 
-        query = ApplyFilter(query, request.Filter);
+        query = ApplyFilter(query, request.Filter, result.Sources);
         query = ApplySort(query, request.SortColumn, request.SortDirection);
 
         int page = Math.Max(1, request.Page);
@@ -82,19 +84,27 @@ internal static class ItHygienePaging
         }
     }
 
-    private static IEnumerable<HygieneDevice> ApplyFilter(IEnumerable<HygieneDevice> devices, string? filter)
+    private static IEnumerable<HygieneDevice> ApplyFilter(
+        IEnumerable<HygieneDevice> devices,
+        string? filter,
+        EnvironmentSourceStates sources)
     {
         string normalized = filter?.ToUpperInvariant() ?? "ALL";
         return normalized is "" or "ALL"
             ? devices
-            : devices.Where(device => MatchesFilter(device, normalized));
+            : devices.Where(device => MatchesFilter(device, normalized, sources));
     }
 
-    internal static bool MatchesFilter(HygieneDevice device, string filter) => filter switch
+    internal static bool MatchesFilter(
+        HygieneDevice device,
+        string filter,
+        EnvironmentSourceStates? sources = null) => filter switch
     {
         "HEALTHY" => device.Assessment.Status == HygieneStatus.Healthy,
         "PROBLEMS" => device.Assessment.Status is HygieneStatus.Warning or HygieneStatus.CleanupCandidate or HygieneStatus.Critical,
-        "INCOMPLETE" => device.Assessment.Status == HygieneStatus.Incomplete,
+        "INCOMPLETE" => sources is null
+            ? device.Assessment.Status == HygieneStatus.Incomplete
+            : !HygieneAssessmentPolicy.SourcesComplete(sources, requireNessus: true),
         "STALE" => Has(device, HygieneFindingCode.StaleAd, HygieneFindingCode.StaleKaspersky, HygieneFindingCode.StaleOpsi, HygieneFindingCode.StaleNessus),
         "STALE_AD" => Has(device, HygieneFindingCode.StaleAd),
         "STALE_KASPERSKY" => Has(device, HygieneFindingCode.StaleKaspersky),

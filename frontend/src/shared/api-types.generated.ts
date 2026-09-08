@@ -340,6 +340,7 @@ export interface ActionCenterPage {
   page: number;
   pageSize: number;
   summary: ActionCenterSummary;
+  snapshotRevision: number;
   assessedAtUtc: string;
   sources: ActionEvidenceSourceState[];
   itemsTruncated: boolean;
@@ -353,6 +354,7 @@ export type ActionCenterSortField = 'SEVERITY' | 'DEVICE' | 'SOURCE' | 'EVIDENCE
 
 export interface ActionCenterSummary {
   total: number;
+  affectedDevices: number;
   critical: number;
   high: number;
   warning: number;
@@ -863,6 +865,7 @@ export interface ClientWorkspacePage {
   page: number;
   pageSize: number;
   groupCount: number | null;
+  snapshotRevision: number;
   assessedAtUtc: string;
   domainName: string | null;
   summary: HygieneSummary;
@@ -1048,6 +1051,7 @@ export interface InventorySourceState {
 }
 
 export interface ItHygieneOverview {
+  snapshotRevision: number;
   assessedAtUtc: string;
   domainName: string | null;
   sources: EnvironmentSourceStates;
@@ -1059,6 +1063,7 @@ export interface ItHygieneRequest {
   activeDirectory?: DirectoryInventoryConnection | null;
   kaspersky?: KasperskyInventoryConnection | null;
   operationId?: string | null;
+  force?: boolean;
 }
 
 export interface ItHygieneResult {
@@ -1067,6 +1072,7 @@ export interface ItHygieneResult {
   sources: EnvironmentSourceStates;
   summary: HygieneSummary;
   devices: HygieneDevice[];
+  snapshotRevision: number;
 }
 
 export interface KasperskyDeviceData {
