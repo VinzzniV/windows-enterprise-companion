@@ -24,7 +24,14 @@ import { CompactErrorState, EmptyState, ErrorState } from '../../shared/ui/State
 import { Spinner } from '../../shared/ui/Spinner';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { buildClientList, toClientTarget } from './clients';
-import { compareFindings, compareInventory, compareSoftware, type DiffRow, type SetDiff } from './compare';
+import {
+  compareFindings,
+  compareInventory,
+  compareSoftware,
+  type DiffRow,
+  type SetDiff,
+  type SoftwareComparison,
+} from './compare';
 import { ClientComparePicker } from './ClientComparePicker';
 import { loadRecentCompareHosts, recordRecentCompareHosts } from './recentCompareClients';
 
@@ -101,6 +108,46 @@ function SetDiffCard({
             </div>
           </DetailsDisclosure>
         )}
+      </div>
+    </Card>
+  );
+}
+
+function EvidenceUsed({ comparison }: { comparison: Comparison }) {
+  const describeSide = (side: SideData) => {
+    const inventory = side.inventory.kind === 'data'
+      ? `Inventory captured ${new Date(side.inventory.value.capturedAtUtc).toLocaleString()}.`
+      : side.inventory.kind === 'missing' ? 'No stored Inventory snapshot.' : 'Inventory read failed.';
+    const software = side.inventory.kind === 'data'
+      ? side.inventory.value.snapshot.installedSoftware === null
+        ? `Software coverage unavailable${side.inventory.value.snapshot.installedSoftwareError
+          ? `: ${side.inventory.value.snapshot.installedSoftwareError.message}`
+          : ' in this legacy snapshot'}.`
+        : `Software coverage complete: ${side.inventory.value.snapshot.installedSoftware.length} reported products.`
+      : 'Software coverage unavailable because Inventory is unavailable.';
+    const security = side.scan.kind === 'data'
+      ? `Security captured ${new Date(side.scan.value.completedAtUtc).toLocaleString()}; ${
+        side.scan.value.coverage.isComplete ? 'coverage complete' : 'coverage incomplete or legacy'}.`
+      : side.scan.kind === 'missing' ? 'No stored Security scan.' : 'Security read failed.';
+    return { inventory, software, security };
+  };
+
+  return (
+    <Card title="Evidence used">
+      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+        {[comparison.a, comparison.b].map((side) => {
+          const evidence = describeSide(side);
+          return (
+            <section key={side.host} aria-label={`Evidence for ${side.host}`} className="rounded border border-slate-800 p-3">
+              <h3 className="font-medium text-slate-200">{side.host}</h3>
+              <ul className="mt-1 flex flex-col gap-1 text-slate-400">
+                <li>{evidence.inventory}</li>
+                <li>{evidence.software}</li>
+                <li>{evidence.security}</li>
+              </ul>
+            </section>
+          );
+        })}
       </div>
     </Card>
   );
@@ -259,16 +306,32 @@ export function ComparePage() {
     comparison?.a.inventory.kind === 'data' && comparison.b.inventory.kind === 'data'
       ? compareInventory(comparison.a.inventory.value.snapshot, comparison.b.inventory.value.snapshot)
       : null;
+  const softwareComparison: SoftwareComparison | null =
+    comparison?.a.inventory.kind === 'data' && comparison.b.inventory.kind === 'data'
+      ? compareSoftware(comparison.a.inventory.value.snapshot, comparison.b.inventory.value.snapshot)
+      : null;
 
   const columns: DataColumn<DiffRow>[] = comparison
     ? [
-        { header: 'Property', cell: (row) => <span className="text-slate-400">{row.label}</span> },
+        {
+          header: 'Property',
+          cell: (row) => (
+            <span className="text-slate-400">
+              <span className="block">{row.label}</span>
+              {row.rule && <span className="block text-xs text-muted">{row.rule}</span>}
+            </span>
+          ),
+        },
         { header: comparison.a.host, cell: (row) => row.a },
         { header: comparison.b.host, cell: (row) => row.b },
         {
           header: 'Match',
           align: 'center',
-          cell: (row) => (row.same ? <Badge tone="ok">same</Badge> : <Badge tone="warn">differs</Badge>),
+          cell: (row) => row.match === 'exact'
+            ? <Badge tone="ok">same</Badge>
+            : row.match === 'equivalent'
+              ? <Badge tone="ok">within tolerance</Badge>
+              : <Badge tone="warn">differs</Badge>,
         },
       ]
     : [];
@@ -382,6 +445,8 @@ export function ComparePage() {
 
       {comparison && !loading && (
         <>
+          <EvidenceUsed comparison={comparison} />
+
           <Card title="Hardware inventory">
             {inventoryErrors.length > 0 ? (
               <div className="flex flex-col gap-3">
@@ -403,14 +468,33 @@ export function ComparePage() {
             )}
           </Card>
 
-          {comparison.a.inventory.kind === 'data' && comparison.b.inventory.kind === 'data' && (
-            <SetDiffCard
-              title="Installed software"
-              diff={compareSoftware(comparison.a.inventory.value.snapshot, comparison.b.inventory.value.snapshot)}
-              labelA={comparison.a.host}
-              labelB={comparison.b.host}
-            />
-          )}
+          {softwareComparison?.status === 'available' ? (
+            <>
+              <SetDiffCard
+                title="Installed software"
+                diff={softwareComparison}
+                labelA={comparison.a.host}
+                labelB={comparison.b.host}
+              />
+              {softwareComparison.versionDifferences.length > 0 && (
+                <Card title="Software version differences">
+                  <DataTable
+                    columns={columns}
+                    rows={softwareComparison.versionDifferences}
+                    emptyMessage="No software version differences."
+                  />
+                </Card>
+              )}
+            </>
+          ) : softwareComparison?.status === 'unknown' ? (
+            <Card title="Installed software">
+              <p className="text-sm text-warn-400">
+                Software comparison is unavailable because capture coverage is unknown for {' '}
+                {softwareComparison.unavailableSides.map((side) => side === 'a' ? comparison.a.host : comparison.b.host).join(', ')}.
+                No product is classified as present on only one client.
+              </p>
+            </Card>
+          ) : null}
 
           {securityErrors.length > 0 ? (
             <Card title="Security findings">

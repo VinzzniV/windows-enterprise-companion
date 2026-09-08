@@ -14,7 +14,8 @@ the applicable milestone checks are green.
 | M03 | Complete | ADR 0021 defines complete host/address identities, exact-first resolution and proven unique aliases. Core, correlation, provider and frontend tests cover distinct IPs, equal short names in different domains, foreign same-name targets, unique legacy aliases and ambiguous links. |
 | M04 | Complete | A non-destructive migration adds nullable normalized identity keys and a filtered unique index. Real-SQLite tests cover newest-capture-wins concurrency, failure injection, retained legacy duplicates and atomic replacement. |
 | M05 | Complete | Inventory, Security and Health use explicit loading, missing, stored-read failure and live-run failure states. The same UI matrix covers timeout, unavailable bridge, database failure and unreadable payload; stored reloads remain read-only and failed live refreshes retain the previous result. |
-| M06-M11 | Planned | Not yet accepted. |
+| M06 | Complete | Comparison blocks absence claims when either software capture is unavailable, separates product presence from version differences, normalizes GPU order/whitespace, applies documented byte tolerances to raw RAM/disk totals and permanently displays Inventory/Security capture times and coverage per client. |
+| M07-M11 | Planned | Not yet accepted. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13-M16 | Planned | Not yet accepted. |
 
@@ -101,3 +102,17 @@ non-mutation regression.
 - 24 focused frontend section tests, 79 focused module tests and 16 real-SQLite
   persistence tests passed. The Release solution build and production frontend
   build passed; 390 generated bridge contract types are current.
+
+## M06 technical reassessment and verification
+
+- Installed software is compared only when both capture lists are present.
+  Unknown or failed capture on either side suppresses all one-sided absence
+  claims. Matching product names remain shared while reported version changes
+  are listed separately.
+- Hardware display values remain visible, while equality uses normalized text
+  and raw numeric totals. GPU names ignore surrounding/repeated whitespace and
+  device order. Memory is equivalent within 1% or 64 MB; total storage within
+  1% or 1 GB. The applied rule is visible beside the property.
+- The result keeps an evidence card for both clients with Inventory and Security
+  capture times, software coverage and Security completeness.
+- 22 focused comparison tests passed and the production frontend build passed.

@@ -7,6 +7,7 @@ import type {
   AppInfoResponse,
   HardwareInfoResult,
   ListInventoryHostsResult,
+  SecurityScanResult,
 } from '../../shared/api-types';
 import { BridgeInvokeError } from '../../shared/bridge/bridgeClient';
 import { TargetProvider } from '../../shared/targets/TargetContext';
@@ -100,6 +101,29 @@ function hardware(host: string): HardwareInfoResult {
       installedSoftware: [],
       installedSoftwareError: null,
       userEvidence: null,
+    },
+  };
+}
+
+function securityScan(host: string, isComplete = true): SecurityScanResult {
+  return {
+    scanId: host === 'pc-a.corp.local' ? 1 : 2,
+    host,
+    startedAtUtc: '2026-08-18T09:00:00Z',
+    completedAtUtc: '2026-08-18T09:05:00Z',
+    status: 'COMPLETED',
+    findings: [],
+    checkResults: [],
+    coverageVersion: isComplete ? 1 : null,
+    coverage: {
+      isKnown: isComplete,
+      totalChecks: 13,
+      succeededChecks: isComplete ? 13 : 0,
+      failedChecks: 0,
+      requiresElevationChecks: 0,
+      notApplicableChecks: 0,
+      applicableChecks: 13,
+      isComplete,
     },
   };
 }
@@ -378,6 +402,67 @@ describe('ComparePage data truthfulness', () => {
     expect(await screen.findByText('Stored security scan for pc-b.corp.local could not be read.')).toBeTruthy();
     expect(screen.queryByText(/pc-b\.corp\.local has no stored security scan/i)).toBeNull();
     expect(screen.getByRole('button', { name: 'Retry comparison' })).toBeTruthy();
+  });
+
+  it('does not infer software-only differences from an unavailable capture', async () => {
+    const original = invokeMock.getMockImplementation();
+    invokeMock.mockImplementation((module: string, action: string, payload?: Record<string, unknown>) => {
+      const target = payload?.target as { host?: string } | null;
+      if (action === 'getHardwareInfo' && target?.host === 'pc-a.corp.local') {
+        const result = hardware(target.host);
+        result.snapshot.installedSoftware = [{ name: 'Firefox', version: '125', publisher: null }];
+        return Promise.resolve(result);
+      }
+      if (action === 'getHardwareInfo' && target?.host === 'pc-b.corp.local') {
+        const result = hardware(target.host);
+        result.snapshot.installedSoftware = null;
+        result.snapshot.installedSoftwareError = { code: 'ACCESS_DENIED', message: 'Registry access denied.' };
+        return Promise.resolve(result);
+      }
+      return original?.(module, action, payload);
+    });
+
+    renderPage();
+    await chooseClients();
+    await userEvent.click(screen.getByRole('button', { name: 'Compare' }));
+
+    expect(await screen.findByText(/Software comparison is unavailable/)).toBeTruthy();
+    expect(screen.getByText(/No product is classified as present on only one client/)).toBeTruthy();
+    expect(screen.queryByText(/only on pc-a\.corp\.local/i)).toBeNull();
+  });
+
+  it('shows version differences and permanent capture context', async () => {
+    const original = invokeMock.getMockImplementation();
+    invokeMock.mockImplementation((module: string, action: string, payload?: Record<string, unknown>) => {
+      const target = payload?.target as { host?: string } | null;
+      if (action === 'getHardwareInfo' && target?.host) {
+        const result = hardware(target.host);
+        result.snapshot.installedSoftware = [{
+          name: 'Firefox',
+          version: target.host === 'pc-a.corp.local' ? '125' : '126',
+          publisher: null,
+        }];
+        return Promise.resolve(result);
+      }
+      if (action === 'getLatestScan' && target?.host) {
+        return Promise.resolve({ scan: securityScan(target.host, target.host === 'pc-a.corp.local') });
+      }
+      return original?.(module, action, payload);
+    });
+
+    renderPage();
+    await chooseClients();
+    await userEvent.click(screen.getByRole('button', { name: 'Compare' }));
+
+    expect(await screen.findByRole('heading', { name: 'Software version differences' })).toBeTruthy();
+    expect(screen.getByText('125')).toBeTruthy();
+    expect(screen.getByText('126')).toBeTruthy();
+    expect(screen.getAllByText(`Inventory captured ${new Date('2026-08-18T08:00:00Z').toLocaleString()}.`))
+      .toHaveLength(2);
+    expect(screen.getAllByText(`Security captured ${new Date('2026-08-18T09:05:00Z').toLocaleString()}; coverage complete.`))
+      .toHaveLength(1);
+    expect(screen.getAllByText(`Security captured ${new Date('2026-08-18T09:05:00Z').toLocaleString()}; coverage incomplete or legacy.`))
+      .toHaveLength(1);
   });
 
   it('discards a completed comparison when either selected client changes', async () => {

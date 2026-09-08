@@ -58,16 +58,82 @@ describe('compareInventory', () => {
     const cpu = rows.find((r) => r.label === 'CPU');
     const mem = rows.find((r) => r.label === 'Memory');
     expect(os?.same).toBe(true);
-    expect(cpu).toMatchObject({ a: 'Intel i7', b: 'AMD Ryzen', same: false });
-    expect(mem).toMatchObject({ a: '8.0 GB', b: '16.0 GB', same: false });
+    expect(cpu).toMatchObject({ a: 'Intel i7', b: 'AMD Ryzen', same: false, match: 'different' });
+    expect(mem).toMatchObject({ a: '8.0 GB', b: '16.0 GB', same: false, match: 'different' });
+  });
+
+  it('normalizes GPU whitespace and order before deciding equality', () => {
+    const a = snapshot({ gpus: [
+      { name: ' NVIDIA RTX  ', memoryBytes: null, driverVersion: null },
+      { name: 'Intel  UHD', memoryBytes: null, driverVersion: null },
+    ] });
+    const b = snapshot({ gpus: [
+      { name: 'Intel UHD', memoryBytes: null, driverVersion: null },
+      { name: 'NVIDIA RTX', memoryBytes: null, driverVersion: null },
+    ] });
+
+    expect(compareInventory(a, b).find((row) => row.label === 'GPU')).toMatchObject({
+      a: 'Intel UHD, NVIDIA RTX',
+      b: 'Intel UHD, NVIDIA RTX',
+      match: 'equivalent',
+      rule: 'Compared after trimming whitespace and ignoring device order.',
+    });
+  });
+
+  it('uses documented byte tolerances while retaining the reported values', () => {
+    const a = snapshot({
+      memoryBanks: [{ manufacturer: null, partNumber: null, capacityBytes: 8 * 1024 ** 3, speedMtps: null }],
+      disks: [{ model: 'SSD', sizeBytes: 500 * 1024 ** 3, interfaceType: null, mediaType: null }],
+    });
+    const b = snapshot({
+      memoryBanks: [{ manufacturer: null, partNumber: null, capacityBytes: 8 * 1024 ** 3 + 32 * 1024 ** 2, speedMtps: null }],
+      disks: [{ model: 'SSD', sizeBytes: 504 * 1024 ** 3, interfaceType: null, mediaType: null }],
+    });
+    const rows = compareInventory(a, b);
+
+    expect(rows.find((row) => row.label === 'Memory')).toMatchObject({ match: 'equivalent', same: true });
+    expect(rows.find((row) => row.label === 'Storage')).toMatchObject({ match: 'equivalent', same: true });
   });
 });
 
 describe('compareSoftware', () => {
-  it('diffs installed software by name, tolerating a null software list', () => {
+  it('does not infer product absence from an unavailable software capture', () => {
     const a = snapshot({ installedSoftware: [{ name: 'Firefox', version: '1', publisher: null }] });
-    const b = snapshot({ installedSoftware: null });
-    expect(compareSoftware(a, b)).toEqual({ onlyA: ['Firefox'], onlyB: [], both: [] });
+    const b = snapshot({
+      installedSoftware: null,
+      installedSoftwareError: { code: 'ACCESS_DENIED', message: 'Registry access denied.' },
+    });
+
+    expect(compareSoftware(a, b)).toEqual({
+      status: 'unknown',
+      unavailableSides: ['b'],
+      onlyA: [],
+      onlyB: [],
+      both: [],
+      versionDifferences: [],
+    });
+  });
+
+  it('separates product presence from reported version differences', () => {
+    const a = snapshot({ installedSoftware: [
+      { name: 'Firefox', version: '125', publisher: null },
+      { name: '7-Zip', version: '24.0', publisher: null },
+    ] });
+    const b = snapshot({ installedSoftware: [
+      { name: 'firefox', version: '126', publisher: null },
+      { name: 'Edge', version: '1', publisher: null },
+    ] });
+    const result = compareSoftware(a, b);
+
+    expect(result).toMatchObject({
+      status: 'available',
+      onlyA: ['7-Zip'],
+      onlyB: ['Edge'],
+      both: ['Firefox'],
+    });
+    expect(result.versionDifferences).toEqual([expect.objectContaining({
+      label: 'Firefox', a: '125', b: '126', match: 'different',
+    })]);
   });
 });
 
