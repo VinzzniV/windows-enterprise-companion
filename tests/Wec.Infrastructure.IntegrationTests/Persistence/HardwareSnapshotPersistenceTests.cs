@@ -153,7 +153,7 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
     }
 
     [Fact]
-    public async Task ListHostsAsync_RemovesLegacySnapshotsWithoutAHost()
+    public async Task ListHostsAsync_FiltersLegacySnapshotsWithoutMutatingThem()
     {
         using WecDbContext context = CreateContext();
         await context.Database.MigrateAsync();
@@ -177,7 +177,7 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         IReadOnlyList<StoredInventoryHost> hosts = await repository.ListHostsAsync(CancellationToken.None);
 
         Assert.Empty(hosts);
-        Assert.Equal(0, await context.Set<HardwareSnapshotRecord>().CountAsync());
+        Assert.Equal(2, await context.Set<HardwareSnapshotRecord>().CountAsync());
     }
 
     [Fact]

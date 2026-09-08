@@ -11,7 +11,9 @@ the applicable milestone checks are green.
 | --- | --- | --- |
 | M01 | Complete | Backend policy, paging and Action Center projection tests cover known Nessus Critical/High evidence under partial coverage, suppression of unproven Missing findings, simultaneous problem/incomplete classification and distinct work-item/device/instance units. Clients and Action Center component tests cover the visible qualified counts, timestamps and coverage warning. |
 | M02 | Complete | Cache/handler tests prove forced reload and monotonic in-process snapshot revision. Environment tests cover forced backend payloads, pending invalidation, cancellation generations and stale-response rejection. Page tests cover forced refresh and replacement of selected Action Center details with the current item. |
-| M03-M16 | Planned | Not yet accepted. |
+| M03-M11 | Planned | Not yet accepted. |
+| M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
+| M13-M16 | Planned | Not yet accepted. |
 
 ## M01/M02 technical reassessment
 
@@ -41,3 +43,10 @@ the applicable milestone checks are green.
   completed successfully. Native-window automation was unavailable in this
   session, so visual interaction remains a later focused smoke gate rather than
   a repeated blind audit.
+
+## M12 technical reassessment and verification
+
+Invalid blank-host rows are a storage-maintenance concern, not part of a read
+contract. `ListHostsAsync` now uses a no-tracking filtered query and performs no
+write. The seven real-SQLite hardware snapshot tests pass, including the revised
+non-mutation regression.
