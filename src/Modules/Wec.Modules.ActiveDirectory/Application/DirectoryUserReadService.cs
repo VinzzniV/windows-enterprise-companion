@@ -63,10 +63,7 @@ internal sealed class DirectoryUserReadService : IDirectoryUserReadProvider
                 connection.Server,
                 connection.Credentials,
                 SortAttribute: sortAttribute,
-                SortDescending: query.SortDirection == DirectoryUserSortDirection.Descending,
-                SortTieBreakerAttribute: string.Equals(sortAttribute, "sAMAccountName", StringComparison.Ordinal)
-                    ? null
-                    : "sAMAccountName"),
+                SortDescending: query.SortDirection == DirectoryUserSortDirection.Descending),
             offset.Value,
             query.PageSize,
             cancellationToken);
