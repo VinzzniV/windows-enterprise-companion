@@ -19,7 +19,8 @@ import { ReportingSection } from '../reporting/ReportingSection';
 import { OverviewSection } from './sections/OverviewSection';
 import { openPsSession } from '../../shared/ps/openPsSession';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
-import { useEnvironmentOptional } from '../../shared/environment/EnvironmentContext';
+import { useEnvironmentOptional, useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
+import { clientListScope, isClientListUrl } from './clientListNavigation';
 
 type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
 
@@ -65,6 +66,11 @@ export function ClientDetailPage() {
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
   const environment = useEnvironmentOptional();
+  const environmentRequest = useEnvironmentRequest();
+  const navigationState = location.state as { returnTo?: unknown; scope?: unknown } | null;
+  const returnTo = navigationState?.scope === clientListScope(environmentRequest) && isClientListUrl(navigationState.returnTo)
+    ? navigationState.returnTo
+    : '/clients';
   // undefined = getAppInfo not resolved yet; value or null once known. Sections
   // must wait for this so the local machine is never scanned as a remote target.
   const [appInfo, setAppInfo] = useState<AppInfoResponse | null | undefined>(undefined);
@@ -107,8 +113,8 @@ export function ClientDetailPage() {
     } else {
       nextParams.set('section', nextSection);
     }
-    setSearchParams(nextParams);
-  }, [searchParams, setSearchParams]);
+    setSearchParams(nextParams, { replace: true, state: location.state });
+  }, [location.state, searchParams, setSearchParams]);
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
@@ -127,7 +133,7 @@ export function ClientDetailPage() {
     <div className="flex flex-col gap-4">
       <PageHeader title={host} subtitle={local ? 'This machine · scanned as the current user' : 'Remote client'}>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => navigate('/clients', { state: location.state })}>
+          <Button variant="ghost" onClick={() => navigate(returnTo, { state: location.state })}>
             ← All clients
           </Button>
           {!local && (

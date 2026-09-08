@@ -102,6 +102,7 @@ describe('AppInfoFooter', () => {
 describe('responsive application shell', () => {
   beforeEach(() => {
     window.location.hash = '#/';
+    sessionStorage.clear();
     invokeMock.mockReset();
     invokeMock.mockImplementation((module: string, action: string) => {
       if (module === 'system' && action === 'getAppInfo') return Promise.resolve(loadedState.appInfo);
@@ -145,6 +146,19 @@ describe('responsive application shell', () => {
 
     expect(await screen.findByText('Clients content')).toBeDefined();
     expect(window.location.hash).toBe('#/clients');
+  });
+
+  it('keeps the last scoped Clients URL through primary navigation', async () => {
+    window.location.hash = '#/clients?q=PC&source=OPSI&page=2';
+    render(<App />);
+    expect(await screen.findByText('Clients content')).toBeDefined();
+
+    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Dashboard' }));
+    expect(await screen.findByText('Dashboard content')).toBeDefined();
+    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Clients' }));
+
+    expect(await screen.findByText('Clients content')).toBeDefined();
+    expect(window.location.hash).toBe('#/clients?q=PC&source=OPSI&page=2');
   });
 
   it('opens global search with Ctrl+K and restores focus after Escape', async () => {

@@ -25,8 +25,12 @@ and semantic badges prohibit mid-word wrapping. Automated acceptance is green;
 the physical 1026 x 671 WebView/zoom check remains external. M10 now names the
 opsi aggregate as outdated product installations without changing its unit,
 and Dashboard, Clients and Compare state their distinct source populations and
-filter boundaries. Its contract, focused tests and builds are green. The active
-slice is M11: navigation and filter-state restoration.
+filter boundaries. Its contract, focused tests and builds are green. M11 now
+keeps search, posture, source, grouping, paging and sorting in the Clients URL,
+restores the actual app scroll container on detail return, retains scoped list
+state through primary navigation and provides an explicit reset. Its focused
+navigation tests and production build are green. The active slice is M13: log
+filtering, bounded coverage and truncation metadata.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.

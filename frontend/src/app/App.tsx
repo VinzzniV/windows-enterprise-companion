@@ -14,6 +14,8 @@ import { presentError, type ErrorPresentation } from '../shared/bridge/errorPres
 import { appRoutes, navigationGroups, sectionLabelFor, type AppRouteDefinition } from './routeRegistry';
 import { Spinner } from '../shared/ui/Spinner';
 import { GlobalSearch } from './GlobalSearch';
+import { useEnvironmentRequest } from '../shared/environment/EnvironmentContext';
+import { clientListScope, isClientListUrl, readClientListUrl, rememberClientListUrl } from '../features/clients/clientListNavigation';
 
 export type AppInfoState =
   | { kind: 'loading' }
@@ -171,6 +173,21 @@ interface NavigationContentProps {
 
 /** One navigation tree rendered in either the desktop rail or the mobile drawer. */
 function NavigationContent({ appInfoState, onNavigate, onClose }: NavigationContentProps) {
+  const location = useLocation();
+  const environmentRequest = useEnvironmentRequest();
+  const clientsScope = clientListScope(environmentRequest);
+  const currentUrl = `${location.pathname}${location.search}`;
+  const clientDetailState = location.state as { returnTo?: unknown; scope?: unknown } | null;
+  const clientsTarget = location.pathname === '/clients'
+    ? currentUrl
+    : clientDetailState?.scope === clientsScope && isClientListUrl(clientDetailState.returnTo)
+      ? clientDetailState.returnTo
+      : readClientListUrl(clientsScope);
+
+  useEffect(() => {
+    if (location.pathname === '/clients') rememberClientListUrl(currentUrl, clientsScope);
+  }, [clientsScope, currentUrl, location.pathname]);
+
   return (
     <>
       <div className="flex items-center gap-2.5 border-b border-slate-800 px-4 py-4">
@@ -199,7 +216,7 @@ function NavigationContent({ appInfoState, onNavigate, onClose }: NavigationCont
               {group.label}
             </span>
             {group.items.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.to === '/'} className={navLinkClass} onClick={onNavigate}>
+              <NavLink key={item.to} to={item.to === '/clients' ? clientsTarget : item.to} end={item.to === '/'} className={navLinkClass} onClick={onNavigate}>
                 {item.icon}
                 {item.label}
               </NavLink>
@@ -322,7 +339,7 @@ function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
           onOpenNavigation={() => setNavigationOpen(true)}
           onOpenSearch={openGlobalSearch}
         />
-        <div data-testid="application-scroll-container" className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 xl:p-6">
+        <div data-testid="application-scroll-container" data-scroll-container="application" className="min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 xl:p-6">
           <div className="mx-auto max-w-[1400px]">
             <AppRoutes />
           </div>

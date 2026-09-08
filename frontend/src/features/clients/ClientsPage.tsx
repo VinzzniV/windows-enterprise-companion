@@ -37,9 +37,38 @@ import {
   type ClientConnectivityState,
 } from './clientStatus';
 import { ClientBulkActions } from './ClientBulkActions';
+import { clientListScope } from './clientListNavigation';
 
 type ClientSourceFilter = 'ALL' | 'AD' | 'KASPERSKY' | 'OPSI' | 'NESSUS' | 'SCANNED' | 'SAVED';
 type GroupMode = 'none' | 'os' | 'site';
+
+const sourceFilters: readonly ClientSourceFilter[] = ['ALL', 'AD', 'KASPERSKY', 'OPSI', 'NESSUS', 'SCANNED', 'SAVED'];
+const groupModes: readonly GroupMode[] = ['none', 'os', 'site'];
+
+function sourceFilterFromUrl(value: string | null): ClientSourceFilter {
+  return sourceFilters.includes(value as ClientSourceFilter) ? value as ClientSourceFilter : 'ALL';
+}
+
+function groupModeFromUrl(value: string | null): GroupMode {
+  return groupModes.includes(value as GroupMode) ? value as GroupMode : 'none';
+}
+
+function positiveIntegerFromUrl(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function pageSizeFromUrl(value: string | null): number {
+  const parsed = positiveIntegerFromUrl(value, 50);
+  return [25, 50, 100].includes(parsed) ? parsed : 50;
+}
+
+function sortFromUrl(column: string | null, direction: string | null): DataTableSort {
+  return {
+    column: column === 'overall' ? 'overall' : 'device',
+    direction: direction === 'desc' ? 'desc' : 'asc',
+  };
+}
 
 function hasFinding(device: HygieneDevice, codes: HygieneFindingCode[]) {
   return device.assessment.findings.some((finding) => codes.includes(finding.code));
@@ -119,15 +148,11 @@ interface ClientProbeViewState {
 }
 
 interface ClientsViewState {
-  search: string;
-  groupMode: GroupMode;
-  sourceFilter: ClientSourceFilter;
-  page: number;
-  pageSize: number;
-  sort: DataTableSort;
   probeStates: Record<string, ClientProbeViewState>;
   selectedHosts: string[];
-  scrollY: number;
+  scrollTop: number;
+  returnTo: string;
+  scope: string;
 }
 
 function ClientConnectivityStatus({ value }: { value: ClientProbeViewState }) {
@@ -152,17 +177,20 @@ export function ClientsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const restoredView = location.state as ClientsViewState | null;
   const initialView = useRef(restoredView);
-  const restoredScrollY = initialView.current?.scrollY;
   const postureFilter = clientPostureFilterFromUrl(searchParams.get('posture'));
   const request = useEnvironmentRequest();
+  const scope = clientListScope(request);
   const hygieneOperation = useHygieneOperation();
   const [workspace, setWorkspace] = useState<ClientWorkspacePage | null>(null);
-  const [search, setSearch] = useState(() => initialView.current?.search ?? '');
-  const [groupMode, setGroupMode] = useState<GroupMode>(() => initialView.current?.groupMode ?? 'none');
-  const [sourceFilter, setSourceFilter] = useState<ClientSourceFilter>(() => initialView.current?.sourceFilter ?? 'ALL');
-  const [page, setPage] = useState(() => initialView.current?.page ?? 1);
-  const [pageSize, setPageSize] = useState(() => initialView.current?.pageSize ?? 50);
-  const [sort, setSort] = useState<DataTableSort>(() => initialView.current?.sort ?? { column: 'device', direction: 'asc' });
+  const search = searchParams.get('q') ?? '';
+  const groupMode = groupModeFromUrl(searchParams.get('group'));
+  const sourceFilter = sourceFilterFromUrl(searchParams.get('source'));
+  const page = positiveIntegerFromUrl(searchParams.get('page'), 1);
+  const pageSize = pageSizeFromUrl(searchParams.get('pageSize'));
+  const sortColumn = searchParams.get('sort');
+  const sortDirection = searchParams.get('direction');
+  const sort = useMemo(() => sortFromUrl(sortColumn, sortDirection), [sortColumn, sortDirection]);
+  const [appliedSearch, setAppliedSearch] = useState(search);
   const [refreshRevision, setRefreshRevision] = useState(0);
   const lastForcedRevision = useRef(0);
   const requestId = useRef(0);
@@ -178,6 +206,14 @@ export function ClientsPage() {
   const [selectedHosts, setSelectedHosts] = useState<string[]>(() => initialView.current?.selectedHosts ?? []);
   const [maxBatchHosts, setMaxBatchHosts] = useState<number | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
+  const pageRoot = useRef<HTMLDivElement>(null);
+  const restoredScrollTop = useRef(initialView.current?.scope === scope ? initialView.current.scrollTop : null);
+  const scrollRestored = useRef(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAppliedSearch(search), 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     let active = true;
@@ -202,7 +238,7 @@ export function ClientsPage() {
     setCancelled(false);
     const invocation = invokeCancellable<ClientWorkspacePage>('employeelifecycle', 'listClientWorkspace', {
       ...request,
-      search,
+      search: appliedSearch,
       statusFilter: postureFilter,
       sourceFilter,
       groupMode,
@@ -222,8 +258,12 @@ export function ClientsPage() {
         }
         setWorkspace(value);
         if (force) invalidateEnvironment(false);
-        if (restoredScrollY) {
-          requestAnimationFrame(() => window.scrollTo({ top: restoredScrollY }));
+        if (!scrollRestored.current && restoredScrollTop.current !== null) {
+          scrollRestored.current = true;
+          requestAnimationFrame(() => {
+            const scrollContainer = pageRoot.current?.closest<HTMLElement>('[data-scroll-container="application"]');
+            if (scrollContainer) scrollContainer.scrollTop = restoredScrollTop.current ?? 0;
+          });
         }
       }
     }).catch((caught) => {
@@ -239,7 +279,7 @@ export function ClientsPage() {
       }
     });
     return () => invocation.cancel();
-  }, [environmentRefreshRevision, groupMode, page, pageSize, postureFilter, refreshRevision, request, restoredScrollY, search, sort, sourceFilter, hygieneOperation.begin, hygieneOperation.end, invalidateEnvironment]);
+  }, [appliedSearch, environmentRefreshRevision, groupMode, page, pageSize, postureFilter, refreshRevision, request, sort, sourceFilter, hygieneOperation.begin, hygieneOperation.end, invalidateEnvironment]);
 
   const probeOnline = () => {
     const hosts = workspace?.items.map((client) => client.host) ?? [];
@@ -334,13 +374,17 @@ export function ClientsPage() {
     return deviceColumns;
   }, [batchRunning, maxBatchHosts, probeStates, selectedHosts, workspace?.sources]);
 
-  const resetPage = () => setPage(1);
-  const applyPostureFilter = (value: ClientPostureFilter) => {
+  const updateListUrl = (updates: Record<string, string | null>, resetPage = false) => {
     const next = new URLSearchParams(searchParams);
-    if (value === 'ALL') next.delete('posture');
-    else next.set('posture', value);
-    setSearchParams(next);
-    resetPage();
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === '') next.delete(key);
+      else next.set(key, value);
+    }
+    if (resetPage) next.delete('page');
+    setSearchParams(next, { replace: true });
+  };
+  const applyPostureFilter = (value: ClientPostureFilter) => {
+    updateListUrl({ posture: value === 'ALL' ? null : value }, true);
   };
   const rows = workspace?.items ?? [];
   const coverageComplete = workspace ? Object.values(workspace.sources).every((source) => source.availability === 'AVAILABLE') : false;
@@ -357,13 +401,19 @@ export function ClientsPage() {
     };
   };
   const openClient = (client: ClientWorkspaceListItem) => {
+    const returnTo = `${location.pathname}${location.search}`;
+    const scrollContainer = pageRoot.current?.closest<HTMLElement>('[data-scroll-container="application"]');
     const viewState: ClientsViewState = {
-      search, groupMode, sourceFilter, page, pageSize, sort, probeStates, selectedHosts, scrollY: window.scrollY,
+      probeStates,
+      selectedHosts,
+      scrollTop: scrollContainer?.scrollTop ?? 0,
+      returnTo,
+      scope,
     };
-    navigate(`${location.pathname}${location.search}`, { replace: true, state: viewState });
+    navigate(returnTo, { replace: true, state: viewState });
     navigate(`/clients/${encodeURIComponent(client.host)}`, { state: viewState });
   };
-  const retry = () => { setCancelled(false); setPage(1); setRefreshRevision((current) => current + 1); };
+  const retry = () => { setCancelled(false); setAppliedSearch(search); updateListUrl({}, true); setRefreshRevision((current) => current + 1); };
   const selectVisibleHosts = () => {
     if (maxBatchHosts === null || batchRunning) return;
     setSelectedHosts((current) => {
@@ -380,11 +430,11 @@ export function ClientsPage() {
     });
   };
 
-  return <div className="flex flex-col gap-4">
+  return <div ref={pageRoot} className="flex flex-col gap-4">
     <PageHeader title="Clients" subtitle="Canonical device inventory and fleet posture across AD, Kaspersky, opsi, Nessus and WEC scans">
       <div className="flex gap-2"><Button variant="secondary" onClick={() => navigate('/clients/compare')}>Compare</Button>
         <Button variant="secondary" onClick={probeOnline} disabled={probing || !rows.length}>{probing ? 'Checking…' : 'Check page connectivity'}</Button>
-        <Button variant="secondary" onClick={() => { setPage(1); setRefreshRevision((current) => current + 1); }} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</Button></div>
+        <Button variant="secondary" onClick={() => { setAppliedSearch(search); updateListUrl({}, true); setRefreshRevision((current) => current + 1); }} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</Button></div>
     </PageHeader>
     {probeError && <ErrorState
       title="Client connectivity check failed"
@@ -430,16 +480,19 @@ export function ClientsPage() {
       <span className="text-xs tabular-nums text-muted">{selectedHosts.length}/{maxBatchHosts ?? '—'} selected</span>
       <Button variant="ghost" onClick={selectVisibleHosts} disabled={batchRunning || maxBatchHosts === null || !rows.length || selectedHosts.length >= maxBatchHosts}>Select page</Button>
       <Button variant="ghost" onClick={() => setSelectedHosts([])} disabled={batchRunning || !selectedHosts.length}>Clear selection</Button>
-    </>}><Input type="search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} placeholder="Filter by device, OS or finding" aria-label="Filter clients" className="w-64" />
+    </>}><Input type="search" value={search} onChange={(event) => updateListUrl({ q: event.target.value }, true)} placeholder="Filter by device, OS or finding" aria-label="Filter clients" className="w-64" />
       <Select fullWidth={false} value={postureFilter} onChange={(event) => applyPostureFilter(event.target.value as ClientPostureFilter)} aria-label="Filter clients by posture">
         {clientPostureFilters.map((value) => <option key={value} value={value}>{clientPostureLabels[value]}</option>)}
       </Select>
-      <Select fullWidth={false} value={sourceFilter} onChange={(event) => { setSourceFilter(event.target.value as ClientSourceFilter); resetPage(); }} aria-label="Filter clients by source">
+      <Select fullWidth={false} value={sourceFilter} onChange={(event) => updateListUrl({ source: event.target.value === 'ALL' ? null : event.target.value }, true)} aria-label="Filter clients by source">
         <option value="ALL">All sources</option><option value="AD">Active Directory</option><option value="KASPERSKY">Kaspersky</option><option value="OPSI">opsi</option><option value="NESSUS">Nessus</option><option value="SCANNED">Scanned</option><option value="SAVED">Saved</option>
       </Select>
-      <Select fullWidth={false} value={groupMode} onChange={(event) => { setGroupMode(event.target.value as GroupMode); resetPage(); }} aria-label="Group clients by">
+      <Select fullWidth={false} value={groupMode} onChange={(event) => updateListUrl({ group: event.target.value === 'none' ? null : event.target.value }, true)} aria-label="Group clients by">
         <option value="none">No grouping</option><option value="os">Group by OS</option><option value="site">Group by site</option>
-      </Select></Toolbar>
+      </Select>
+      <Button variant="ghost" onClick={() => setSearchParams(new URLSearchParams(), { replace: true })} disabled={!searchParams.size}>Reset filters</Button>
+    </Toolbar>
+    <p className="text-xs text-muted">Search and list filters apply immediately; Reset filters restores the default list.</p>
     {selectedHosts.length > 0 && <ClientBulkActions
       selectedHosts={selectedHosts}
       maxBatchHosts={maxBatchHosts}
@@ -459,7 +512,7 @@ export function ClientsPage() {
     {loading && !workspace && !showEnvironmentProgress ? <Spinner label="Loading environment inventory …" /> : !rows.length && !loading ? <EmptyState title="No clients" message="No device matches the current filters." />
       : <DataTable layout="fixed" columns={columns} rows={rows} getRowKey={(client) => client.key} groupBy={rowGroup}
         onRowClick={batchRunning ? undefined : openClient} stickyHeader emptyMessage="No clients."
-        loading={loading} sort={sort} onSortChange={(value) => { setSort(value); resetPage(); }}
-        pagination={{ page: workspace?.page ?? page, pageSize: workspace?.pageSize ?? pageSize, total: workspace?.groupCount ?? workspace?.total ?? 0, itemLabel: groupMode === 'none' ? undefined : 'groups', onPageChange: setPage, onPageSizeChange: (value) => { setPageSize(value); resetPage(); } }} />}
+        loading={loading} sort={sort} onSortChange={(value) => updateListUrl({ sort: value.column === 'device' ? null : value.column, direction: value.direction === 'asc' ? null : value.direction }, true)}
+        pagination={{ page: workspace?.page ?? page, pageSize: workspace?.pageSize ?? pageSize, total: workspace?.groupCount ?? workspace?.total ?? 0, itemLabel: groupMode === 'none' ? undefined : 'groups', onPageChange: (value) => updateListUrl({ page: value === 1 ? null : String(value) }), onPageSizeChange: (value) => updateListUrl({ pageSize: value === 50 ? null : String(value) }, true) }} />}
   </div>;
 }

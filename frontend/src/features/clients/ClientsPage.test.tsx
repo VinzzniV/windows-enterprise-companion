@@ -131,7 +131,11 @@ function LocationProbe() {
 function ReturnToClients() {
   const location = useLocation();
   const navigate = useNavigate();
-  return <button type="button" onClick={() => navigate('/clients', { state: location.state })}>Return to clients</button>;
+  const state = location.state as { returnTo?: string } | null;
+  return <>
+    <button type="button" onClick={() => navigate(state?.returnTo ?? '/clients', { state: location.state })}>Return to clients</button>
+    <button type="button" onClick={() => navigate(-1)}>Browser back</button>
+  </>;
 }
 
 function renderPage(initialEntry = '/clients') {
@@ -139,11 +143,13 @@ function renderPage(initialEntry = '/clients') {
     <MemoryRouter initialEntries={[initialEntry]}>
       <TargetProvider>
         <EnvironmentProvider>
-          <LocationProbe />
-          <Routes>
-            <Route path="/clients" element={<ClientsPage />} />
-            <Route path="/clients/:host" element={<ReturnToClients />} />
-          </Routes>
+          <div data-scroll-container="application">
+            <LocationProbe />
+            <Routes>
+              <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/clients/:host" element={<ReturnToClients />} />
+            </Routes>
+          </div>
         </EnvironmentProvider>
       </TargetProvider>
     </MemoryRouter>,
@@ -330,6 +336,73 @@ describe('ClientsPage', () => {
     await screen.findByText('Fleet posture');
     await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ statusFilter: 'NESSUS_CRITICAL', page: 1 }));
     expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('NESSUS_CRITICAL');
+  });
+
+  it('restores the complete list state from a direct URL and resets it explicitly', async () => {
+    renderPage('/clients?q=PC&posture=NESSUS_CRITICAL&source=OPSI&group=site&page=2&pageSize=25&sort=overall&direction=desc');
+
+    await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({
+      search: 'PC',
+      statusFilter: 'NESSUS_CRITICAL',
+      sourceFilter: 'OPSI',
+      groupMode: 'site',
+      page: 2,
+      pageSize: 25,
+      sortColumn: 'overall',
+      sortDirection: 'desc',
+    }));
+    expect((screen.getByLabelText('Filter clients') as HTMLInputElement).value).toBe('PC');
+    expect((screen.getByLabelText('Filter clients by source') as HTMLSelectElement).value).toBe('OPSI');
+    expect((screen.getByLabelText('Group clients by') as HTMLSelectElement).value).toBe('site');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/clients'));
+    await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({
+      search: '', statusFilter: 'ALL', sourceFilter: 'ALL', groupMode: 'none', page: 1, pageSize: 50,
+      sortColumn: 'device', sortDirection: 'asc',
+    }));
+  });
+
+  it('returns from detail to the complete URL and restores the inner scroll container once', async () => {
+    renderPage('/clients?q=PC&source=OPSI&sort=overall&direction=desc');
+    const row = (await screen.findByText('PC01')).closest('tr');
+    const scrollContainer = document.querySelector<HTMLElement>('[data-scroll-container="application"]')!;
+    scrollContainer.scrollTop = 240;
+
+    await userEvent.click(row!);
+    expect(screen.getByTestId('location').textContent).toMatch(/^\/clients\/pc01/);
+    scrollContainer.scrollTop = 0;
+    await userEvent.click(screen.getByRole('button', { name: 'Return to clients' }));
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent)
+      .toBe('/clients?q=PC&source=OPSI&sort=overall&direction=desc'));
+    await waitFor(() => expect(scrollContainer.scrollTop).toBe(240));
+    expect((screen.getByLabelText('Filter clients') as HTMLInputElement).value).toBe('PC');
+    expect((screen.getByLabelText('Filter clients by source') as HTMLSelectElement).value).toBe('OPSI');
+  });
+
+  it('keeps the complete list state through browser back', async () => {
+    renderPage('/clients?q=PC&posture=OUTDATED&source=OPSI');
+    await userEvent.click((await screen.findByText('PC01')).closest('tr')!);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Browser back' }));
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent)
+      .toBe('/clients?q=PC&posture=OUTDATED&source=OPSI'));
+    expect((screen.getByLabelText('Filter clients') as HTMLInputElement).value).toBe('PC');
+    expect((screen.getByLabelText('Filter clients by posture') as HTMLSelectElement).value).toBe('OUTDATED');
+  });
+
+  it('debounces immediate text filtering to one server request for a typing burst', async () => {
+    renderPage();
+    await screen.findByText('PC01');
+    const callsBeforeTyping = invokeMock.mock.calls.filter((call) => call[1] === 'listClientWorkspace').length;
+
+    await userEvent.type(screen.getByLabelText('Filter clients'), 'SERVER');
+
+    await waitFor(() => expect(lastInvoke('listClientWorkspace')?.[2]).toMatchObject({ search: 'SERVER' }));
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'listClientWorkspace')).toHaveLength(callsBeforeTyping + 1);
   });
 
   it('offers focused cleanup filters for stale and missing AD clients', async () => {

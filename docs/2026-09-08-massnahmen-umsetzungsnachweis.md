@@ -19,7 +19,7 @@ the applicable milestone checks are green.
 | M08 | Implemented; layout smoke pending | Cleanup, Error log and Action Center use the same viewport-bound detail dialog with Escape, focus containment and focus return. A 500-row Error-log regression proves that the first selection opens without relying on the page end. Client Event Logs expose an explicit full-message action with host, time, source, safe wrapped text, copy feedback and a warning for the existing 500-character truncation convention. The required real-browser/WebView layout check remains external because this session cannot automate the native window or inject the host bridge into its isolated browser. |
 | M09 | Implemented; layout smoke pending | Clients keeps only compact source state, snapshot time and coverage guidance above search. Eleven posture/filter metrics are collapsed by default, and the batch workbench is absent until a client is selected. Running progress stays visible when batch options collapse. The fixed client table orders Device and Overall before explicitly sized provider columns, while semantic badges prohibit mid-word wrapping. The physical 1026 x 671 WebView and higher-zoom check remains external. |
 | M10 | Complete | The Patch Management contract and UI call the sum outdated product installations; one client with two outdated products remains two installations. Dashboard labels stored hosts as stored, Clients separates posture assessment from filtered merged candidates, and Compare explicitly identifies its enabled-AD/stored/saved picker population and exclusions. |
-| M11 | Planned | Not yet accepted. |
+| M11 | Complete | Search, posture, source, grouping, page, page size and sort are URL-backed and directly linkable. Detail tabs preserve the exact return URL; button return and browser Back restore the inner app scroll container once. Primary navigation retains the last list URL only for the same directory/management context, Reset clears it, and text typing is debounced to one server read per burst. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13-M16 | Planned | Not yet accepted. |
 
@@ -179,6 +179,29 @@ non-mutation regression.
 - 37 Patch Management backend tests and 47 focused frontend tests passed. The
   Release solution and production frontend builds passed with zero compiler
   errors, and all 390 generated bridge contracts are current.
+
+## M11 technical reassessment and verification
+
+- The Clients URL is the durable view contract. It holds text, posture, source,
+  grouping, page, page size, sort column and direction; default values remain
+  omitted so `/clients` is the explicit reset state and every non-default view
+  remains directly linkable.
+- Connectivity evidence, batch selection and scroll position remain transient
+  navigation state because they are session observations, not shareable query
+  criteria. Switching Client 360 tabs preserves that state and the exact list
+  return URL.
+- Scroll restoration targets the shell's real `overflow-y-auto` container and
+  runs once after the restored result is available. Browser Back and the
+  visible All clients action both retain the complete URL.
+- Primary navigation stores only the last list URL for the current AD/Kaspersky
+  identity context. A directory, server or account-context change falls back
+  to `/clients` instead of applying a foreign filter silently. No password is
+  stored or used in that scope key.
+- Search text updates the URL immediately but batches a typing burst into one
+  backend read after 250 ms. Other finite filters apply immediately and all
+  changes reset paging as appropriate.
+- 47 focused App-shell, Clients, Client-detail, Dashboard and scope tests pass;
+  all 519 frontend tests and the production TypeScript/Vite build pass.
 - A local real-browser run at 1026 × 671 was prepared, but the isolated browser
   cannot receive the WebView host bridge fixture and native-window automation
   is unavailable. Actual visual fit, focus-ring visibility and scrolling in

@@ -80,7 +80,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Active Directory')).toBeDefined();
     expect(screen.getByText('Report export')).toBeDefined();
     // Derived metrics from stored data
-    expect(await screen.findByText('1 host')).toBeDefined();
+    expect(await screen.findByText('1 stored host')).toBeDefined();
     expect(await screen.findByText('1 critical/high')).toBeDefined();
     expect(await screen.findByText('Not connected')).toBeDefined();
 

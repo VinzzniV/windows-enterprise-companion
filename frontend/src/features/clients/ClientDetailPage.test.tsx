@@ -5,6 +5,7 @@ import type { ClientOverviewResult, HardwareInfoResult, ReportOverview, Security
 import { TargetProvider } from '../../shared/targets/TargetContext';
 import { EnvironmentProvider } from '../../shared/environment/EnvironmentContext';
 import { ClientDetailPage } from './ClientDetailPage';
+import { clientListScope } from './clientListNavigation';
 
 const { invokeMock, BridgeInvokeErrorMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
@@ -30,14 +31,18 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-function renderAt(host: string, section?: string) {
+function renderAt(host: string, section?: string, state?: unknown) {
   const query = section === undefined ? '' : `?section=${encodeURIComponent(section)}`;
+  const entry = state === undefined
+    ? `/clients/${encodeURIComponent(host)}${query}`
+    : { pathname: `/clients/${encodeURIComponent(host)}`, search: query, state };
   return render(
-    <MemoryRouter initialEntries={[`/clients/${encodeURIComponent(host)}${query}`]}>
+    <MemoryRouter initialEntries={[entry]}>
       <TargetProvider>
         <EnvironmentProvider>
           <Routes>
             <Route path="/clients/:host" element={<ClientDetailPage />} />
+            <Route path="/clients" element={<span>Clients list</span>} />
           </Routes>
           <LocationProbe />
         </EnvironmentProvider>
@@ -360,6 +365,23 @@ describe('ClientDetailPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Overview' }));
     expect(screen.getByTestId('location').textContent).toBe('/clients/PC1.corp.local');
+  });
+
+  it('keeps the complete Clients return URL after switching detail tabs', async () => {
+    const returnTo = '/clients?q=PC&posture=OUTDATED&source=OPSI&page=2&sort=overall&direction=desc';
+    renderAt('PC1.corp.local', undefined, {
+      returnTo,
+      scope: clientListScope({ activeDirectory: {}, kaspersky: null }),
+      probeStates: {},
+      selectedHosts: [],
+      scrollTop: 240,
+    });
+
+    await screen.findByRole('tab', { name: 'Overview' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
+    fireEvent.click(screen.getByRole('button', { name: /All clients/ }));
+
+    expect(screen.getByTestId('location').textContent).toBe(returnTo);
   });
 
   it('falls back safely to Overview for an unknown section URL', async () => {
