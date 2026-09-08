@@ -41,6 +41,9 @@ machine as the current user.
 - BitLocker acquisition is shared with Security through the narrow
   `IDiskEncryptionStatusReader`; Inventory only maps its tri-state result to
   the Inventory DTO and does not reinterpret unknown provider state.
+  The snapshot UI reads BitLocker only after **Check BitLocker** is selected.
+  Opening stored Inventory or changing credentials does not start that query.
+  A denied remote query does not recommend elevating the local application.
 - **Installed software** is read from the registry uninstall keys (both
   bitness views), never `Win32_Product` (enumerating it triggers MSI
   reconfiguration). Locally through the registry seam; remotely read-only

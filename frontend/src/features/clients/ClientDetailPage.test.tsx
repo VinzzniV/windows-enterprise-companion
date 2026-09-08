@@ -191,6 +191,23 @@ describe('ClientDetailPage', () => {
     });
   });
 
+  it('opens cached inventory without querying BitLocker until explicitly requested', async () => {
+    const fallback = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((module: string, action: string, payload: unknown) => {
+      if (module === 'inventory' && action === 'getHardwareInfo') return Promise.resolve({ ...capturedInventory, fromCache: true });
+      if (module === 'inventory' && action === 'getDiskEncryptionStatus') return Promise.resolve({ volumes: [] });
+      return fallback(module, action, payload);
+    });
+    renderAt('PC1.corp.local');
+    await screen.findByText('Test CPU');
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'getDiskEncryptionStatus')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('tab', { name: 'Inventory' }));
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'getDiskEncryptionStatus')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Check BitLocker' }));
+    await screen.findByText('No encryptable volumes found.');
+    expect(invokeMock.mock.calls.filter((call) => call[1] === 'getDiskEncryptionStatus')).toHaveLength(1);
+  });
+
   it('shows a credential bar for a remote client and runs each section on demand', async () => {
     renderAt('PC1.corp.local');
 
