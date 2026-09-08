@@ -43,7 +43,9 @@ describe('client section error presentation', () => {
 
   it('maps an inventory timeout and keeps retry inside the error state', async () => {
     invokeMock.mockImplementation((_module: string, action: string, payload?: { cacheOnly?: boolean }) => {
-      if (action === 'getHardwareInfo' && payload?.cacheOnly) return Promise.reject(new Error('No cache'));
+      if (action === 'getHardwareInfo' && payload?.cacheOnly) {
+        return Promise.reject(new BridgeInvokeError({ code: 'NOT_FOUND', message: 'No cache' }));
+      }
       if (action === 'getHardwareInfo') {
         return Promise.reject(new BridgeInvokeError({
           code: 'CONNECTION_TIMEOUT',

@@ -296,6 +296,27 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         Assert.Null(other);
     }
 
+    [Fact]
+    public async Task GetLatestAsync_WithDamagedPayload_DoesNotReportMissing()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        context.Set<HardwareSnapshotRecord>().Add(new HardwareSnapshotRecord
+        {
+            Host = "PC-DAMAGED",
+            IdentityKey = "PC-DAMAGED",
+            CapturedAtUtc = DateTimeOffset.UtcNow,
+            PayloadJson = "{not-json",
+        });
+        await context.SaveChangesAsync();
+        var repository = new EfHardwareSnapshotRepository(
+            context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => repository.GetLatestAsync(
+            "PC-DAMAGED",
+            CancellationToken.None));
+    }
+
     public void Dispose()
     {
         SqliteConnection.ClearAllPools();

@@ -119,6 +119,11 @@ const guidanceByCode: Record<string, AdminGuidance> = {
     cause: 'The target accepted the connection but the requested command failed.',
     action: 'Check the target state and permissions, review the technical details, and retry.',
   },
+  STORED_DATA_UNREADABLE: {
+    message: 'The saved data could not be read.',
+    cause: 'A stored record is incomplete, damaged, or incompatible with this application version.',
+    action: 'Keep the record unchanged, review the technical details, and capture a new result only if appropriate.',
+  },
 };
 
 function technicalBridgeDetails(error: BridgeInvokeError): string {

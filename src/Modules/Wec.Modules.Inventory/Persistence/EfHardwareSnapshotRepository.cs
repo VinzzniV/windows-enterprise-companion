@@ -40,13 +40,14 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
         try
         {
             HardwareSnapshot? snapshot = JsonSerializer.Deserialize<HardwareSnapshot>(record.PayloadJson);
-            return snapshot is null ? null : new CachedHardwareSnapshot(snapshot, record.CapturedAtUtc);
+            return snapshot is null
+                ? throw new InvalidDataException($"Stored hardware snapshot {record.Id} contains no payload.")
+                : new CachedHardwareSnapshot(snapshot, record.CapturedAtUtc);
         }
         catch (JsonException exception)
         {
-            // A corrupt cache entry is a cache miss, not an error
-            _logger.LogWarning(exception, "Discarding unreadable hardware snapshot {SnapshotId}", record.Id);
-            return null;
+            _logger.LogWarning(exception, "Stored hardware snapshot {SnapshotId} is unreadable", record.Id);
+            throw new InvalidDataException($"Stored hardware snapshot {record.Id} is unreadable.", exception);
         }
     }
 

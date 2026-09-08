@@ -13,35 +13,49 @@ import { EmptyState, ErrorState } from '../../../shared/ui/States';
 
 type State =
   | { kind: 'loading' }
-  | { kind: 'idle' }
+  | { kind: 'missing' }
   | { kind: 'running' }
-  | { kind: 'done'; run: DiagnosticRunResult }
-  | { kind: 'error'; error: ErrorPresentation };
+  | { kind: 'done'; run: DiagnosticRunResult; refreshing: boolean; refreshError: ErrorPresentation | null }
+  | { kind: 'readError'; error: ErrorPresentation }
+  | { kind: 'runError'; error: ErrorPresentation };
 
 /** Latest stored Health snapshot with an explicit on-demand refresh. */
 export function HealthSection({ target, onDataChanged }: { target: TargetRequest | null; onDataChanged?: () => void }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
-  useEffect(() => {
+  const loadLatest = useCallback(() => {
     setState({ kind: 'loading' });
     invoke<LatestDiagnosticRunResult>('diagnostics', 'getLatestDiagnostics', { target })
       .then((result) =>
-        result.run ? setState({ kind: 'done', run: result.run }) : setState({ kind: 'idle' }),
+        result.run
+          ? setState({ kind: 'done', run: result.run, refreshing: false, refreshError: null })
+          : setState({ kind: 'missing' }),
       )
-      .catch(() => setState({ kind: 'idle' }));
+      .catch((error: unknown) => setState({
+        kind: 'readError',
+        error: presentError(error, { message: 'The stored health snapshot could not be loaded.' }),
+      }));
   }, [target]);
 
+  useEffect(() => {
+    loadLatest();
+  }, [loadLatest]);
+
   const run = useCallback(() => {
-    setState({ kind: 'running' });
+    setState((current) => current.kind === 'done'
+      ? { ...current, refreshing: true, refreshError: null }
+      : { kind: 'running' });
     invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target })
       .then((result) => {
-        setState({ kind: 'done', run: result });
+        setState({ kind: 'done', run: result, refreshing: false, refreshError: null });
         onDataChanged?.();
       })
-      .catch((error: unknown) => setState({
-        kind: 'error',
-        error: presentError(error, { message: 'The health check could not be completed.' }),
-      }));
+      .catch((error: unknown) => {
+        const presentation = presentError(error, { message: 'The health check could not be completed.' });
+        setState((current) => current.kind === 'done'
+          ? { ...current, refreshing: false, refreshError: presentation }
+          : { kind: 'runError', error: presentation });
+      });
   }, [target, onDataChanged]);
 
   if (state.kind === 'loading') {
@@ -52,7 +66,16 @@ export function HealthSection({ target, onDataChanged }: { target: TargetRequest
     return <Spinner label="Running health check …" />;
   }
 
-  if (state.kind === 'error') {
+  if (state.kind === 'readError') {
+    return (
+      <ErrorState
+        {...state.error}
+        controls={<Button onClick={loadLatest}>Reload stored health snapshot</Button>}
+      />
+    );
+  }
+
+  if (state.kind === 'runError') {
     return (
       <ErrorState
         {...state.error}
@@ -61,7 +84,7 @@ export function HealthSection({ target, onDataChanged }: { target: TargetRequest
     );
   }
 
-  if (state.kind === 'idle') {
+  if (state.kind === 'missing') {
     return (
       <EmptyState
         title="Device health"
@@ -77,8 +100,17 @@ export function HealthSection({ target, onDataChanged }: { target: TargetRequest
         <span className="text-slate-400">
           Latest saved health check completed {new Date(state.run.completedAtUtc).toLocaleString()}
         </span>
-        <Button onClick={run}>Re-run health check</Button>
+        <Button onClick={run} disabled={state.refreshing}>
+          {state.refreshing ? 'Running health check …' : 'Re-run health check'}
+        </Button>
       </div>
+      {state.refreshError && (
+        <ErrorState
+          {...state.refreshError}
+          title="Health check failed; the previous saved result is still shown."
+          controls={<Button onClick={run}>Retry health check</Button>}
+        />
+      )}
       <RunSummary results={state.run.results} />
       <CategorySections results={state.run.results} />
     </div>

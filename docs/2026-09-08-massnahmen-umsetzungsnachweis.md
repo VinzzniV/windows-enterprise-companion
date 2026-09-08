@@ -13,7 +13,8 @@ the applicable milestone checks are green.
 | M02 | Complete | Cache/handler tests prove forced reload and monotonic in-process snapshot revision. Environment tests cover forced backend payloads, pending invalidation, cancellation generations and stale-response rejection. Page tests cover forced refresh and replacement of selected Action Center details with the current item. |
 | M03 | Complete | ADR 0021 defines complete host/address identities, exact-first resolution and proven unique aliases. Core, correlation, provider and frontend tests cover distinct IPs, equal short names in different domains, foreign same-name targets, unique legacy aliases and ambiguous links. |
 | M04 | Complete | A non-destructive migration adds nullable normalized identity keys and a filtered unique index. Real-SQLite tests cover newest-capture-wins concurrency, failure injection, retained legacy duplicates and atomic replacement. |
-| M05-M11 | Planned | Not yet accepted. |
+| M05 | Complete | Inventory, Security and Health use explicit loading, missing, stored-read failure and live-run failure states. The same UI matrix covers timeout, unavailable bridge, database failure and unreadable payload; stored reloads remain read-only and failed live refreshes retain the previous result. |
+| M06-M11 | Planned | Not yet accepted. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13-M16 | Planned | Not yet accepted. |
 
@@ -84,3 +85,19 @@ non-mutation regression.
 - Migration rehearsal: isolated existing-database copy retained 41 of 41 rows
   and produced 41 unique non-null identity keys.
 - `git diff --check`: passed.
+
+## M05 technical reassessment and verification
+
+- A missing stored record is a successful nullable read for Security and Health,
+  and the existing typed `NOT_FOUND` result for Inventory. Transport, timeout
+  and database failures never enter the empty state.
+- Corrupt Inventory and Health JSON is no longer discarded as a cache miss. It
+  maps to `STORED_DATA_UNREADABLE`, preserving the record and exposing an
+  actionable read failure. Missing optional fields remain compatible and are
+  still interpreted through the existing partial-coverage contracts.
+- Reload controls call only the stored read actions. Live Inventory, Security
+  and Health failures keep an already loaded saved result visible with an
+  explicit failure notice.
+- 24 focused frontend section tests, 79 focused module tests and 16 real-SQLite
+  persistence tests passed. The Release solution build and production frontend
+  build passed; 390 generated bridge contract types are current.
