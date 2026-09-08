@@ -9,8 +9,10 @@ Implementation was explicitly authorized on 2026-09-08. Work is active on
 and cache state), M03 (canonical device identity), M04 (atomic inventory
 snapshots), M05 (stored-data missing and failure states) and M12
 (side-effect-free legacy reads) are implemented and verified. M06
-(coverage-aware, explainable comparison) is also complete. The active slice is
-M07/M08: shared table keyboard behavior and visible detail workflows.
+(coverage-aware, explainable comparison) is also complete. M07 shared table
+keyboard behavior is implemented and automated-test verified; its native
+WebView keyboard smoke remains external because native-window automation is
+unavailable. The active slice is M08: visible detail workflows.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.

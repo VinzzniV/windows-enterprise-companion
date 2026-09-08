@@ -234,6 +234,17 @@ describe('ClientsPage', () => {
       .toBe('/clients/pc01.corp.local?section=inventory');
   });
 
+  it('changes a client checkbox with Space without activating its row', async () => {
+    renderPage();
+    const checkbox = await screen.findByRole('checkbox', { name: 'Select PC01 for bulk scan' });
+
+    checkbox.focus();
+    await userEvent.keyboard(' ');
+
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByTestId('location').textContent).toBe('/clients');
+  });
+
   it('shows the Active Directory description in the device column', async () => {
     const described = item(device('PC01'), 'PC01', { description: 'Accounting workstation' });
     invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) => {

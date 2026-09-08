@@ -15,7 +15,8 @@ the applicable milestone checks are green.
 | M04 | Complete | A non-destructive migration adds nullable normalized identity keys and a filtered unique index. Real-SQLite tests cover newest-capture-wins concurrency, failure injection, retained legacy duplicates and atomic replacement. |
 | M05 | Complete | Inventory, Security and Health use explicit loading, missing, stored-read failure and live-run failure states. The same UI matrix covers timeout, unavailable bridge, database failure and unreadable payload; stored reloads remain read-only and failed live refreshes retain the previous result. |
 | M06 | Complete | Comparison blocks absence claims when either software capture is unavailable, separates product presence from version differences, normalizes GPU order/whitespace, applies documented byte tolerances to raw RAM/disk totals and permanently displays Inventory/Security capture times and coverage per client. |
-| M07-M11 | Planned | Not yet accepted. |
+| M07 | Implemented; WebView smoke pending | `DataTable` keeps native row semantics, activates a focused row with Enter/Space, exposes selection with `aria-selected`, shows a focus outline and ignores bubbled events from inputs, labels, buttons, links and other interactive descendants. Shared and Clients-page tests prove that Space changes exactly the checkbox without navigation; all interactive table callers were inventoried and their affected tests pass. Native-window automation is unavailable in this session, so the required real-WebView keyboard check remains an external acceptance gate. |
+| M08-M11 | Planned | Not yet accepted. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13-M16 | Planned | Not yet accepted. |
 
@@ -116,3 +117,19 @@ non-mutation regression.
 - The result keeps an evidence card for both clients with Inventory and Security
   capture times, software coverage and Security completeness.
 - 22 focused comparison tests passed and the production frontend build passed.
+
+## M07 technical reassessment and verification
+
+- A clickable table row remains a native `row`; it is focusable and uses
+  `aria-selected` for the active state instead of replacing its role with
+  `button`. Enter and Space activate only when focus is on the row itself.
+- Click and key events from checkboxes, labels, buttons, links, selects,
+  textareas, summaries and equivalent ARIA controls do not activate the row.
+  This applies centrally to Clients, Users, AD identity results, Nessus
+  findings, Error log and Winget-managed products.
+- Shared component tests cover row activation, focus styling and child controls;
+  the Clients-page regression proves Space selects exactly one client and keeps
+  the route unchanged. Scoped caller suites and the production build pass.
+- The Release host can be started, but this session exposes no native window to
+  automation. Keyboard order and visible focus in the actual WebView remain a
+  focused external smoke gate; the blind audit was not changed.

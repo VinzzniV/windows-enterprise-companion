@@ -1,4 +1,4 @@
-import { Fragment, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { compareSortKeys, type SortKey } from '../sort';
 import { Button } from './Button';
 import { Select } from './Select';
@@ -129,10 +129,20 @@ export function DataTable<T>({
   };
 
   const handleKey = (event: KeyboardEvent<HTMLTableRowElement>, row: T) => {
+    if (event.target !== event.currentTarget) return;
     if (onRowClick && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
       onRowClick(row);
     }
+  };
+
+  const handleRowClick = (event: MouseEvent<HTMLTableRowElement>, row: T) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const interactiveTarget = target?.closest(
+      'a, button, input, select, textarea, label, summary, [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"]',
+    );
+    if (interactiveTarget && interactiveTarget !== event.currentTarget) return;
+    onRowClick?.(row);
   };
 
   const pageCount = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize)) : 1;
@@ -162,15 +172,14 @@ export function DataTable<T>({
     return (
       <tr
         key={getRowKey ? getRowKey(row, rowIndex) : rowIndex}
-        onClick={onRowClick ? () => onRowClick(row) : undefined}
+        onClick={onRowClick ? (event) => handleRowClick(event, row) : undefined}
         onKeyDown={onRowClick ? (event) => handleKey(event, row) : undefined}
         tabIndex={onRowClick ? 0 : undefined}
-        role={onRowClick ? 'button' : undefined}
-        aria-pressed={onRowClick ? active : undefined}
+        aria-selected={onRowClick ? active : undefined}
         className={`border-t border-slate-800/70 ${
           zebra ? 'even:bg-slate-800/20' : ''
         } ${active ? 'bg-accent-500/10' : ''} ${
-          onRowClick ? 'cursor-pointer transition-colors hover:bg-slate-800/40' : ''
+          onRowClick ? 'cursor-pointer transition-colors hover:bg-slate-800/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-400' : ''
         }`}
       >
         {columns.map((column) => (
