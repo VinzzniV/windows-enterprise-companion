@@ -93,6 +93,16 @@ At the start, create a `codex/...` branch and record the active slice in
 execution file at phase boundaries, genuine blockers and completed slices —
 not as a verbose activity log.
 
+A roadmap is complete only after its stated completion conditions and required
+verification gates have passed. At that point, move the completed roadmap to
+`docs/archive/` (or an existing more specific archive), update links and
+references that depend on its former path, and close the active execution file
+with the final outcome or a pointer to the successor plan. Mark retained
+historical planning documents clearly as historical so they cannot be mistaken
+for active work. Preserve accepted ADRs, enduring product decisions and other
+authoritative records; they are not disposable roadmap files. Deletion requires
+an explicit reason and user authorization; archival is the default.
+
 Out of scope unless a new explicit decision and ADR authorize it: server mode,
 runtime plugins, microservices, CQRS/MediatR, event bus, arbitrary PowerShell,
 AI features, automatic remediation, directory writes and destructive legacy
