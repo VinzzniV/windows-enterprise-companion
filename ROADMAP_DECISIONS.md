@@ -6,8 +6,8 @@ Date: 2026-08-26
 
 Implementation application verified: 2026-08-27
 
-This file is the authoritative compact decision register for
-`docs/ultimate-admin-tool-roadmap.md`. Repository architecture documents and
+This file is the authoritative compact decision register for the completed
+`docs/archive/ultimate-admin-tool-roadmap.md`. Repository architecture documents and
 accepted ADRs remain binding. If a later implementation conflicts with either,
 work must stop at the conflict instead of silently changing the decision.
 
@@ -208,18 +208,16 @@ product decision during the planned implementation:
   bus, arbitrary PowerShell, AI features or automatic remediation;
 - code signing remains a separate later topic.
 
-## Autonomous execution readiness
+## Execution and release boundary
 
-The roadmap may be implemented autonomously after a separate explicit start
-instruction, subject to the boundaries above.
+The completed roadmap was merged into `master` as `e89395f` on 2026-08-27.
+The decisions above remain authoritative for the resulting product and for any
+successor work unless a later decision or accepted ADR supersedes them.
 
 The unavailable company environment and absence of a named remote test client
-are not development or merge blockers. They are release-acceptance
-dependencies: the pull request may be merged after automated tests, local
-smoke tests and CI are green, with unavailable live checks documented. A
-version tag, installer publication or GitHub Release remains blocked until the
-required provider and remote-client validation has run in the company
-environment.
+remain release-acceptance dependencies. A version tag, installer publication
+or GitHub Release remains blocked until the required provider and remote-client
+validation has run in the company environment.
 
 Any newly discovered requirement involving personal-data expansion, directory
 writes, credentials, new external systems, destructive data migration or a

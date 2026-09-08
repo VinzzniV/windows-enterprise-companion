@@ -82,7 +82,7 @@ Modulstruktur (typisch pro Modul):
 | Active Directory (`frontend/src/features/activedirectory`) | `Wec.Modules.ActiveDirectory` | Domain-/Computer-/Benutzerabfragen |
 | Inventory (`frontend/src/features/inventory`) | `Wec.Modules.Inventory` | Hardware-, Software- und Statusdaten |
 | Security (`frontend/src/features/security`) | `Wec.Modules.Security` | 13 Check-Arten mit Verlauf |
-| Diagnostics (`frontend/src/features/diagnostics`) | `Wec.Modules.Diagnostics` | Netzwerk/System/Windows-Statusprüfungen |
+| Health (`frontend/src/features/diagnostics`) | `Wec.Modules.Diagnostics` | Vier gezielte Prüfungen für Update-Alter, konfigurierte Dienste, Event-Log-Zusammenfassung und freien Speicherplatz; interne Diagnostics-Namen bleiben kompatibilitätsbedingt bestehen |
 | Patch Management (`frontend/src/features/patchmanagement`) | `Wec.Modules.PatchManagement` | opsi-Integration inkl. Freigabe-/Durchführungsfluss |
 | Print Management (`frontend/src/features/printmanagement`) | `Wec.Modules.PrintManagement` | Drucker/ Geräte erfassen, vergleichen, verwalten |
 | Network Scan (`frontend/src/features/networkscan`) | `Wec.Modules.NetworkScan` | Scan per Nmap, Reverse-DNS/DHCP-Anreicherung |

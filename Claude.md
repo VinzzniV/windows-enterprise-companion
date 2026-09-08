@@ -78,17 +78,19 @@ new ADR in `docs/adr/` (numbered, same format).
 - Module-facing frontend features mirror the corresponding backend module;
   frontend-only workspaces such as Dashboard and Clients may compose multiple
   module contracts. `shared/bridge/bridgeClient.ts` handles invoke/subscribe
-  with id correlation and timeouts. `shared/api-types.ts` mirrors C# DTOs
-  (manual sync for now).
+  with id correlation and timeouts. C# bridge contracts generate
+  `shared/api-types.generated.ts` through `Wec.ContractGenerator`; CI verifies
+  drift. `shared/api-types.ts` contains only intentional stable UI aliases.
 
 ## Current product state
 
 M1 is complete. The host currently registers Inventory, Security, Diagnostics,
-Reporting, Active Directory, Patch Management, Print Management, Network Scan,
-Saved Targets, IT Lifecycle and Vulnerability Management. The React shell also
-contains the Dashboard, Clients workspace, Settings and Error Log views. Use
-`README.md`, the relevant module README and current code as the product-state
-reference; do not infer the next milestone from the historical M1 plan.
+Reporting, Active Directory, User Management, Action Center, Device Cleanup,
+Patch Management, Print Management, Network Scan, Saved Targets, IT Lifecycle
+and Vulnerability Management. The route registry is the authoritative workspace
+and navigation inventory. Use `README.md`, the relevant module README and current
+code as the product-state reference; do not infer the next milestone from the
+historical M1 plan.
 
 Keep the established modular-monolith boundaries. Do not introduce runtime
 plugins, dynamic navigation, a local HTTP server, merged modules, per-feature

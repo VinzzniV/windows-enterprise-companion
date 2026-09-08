@@ -21,13 +21,14 @@ credentials. New modules should extend the existing Settings surface instead
 of introducing module-specific configuration files or hidden editors.
 
 The primary workspace is **Clients** (ADR 0010): an Active-Directory-sourced
-client list (unpopulated until opened) where a client is scanned on demand —
-Inventory, Security, Diagnostics and installed Printers as tabbed sections that
-share one session credential per host — and two clients can be compared. The
-sidebar keeps the fleet-wide **Dashboard**, Active Directory, IT Lifecycle,
-Vulnerabilities, Patch Management, Print Management, Network Scan and
-Reporting views, plus Settings and Error Log under **Verwaltung**. Frequently
-used servers (print server, opsi, DC) can be saved as **targets** (host, role
+client list (unpopulated until opened) with stored Client 360 context and
+explicit on-demand Inventory, Security and Health scans. Installed Printers and
+per-client Reports are additional detail tabs, and two clients can be compared.
+The fleet navigation contains **Dashboard**, Action Center, Device Cleanup,
+Clients, Users, Active Directory, Vulnerabilities, Patch Management, Print
+Management, Network Scan and Report export, plus Settings and Error Log under
+**Verwaltung**. Frequently used servers (print server, opsi, DC) can be saved
+as **targets** (host, role
 and user name, never a password) and pre-fill each picker. The UI follows a
 shared design system
 ([`frontend/src/shared/ui`](frontend/src/shared/ui/README.md)): bundled
@@ -51,9 +52,12 @@ the canonical coding-agent instruction source.
 |---|---|---|
 | Inventory | CPU, RAM, disks, OS, network adapters, GPUs, monitors, installed software and BitLocker; one persistent snapshot per host | yes (software via registry/StdRegProv) |
 | Security | 13 read-only checks with persisted per-check execution outcome, coverage and host-scoped history; incomplete coverage is never a clean scan | yes (registry checks via StdRegProv; some checks are explicitly local-only) |
-| Diagnostics | Persisted latest troubleshooting run per host: network, DNS, domain, time, services, event log and system state | machine-state checks yes; connectivity/event-log probes stay local-perspective |
-| Active Directory | Domain overview and hygiene over LDAP; test bind; computer search for the Clients workspace and user search for IT Lifecycle | own or explicitly named domain/DC |
+| Health (backend: Diagnostics) | On-demand persisted device-health snapshot: Windows Update age, configured service state, Event Log summary and free disk space; detailed preset-based Event Log queries remain available | yes |
+| Active Directory | Domain overview and hygiene over LDAP; test bind; computer search for Clients and authoritative user reads for User Management | own or explicitly named domain/DC |
 | IT Lifecycle | Read-only correlation of AD computers with Kaspersky Security Center inventory for missing, orphaned, stale or outdated agents/endpoints | AD/LDAP + KSC OpenAPI |
+| User Management | Server-paged AD user inventory, read-only User 360, linked-device evidence and Leaver review | AD/LDAP plus stored WEC evidence |
+| Action Center | Computed read-only work list over concrete hygiene, Inventory and Security projections; no persisted workflow state or automatic scans | stored provider evidence |
+| Device Cleanup | Guided read-only stale-device assessment with explicit connectivity checks and session-only decisions | stored evidence; Ping/WinRM only on request |
 | Vulnerability Management | Nessus scan import with persisted assets/findings, sync status and historical trend | Nessus API (HTTPS :8834 by default) |
 | Patch Management | Read-only opsi depot/client overview plus Winget catalog search, package generation, explicit adoption and confirmed depot package updates (ADR 0008/0017); client rollout remains in opsi | Winget deployment API + opsi JSON-RPC (HTTPS :4447) + Windows OpenSSH/SCP |
 | Print Management | Printer inventory per print server with SNMP device data (serial, model, location, status, toner levels); queues merged per physical device, search + site grouping, snapshot history with lease-swap diff, CSV export, device web-UI links (ADR 0009). Client-installed printers are a separate CIM path shown in the client detail | print servers over WinRM; devices over SNMP v2c (UDP 161, read-only) |
@@ -187,13 +191,10 @@ package sources, keeps its workbenches below
 
 ## Current limitations
 
-- The executive-summary report is per machine and reads only data already
-  captured for that host (there is no multi-host aggregate report yet).
-  Diagnostics connectivity probes (gateway, DNS, DC reachability) and the
-  event-log summary always measure from the machine WEC runs on and are
-  visibly skipped for remote targets; machine-state diagnostics (domain
-  membership, reboot pending, time sync, disks, services, updates) run against
-  the remote target.
+- The executive-summary report is per machine and includes only already
+  captured Inventory and Security evidence for that host. It does not include
+  the saved Health snapshot, never starts collection and has no multi-host
+  aggregate report yet.
 - Security scans written before persisted per-check coverage was introduced
   remain visibly coverage-unknown. They are not treated as fully comparable in
   history and cannot produce resolved claims.

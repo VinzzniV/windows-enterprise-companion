@@ -1,15 +1,16 @@
 # Windows Enterprise Companion — Consolidated Product and Implementation Roadmap
 
-Status: phases 0–11 and final GitHub artifact verification completed on
-`codex/ultimate-admin-roadmap`; merge remains pending
+Status: phases 0–11 completed and merged into `master` as `e89395f` on
+2026-08-27; retained as a historical implementation roadmap
 
 Repository baseline: implementation branch created from `origin/master` at
 `aba4ccd57f724cb359e9ac643378bf6ada0ce559`
 
 Created: 2026-08-26
 
-Implementation status last verified: 2026-08-27. Detailed slice, test and
-external-gate evidence is maintained in `ROADMAP_EXECUTION.md`.
+Implementation and merge status last verified: 2026-08-27. Detailed slice,
+test and external-gate evidence is retained in
+`ultimate-admin-tool-roadmap-execution.md`.
 
 ## 1. Purpose
 
@@ -783,7 +784,8 @@ Additionally verify:
 
 ## 12. Confirmed preflight decisions and execution boundaries
 
-`ROADMAP_DECISIONS.md` is the authoritative compact decision register. The
+[ROADMAP_DECISIONS.md](../../ROADMAP_DECISIONS.md) is the authoritative compact
+decision register. The
 confirmed product and privacy direction is:
 
 - the visible workspace is named **Health**;

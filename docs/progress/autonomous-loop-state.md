@@ -1,8 +1,12 @@
 # Autonomous Loop State
 
+> **Historical implementation log.** Retained for evidence only; this file is
+> not the current roadmap or execution state. The completed successor roadmap
+> and its final execution record are archived under `../archive/`.
+
 Maintained by the autonomous development loop. One entry per iteration.
 
-## Current position
+## Position at the end of this historical loop
 
 - **Milestone:** M4 — COMPLETE 2026-07-02 (both slices) ⇒ awaiting user
   review; remaining roadmap: M6 (remediation, needs ADR), M7 (AI, optional)

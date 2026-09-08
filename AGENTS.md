@@ -13,13 +13,10 @@ Before writing or changing any code, read:
 
 1. `ROADMAP_DECISIONS.md` — confirmed product, privacy, execution and release
    boundaries.
-2. `ROADMAP_EXECUTION.md` — current phase, slice, blockers and last verified
-   baseline.
-3. `docs/ultimate-admin-tool-roadmap.md` — ordered product and implementation
-   roadmap.
-4. `docs/architecture-and-m1-plan.md` — original structure and dependency
+2. `README.md` — current product scope, workflows and operational behavior.
+3. `docs/architecture-and-m1-plan.md` — original structure and dependency
    rules. Its M1 sequence is historical, not the current milestone.
-5. All accepted ADRs relevant to the current slice, especially ADR 0001–0007
+4. All accepted ADRs relevant to the current slice, especially ADR 0001–0007
    and any roadmap ADRs added later.
 
 These documents are binding. If an implementation detail conflicts with them,
@@ -83,9 +80,9 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 
 ## Current program
 
-The active program is `docs/ultimate-admin-tool-roadmap.md`. Follow its phases
-and slices in order unless a verified dependency requires a documented reorder.
-The original M1 is complete and remains architectural history.
+No implementation roadmap is currently active. The completed ultimate-admin
+roadmap and its execution evidence are retained under `docs/archive/`. The
+original M1 is complete and remains architectural history.
 
 Do not start roadmap implementation without an explicit user start instruction.
 At the start, create a `codex/...` branch and record the active slice in
@@ -102,6 +99,13 @@ historical planning documents clearly as historical so they cannot be mistaken
 for active work. Preserve accepted ADRs, enduring product decisions and other
 authoritative records; they are not disposable roadmap files. Deletion requires
 an explicit reason and user authorization; archival is the default.
+
+For every change, check whether it affects the root README, module READMEs,
+architecture documentation or ADRs, configuration and command documentation,
+or the active roadmap and execution status. Update affected current
+documentation in the same change set. Keep historical records clearly marked
+as historical rather than rewriting them as current truth. A new architecture
+decision still requires the corresponding ADR.
 
 Out of scope unless a new explicit decision and ADR authorize it: server mode,
 runtime plugins, microservices, CQRS/MediatR, event bus, arbitrary PowerShell,

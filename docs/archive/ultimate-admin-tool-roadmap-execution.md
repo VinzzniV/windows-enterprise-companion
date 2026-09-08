@@ -1,10 +1,10 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `COMPLETE_PENDING_MERGE`
+Status: `COMPLETE`
 
-Current phase: Roadmap completion audit and release verification
+Final phase: Roadmap completed and merged
 
-Current slice: Merge the fully verified roadmap branch through Draft PR #28
+Active slice: None
 
 ## Done
 
@@ -44,7 +44,7 @@ Current slice: Merge the fully verified roadmap branch through Draft PR #28
   backend tests, 415 frontend tests, 308 generated contracts current,
   production build, zero-finding NPM audit, module dependency check, committed
   secret-pattern scan and real Desktop/Clients-route smoke test.
-- Draft PR #28 is open. Its pull-request CI run `33013654432` passed. Manual
+- Phase 0 opened Draft PR #28. Its pull-request CI run `33013654432` passed. Manual
   packaging run `33013664987` passed publish, host smoke, ZIP validation, Inno
   Setup installer and package checksums before the upload gate.
 - ADR 0018 records the reduced Device Health scope, Client 360 read behavior,
@@ -356,12 +356,11 @@ Current slice: Merge the fully verified roadmap branch through Draft PR #28
   ZIP artifact `9663342701` is 91,969,707 bytes and installer artifact
   `9663344878` is 62,930,001 bytes. Both downloaded packages match their
   committed SHA-256 records; no tag or release was created.
+- Draft PR #28 was merged into `master` as `e89395f` on 2026-08-27.
 
 ## Next
 
-1. Require green pull-request CI on the exact final documentation head.
-2. Preserve a successful release-free packaging proof for that head or its
-   documentation-only predecessor.
-3. When both repository merge gates are green, mark Draft PR #28 ready and
-   merge it under D-006. Do not create a version tag, publish an installer or
-   create a GitHub Release without explicit user approval.
+No implementation slice is active. Release tagging, installer publication and
+a GitHub Release remain subject to explicit user approval under D-006. This
+file is retained as the final historical execution record for the completed
+roadmap.
