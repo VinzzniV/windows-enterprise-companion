@@ -31,7 +31,7 @@ export function actionCenterRelationshipModel(item: ActionCenterWorkItem): Relat
   const deviceId = `device:${item.subjectKey}`;
   const sourceId = `source:${item.source.toLocaleLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}`;
   return {
-    title: `Action context · ${item.device}`,
+    title: 'Evidence relationships',
     description: 'Only the affected device, reporting source and evidence used by this work item.',
     primaryNodeId: deviceId,
     nodes: [

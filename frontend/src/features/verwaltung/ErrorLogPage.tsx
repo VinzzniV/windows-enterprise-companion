@@ -9,7 +9,7 @@ import { Select } from '../../shared/ui/Select';
 import { Spinner } from '../../shared/ui/Spinner';
 import { DataTable, type DataColumn } from '../../shared/ui/DataTable';
 import { EmptyState, ErrorState } from '../../shared/ui/States';
-import { Card } from '../../shared/ui/Card';
+import { DetailDialog } from '../../shared/ui/DetailDialog';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 
 type LevelFilter = 'all' | 'errors';
@@ -164,37 +164,24 @@ export function ErrorLogPage() {
         ))}
 
       {selectedEntry && (
-        <section role="region" aria-label="Log entry details">
-          <Card title="Log entry details">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={levelTone[selectedEntry.level] ?? 'neutral'}>{selectedEntry.level}</Badge>
-                    <span className="font-mono text-xs text-slate-400">{selectedEntry.source}</span>
-                    <span className="font-mono text-xs text-muted">{selectedEntry.timestamp}</span>
-                  </div>
-                  <p className="text-sm text-slate-200">{selectedEntry.summary}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  aria-label="Close log entry details"
-                  onClick={() => setSelectedEntry(null)}
-                >
-                  Close
-                </Button>
-              </div>
-              <div>
-                <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-                  Technical details
-                </h3>
-                <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-slate-400">
-                  {selectedEntry.technicalDetails}
-                </pre>
-              </div>
-            </div>
-          </Card>
-        </section>
+        <DetailDialog
+          title="Log entry details"
+          description={selectedEntry.summary}
+          closeLabel="Close log entry details"
+          onClose={() => setSelectedEntry(null)}
+        >
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Badge tone={levelTone[selectedEntry.level] ?? 'neutral'}>{selectedEntry.level}</Badge>
+            <span className="font-mono text-xs text-slate-300">Source: {selectedEntry.source}</span>
+            <span className="font-mono text-xs text-muted">Time: {selectedEntry.timestamp}</span>
+          </div>
+          <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+            Technical details
+          </h3>
+          <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded border border-slate-800 bg-slate-950 p-3 font-mono text-xs text-slate-300">
+            {selectedEntry.technicalDetails}
+          </pre>
+        </DetailDialog>
       )}
     </div>
   );

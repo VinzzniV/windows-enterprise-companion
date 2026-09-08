@@ -23,6 +23,7 @@ import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
 import { Checkbox } from '../../shared/ui/Checkbox';
 import { DataTable, type DataColumn } from '../../shared/ui/DataTable';
+import { DetailDialog } from '../../shared/ui/DetailDialog';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { controlClass, Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
@@ -352,21 +353,18 @@ export function DeviceCleanupPage() {
         }}
       />
 
-      {assessment && <section className="rounded-lg border border-slate-700 bg-slate-900/70 p-4" aria-labelledby="cleanup-assessment-heading">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 id="cleanup-assessment-heading" className="text-lg font-semibold text-slate-100">Review {assessment.candidate.host}</h2>
-              <Badge tone={classificationPresentation[assessment.candidate.classification].tone}>
-                {classificationPresentation[assessment.candidate.classification].label}
-              </Badge>
-            </div>
-            <p className="mt-1 text-sm text-slate-300">{assessment.candidate.classificationExplanation}</p>
-          </div>
-          <Button variant="ghost" onClick={closeAssessment}>Close review</Button>
-        </div>
+      {assessment && <DetailDialog
+        title={`Review ${assessment.candidate.host}`}
+        description={assessment.candidate.classificationExplanation}
+        closeLabel="Close device review"
+        onClose={closeAssessment}
+        wide
+      >
+        <Badge tone={classificationPresentation[assessment.candidate.classification].tone}>
+          {classificationPresentation[assessment.candidate.classification].label}
+        </Badge>
 
-        <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3" aria-label="Cleanup source evidence">
+        <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-3" aria-label="Cleanup source evidence">
           {assessment.sources.map((source) => {
             const coverage = coveragePresentation[source.coverage];
             return <article key={source.source} className="rounded border border-slate-800 bg-slate-950/40 p-3">
@@ -466,7 +464,7 @@ export function DeviceCleanupPage() {
             </li>)}
           </ul>
         </DetailsDisclosure>}
-      </section>}
+      </DetailDialog>}
     </>}
   </div>;
 }

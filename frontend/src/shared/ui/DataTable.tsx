@@ -142,6 +142,7 @@ export function DataTable<T>({
       'a, button, input, select, textarea, label, summary, [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"]',
     );
     if (interactiveTarget && interactiveTarget !== event.currentTarget) return;
+    event.currentTarget.focus({ preventScroll: true });
     onRowClick?.(row);
   };
 

@@ -16,7 +16,8 @@ the applicable milestone checks are green.
 | M05 | Complete | Inventory, Security and Health use explicit loading, missing, stored-read failure and live-run failure states. The same UI matrix covers timeout, unavailable bridge, database failure and unreadable payload; stored reloads remain read-only and failed live refreshes retain the previous result. |
 | M06 | Complete | Comparison blocks absence claims when either software capture is unavailable, separates product presence from version differences, normalizes GPU order/whitespace, applies documented byte tolerances to raw RAM/disk totals and permanently displays Inventory/Security capture times and coverage per client. |
 | M07 | Implemented; WebView smoke pending | `DataTable` keeps native row semantics, activates a focused row with Enter/Space, exposes selection with `aria-selected`, shows a focus outline and ignores bubbled events from inputs, labels, buttons, links and other interactive descendants. Shared and Clients-page tests prove that Space changes exactly the checkbox without navigation; all interactive table callers were inventoried and their affected tests pass. Native-window automation is unavailable in this session, so the required real-WebView keyboard check remains an external acceptance gate. |
-| M08-M11 | Planned | Not yet accepted. |
+| M08 | Implemented; layout smoke pending | Cleanup, Error log and Action Center use the same viewport-bound detail dialog with Escape, focus containment and focus return. A 500-row Error-log regression proves that the first selection opens without relying on the page end. Client Event Logs expose an explicit full-message action with host, time, source, safe wrapped text, copy feedback and a warning for the existing 500-character truncation convention. The required real-browser/WebView layout check remains external because this session cannot automate the native window or inject the host bridge into its isolated browser. |
+| M09-M11 | Planned | Not yet accepted. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13-M16 | Planned | Not yet accepted. |
 
@@ -133,3 +134,31 @@ non-mutation regression.
 - The Release host can be started, but this session exposes no native window to
   automation. Keyboard order and visible focus in the actual WebView remain a
   focused external smoke gate; the blind audit was not changed.
+
+## M08 technical reassessment and verification
+
+- Appending details below 25 or 500 rows cannot meet the visibility contract.
+  The shared `DetailDialog` is therefore viewport-bound, independently
+  scrollable and sized against dynamic viewport height. It uses the existing
+  modal interaction approach from the shell rather than adding a layout
+  framework. Escape, backdrop close, contained Tab navigation and focus return
+  are central behavior.
+- Cleanup keeps its review checkboxes, connectivity evidence, decision and
+  reason in the same page-owned session state. Changing the selected canonical
+  subject still resets those values through the existing subject-key boundary.
+  Error log and Action Center retain their existing detail content but no
+  longer place it after the table.
+- Client Event Logs now use an explicit `View full message` control. The detail
+  surface keeps host, event time, source, level and event code visible, renders
+  the provider message as escaped text with preserved wrapping, and offers
+  clipboard feedback. Until M13 supplies an explicit per-message flag, the
+  current backend's trailing truncation marker exposes its existing
+  500-character limit instead of presenting the returned text as complete.
+- All 508 frontend tests pass, including focused dialog, table, 500-row Error
+  log, Cleanup, Action Center and Event Log regressions. The TypeScript and
+  production Vite build and `git diff --check` pass.
+- A local real-browser run at 1026 × 671 was prepared, but the isolated browser
+  cannot receive the WebView host bridge fixture and native-window automation
+  is unavailable. Actual visual fit, focus-ring visibility and scrolling in
+  WebView2 remain the documented external M08 acceptance gate; the blind audit
+  remains unchanged.

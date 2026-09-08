@@ -124,8 +124,9 @@ describe('DeviceCleanupPage', () => {
     expect(screen.getByText('Potential cleanup')).toBeDefined();
     expect(invokeMock.mock.calls.filter(([module]) => module === 'connectivity')).toHaveLength(0);
 
-    await user.click(screen.getByRole('button', { name: 'Review evidence' }));
-    expect(await screen.findByRole('heading', { name: `Review ${candidate.host}` })).toBeDefined();
+    const reviewTrigger = screen.getByRole('button', { name: 'Review evidence' });
+    await user.click(reviewTrigger);
+    expect(await screen.findByRole('dialog', { name: `Review ${candidate.host}` })).toBeDefined();
     expect(screen.getByText('CORP\\alex')).toBeDefined();
     expect(screen.getByText('Not checked')).toBeDefined();
     expect(invokeMock.mock.calls.filter(([module]) => module === 'connectivity')).toHaveLength(0);
@@ -154,6 +155,10 @@ describe('DeviceCleanupPage', () => {
     ));
     expect(await screen.findByText('Exported to C:\\Exports\\cleanup.md')).toBeDefined();
     expect(screen.queryByRole('button', { name: /disable|delete|move/i })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Close device review' }));
+    expect(screen.queryByRole('dialog', { name: `Review ${candidate.host}` })).toBeNull();
+    expect(document.activeElement).toBe(reviewTrigger);
   });
 
   it('applies bounded search explicitly and does not query for each keystroke', async () => {

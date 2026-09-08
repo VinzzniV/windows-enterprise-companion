@@ -20,6 +20,7 @@ import { RelationshipMap } from '../../shared/relationships/RelationshipMap';
 import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
 import { DataTable, type DataColumn, type DataTableSort } from '../../shared/ui/DataTable';
+import { DetailDialog } from '../../shared/ui/DetailDialog';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
@@ -349,10 +350,15 @@ export function ActionCenterPage() {
           onPageSizeChange: (value) => { setPage(1); setPageSize(value); },
         }}
       />
-      {selectedItem && <RelationshipMap
-        model={actionCenterRelationshipModel(selectedItem)}
-        actions={<Button variant="ghost" onClick={() => setSelectedItem(null)}>Close context</Button>}
-      />}
+      {selectedItem && <DetailDialog
+        title={`Action context · ${selectedItem.device}`}
+        description={`${selectedItem.problem} · ${selectedItem.source} · evidence ${formatTimestamp(selectedItem.evidenceAtUtc)}`}
+        closeLabel="Close action context"
+        onClose={() => setSelectedItem(null)}
+        wide
+      >
+        <RelationshipMap model={actionCenterRelationshipModel(selectedItem)} />
+      </DetailDialog>}
     </>}
   </div>;
 }

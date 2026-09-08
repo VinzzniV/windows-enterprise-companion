@@ -96,13 +96,15 @@ describe('ActionCenterPage', () => {
     expect(screen.getByText('Read-only')).toBeDefined();
     expect(screen.queryByRole('button', { name: /remediate|resolve|assign/i })).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Show context' }));
-    expect(screen.getByRole('heading', { name: 'Action context · PC-01' })).toBeDefined();
+    const contextTrigger = screen.getByRole('button', { name: 'Show context' });
+    await userEvent.click(contextTrigger);
+    expect(screen.getByRole('dialog', { name: 'Action context · PC-01' })).toBeDefined();
     expect(screen.getByText('Reported by')).toBeDefined();
     expect(screen.getByText(/high confidence/)).toBeDefined();
     expect(screen.queryByText(/User:/)).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Close context' }));
-    expect(screen.queryByRole('heading', { name: 'Action context · PC-01' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Close action context' }));
+    expect(screen.queryByRole('dialog', { name: 'Action context · PC-01' })).toBeNull();
+    expect(document.activeElement).toBe(contextTrigger);
   });
 
   it('applies filters, server sorting and explicit force refresh without querying each keystroke', async () => {

@@ -6,12 +6,19 @@ import { TargetProvider } from '../../shared/targets/TargetContext';
 import { EnvironmentProvider } from '../../shared/environment/EnvironmentContext';
 import { ClientDetailPage } from './ClientDetailPage';
 
-const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
+const { invokeMock, BridgeInvokeErrorMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  BridgeInvokeErrorMock: class extends Error {
+    constructor(readonly error: { code: string; message: string; details?: string | null }) {
+      super(`${error.code}: ${error.message}`);
+    }
+  },
+}));
 
 vi.mock('../../shared/bridge/bridgeClient', () => ({
   invoke: invokeMock,
   invokeCancellable: (module: string, action: string, payload: unknown) => ({ requestId: 'request-id', promise: invokeMock(module, action, payload), cancel: vi.fn() }),
-  BridgeInvokeError: class extends Error {},
+  BridgeInvokeError: BridgeInvokeErrorMock,
   BridgeCancelledError: class extends Error {},
   BridgeTimeoutError: class extends Error {},
   BridgeUnavailableError: class extends Error {},
@@ -146,7 +153,7 @@ describe('ClientDetailPage', () => {
         });
       }
       if (module === 'inventory' && action === 'getHardwareInfo') {
-        return Promise.reject(new Error('no cached snapshot'));
+        return Promise.reject(new BridgeInvokeErrorMock({ code: 'NOT_FOUND', message: 'No cached snapshot.' }));
       }
       if (module === 'clients' && action === 'getOverview') {
         return Promise.resolve(storedClientOverview);
@@ -263,7 +270,7 @@ describe('ClientDetailPage', () => {
     invokeMock.mockImplementation((module: string, action: string, payload?: unknown) => {
       if (module === 'inventory' && action === 'getHardwareInfo') {
         if ((payload as { cacheOnly?: boolean }).cacheOnly) {
-          return Promise.reject(new Error('no cached snapshot'));
+          return Promise.reject(new BridgeInvokeErrorMock({ code: 'NOT_FOUND', message: 'No cached snapshot.' }));
         }
         inventoryAvailable = true;
         return Promise.resolve(capturedInventory);

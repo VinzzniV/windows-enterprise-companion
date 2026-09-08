@@ -210,7 +210,7 @@ export function ClientDetailPage() {
             <HealthSection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-events" aria-labelledby="clienttab-events" hidden={section !== 'events'}>
-            <EventLogSection key={host} target={target} />
+            <EventLogSection key={host} host={host} target={target} />
           </div>
           <div role="tabpanel" id="clientpanel-printers" aria-labelledby="clienttab-printers" hidden={section !== 'printers'}>
             <PrintersSection key={host} target={target} />

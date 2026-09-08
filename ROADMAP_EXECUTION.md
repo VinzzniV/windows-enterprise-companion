@@ -12,7 +12,11 @@ snapshots), M05 (stored-data missing and failure states) and M12
 (coverage-aware, explainable comparison) is also complete. M07 shared table
 keyboard behavior is implemented and automated-test verified; its native
 WebView keyboard smoke remains external because native-window automation is
-unavailable. The active slice is M08: visible detail workflows.
+unavailable. M08 now uses one viewport-bound, focus-managed detail workflow in
+Cleanup, Error log and Action Center, and exposes complete returned Client
+Event Log messages with copy and truncation context. Its automated acceptance
+is green; the required real-WebView layout smoke remains external for the same
+automation limitation. The active slice is M09: compact Client work content.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.
