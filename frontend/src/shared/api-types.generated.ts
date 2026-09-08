@@ -1205,6 +1205,19 @@ export interface GetEmployeeRequest {
   employeeId?: number;
 }
 
+export interface GetKasperskyCertificateRequest {
+  server: string;
+  port: number;
+  requestTimeoutSeconds?: number;
+}
+
+export interface KasperskyCertificateResult {
+  sha256Fingerprint: string;
+  subject: string;
+  validFromUtc: string;
+  validToUtc: string;
+}
+
 export interface ListAuditEntriesRequest {
   employeeId?: number | null;
   limit?: number | null;

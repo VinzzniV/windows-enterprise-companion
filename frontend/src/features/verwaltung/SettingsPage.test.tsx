@@ -73,6 +73,10 @@ beforeEach(() => {
       return Promise.resolve({ settings: nessusSettings, restartRequired: false });
     }
     if (action === 'getCredentialStatus') return Promise.resolve({ saved: false });
+    if (action === 'getKasperskyCertificate') return Promise.resolve({
+      sha256Fingerprint: 'B'.repeat(64), subject: 'CN=ksc',
+      validFromUtc: '2026-01-01T00:00:00Z', validToUtc: '2027-01-01T00:00:00Z',
+    });
     if (action === 'getCertificate') return Promise.resolve({
       sha256Fingerprint: 'A'.repeat(64), subject: 'CN=nessus',
       validFromUtc: '2026-01-01T00:00:00Z', validToUtc: '2027-01-01T00:00:00Z',
@@ -269,7 +273,9 @@ describe('SettingsPage', () => {
 
   it('keeps Nessus provider diagnostics local and collapsed', async () => {
     renderSettings();
-    const readCertificate = await screen.findByRole('button', { name: 'Read HTTPS certificate fingerprint' });
+    const heading = await screen.findByRole('heading', { name: 'Nessus / Vulnerability Management' });
+    const section = heading.closest('[id="settings-section-vulnerability-management"]') as HTMLElement;
+    const readCertificate = within(section).getByRole('button', { name: 'Read HTTPS certificate fingerprint' });
     invokeMock.mockRejectedValueOnce(new Error('raw TLS provider failure'));
 
     await userEvent.click(readCertificate);
@@ -404,12 +410,30 @@ describe('SettingsPage', () => {
   it('reads the Nessus certificate fingerprint from the currently entered server', async () => {
     renderSettings();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Read HTTPS certificate fingerprint' }));
+    const heading = await screen.findByRole('heading', { name: 'Nessus / Vulnerability Management' });
+    const section = heading.closest('[id="settings-section-vulnerability-management"]') as HTMLElement;
+    await userEvent.click(within(section).getByRole('button', { name: 'Read HTTPS certificate fingerprint' }));
 
     expect(invokeMock).toHaveBeenCalledWith('vulnerabilitymanagement', 'getCertificate', {
       serverUrl: 'https://172.20.200.75:8834', requestTimeoutSeconds: 30,
     }, 35_000);
     expect(await screen.findByText(`SHA-256: ${'A'.repeat(64)}`)).toBeTruthy();
     expect((screen.getByLabelText('Certificate fingerprint') as HTMLInputElement).value).toBe('A'.repeat(64));
+  });
+
+  it('reads the Kaspersky certificate fingerprint from the currently entered server', async () => {
+    renderSettings();
+
+    const server = await screen.findByLabelText('Kaspersky Administration Server');
+    await userEvent.type(server, 'ksc.example.test');
+    const heading = screen.getByRole('heading', { name: 'IT Lifecycle / Environment Health' });
+    const section = heading.closest('[id="settings-section-environment-health"]') as HTMLElement;
+    await userEvent.click(within(section).getByRole('button', { name: 'Read HTTPS certificate fingerprint' }));
+
+    expect(invokeMock).toHaveBeenCalledWith('employeelifecycle', 'getKasperskyCertificate', {
+      server: 'ksc.example.test', port: 13299, requestTimeoutSeconds: 30,
+    }, 35_000);
+    expect(await within(section).findByText(`SHA-256: ${'B'.repeat(64)}`)).toBeTruthy();
+    expect((screen.getByLabelText('KSC certificate thumbprint') as HTMLInputElement).value).toBe('B'.repeat(64));
   });
 });

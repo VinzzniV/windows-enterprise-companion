@@ -4,10 +4,24 @@ Status: `IMPLEMENTED_ACCEPTANCE_PARTIAL`
 
 Current phase: Company-environment release acceptance
 
-Current slice: Client UI/UX follow-up on `codex/client-ux-followup`
-(started 2026-09-08). The user authorized Computer Use with GO after code completion.
+Current slice: Kaspersky HTTPS certificate fingerprint reader on
+`codex/kaspersky-certificate-fingerprint` (started 2026-09-08).
 
-Slice state: `VISUAL_SMOKE_CHECKED` (2026-09-08).
+Slice state: `IMPLEMENTED_VERIFIED` (2026-09-08).
+The settings UI exposes the same explicit certificate-inspection workflow for
+Kaspersky Security Center that already exists for Nessus. The action reads the
+configured KSC HTTPS endpoint, displays the certificate subject and validity,
+and copies its SHA-256 fingerprint only into the unsaved settings draft for
+manual verification. It does not trust or save the received fingerprint
+automatically.
+
+Verification: Release build passed with zero warnings/errors; all 745 backend
+tests and 467 frontend tests passed; 390 generated bridge contracts are current;
+the production frontend build and `git diff --check` passed. No live Kaspersky
+connection was opened during this implementation pass.
+
+Previous slice: Client UI/UX follow-up on `codex/client-ux-followup`.
+State: `VISUAL_SMOKE_CHECKED` (2026-09-08).
 Client 360 now prioritizes compact source and management status, with source
 coverage, software previews and management details available through disclosures.
 Successful Inventory, Health and Security operations refresh the stored overview

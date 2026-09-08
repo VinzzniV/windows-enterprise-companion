@@ -24,5 +24,6 @@ public sealed class EmployeeLifecycleModule : IModule
         services.AddScoped<IActionHandler, ListHygieneDevicesHandler>();
         services.AddScoped<IActionHandler, ListClientWorkspaceHandler>();
         services.AddScoped<IActionHandler, GetClientOverviewHandler>();
+        services.AddScoped<IActionHandler, GetKasperskyCertificateHandler>();
     }
 }
