@@ -152,7 +152,7 @@ export function UnusedPrinterPortsCard({
       </p>
       {!adminAvailable && (
         <p className="mb-2 text-xs text-elevation-400">
-          Sign in as admin at the top right before deleting; otherwise the server permissions
+          Set remote account at the top right before deleting; otherwise the server permissions
           are unavailable.
         </p>
       )}

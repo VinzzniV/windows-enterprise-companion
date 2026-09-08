@@ -161,7 +161,7 @@ export function UsersPage() {
     {
       header: 'OU path',
       mono: true,
-      cell: (user) => <span className="block max-w-80 truncate" title={user.organizationalUnitPath}>
+      cell: (user) => <span className="block break-words" title={user.organizationalUnitPath}>
         {user.organizationalUnitPath || '—'}
       </span>,
     },
@@ -292,7 +292,7 @@ export function UsersPage() {
         <span>{result.totalCount.toLocaleString()} matching accounts</span>
         <span className="font-mono">Base: {result.baseDistinguishedName}</span>
       </div>
-      <DataTable
+      <DataTable layout="fixed"
         columns={columns}
         rows={result.users}
         emptyMessage="No users match the current filters."

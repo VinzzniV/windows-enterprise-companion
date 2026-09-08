@@ -4,8 +4,27 @@ Status: `IMPLEMENTED_ACCEPTANCE_PARTIAL`
 
 Current phase: Company-environment release acceptance
 
-Current slice: Bounded read-only provider and designated-client validation on
-`codex/domain-acceptance` (started 2026-09-08).
+Current slice: Client UI/UX follow-up on `codex/client-ux-followup`
+(started 2026-09-08). User explicitly requested code and automated checks only;
+Computer Use and visual acceptance must wait for the user's GO.
+
+Slice state: `CODE_COMPLETE_AWAITING_VISUAL_GO` (2026-09-08).
+Client 360 now prioritizes compact source and management status, with source
+coverage, software previews and management details available through disclosures.
+Successful Inventory, Health and Security operations refresh the stored overview
+without triggering management queries or connectivity probes. Provider errors
+separate concise guidance from technical details. Remote-account controls and
+local elevation have distinct labels; Ping and the WinRM TCP-port result are
+reported separately. Shared table wrapping and fixed layouts for Users and Action
+Center improve long-value handling. Existing relationship-map sizing corrections
+from the preceding acceptance slice remain in place.
+
+Verification: 467 frontend tests passed; TypeScript and the production frontend
+build passed; `git diff --check` passed. Backend code and contracts are unchanged.
+No Computer Use, app restart or live-system queries were performed for this slice.
+After the user's GO, verify Client 360 scrolling/disclosures and refresh behavior,
+map/list readability, long provider errors, remote/local account guidance, separate
+connectivity results and Users/Action Center tables at normal and narrow widths.
 
 PR #28 is merged at `e89395f`. The user explicitly designated one non-critical
 remote client in the acceptance conversation on 2026-09-08. Its hostname stays

@@ -119,6 +119,6 @@ describe('NetworkScanPage', () => {
     expect(invokeMock).not.toHaveBeenCalled();
 
     await userEvent.type(screen.getByRole('textbox', { name: 'DHCP server (optional)' }), 'PK-SRVDC001');
-    expect(screen.getByText(/For the DHCP check, use “Sign in as admin”/)).toBeDefined();
+    expect(screen.getByText(/For the DHCP check, use “Set remote account”/)).toBeDefined();
   });
 });

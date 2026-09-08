@@ -122,12 +122,31 @@ describe('DeviceRelationshipMap', () => {
     invokeMock.mockResolvedValueOnce({ results: [{ host: device.hostName, reachable: false, manageable: false }] });
     renderMap();
 
-    expect(screen.getByText('Connectivity: Not checked')).toBeDefined();
+    expect(screen.getByText('Ping: Not checked · WinRM: Not checked')).toBeDefined();
     expect(invokeMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Check connectivity' }));
 
-    expect(await screen.findByText('Connectivity: No ping or WinRM response')).toBeDefined();
+    expect(await screen.findByText('Ping: No response · WinRM: No response')).toBeDefined();
     expect(invokeMock).toHaveBeenCalledOnce();
     expect(invokeMock).toHaveBeenCalledWith('connectivity', 'probeHosts', { hosts: [device.hostName] });
+  });
+
+  it.each([
+    [true, false, 'Ping: Responded · WinRM: No response'],
+    [false, true, 'Ping: No response · WinRM: Port 5985 open'],
+    [true, true, 'Ping: Responded · WinRM: Port 5985 open'],
+  ])('separates ping %s from WinRM %s', async (reachable, manageable, label) => {
+    invokeMock.mockResolvedValueOnce({ results: [{ host: device.hostName, reachable, manageable }] });
+    renderMap();
+    fireEvent.click(screen.getByRole('button', { name: 'Check connectivity' }));
+    expect(await screen.findByText(label)).toBeDefined();
+    expect(screen.getByTestId(`relationship-node-device:${device.hostName.toLowerCase()}`).textContent).toContain(label);
+  });
+
+  it('does not report an unrelated host response as this client’s connectivity', async () => {
+    invokeMock.mockResolvedValueOnce({ results: [{ host: 'other.example', reachable: true, manageable: true }] });
+    renderMap();
+    fireEvent.click(screen.getByRole('button', { name: 'Check connectivity' }));
+    expect(await screen.findByText('Ping: Check failed · WinRM: Check failed')).toBeDefined();
   });
 });

@@ -44,11 +44,11 @@ function ClientScanIdentity({ credentials }: { credentials: CredentialValues | u
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm">
       {displayUser ? (
-        <Badge tone="accent">Scanning as {displayUser}</Badge>
+        <Badge tone="accent">Remote account: {displayUser}</Badge>
       ) : (
         <>
-          <Badge tone="neutral">Scanning as current user</Badge>
-          <span className="text-xs text-slate-400">Sign in as admin (top right) to scan with the admin account.</span>
+          <Badge tone="neutral">Remote account: current Windows user</Badge>
+          <span className="text-xs text-slate-400">Use “Set remote account” above to supply an account authorized on this client.</span>
         </>
       )}
     </div>
@@ -192,7 +192,7 @@ export function ClientDetailPage() {
         // in-progress scan keeps running and its result is never discarded.
         <>
           <div role="tabpanel" id="clientpanel-overview" aria-labelledby="clienttab-overview" hidden={section !== 'overview'}>
-            <OverviewSection host={host} />
+            <OverviewSection key={host} host={host} refreshKey={reportRevision} />
           </div>
           <div role="tabpanel" id="clientpanel-inventory" aria-labelledby="clienttab-inventory" hidden={section !== 'inventory'}>
             <InventorySection key={host} target={target} onDataChanged={refreshReport} />
@@ -201,7 +201,7 @@ export function ClientDetailPage() {
             <SecuritySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-diagnostics" aria-labelledby="clienttab-diagnostics" hidden={section !== 'diagnostics'}>
-            <HealthSection key={host} target={target} />
+            <HealthSection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-events" aria-labelledby="clienttab-events" hidden={section !== 'events'}>
             <EventLogSection key={host} target={target} />

@@ -194,7 +194,7 @@ export function NetworkScanPage() {
 
       {dhcpServer.trim() !== '' && !adminCredentials && (
         <p className="text-xs text-elevation-400">
-          For the DHCP check, use “Sign in as admin” in the top right. Otherwise the query runs as the current
+          For the DHCP check, use “Set remote account” in the top right. Otherwise the query runs as the current
           Windows user and will usually fail.
         </p>
       )}

@@ -14,6 +14,23 @@ export interface ErrorPresentation {
 
 export type ErrorPresentationContext = Partial<Pick<ErrorPresentation, 'message' | 'cause' | 'action'>>;
 
+export function presentSourceError(details: string): ErrorPresentation {
+  if (/certificate|SSL|TLS/i.test(details) && /validat|reject|trust/i.test(details)) {
+    return {
+      message: 'The server certificate could not be verified.',
+      cause: 'The certificate could not be accepted under the configured trust settings.',
+      action: 'Verify the server certificate with your IT team, then update the trusted fingerprint or certificate chain in Settings.',
+      technicalDetails: details,
+    };
+  }
+  return {
+    message: 'The source could not be evaluated.',
+    cause: 'The provider did not return complete, usable evidence.',
+    action: 'Check this source’s connection settings and availability, then reload the management sources.',
+    technicalDetails: details,
+  };
+}
+
 type AdminGuidance = Omit<ErrorPresentation, 'technicalDetails'>;
 
 const guidanceByCode: Record<string, AdminGuidance> = {

@@ -19,7 +19,7 @@ type State =
   | { kind: 'error'; error: ErrorPresentation };
 
 /** Latest stored Health snapshot with an explicit on-demand refresh. */
-export function HealthSection({ target }: { target: TargetRequest | null }) {
+export function HealthSection({ target, onDataChanged }: { target: TargetRequest | null; onDataChanged?: () => void }) {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
   useEffect(() => {
@@ -34,12 +34,15 @@ export function HealthSection({ target }: { target: TargetRequest | null }) {
   const run = useCallback(() => {
     setState({ kind: 'running' });
     invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target })
-      .then((result) => setState({ kind: 'done', run: result }))
+      .then((result) => {
+        setState({ kind: 'done', run: result });
+        onDataChanged?.();
+      })
       .catch((error: unknown) => setState({
         kind: 'error',
         error: presentError(error, { message: 'The health check could not be completed.' }),
       }));
-  }, [target]);
+  }, [target, onDataChanged]);
 
   if (state.kind === 'loading') {
     return <Spinner label="Loading latest health snapshot …" />;

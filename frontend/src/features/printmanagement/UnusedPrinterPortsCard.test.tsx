@@ -50,7 +50,7 @@ describe('UnusedPrinterPortsCard', () => {
     );
 
     expect(screen.getByText('Unused ports (3)')).toBeDefined();
-    expect(screen.getByText(/Sign in as admin at the top right/)).toBeDefined();
+    expect(screen.getByText(/Set remote account at the top right/)).toBeDefined();
     await userEvent.click(screen.getByRole('button', { name: 'Select all' }));
     expect(screen.getByRole('button', { name: 'Delete selected (3)' })).toBeDefined();
     await userEvent.click(screen.getByRole('button', { name: 'Check reachability' }));

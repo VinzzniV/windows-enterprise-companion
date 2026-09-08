@@ -5,8 +5,10 @@ import type {
   HygieneDevice,
   InventorySourceState,
   ProbeHostsResponse,
+  HostProbeResult,
 } from '../../shared/api-types';
 import { invoke } from '../../shared/bridge/bridgeClient';
+import { presentSourceError } from '../../shared/bridge/errorPresentation';
 import { RelationshipMap } from '../../shared/relationships/RelationshipMap';
 import type {
   RelationshipConfidence,
@@ -112,6 +114,7 @@ export function buildDeviceRelationshipModel(
   overview: ClientOverviewResult,
   reachability: ClientReachability,
   managementObservedAtUtc: string,
+  probe?: HostProbeResult | null,
 ): RelationshipMapModel {
   const findingCodes = new Set(device.assessment.findings.map((finding) => finding.code));
   const primaryId = `device:${device.hostName.toLocaleLowerCase()}`;
@@ -140,7 +143,7 @@ export function buildDeviceRelationshipModel(
       id: 'management:active-directory',
       entityType: 'management-system',
       label: 'Active Directory',
-      context: sources.activeDirectory.error ?? (device.activeDirectory.exists ? 'Computer object found' : 'No matching computer object'),
+      context: sources.activeDirectory.error ? presentSourceError(sources.activeDirectory.error).message : (device.activeDirectory.exists ? 'Computer object found' : 'No matching computer object'),
       status: integrationStatus('activeDirectory', sources.activeDirectory, device.activeDirectory.exists, findingCodes),
       observedAtUtc: device.activeDirectory.lastLogonDate,
       href: '/activedirectory',
@@ -149,7 +152,7 @@ export function buildDeviceRelationshipModel(
       id: 'management:kaspersky',
       entityType: 'management-system',
       label: 'Kaspersky',
-      context: sources.kaspersky.error ?? (device.kaspersky.exists ? 'Managed device found' : 'No matching managed device'),
+      context: sources.kaspersky.error ? presentSourceError(sources.kaspersky.error).message : (device.kaspersky.exists ? 'Managed device found' : 'No matching managed device'),
       status: integrationStatus('kaspersky', sources.kaspersky, device.kaspersky.exists, findingCodes),
       observedAtUtc: device.kaspersky.lastSeen,
       href: '/settings?section=environment-health',
@@ -158,7 +161,7 @@ export function buildDeviceRelationshipModel(
       id: 'management:opsi',
       entityType: 'management-system',
       label: 'opsi',
-      context: sources.opsi.error ?? (device.opsi.exists ? 'Managed client found' : 'No matching managed client'),
+      context: sources.opsi.error ? presentSourceError(sources.opsi.error).message : (device.opsi.exists ? 'Managed client found' : 'No matching managed client'),
       status: integrationStatus('opsi', sources.opsi, device.opsi.exists, findingCodes),
       observedAtUtc: device.opsi.lastSeen,
       href: '/patchmanagement',
@@ -167,7 +170,7 @@ export function buildDeviceRelationshipModel(
       id: 'management:nessus',
       entityType: 'management-system',
       label: 'Nessus',
-      context: sources.nessus.error ?? (nessusPresent ? `${nessus.critical} critical · ${nessus.high} high` : 'No completed asset scan'),
+      context: sources.nessus.error ? presentSourceError(sources.nessus.error).message : (nessusPresent ? `${nessus.critical} critical · ${nessus.high} high` : 'No completed asset scan'),
       status: integrationStatus('nessus', sources.nessus, nessusPresent, findingCodes),
       observedAtUtc: nessus.lastCompletedScanUtc,
       href: `/vulnerabilities?tab=findings&asset=${encodeURIComponent(device.computerName)}`,
@@ -222,8 +225,10 @@ export function buildDeviceRelationshipModel(
     : reachability === 'failed'
       ? 'partial'
       : 'unknown';
-  const reachabilityContext = reachability === 'online'
-    ? 'Ping or WinRM responded'
+  const reachabilityContext = probe
+    ? `Ping: ${probe.reachable ? 'Responded' : 'No response'} · WinRM: ${probe.manageable ? 'Port 5985 open' : 'No response'}`
+    : reachability === 'online'
+    ? 'Connectivity responded'
     : reachability === 'no-response'
       ? 'No ping or WinRM response'
       : reachability === 'checking'
@@ -286,26 +291,32 @@ export function DeviceRelationshipMap({
 }) {
   const probeRequestRef = useRef(0);
   const [reachability, setReachability] = useState<ClientReachability>('unknown');
+  const [probe, setProbe] = useState<HostProbeResult | null>(null);
 
   useEffect(() => {
     probeRequestRef.current += 1;
     setReachability('unknown');
+    setProbe(null);
+    return () => { probeRequestRef.current += 1; };
   }, [device.hostName]);
 
   const checkConnectivity = () => {
     const request = ++probeRequestRef.current;
     setReachability('checking');
+    setProbe(null);
     void invoke<ProbeHostsResponse>('connectivity', 'probeHosts', { hosts: [device.hostName] })
       .then((response) => {
         if (probeRequestRef.current !== request) return;
-        const result = response.results[0];
+        const result = response.results.find((item) => item.host.toLowerCase() === device.hostName.toLowerCase());
+        setProbe(result ?? null);
+        if (!result) { setReachability('failed'); return; }
         setReachability(result?.reachable || result?.manageable ? 'online' : 'no-response');
       })
       .catch(() => { if (probeRequestRef.current === request) setReachability('failed'); });
   };
 
   const reachabilityLabel = reachability === 'online'
-    ? 'Ping or WinRM responded'
+    ? 'Responded'
     : reachability === 'no-response'
       ? 'No ping or WinRM response'
       : reachability === 'checking'
@@ -313,10 +324,12 @@ export function DeviceRelationshipMap({
         : reachability === 'failed'
           ? 'Check failed'
           : 'Not checked';
-  const model = buildDeviceRelationshipModel(device, sources, overview, reachability, managementObservedAtUtc);
+  const model = buildDeviceRelationshipModel(device, sources, overview, reachability, managementObservedAtUtc, probe);
 
   return <RelationshipMap model={model} actions={<>
-    <span className="text-xs text-slate-500" role="status">Connectivity: {reachabilityLabel}</span>
+    <span className="text-xs text-slate-400" role="status">
+      {probe ? `Ping: ${probe.reachable ? 'Responded' : 'No response'} · WinRM: ${probe.manageable ? 'Port 5985 open' : 'No response'}` : `Ping: ${reachabilityLabel} · WinRM: ${reachabilityLabel}`}
+    </span>
     <Button variant="ghost" disabled={reachability === 'checking'} onClick={checkConnectivity}>
       {reachability === 'checking' ? 'Checking …' : 'Check connectivity'}
     </Button>

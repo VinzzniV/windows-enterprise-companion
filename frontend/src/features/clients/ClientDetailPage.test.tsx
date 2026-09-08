@@ -211,7 +211,7 @@ describe('ClientDetailPage', () => {
   it('shows a credential bar for a remote client and runs each section on demand', async () => {
     renderAt('PC1.corp.local');
 
-    expect(await screen.findByText('Scanning as current user')).toBeDefined(); // remote → creds needed
+    expect(await screen.findByText('Remote account: current Windows user')).toBeDefined(); // remote → creds needed
     expect((await screen.findByRole('tab', { name: 'Overview' })).getAttribute('aria-selected')).toBe('true');
     expect(await screen.findByText('Client 360 evidence snapshot')).toBeDefined();
     expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(false);
@@ -219,7 +219,7 @@ describe('ClientDetailPage', () => {
     expect(await screen.findByText('Environment assessment')).toBeDefined();
     expect(screen.getByText('Warning')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'PowerShell' }));
-    const alert = await screen.findByRole('alert');
+    const alert = (await screen.findByText('The PowerShell session could not be opened.')).closest<HTMLElement>('[role="alert"]')!;
     expect(within(alert).getByText('The PowerShell session could not be opened.')).toBeDefined();
     expect(within(alert).getByText('Next action')).toBeDefined();
     const details = within(alert).getByText('Technical details').closest('details') as HTMLDetailsElement;
@@ -229,9 +229,9 @@ describe('ClientDetailPage', () => {
     expect(screen.getByText('MISSING KASPERSKY').parentElement?.textContent)
       .toContain('Enabled in Active Directory, but no matching Kaspersky device was found.');
     expect(screen.getByText('Windows 11 Pro')).toBeDefined();
-    expect(screen.getAllByText('opsi service unavailable')).toHaveLength(2);
-    expect(screen.getByText('Failed')).toBeDefined();
-    expect(screen.getByText('Source unavailable')).toBeDefined();
+    expect(screen.getByText('opsi service unavailable').closest('details')?.open).toBe(false);
+    expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Source unavailable').length).toBeGreaterThan(0);
     expect(screen.queryByText('Present')).toBeNull();
     expect(screen.getAllByText('Available').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Missing').length).toBeGreaterThan(0);
@@ -250,7 +250,7 @@ describe('ClientDetailPage', () => {
     expect(await screen.findByRole('button', { name: 'Export HTML' })).toBeDefined();
   });
 
-  it('refreshes the mounted report after successful inventory and security scans', async () => {
+  it('refreshes stored overview and report after successful inventory and security scans', async () => {
     let inventoryAvailable = false;
     let securityAvailable = false;
     const fallback = invokeMock.getMockImplementation() as (
@@ -309,6 +309,34 @@ describe('ClientDetailPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Report export' }));
     expect(await screen.findByText(/COMPLETED, 0 findings/)).toBeDefined();
+    await waitFor(() => expect(invokeMock.mock.calls.filter((call) => call[0] === 'clients' && call[1] === 'getOverview')).toHaveLength(3));
+    expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle' || call[0] === 'connectivity')).toBe(false);
+  });
+
+  it('updates the stored overview after Health finishes without launching another scan', async () => {
+    let completed = false;
+    const fallback = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((module: string, action: string, payload: unknown) => {
+      if (module === 'diagnostics' && action === 'runDiagnostics') {
+        completed = true;
+        return Promise.resolve({ startedAtUtc: '2026-09-08T08:00:00Z', completedAtUtc: '2026-09-08T08:00:01Z', results: [] });
+      }
+      if (module === 'clients' && action === 'getOverview') return Promise.resolve({
+        ...storedClientOverview,
+        sources: storedClientOverview.sources.map(source => source.source === 'Health' && completed
+          ? { ...source, freshness: 'FRESH', capturedAtUtc: '2026-09-08T08:00:01Z', ageSeconds: 0, coverage: 'Updated Health evidence' }
+          : source),
+      });
+      return fallback(module, action, payload);
+    });
+    renderAt('PC1.corp.local', 'diagnostics');
+    fireEvent.click(await screen.findByRole('button', { name: 'Run health check' }));
+    await screen.findByRole('button', { name: 'Re-run health check' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }));
+    await screen.findByText('Updated Health evidence');
+    expect(invokeMock.mock.calls.filter(call => call[1] === 'runDiagnostics')).toHaveLength(1);
+    expect(invokeMock.mock.calls.filter(call => call[0] === 'clients' && call[1] === 'getOverview')).toHaveLength(2);
+    expect(invokeMock.mock.calls.some(call => call[0] === 'employeelifecycle' || call[0] === 'connectivity')).toBe(false);
   });
 
   it('opens an allowlisted client section from the URL and keeps tab navigation addressable', async () => {

@@ -92,12 +92,13 @@ function TopBar({
         {appInfo && (
           <>
             <StatusBadge variant={appInfo.isElevated ? 'elevation' : 'neutral'}>
-              {appInfo.isElevated ? 'Administrator' : 'Standard user'}
+              {appInfo.isElevated ? 'Local app: administrator' : 'Local app: standard rights'}
             </StatusBadge>
             {!appInfo.isElevated && (
               <Button
                 variant="secondary"
-                title="Starts an elevated copy via the UAC prompt and closes this one"
+                title="Restarts this app with local administrator rights through Windows UAC. Remote target permissions remain separate."
+                aria-label="Restart local app as administrator"
                 onClick={() => {
                   setRestartError(null);
                   invoke('system', 'restartElevated', {}).catch((caught: unknown) =>
@@ -108,8 +109,8 @@ function TopBar({
                 }}
                 className="px-2 py-0.5 text-xs font-normal"
               >
-                <span className="hidden sm:inline">Restart as administrator</span>
-                <span className="sm:hidden">Elevate</span>
+                <span className="hidden sm:inline">Elevate local app</span>
+                <span className="sm:hidden">Local elevation</span>
               </Button>
             )}
           </>

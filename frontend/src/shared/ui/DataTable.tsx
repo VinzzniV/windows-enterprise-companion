@@ -45,6 +45,7 @@ export interface DataTableGroup {
 }
 
 interface DataTableProps<T> {
+  layout?: 'auto' | 'fixed';
   columns: readonly DataColumn<T>[];
   /** The rows for the current page. DataTable never fetches or slices them. */
   rows: readonly T[];
@@ -87,6 +88,7 @@ export function DataTable<T>({
   pagination,
   loading = false,
   groupBy,
+  layout = 'auto',
 }: DataTableProps<T>) {
   const [localSort, setLocalSort] = useState<{ index: number; dir: DataTableSortDirection } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(new Set());
@@ -174,7 +176,7 @@ export function DataTable<T>({
         {columns.map((column) => (
           <td
             key={column.header}
-            className={`px-3 py-1.5 align-top ${column.align ? alignClass[column.align] : ''} ${
+            className={`px-3 py-1.5 align-top [overflow-wrap:anywhere] ${column.align ? alignClass[column.align] : ''} ${
               column.mono ? 'font-mono text-[13px] tabular-nums' : ''
             }`}
           >
@@ -186,13 +188,13 @@ export function DataTable<T>({
   };
 
   return (
-    <div aria-busy={loading}>
+    <div aria-busy={loading} className="min-w-0 max-w-full">
       <div className="overflow-x-auto">
       {rows.length === 0 ? (
         <p className="text-sm text-slate-400" role={loading ? 'status' : undefined}>
           {loading ? 'Loading table data…' : emptyMessage}
         </p>
-      ) : <table className="w-full border-collapse text-left text-sm">
+      ) : <table className={`w-full border-collapse text-left text-sm ${layout === 'fixed' ? 'table-fixed min-w-[44rem]' : ''}`}>
         <thead>
           <tr>
             {columns.map((column, index) => {

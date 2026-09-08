@@ -163,7 +163,7 @@ export function ActionCenterPage() {
       id: 'problem',
       header: 'Problem / deviation',
       sortable: true,
-      cell: (item) => <div className="min-w-64 max-w-xl">
+      cell: (item) => <div className="min-w-0">
         <div className="font-medium text-slate-100">{item.problem}</div>
         <p className="mt-0.5 text-xs text-slate-400">{item.explanation}</p>
       </div>,
@@ -180,7 +180,7 @@ export function ActionCenterPage() {
       sortable: true,
       cell: (item) => {
         const coverage = coveragePresentation[item.coverage];
-        return <div className="flex min-w-44 flex-col gap-1">
+        return <div className="flex min-w-0 flex-col gap-1">
           <span className="text-xs text-muted" title={formatTimestamp(item.evidenceAtUtc)}>{evidenceAge(item)} old</span>
           <span><Badge tone={coverage.tone}>{coverage.label} · {item.reliability}</Badge></span>
         </div>;
@@ -188,7 +188,7 @@ export function ActionCenterPage() {
     },
     {
       header: 'Next action',
-      cell: (item) => <div className="min-w-64 max-w-lg">
+      cell: (item) => <div className="min-w-0">
         <p className="text-xs text-slate-300">{item.recommendedAction}</p>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <Link className="text-sm font-medium text-accent-300 hover:text-accent-200" to={item.href}>
@@ -315,7 +315,7 @@ export function ActionCenterPage() {
         </Toolbar>
       </form>
 
-      <DataTable
+      <DataTable layout="fixed"
         columns={columns}
         rows={result.items}
         getRowKey={(item) => item.id}

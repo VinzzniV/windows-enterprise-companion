@@ -235,7 +235,7 @@ describe('responsive application shell', () => {
     });
 
     render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: /Restart as administrator/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Restart local app as administrator/ }));
 
     const alert = await screen.findByRole('alert');
     expect(within(alert).getByText('The elevated application could not be started.')).toBeDefined();

@@ -12,12 +12,13 @@ import type {
   InventorySourceState,
 } from '../../../shared/api-types';
 import { invoke } from '../../../shared/bridge/bridgeClient';
-import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
+import { presentError, presentSourceError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import { useEnvironment } from '../../../shared/environment/EnvironmentContext';
 import { HygieneLoadStatus } from '../../../shared/environment/HygieneLoadStatus';
 import { inventorySourceStatus } from '../../../shared/environment/inventorySourceStatus';
 import { Button } from '../../../shared/ui/Button';
 import { Card } from '../../../shared/ui/Card';
+import { DetailsDisclosure } from '../../../shared/ui/DetailsDisclosure';
 import { CompactErrorState, ErrorState } from '../../../shared/ui/States';
 import type { SemanticStatus } from '../../../shared/ui/SemanticStatusBadge';
 import { clientKey } from '../clients';
@@ -84,10 +85,9 @@ function DetailLink({ host, metadata, children }: {
 }
 
 function SourceEvidence({ host, metadata }: { host: string; metadata: ClientOverviewSourceMetadata }) {
-  return <li className="grid gap-2 border-b border-slate-800/80 py-3 last:border-b-0 sm:grid-cols-[minmax(9rem,0.7fr)_minmax(16rem,1.5fr)_auto] sm:items-center">
+  return <li className="flex min-w-0 flex-col gap-2 rounded border border-slate-800 p-3">
     <div>
       <p className="font-medium text-slate-200">{metadata.source}</p>
-      <p className="mt-0.5 text-xs text-slate-500">{metadata.provenance}</p>
     </div>
     <div>
       <div className="flex flex-wrap items-center gap-2">
@@ -97,7 +97,10 @@ function SourceEvidence({ host, metadata }: { host: string; metadata: ClientOver
         )}
         <span className="text-xs tabular-nums text-slate-500">{formatAge(metadata.ageSeconds)}</span>
       </div>
-      <p className="mt-1 text-xs text-slate-400">{metadata.coverage}</p>
+      <DetailsDisclosure summary="Source and coverage">
+        <p className="text-xs text-slate-500">{metadata.provenance}</p>
+        <p className="mt-1 text-xs text-slate-400">{metadata.coverage}</p>
+      </DetailsDisclosure>
     </div>
     <DetailLink host={host} metadata={metadata}>Open details</DetailLink>
   </li>;
@@ -106,7 +109,7 @@ function SourceEvidence({ host, metadata }: { host: string; metadata: ClientOver
 function SourceLedger({ host, sources }: { host: string; sources: ClientOverviewSourceMetadata[] }) {
   return <Card title="Stored source evidence">
     <p className="mb-1 text-sm text-slate-400">Latest saved evidence only. Opening this page does not start a scan.</p>
-    <ul>{sources.map((source) => <SourceEvidence key={source.source} host={host} metadata={source} />)}</ul>
+    <ul className="mt-3 grid gap-2 grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))]">{sources.map((source) => <SourceEvidence key={source.source} host={host} metadata={source} />)}</ul>
   </Card>;
 }
 
@@ -184,12 +187,12 @@ function SoftwareSummary({ host, software, metadata }: {
     </div>
     {software ? <>
       <p className="mb-3 text-lg font-semibold tabular-nums text-slate-100">{software.installedCount} installed applications</p>
-      {software.sample.length > 0 ? <ul className="divide-y divide-slate-800/80">
+      {software.sample.length > 0 ? <DetailsDisclosure summary={`Preview ${software.sample.length} applications`}><ul className="divide-y divide-slate-800/80">
         {software.sample.map((item) => <li key={`${item.name}\u0000${item.version ?? ''}`} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2 text-sm">
           <span className="font-medium text-slate-200">{item.name}</span>
           <span className="text-xs text-slate-500">{value(item.version)}{item.publisher ? ` · ${item.publisher}` : ''}</span>
         </li>)}
-      </ul> : <p className="text-sm text-slate-400">The saved capture contains no installed applications.</p>}
+      </ul></DetailsDisclosure> : <p className="text-sm text-slate-400">The saved capture contains no installed applications.</p>}
       {software.installedCount > software.sample.length && <p className="mt-3 text-xs text-slate-500">Showing {software.sample.length} of {software.installedCount}. Open Inventory for the complete list.</p>}
     </> : <p className="text-sm text-slate-400">No stored software capture. Open Inventory to run an explicit scan.</p>}
   </Card>;
@@ -282,7 +285,7 @@ function SourceHeader({ name, state, present, missingApplies, stale = false }: {
 }
 
 function SourceError({ state }: { state: InventorySourceState }) {
-  return state.error ? <p className="mb-3 text-sm text-slate-400">{state.error}</p> : null;
+  return state.error ? <CompactErrorState className="mb-3" {...presentSourceError(state.error)} /> : null;
 }
 
 function DeviceOverview({ device, overview }: { device: HygieneDevice; overview: ClientOverviewResult }) {
@@ -292,6 +295,16 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
   const nessusSource = sources.nessus ?? { availability: 'NOT_CONNECTED' as const, error: 'Nessus is not configured.' };
   const hasFinding = (...codes: string[]) => device.assessment.findings.some((finding) => codes.includes(finding.code));
   return <div className="flex flex-col gap-4">
+    <Card title="Management systems">
+      <div className="flex flex-wrap gap-x-5 gap-y-2" aria-label="Management source status">
+        <SourceHeader name="Active Directory" state={sources.activeDirectory} present={device.activeDirectory.exists} missingApplies={hasFinding('ORPHAN_KASPERSKY', 'ORPHAN_OPSI')} stale={hasFinding('STALE_AD')} />
+        <SourceHeader name="Kaspersky" state={sources.kaspersky} present={device.kaspersky.exists && !hasFinding('MISSING_KASPERSKY_AGENT', 'MISSING_KES')} missingApplies={hasFinding('MISSING_KASPERSKY', 'MISSING_KASPERSKY_AGENT', 'MISSING_KES')} stale={hasFinding('STALE_KASPERSKY')} />
+        <SourceHeader name="opsi" state={sources.opsi} present={device.opsi.exists} missingApplies={hasFinding('MISSING_OPSI')} stale={hasFinding('STALE_OPSI')} />
+        <SourceHeader name="Nessus" state={nessusSource} present={nessus.exists && nessus.lastCompletedScanUtc !== null} missingApplies={hasFinding('MISSING_NESSUS')} stale={hasFinding('STALE_NESSUS')} />
+      </div>
+    </Card>
+    <DetailsDisclosure summary="Management details and device relationships">
+    <div className="flex flex-col gap-4">
     <DeviceRelationshipMap
       device={device}
       sources={{ ...sources, nessus: nessusSource }}
@@ -315,6 +328,8 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
         <Rows entries={[["Last completed scan", date(nessus.lastCompletedScanUtc)], ["Critical", String(nessus.critical)], ["High", String(nessus.high)], ["Medium", String(nessus.medium)], ["Low", String(nessus.low)], ["Ports", nessus.ports.join(', ') || '—'], ["Scans", nessus.scanSources.join(', ') || '—']]} />
         {nessus.exists && <a className="mt-3 inline-block text-sm text-accent-400 hover:text-accent-300" href={`#/vulnerabilities?tab=findings&asset=${encodeURIComponent(device.computerName)}`}>Open findings in Vulnerabilities</a>}</Card>
     </div>
+    </div>
+    </DetailsDisclosure>
   </div>;
 }
 
@@ -338,7 +353,7 @@ function ManagementContext({ host, overview }: { host: string; overview: ClientO
   return device ? <DeviceOverview device={device} overview={overview} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
 }
 
-export function OverviewSection({ host }: { host: string }) {
+export function OverviewSection({ host, refreshKey = 0 }: { host: string; refreshKey?: number }) {
   const [state, setState] = useState<OverviewLoadState>({ kind: 'loading' });
   const requestGeneration = useRef(0);
 
@@ -361,9 +376,9 @@ export function OverviewSection({ host }: { host: string }) {
   }, [host]);
 
   useEffect(() => {
-    loadOverview(false);
+    loadOverview(true);
     return () => { requestGeneration.current += 1; };
-  }, [loadOverview]);
+  }, [loadOverview, refreshKey]);
 
   if (state.kind === 'loading') return <p className="py-6 text-sm text-slate-400" role="status">Loading stored client evidence …</p>;
   if (state.kind === 'error') return <ErrorState {...state.error} controls={<Button onClick={() => loadOverview(false)}>Retry overview</Button>} />;
@@ -380,13 +395,13 @@ export function OverviewSection({ host }: { host: string }) {
     </div>
     {state.refreshError && <CompactErrorState {...state.refreshError} />}
     <SourceLedger host={host} sources={state.result.sources} />
+    <ManagementContext host={host} overview={state.result} />
     <div className="grid gap-4 xl:grid-cols-2">
       <InventorySummary host={host} inventory={state.result.inventory} metadata={inventoryMetadata} />
       <HealthSummary host={host} health={state.result.health} metadata={healthMetadata} />
-      <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
       <SecuritySummary host={host} security={state.result.security} metadata={securityMetadata} />
       <UserSummary host={host} users={state.result.users} metadata={usersMetadata} />
+      <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
     </div>
-    <ManagementContext host={host} overview={state.result} />
   </div>;
 }
