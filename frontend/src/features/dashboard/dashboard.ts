@@ -299,7 +299,9 @@ export function deriveVulnerabilityTile(
     capturedAtUtc: sync.lastSuccessfulSyncUtc,
     coverage: trend === null
       ? `${overview.includedScans} included scans · trend unavailable`
-      : `${overview.includedScans} included scans · ${overview.staleScans} stale`,
+      : trend.comparison
+        ? `${overview.includedScans} included scans · ${overview.staleScans} stale · trend compares ${trend.commonAssets} common assets (${trend.comparison.startDayUtc} → ${trend.comparison.endDayUtc})`
+        : `${overview.includedScans} included scans · ${overview.staleScans} stale · trend needs two dates with a common asset`,
   };
 }
 

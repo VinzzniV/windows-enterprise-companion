@@ -23,7 +23,8 @@ the applicable milestone checks are green.
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13 | Complete | Local log level filtering precedes the result limit. Configured file-count, byte and continuation-line bounds are returned and displayed with exact coverage and truncation metadata. Remote Event Log results expose their query window, result limit and explicit per-message truncation. The hide action remains a local visibility marker and never claims deletion. |
 | M14 | Complete | Client actions distinguish live read-only access, locally replaced scan evidence and locally saved target metadata. Save/unsave failures remain visible and duplicate in-flight target mutations are suppressed; no password enters `SaveTarget`. Network Scan previews its target, exact configured TCP ports, DHCP/account context, non-persistence and no-write behavior, and rejects duplicate starts. The Print port-removal action retains its explicit external-effect text and confirmation. |
-| M15-M16 | Planned | Not yet accepted. |
+| M15 | Complete | Trend x-positions derive from UTC dates, axes name date and finding units, and a keyboard-accessible table exposes every daily severity/asset value without color or hover. Daily totals explicitly cover all assets, while the verdict evidence names start/end dates, common cohort, added/removed assets, common-cohort start/end values and the first deciding severity under the unchanged Critical-to-Low policy. Empty and one-point states remain explicit. |
+| M16 | Planned | Not yet accepted. |
 
 ## M01/M02 technical reassessment
 
@@ -279,3 +280,28 @@ non-mutation regression.
 - 12 Network Scan backend tests and 39 focused frontend tests passed. The
   Release solution build, generated-contract check (394 types), production
   frontend build and `git diff --check` passed.
+
+## M15 technical reassessment and verification
+
+- Existing daily `TrendPoint` values sum all assets captured on each UTC day;
+  changing those values to the intersection would silently change the chart's
+  established meaning. They remain all-asset totals and are labelled as such.
+  Horizontal positions now derive from parsed UTC dates, so a one-day gap uses
+  one quarter of the width of a four-day span.
+- The verdict continues to compare only assets present on both the first and
+  last date. The response now exposes both dates, common-cohort severity totals
+  and the first differing severity under the existing Critical → High → Medium
+  → Low order. A regression proves that Critical 1 → 2 yields `Worse` even when
+  High falls from 9 → 1.
+- The visible verdict explanation distinguishes the common cohort from daily
+  all-asset totals and names added/removed counts. The chart supplies a UTC date
+  axis, numeric findings scale and per-point titles; an expandable native table
+  exposes all daily values without relying on color or pointer hover. The
+  one-point state exposes its first snapshot values and the earliest possible
+  second date; the empty state remains explicit.
+- Dashboard coverage now qualifies the trend as a common-asset comparison and
+  names its start/end dates.
+- 18 Vulnerability Management backend tests and 29 focused Vulnerabilities/
+  Dashboard frontend tests passed. The Release solution build,
+  generated-contract check (395 types), production frontend build and
+  `git diff --check` passed.

@@ -226,6 +226,12 @@ describe('dashboard tile derivation', () => {
       commonAssets: 20,
       newAssets: 0,
       removedAssets: 0,
+      comparison: {
+        startDayUtc: '2026-07-01', endDayUtc: '2026-07-03',
+        startCritical: 0, endCritical: 0, startHigh: 0, endHigh: 0,
+        startMedium: 0, endMedium: 0, startLow: 0, endLow: 0,
+        decidingSeverity: null,
+      },
     };
 
     expect(deriveVulnerabilityTile(overview, trend)).toMatchObject({
@@ -233,7 +239,7 @@ describe('dashboard tile derivation', () => {
       state: 'fresh',
       tone: 'success',
       capturedAtUtc: '2026-07-03T08:05:00Z',
-      coverage: '5 included scans · 0 stale',
+      coverage: '5 included scans · 0 stale · trend compares 20 common assets (2026-07-01 → 2026-07-03)',
     });
     expect(deriveVulnerabilityTile({ ...overview, staleScans: 5 }, trend)).toMatchObject({
       value: '0',

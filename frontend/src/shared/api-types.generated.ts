@@ -2402,6 +2402,20 @@ export interface PageResult<T> {
   pageSize: number;
 }
 
+export interface TrendCohortComparison {
+  startDayUtc: string;
+  endDayUtc: string;
+  startCritical: number;
+  endCritical: number;
+  startHigh: number;
+  endHigh: number;
+  startMedium: number;
+  endMedium: number;
+  startLow: number;
+  endLow: number;
+  decidingSeverity: NessusSeverity | null;
+}
+
 export interface TrendPoint {
   dayUtc: string;
   critical: number;
@@ -2456,6 +2470,7 @@ export interface VulnerabilityTrend {
   commonAssets: number;
   newAssets: number;
   removedAssets: number;
+  comparison: TrendCohortComparison | null;
 }
 
 export interface NessusAsset {

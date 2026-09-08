@@ -39,8 +39,13 @@ local replacement/storage and external changes at the relevant Client,
 Network Scan and Print actions. Client target mutations expose failures and
 reject duplicate in-flight actions; Network Scan shows its configured port
 scope and also rejects duplicate starts. Focused tests, the contract check and
-both builds are green. The active slice is M15: trend values, temporal spacing
-and cohort evidence.
+both builds are green. M15 now positions Nessus trend samples by elapsed UTC
+days, labels both axes, exposes accessible daily values and separates all-asset
+daily totals from the common-asset verdict. The response and UI state the
+start/end cohort, added/removed assets and first deciding severity while
+preserving the existing Critical-to-Low policy. Focused tests and both builds
+are green. The active slice is M16: navigation naming and information-density
+cleanup.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.
