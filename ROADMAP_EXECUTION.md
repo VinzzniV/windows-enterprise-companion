@@ -16,7 +16,14 @@ unavailable. M08 now uses one viewport-bound, focus-managed detail workflow in
 Cleanup, Error log and Action Center, and exposes complete returned Client
 Event Log messages with copy and truncation context. Its automated acceptance
 is green; the required real-WebView layout smoke remains external for the same
-automation limitation. The active slice is M09: compact Client work content.
+automation limitation. M09 now keeps the compact source/coverage context above
+the Clients search,
+collapses the eleven posture drill-down metrics, mounts the batch workbench
+only for an actual selection and keeps running progress outside its collapsed
+options. Device and Overall columns precede explicitly sized provider columns,
+and semantic badges prohibit mid-word wrapping. Automated acceptance is green;
+the physical 1026 x 671 WebView/zoom check remains external. The active slice
+is M10: units and population labels.
 
 Documentation baseline: codex/docs-audit-cleanup at 739f16a. Product-code
 baseline: 17ae57a.

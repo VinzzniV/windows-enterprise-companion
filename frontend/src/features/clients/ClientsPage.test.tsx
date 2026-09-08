@@ -183,9 +183,15 @@ describe('ClientsPage', () => {
     expect(await screen.findByText('DISABLED-PC')).toBeTruthy();
     expect(screen.getByText('PC01')).toBeTruthy();
     expect(screen.getByText('SCAN-ONLY')).toBeTruthy();
+    expect(screen.getByRole('searchbox', { name: 'Filter clients' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Bulk scan workbench' })).toBeNull();
+    const postureDetails = screen.getByText(/show posture filters/).closest('details') as HTMLDetailsElement;
+    expect(postureDetails.open).toBe(false);
     for (const heading of ['Device', 'AD', 'Kaspersky', 'opsi', 'Nessus', 'Overall']) {
       expect(screen.getByRole('columnheader', { name: new RegExp(heading) })).toBeTruthy();
     }
+    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers.indexOf('Overall')).toBeLessThan(headers.indexOf('AD'));
     expect(screen.getByText('Disabled')).toBeTruthy();
     expect(screen.queryAllByText('OK')).toHaveLength(0);
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
@@ -224,6 +230,7 @@ describe('ClientsPage', () => {
     expect(lastInvoke('runBatchScan')).toBeUndefined();
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select PC01 for bulk scan' }));
+    expect(screen.getByRole('heading', { name: 'Bulk scan workbench' })).toBeTruthy();
     expect(screen.getByText('1 of 2 hosts selected')).toBeTruthy();
     expect(screen.getByText(/Current Windows identity · read-only/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Run Inventory' }));

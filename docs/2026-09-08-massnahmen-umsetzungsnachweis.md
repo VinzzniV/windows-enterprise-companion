@@ -17,7 +17,8 @@ the applicable milestone checks are green.
 | M06 | Complete | Comparison blocks absence claims when either software capture is unavailable, separates product presence from version differences, normalizes GPU order/whitespace, applies documented byte tolerances to raw RAM/disk totals and permanently displays Inventory/Security capture times and coverage per client. |
 | M07 | Implemented; WebView smoke pending | `DataTable` keeps native row semantics, activates a focused row with Enter/Space, exposes selection with `aria-selected`, shows a focus outline and ignores bubbled events from inputs, labels, buttons, links and other interactive descendants. Shared and Clients-page tests prove that Space changes exactly the checkbox without navigation; all interactive table callers were inventoried and their affected tests pass. Native-window automation is unavailable in this session, so the required real-WebView keyboard check remains an external acceptance gate. |
 | M08 | Implemented; layout smoke pending | Cleanup, Error log and Action Center use the same viewport-bound detail dialog with Escape, focus containment and focus return. A 500-row Error-log regression proves that the first selection opens without relying on the page end. Client Event Logs expose an explicit full-message action with host, time, source, safe wrapped text, copy feedback and a warning for the existing 500-character truncation convention. The required real-browser/WebView layout check remains external because this session cannot automate the native window or inject the host bridge into its isolated browser. |
-| M09-M11 | Planned | Not yet accepted. |
+| M09 | Implemented; layout smoke pending | Clients keeps only compact source state, snapshot time and coverage guidance above search. Eleven posture/filter metrics are collapsed by default, and the batch workbench is absent until a client is selected. Running progress stays visible when batch options collapse. The fixed client table orders Device and Overall before explicitly sized provider columns, while semantic badges prohibit mid-word wrapping. The physical 1026 x 671 WebView and higher-zoom check remains external. |
+| M10-M11 | Planned | Not yet accepted. |
 | M12 | Complete | Real-SQLite integration coverage proves that blank legacy hosts are excluded from list results while both persisted rows remain unchanged. |
 | M13-M16 | Planned | Not yet accepted. |
 
@@ -162,3 +163,30 @@ non-mutation regression.
   is unavailable. Actual visual fit, focus-ring visibility and scrolling in
   WebView2 remain the documented external M08 acceptance gate; the blind audit
   remains unchanged.
+
+## M09 technical reassessment and verification
+
+- The prior default view placed eleven posture tiles and an unused batch card
+  before the working table. Clients now keeps the current source states,
+  snapshot timestamp and incomplete-coverage warning in one compact context.
+  The complete metrics and their existing filter actions remain available in
+  one disclosure, so no assessment metadata or drill-down is removed.
+- The batch workbench mounts only after explicit row selection. Its operation
+  and host options collapse when a batch starts, while selected count, Cancel
+  and per-host progress remain visible. Selection alone still invokes no scan.
+- Client columns now have feature-owned widths and a fixed, horizontally
+  scrollable table. Select, Device and Overall come first; AD, Kaspersky, opsi
+  and Nessus follow. Device description and all existing last-seen evidence
+  remain present in a denser row. Shared `DataTable` only exposes the opt-in
+  column class; it applies no new global compact behavior.
+- The common Badge explicitly resets inherited arbitrary word wrapping, so
+  labels such as `Cleanup candidate` stay whole. Tests cover the class on all
+  canonical semantic states.
+- All 509 frontend tests and the production TypeScript/Vite build pass. The
+  focused Clients and batch tests prove default workbench absence, collapsed
+  posture metrics, column order, explicit selection and progress visibility
+  outside collapsed options.
+- Native-window automation remains unavailable, and the isolated local browser
+  cannot receive the WebView host bridge fixture. The exact 1026 x 671 visual
+  fit, higher zoom, sticky header and horizontal scrollbar remain the external
+  M09 acceptance gate rather than being claimed from DOM tests.

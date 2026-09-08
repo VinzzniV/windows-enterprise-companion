@@ -29,6 +29,8 @@ export interface DataColumn<T> {
   align?: 'left' | 'right' | 'center';
   /** Monospace the cell (serials, IPs, MACs, versions, OIDs). */
   mono?: boolean;
+  /** Optional responsive width/visibility classes owned by the feature. */
+  className?: string;
   /**
    * Explicit sort key. When omitted, a primitive (string/number) cell value is
    * used automatically; columns whose cells render JSX stay unsortable unless
@@ -186,7 +188,7 @@ export function DataTable<T>({
         {columns.map((column) => (
           <td
             key={column.header}
-            className={`px-3 py-1.5 align-top [overflow-wrap:anywhere] ${column.align ? alignClass[column.align] : ''} ${
+            className={`px-3 py-1.5 align-top [overflow-wrap:anywhere] ${column.align ? alignClass[column.align] : ''} ${column.className ?? ''} ${
               column.mono ? 'font-mono text-[13px] tabular-nums' : ''
             }`}
           >
@@ -221,7 +223,7 @@ export function DataTable<T>({
                   aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
                   className={`border-b border-slate-800 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted ${
                     column.align ? alignClass[column.align] : 'text-left'
-                  } ${stickyHeader ? 'sticky top-0 z-10 bg-slate-900' : ''}`}
+                  } ${stickyHeader ? 'sticky top-0 z-10 bg-slate-900' : ''} ${column.className ?? ''}`}
                 >
                   <button
                     type="button"

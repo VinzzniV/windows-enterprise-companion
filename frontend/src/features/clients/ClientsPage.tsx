@@ -17,8 +17,8 @@ import { inventorySourceStatus } from '../../shared/environment/inventorySourceS
 import { useHygieneOperation } from '../../shared/environment/useHygieneOperation';
 import { Badge } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
-import { Card } from '../../shared/ui/Card';
 import { DataTable, type DataColumn, type DataTableGroup, type DataTableSort } from '../../shared/ui/DataTable';
+import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
@@ -292,7 +292,7 @@ export function ClientsPage() {
   const columns = useMemo<DataColumn<ClientWorkspaceListItem>[]>(() => {
     const sources = workspace?.sources;
     const deviceColumns: DataColumn<ClientWorkspaceListItem>[] = [
-      { id: 'select', header: 'Select', cell: (client) => {
+      { id: 'select', header: 'Select', className: 'w-14', cell: (client) => {
         const key = client.host.toUpperCase();
         const checked = selectedHosts.some((host) => host.toUpperCase() === key);
         const limitReached = maxBatchHosts !== null && selectedHosts.length >= maxBatchHosts;
@@ -311,11 +311,11 @@ export function ClientsPage() {
           className="h-4 w-4 cursor-pointer accent-accent-500 disabled:cursor-not-allowed"
         />;
       } },
-      { id: 'device', header: 'Device', sortable: true, cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
+      { id: 'device', header: 'Device', sortable: true, className: 'w-72', cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
         {client.os && <span className="text-xs text-muted">{client.os}</span>}
-        {client.description && <span className="text-xs text-slate-400">{client.description}</span>}
+        {client.description && <span className="line-clamp-1 text-xs text-slate-400" title={client.description}>{client.description}</span>}
         <div className="flex flex-col items-start gap-1">
-          <div className="flex flex-col items-start gap-0.5">
+          <div className="flex flex-wrap items-start gap-x-2 gap-y-0.5">
             <SourceLastSeen source="AD" value={client.environment?.activeDirectory.lastLogonDate ?? null} />
             <SourceLastSeen source="Kaspersky" value={client.environment?.kaspersky.lastSeen ?? null} />
             <SourceLastSeen source="opsi" value={client.environment?.opsi.lastSeen ?? null} />
@@ -325,11 +325,11 @@ export function ClientsPage() {
             {client.scanned && <Badge tone="info">Scanned</Badge>}{client.saved && <Badge tone="accent">Saved</Badge>}
           </div>
         </div></div> },
-      { header: 'AD', cell: (client) => <SourceBadge client={client} state={sources?.activeDirectory ?? unavailableSource} source="ad" /> },
-      { header: 'Kaspersky', cell: (client) => <SourceBadge client={client} state={sources?.kaspersky ?? unavailableSource} source="ksc" /> },
-      { header: 'opsi', cell: (client) => <SourceBadge client={client} state={sources?.opsi ?? unavailableSource} source="opsi" /> },
-      { header: 'Nessus', cell: (client) => <SourceBadge client={client} state={sources?.nessus ?? unavailableSource} source="nessus" /> },
-      { id: 'overall', header: 'Overall', sortable: true, cell: (client) => <ClientSemanticStatus {...hygieneAssessmentStatus(client.environment?.assessment.status ?? null)} /> },
+      { id: 'overall', header: 'Overall', sortable: true, className: 'w-36', cell: (client) => <ClientSemanticStatus {...hygieneAssessmentStatus(client.environment?.assessment.status ?? null)} /> },
+      { header: 'AD', className: 'w-28', cell: (client) => <SourceBadge client={client} state={sources?.activeDirectory ?? unavailableSource} source="ad" /> },
+      { header: 'Kaspersky', className: 'w-32', cell: (client) => <SourceBadge client={client} state={sources?.kaspersky ?? unavailableSource} source="ksc" /> },
+      { header: 'opsi', className: 'w-28', cell: (client) => <SourceBadge client={client} state={sources?.opsi ?? unavailableSource} source="opsi" /> },
+      { header: 'Nessus', className: 'w-28', cell: (client) => <SourceBadge client={client} state={sources?.nessus ?? unavailableSource} source="nessus" /> },
     ];
     return deviceColumns;
   }, [batchRunning, maxBatchHosts, probeStates, selectedHosts, workspace?.sources]);
@@ -391,14 +391,21 @@ export function ClientsPage() {
       {...probeError}
       controls={<Button variant="secondary" onClick={probeOnline} disabled={probing || !rows.length}>Retry connectivity check</Button>}
     />}
-    {workspace && <Card title="Fleet posture">
-      <div className="mb-3 flex flex-wrap gap-2">
+    {workspace && <section className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2.5" aria-labelledby="fleet-posture-heading">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 id="fleet-posture-heading" className="text-sm font-semibold text-slate-200">Fleet posture</h2>
         <EnvironmentSourceBadge name="AD" state={workspace.sources.activeDirectory} />
         <EnvironmentSourceBadge name="Kaspersky" state={workspace.sources.kaspersky} />
         <EnvironmentSourceBadge name="opsi" state={workspace.sources.opsi} />
         <EnvironmentSourceBadge name="Nessus" state={workspace.sources.nessus} />
+        <span className="ml-auto text-xs text-muted">Snapshot {workspace.snapshotRevision} · {new Date(workspace.assessedAtUtc).toLocaleString()}</span>
       </div>
-      <div className="flex flex-wrap gap-3">
+      {!coverageComplete && <p className="mt-2 text-xs text-warn-300" role="status">
+        Counts are known results only; one or more sources have incomplete coverage.
+      </p>}
+      <div className="mt-2">
+        <DetailsDisclosure summary={`${workspace.summary.total} assessed · ${workspace.summary.problems} known problem devices · ${workspace.summary.incomplete} with incomplete coverage — show posture filters`}>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-2">
         <SummaryMetric label="Devices in this assessment" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
         <SummaryMetric label="Healthy" value={workspace.summary.healthy} tone="success" onClick={() => applyPostureFilter('HEALTHY')} active={postureFilter === 'HEALTHY'} ariaLabel={`Filter clients by Healthy (${workspace.summary.healthy})`} />
         <SummaryMetric label="Known problem devices" value={workspace.summary.problems} tone={zeroKnownTone(workspace.summary.problems, 'warning')} onClick={() => applyPostureFilter('PROBLEMS')} active={postureFilter === 'PROBLEMS'} ariaLabel={`Filter clients by Problems (${workspace.summary.problems})`} />
@@ -410,12 +417,11 @@ export function ClientsPage() {
         <SummaryMetric label="Known missing Nessus devices" value={workspace.summary.missingNessus} tone={zeroKnownTone(workspace.summary.missingNessus, 'warning')} onClick={() => applyPostureFilter('MISSING_NESSUS')} active={postureFilter === 'MISSING_NESSUS'} ariaLabel={`Filter clients by Missing Nessus (${workspace.summary.missingNessus})`} />
         <SummaryMetric label="Devices with known Nessus Critical" value={workspace.summary.nessusCritical} tone={zeroKnownTone(workspace.summary.nessusCritical, 'danger')} onClick={() => applyPostureFilter('NESSUS_CRITICAL')} active={postureFilter === 'NESSUS_CRITICAL'} ariaLabel={`Filter clients by Nessus Critical (${workspace.summary.nessusCritical})`} />
         <SummaryMetric label="Devices with known Nessus High" value={workspace.summary.nessusHigh} tone={zeroKnownTone(workspace.summary.nessusHigh, 'warning')} onClick={() => applyPostureFilter('NESSUS_HIGH')} active={postureFilter === 'NESSUS_HIGH'} ariaLabel={`Filter clients by Nessus High (${workspace.summary.nessusHigh})`} />
+          </div>
+        </DetailsDisclosure>
       </div>
-      <p className={`mt-3 text-xs ${coverageComplete ? 'text-muted' : 'text-warn-300'}`}>
-        Snapshot {workspace.snapshotRevision} assessed {new Date(workspace.assessedAtUtc).toLocaleString()}{workspace.domainName ? ` · AD domain ${workspace.domainName}` : ''}.
-        {!coverageComplete && ' Counts are known results only; one or more sources have incomplete coverage.'} Read-only posture; no remediation starts from this view.
-      </p>
-    </Card>}
+      <p className="mt-2 text-xs text-muted">{workspace.domainName ? `AD domain ${workspace.domainName} · ` : ''}Read-only posture; no remediation starts from this view.</p>
+    </section>}
     <Toolbar actions={<>
       <span className="text-xs tabular-nums text-muted">{selectedHosts.length}/{maxBatchHosts ?? '—'} selected</span>
       <Button variant="ghost" onClick={selectVisibleHosts} disabled={batchRunning || maxBatchHosts === null || !rows.length || selectedHosts.length >= maxBatchHosts}>Select page</Button>
@@ -430,12 +436,12 @@ export function ClientsPage() {
       <Select fullWidth={false} value={groupMode} onChange={(event) => { setGroupMode(event.target.value as GroupMode); resetPage(); }} aria-label="Group clients by">
         <option value="none">No grouping</option><option value="os">Group by OS</option><option value="site">Group by site</option>
       </Select></Toolbar>
-    <ClientBulkActions
+    {selectedHosts.length > 0 && <ClientBulkActions
       selectedHosts={selectedHosts}
       maxBatchHosts={maxBatchHosts}
       onRunningChange={setBatchRunning}
       onCompleted={() => setRefreshRevision((current) => current + 1)}
-    />
+    />}
     <p className="text-sm text-slate-400">{workspace?.total ?? 0} devices · {workspace?.scannedTotal ?? 0} scanned{workspace && workspace.total !== workspace.snapshotTotal ? ` · ${workspace.snapshotTotal} total` : ''}</p>
     {loading && showEnvironmentProgress && <HygieneLoadStatus progress={hygieneOperation.progress} elapsedSeconds={hygieneOperation.elapsedSeconds} onCancel={() => { setCancelled(true); activeLoad.current?.cancel(); }} />}
     {cancelled && !loading && <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-4"><p className="text-sm text-slate-300">Environment load cancelled. The previous successful data remains unchanged.</p><Button variant="secondary" onClick={retry}>Retry</Button></div>}
@@ -445,7 +451,7 @@ export function ClientsPage() {
       controls={<Button variant="secondary" onClick={retry}>Retry environment load</Button>}
     />}
     {loading && !workspace && !showEnvironmentProgress ? <Spinner label="Loading environment inventory …" /> : !rows.length && !loading ? <EmptyState title="No clients" message="No device matches the current filters." />
-      : <DataTable columns={columns} rows={rows} getRowKey={(client) => client.key} groupBy={rowGroup}
+      : <DataTable layout="fixed" columns={columns} rows={rows} getRowKey={(client) => client.key} groupBy={rowGroup}
         onRowClick={batchRunning ? undefined : openClient} stickyHeader emptyMessage="No clients."
         loading={loading} sort={sort} onSortChange={(value) => { setSort(value); resetPage(); }}
         pagination={{ page: workspace?.page ?? page, pageSize: workspace?.pageSize ?? pageSize, total: workspace?.groupCount ?? workspace?.total ?? 0, itemLabel: groupMode === 'none' ? undefined : 'groups', onPageChange: setPage, onPageSizeChange: (value) => { setPageSize(value); resetPage(); } }} />}

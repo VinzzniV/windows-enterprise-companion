@@ -269,22 +269,8 @@ export function ClientBulkActions({
   return (
     <Card title="Bulk scan workbench">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-muted">
-            Operation
-            <Select
-              fullWidth={false}
-              value={operation}
-              disabled={running}
-              onChange={(event) => setOperation(event.target.value as BulkOperation)}
-              aria-label="Bulk scan operation"
-            >
-              <option value="inventory">Inventory</option>
-              <option value="security">Security</option>
-              <option value="health">Health</option>
-            </Select>
-          </label>
-          <div className="min-w-48 flex-1">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-48">
             <p className="text-sm font-medium text-slate-200">
               {selectedHosts.length} of {maxBatchHosts ?? '—'} hosts selected
             </p>
@@ -307,19 +293,30 @@ export function ClientBulkActions({
           )}
         </div>
 
-        {maxBatchHosts === null && (
-          <p className="text-xs text-warn-400">The configured batch limit is unavailable. Reload Clients before starting a batch.</p>
-        )}
-        {selectedHosts.length === 0 && (
-          <p className="text-sm text-slate-400">Select clients in the table below to prepare a bounded batch.</p>
-        )}
-        {selectedHosts.length > 0 && (
-          <DetailsDisclosure summary={`Review selected hosts (${selectedHosts.length})`}>
+        <DetailsDisclosure summary="Batch options and selected hosts" defaultOpen={!running}>
+          <div className="flex flex-col gap-3 rounded border border-slate-800 bg-slate-950/35 p-3">
+            <label className="flex w-fit flex-col gap-1 text-xs font-medium uppercase tracking-wide text-muted">
+              Operation
+              <Select
+                fullWidth={false}
+                value={operation}
+                disabled={running}
+                onChange={(event) => setOperation(event.target.value as BulkOperation)}
+                aria-label="Bulk scan operation"
+              >
+                <option value="inventory">Inventory</option>
+                <option value="security">Security</option>
+                <option value="health">Health</option>
+              </Select>
+            </label>
+            {maxBatchHosts === null && (
+              <p className="text-xs text-warn-400">The configured batch limit is unavailable. Reload Clients before starting a batch.</p>
+            )}
             <ul className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-slate-300 sm:grid-cols-2 xl:grid-cols-3">
               {selectedHosts.map((host) => <li key={host} className="font-mono">{host}</li>)}
             </ul>
-          </DetailsDisclosure>
-        )}
+          </div>
+        </DetailsDisclosure>
 
         {state.kind === 'running' && (
           <div aria-live="polite">
