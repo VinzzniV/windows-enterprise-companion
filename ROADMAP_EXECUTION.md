@@ -373,7 +373,7 @@ Current slice: Device Cleanup Excel export completed on
   committed SHA-256 records; no tag or release was created.
 - Device Cleanup Excel export baseline is
   `e89395fe874d64aa09ad185185df804390025e95`. Final local verification passes a
-  warning-free Release build, all 738 backend tests, all 461 frontend tests,
+  warning-free Release build, all 739 backend tests, all 461 frontend tests,
   390 generated bridge contracts, the production frontend build and the High
   severity NPM audit gate. Two existing Moderate Vitest advisories remain
   deferred because the available remediation requires a breaking major update.
@@ -381,6 +381,9 @@ Current slice: Device Cleanup Excel export completed on
   resulting file. Device Cleanup export coverage includes complete current-
   filter selection across server pages and explicit one-probe-per-device Ping
   outcomes.
+- The host timeout policy now classifies `devicecleanup/exportWorkbook` as a
+  batch action as well as the frontend correlation policy. A regression test
+  prevents the export from falling back to the nine-second default lifetime.
 
 ## Next
 

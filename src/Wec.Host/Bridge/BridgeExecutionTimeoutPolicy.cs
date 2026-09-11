@@ -48,6 +48,7 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
 
     private static readonly HashSet<string> BatchOperations =
     [
+        "devicecleanup/exportWorkbook",
         "diagnostics/runBatchDiagnostics",
         "inventory/runBatchScan",
         "networkscan/scan",
