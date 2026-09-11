@@ -36,6 +36,7 @@ public sealed class DeviceCleanupEvidenceProviderTests
         Assert.Equal("CleanupCandidate", device.HygieneStatus);
         Assert.True(device.ActiveDirectory.Exists);
         Assert.False(device.ActiveDirectory.Enabled);
+        Assert.Equal("PC-A description", device.ActiveDirectory.Description);
         Assert.Equal(AssessedAt.AddDays(-120), device.ActiveDirectory.LastLogonAtUtc);
         Assert.Equal("Clients/Retired", device.ActiveDirectory.OrganizationalUnit);
         Assert.Equal(AssessedAt.AddDays(-95), device.Kaspersky.LastSeenAtUtc);
@@ -52,7 +53,7 @@ public sealed class DeviceCleanupEvidenceProviderTests
             false,
             $"{host}.corp.example",
             "Windows 11",
-            null,
+            $"{host} description",
             $"CN={host},OU=Retired,OU=Clients,DC=corp,DC=example",
             "Clients/Retired",
             AssessedAt.AddDays(-120)),

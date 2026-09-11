@@ -6,13 +6,20 @@ const assessment: DeviceCleanupAssessment = {
   candidate: {
     subjectKey: 'PC-OLD',
     host: 'pc-old.corp.example',
+    description: 'Accounting workstation',
+    descriptionSource: 'Active Directory',
     classification: 'POTENTIAL_CLEANUP',
     classificationExplanation: 'AD exceeds the cleanup threshold.\nManual review required.',
+    activeDirectoryExists: true,
     activeDirectoryEnabled: false,
     activeDirectoryLastLogonAtUtc: '2026-01-01T00:00:00Z',
+    kasperskyExists: true,
     kasperskyLastSeenAtUtc: null,
+    opsiExists: false,
     opsiLastSeenAtUtc: null,
+    nessusExists: false,
     nessusLastScanAtUtc: null,
+    inventoryExists: true,
     inventoryCapturedAtUtc: '2026-02-01T00:00:00Z',
     relevantFindingCount: 1,
   },
@@ -50,6 +57,7 @@ describe('toDeviceCleanupMarkdown', () => {
     );
 
     expect(markdown).toContain('- Manual decision: Prepare controlled cleanup');
+    expect(markdown).toContain('- Description: Accounting workstation');
     expect(markdown).toContain('- Required reason: Replacement is confirmed. Ticket reviewed.');
     expect(markdown).toContain('- [x] Active Directory — Disabled');
     expect(markdown).toContain('CORP\\alex — LastInteractiveUser');

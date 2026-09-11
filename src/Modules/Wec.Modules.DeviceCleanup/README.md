@@ -25,3 +25,12 @@ Decision, checklist and connectivity state live only in the current frontend
 session. `devicecleanup/exportAssessment` writes the explicitly generated,
 bounded Markdown summary after a save-dialog confirmation. The module does not
 persist workflow state and exposes no AD disable, move or delete action.
+
+`devicecleanup/exportWorkbook` writes every candidate in the active list filter
+to one filterable `.xlsx` worksheet after a save-dialog confirmation. It keeps
+AD, Kaspersky, opsi, Nessus and stored WEC Inventory timestamps in separate UTC
+columns, uses the AD description with an opsi fallback and marks missing values
+explicitly. Starting this export sends one bounded ICMP echo to each exported
+device. It does not test WinRM, retry, start a scan or treat a missing response
+as proof that the device is offline or retired. The export reports when the
+configured subject limit made the workbook incomplete.

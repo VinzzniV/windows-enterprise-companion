@@ -61,6 +61,8 @@ public sealed class DeviceCleanupServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Total);
         Assert.Equal("PC-OLD", result.Value.Candidates[0].SubjectKey);
+        Assert.Equal("PC-OLD description", result.Value.Candidates[0].Description);
+        Assert.Equal("Active Directory", result.Value.Candidates[0].DescriptionSource);
         Assert.Equal(DeviceCleanupClassification.PotentialCleanup, result.Value.Candidates[0].Classification);
         Assert.Contains("cleanup threshold", result.Value.Candidates[0].ClassificationExplanation);
         Assert.Equal("PC-INVENTORY-ONLY", result.Value.Candidates[1].SubjectKey);
@@ -116,6 +118,42 @@ public sealed class DeviceCleanupServiceTests
     }
 
     [Fact]
+    public async Task GetExportSnapshotAsync_ReturnsEveryFilteredCandidateAcrossPageBoundaries()
+    {
+        Result<DeviceCleanupExportSnapshot> result = await CreateService().GetExportSnapshotAsync(
+            new DeviceCleanupExportQuery(null, null, null, null, IncludeWithoutSignals: false),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(["PC-OLD", "PC-INVENTORY-ONLY"],
+            result.Value.Candidates.Select(candidate => candidate.SubjectKey));
+    }
+
+    [Fact]
+    public async Task GetPageAsync_UsesOpsiDescriptionWhenActiveDirectoryDescriptionIsMissing()
+    {
+        DeviceCleanupSubjectEvidence subject = Subject(
+            "PC-OLD",
+            enabled: false,
+            lastLogon: AssessedAt.AddDays(-120),
+            new DeviceCleanupFindingEvidence("StaleAd", "Critical", "AD exceeds the cleanup threshold."));
+        subject = subject with
+        {
+            ActiveDirectory = subject.ActiveDirectory with { Description = null },
+        };
+        _sourceEvidence.LoadAsync(Arg.Any<DeviceCleanupEvidenceQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(Snapshot(subject)));
+
+        Result<DeviceCleanupPage> result = await CreateService().GetPageAsync(
+            new ListDeviceCleanupCandidatesRequest(),
+            CancellationToken.None);
+
+        DeviceCleanupCandidate candidate = result.Value.Candidates.Single(item => item.SubjectKey == "PC-OLD");
+        Assert.Equal("PC-OLD opsi description", candidate.Description);
+        Assert.Equal("opsi", candidate.DescriptionSource);
+    }
+
+    [Fact]
     public async Task GetPageAsync_RejectsInvalidPagingBeforeLoadingSources()
     {
         Result<DeviceCleanupPage> result = await CreateService().GetPageAsync(
@@ -157,9 +195,16 @@ public sealed class DeviceCleanupServiceTests
         host,
         $"{host}.corp.example",
         findings.Any(finding => finding.Severity == "Critical") ? "CleanupCandidate" : "Healthy",
-        new DeviceCleanupAdEvidence(true, enabled, "Windows 11", null, "Clients", lastLogon),
+        new DeviceCleanupAdEvidence(
+            true,
+            enabled,
+            "Windows 11",
+            $"{host} description",
+            null,
+            "Clients",
+            lastLogon),
         new DeviceCleanupKasperskyEvidence(true, AssessedAt.AddDays(-1), "Clients"),
-        new DeviceCleanupOpsiEvidence(true, AssessedAt.AddDays(-1), "Depot-A"),
+        new DeviceCleanupOpsiEvidence(true, $"{host} opsi description", AssessedAt.AddDays(-1), "Depot-A"),
         new DeviceCleanupNessusEvidence(true, AssessedAt.AddDays(-1)),
         findings);
 }

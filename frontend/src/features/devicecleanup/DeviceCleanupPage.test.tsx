@@ -28,13 +28,20 @@ vi.mock('../../shared/bridge/bridgeClient', () => ({
 const candidate = {
   subjectKey: 'PC-OLD',
   host: 'pc-old.corp.example',
+  description: 'Accounting workstation',
+  descriptionSource: 'Active Directory',
   classification: 'POTENTIAL_CLEANUP' as const,
   classificationExplanation: 'AD activity exceeds its cleanup threshold; manual review is still required.',
+  activeDirectoryExists: true,
   activeDirectoryEnabled: false,
   activeDirectoryLastLogonAtUtc: '2026-01-01T00:00:00Z',
+  kasperskyExists: true,
   kasperskyLastSeenAtUtc: '2026-02-01T00:00:00Z',
+  opsiExists: true,
   opsiLastSeenAtUtc: '2026-02-02T00:00:00Z',
+  nessusExists: true,
   nessusLastScanAtUtc: '2026-02-03T00:00:00Z',
+  inventoryExists: true,
   inventoryCapturedAtUtc: '2026-02-04T00:00:00Z',
   relevantFindingCount: 4,
 };
@@ -92,6 +99,14 @@ function renderPage() {
     }
     if (module === 'devicecleanup' && action === 'exportAssessment') {
       return Promise.resolve({ cancelled: false, filePath: 'C:\\Exports\\cleanup.md' });
+    }
+    if (module === 'devicecleanup' && action === 'exportWorkbook') {
+      return Promise.resolve({
+        cancelled: false,
+        filePath: 'C:\\Exports\\device-cleanup.xlsx',
+        exportedCount: 1,
+        subjectsTruncated: false,
+      });
     }
     return Promise.resolve({});
   });
@@ -162,5 +177,23 @@ describe('DeviceCleanupPage', () => {
       'listCandidates',
       expect.objectContaining({ search: 'PC-OLD', page: 1, pageSize: 25 }),
     ));
+  });
+
+  it('exports every current-filter result and explicitly requests the bounded Ping workbook', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText(candidate.host);
+
+    await user.click(screen.getByRole('button', { name: 'Export Excel with Ping' }));
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
+      'devicecleanup',
+      'exportWorkbook',
+      expect.objectContaining({
+        search: null,
+        includeWithoutSignals: false,
+      }),
+    ));
+    expect(await screen.findByText('Exported all 1 matching devices to C:\\Exports\\device-cleanup.xlsx.')).toBeDefined();
   });
 });

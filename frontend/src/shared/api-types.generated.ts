@@ -578,13 +578,20 @@ export interface DeviceCleanupAssessment {
 export interface DeviceCleanupCandidate {
   subjectKey: string;
   host: string;
+  description: string | null;
+  descriptionSource: string | null;
   classification: DeviceCleanupClassification;
   classificationExplanation: string;
+  activeDirectoryExists: boolean | null;
   activeDirectoryEnabled: boolean | null;
   activeDirectoryLastLogonAtUtc: string | null;
+  kasperskyExists: boolean | null;
   kasperskyLastSeenAtUtc: string | null;
+  opsiExists: boolean | null;
   opsiLastSeenAtUtc: string | null;
+  nessusExists: boolean | null;
   nessusLastScanAtUtc: string | null;
+  inventoryExists: boolean;
   inventoryCapturedAtUtc: string | null;
   relevantFindingCount: number;
 }
@@ -630,6 +637,21 @@ export interface ExportDeviceCleanupAssessmentRequest {
 export interface ExportDeviceCleanupAssessmentResult {
   cancelled: boolean;
   filePath: string | null;
+}
+
+export interface ExportDeviceCleanupWorkbookRequest {
+  activeDirectory?: HygieneActionDirectoryConnection | null;
+  kaspersky?: HygieneActionKasperskyConnection | null;
+  operationId?: string | null;
+  search?: string | null;
+  includeWithoutSignals?: boolean;
+}
+
+export interface ExportDeviceCleanupWorkbookResult {
+  cancelled: boolean;
+  filePath: string | null;
+  exportedCount: number;
+  subjectsTruncated: boolean;
 }
 
 export interface DiagnosticBatchProgress {

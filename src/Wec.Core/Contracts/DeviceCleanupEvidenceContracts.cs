@@ -12,6 +12,7 @@ public sealed record DeviceCleanupAdEvidence(
     bool Exists,
     bool? Enabled,
     string? OperatingSystem,
+    string? Description,
     string? DistinguishedName,
     string? OrganizationalUnit,
     DateTimeOffset? LastLogonAtUtc);
@@ -23,6 +24,7 @@ public sealed record DeviceCleanupKasperskyEvidence(
 
 public sealed record DeviceCleanupOpsiEvidence(
     bool Exists,
+    string? Description,
     DateTimeOffset? LastSeenAtUtc,
     string? DepotId);
 

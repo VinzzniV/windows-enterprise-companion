@@ -29,6 +29,7 @@ const standardOperations = new Set([
 ]);
 
 const batchOperations = new Set([
+  'devicecleanup/exportWorkbook',
   'diagnostics/runBatchDiagnostics',
   'inventory/runBatchScan',
   'networkscan/scan',

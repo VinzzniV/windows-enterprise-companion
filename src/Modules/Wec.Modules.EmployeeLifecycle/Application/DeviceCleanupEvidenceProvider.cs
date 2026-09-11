@@ -56,6 +56,7 @@ internal sealed class DeviceCleanupEvidenceProvider(
             device.ActiveDirectory.Exists,
             device.ActiveDirectory.Enabled,
             device.ActiveDirectory.OperatingSystem,
+            device.ActiveDirectory.Description,
             device.ActiveDirectory.DistinguishedName,
             device.ActiveDirectory.OrganizationalUnit,
             device.ActiveDirectory.LastLogonDate),
@@ -65,6 +66,7 @@ internal sealed class DeviceCleanupEvidenceProvider(
             device.Kaspersky.AdministrationGroup),
         new DeviceCleanupOpsiEvidence(
             device.Opsi.Exists,
+            device.Opsi.Description,
             device.Opsi.LastSeen,
             device.Opsi.DepotId),
         new DeviceCleanupNessusEvidence(

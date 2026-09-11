@@ -30,12 +30,100 @@ internal sealed class DeviceCleanupService(
             return Result.Failure<DeviceCleanupPage>(validationError);
         }
 
+        Result<CandidateSet> candidateSetResult = await LoadCandidatesAsync(
+            request.ActiveDirectory,
+            request.Kaspersky,
+            request.OperationId,
+            request.Force,
+            request.Search,
+            request.IncludeWithoutSignals,
+            cancellationToken);
+        if (candidateSetResult.IsFailure)
+        {
+            return Result.Failure<DeviceCleanupPage>(candidateSetResult.Error!);
+        }
+
+        CandidateSet candidateSet = candidateSetResult.Value;
+        long offset = (long)(request.Page - 1) * request.PageSize;
+        IReadOnlyList<DeviceCleanupCandidate> page = offset >= candidateSet.Matches.Count
+            ? []
+            : [.. candidateSet.Matches.Skip((int)offset).Take(request.PageSize)];
+
+        DeviceCleanupAssessment? selected = null;
+        if (!string.IsNullOrWhiteSpace(request.SelectedHost))
+        {
+            string selectedKey = Key(request.SelectedHost);
+            DeviceCleanupCandidate? candidate = candidateSet.All.FirstOrDefault(item =>
+                string.Equals(item.SubjectKey, selectedKey, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.Host, request.SelectedHost.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (candidate is null)
+            {
+                return Result.Failure<DeviceCleanupPage>(Error.NotFound(
+                    $"No cleanup evidence was found for '{request.SelectedHost.Trim()}'."));
+            }
+
+            DeviceCleanupInventoryEvidence? selectedInventory =
+                await inventoryEvidenceProvider.GetLatestAsync(candidate.SubjectKey, cancellationToken);
+            selected = ComposeAssessment(
+                candidate,
+                candidateSet.Subjects.GetValueOrDefault(candidate.SubjectKey),
+                selectedInventory,
+                candidateSet.SourceSnapshot.Sources);
+        }
+
+        return Result.Success(new DeviceCleanupPage(
+            page,
+            candidateSet.Matches.Count,
+            request.Page,
+            request.PageSize,
+            candidateSet.SourceSnapshot.AssessedAtUtc,
+            candidateSet.Sources,
+            selected,
+            candidateSet.SubjectsTruncated));
+    }
+
+    public async Task<Result<DeviceCleanupExportSnapshot>> GetExportSnapshotAsync(
+        DeviceCleanupExportQuery request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Search?.Length > 200)
+        {
+            return Result.Failure<DeviceCleanupExportSnapshot>(
+                new Error(ErrorCode.InvalidRequest, "Search exceeds the allowed length."));
+        }
+
+        Result<CandidateSet> candidateSetResult = await LoadCandidatesAsync(
+            request.ActiveDirectory,
+            request.Kaspersky,
+            request.OperationId,
+            force: false,
+            request.Search,
+            request.IncludeWithoutSignals,
+            cancellationToken);
+        if (candidateSetResult.IsFailure)
+        {
+            return Result.Failure<DeviceCleanupExportSnapshot>(candidateSetResult.Error!);
+        }
+
+        CandidateSet candidateSet = candidateSetResult.Value;
+        return Result.Success(new DeviceCleanupExportSnapshot(
+            candidateSet.Matches,
+            candidateSet.SourceSnapshot.AssessedAtUtc,
+            candidateSet.Sources,
+            candidateSet.SubjectsTruncated));
+    }
+
+    private async Task<Result<CandidateSet>> LoadCandidatesAsync(
+        HygieneActionDirectoryConnection? activeDirectory,
+        HygieneActionKasperskyConnection? kaspersky,
+        string? operationId,
+        bool force,
+        string? search,
+        bool includeWithoutSignals,
+        CancellationToken cancellationToken)
+    {
         Task<Result<DeviceCleanupEvidenceSnapshot>> sourceTask = sourceEvidenceProvider.LoadAsync(
-            new DeviceCleanupEvidenceQuery(
-                request.ActiveDirectory,
-                request.Kaspersky,
-                request.OperationId,
-                request.Force),
+            new DeviceCleanupEvidenceQuery(activeDirectory, kaspersky, operationId, force),
             cancellationToken);
         Task<IReadOnlyList<InventoryClientSnapshotHost>> inventoryTask =
             inventorySnapshots.ListHostsAsync(cancellationToken);
@@ -44,7 +132,7 @@ internal sealed class DeviceCleanupService(
         Result<DeviceCleanupEvidenceSnapshot> sourceResult = await sourceTask;
         if (sourceResult.IsFailure)
         {
-            return Result.Failure<DeviceCleanupPage>(sourceResult.Error!);
+            return Result.Failure<CandidateSet>(sourceResult.Error!);
         }
 
         DeviceCleanupEvidenceSnapshot sourceSnapshot = sourceResult.Value;
@@ -58,17 +146,14 @@ internal sealed class DeviceCleanupService(
                 group => group.Key,
                 group => group.OrderByDescending(item => item.CapturedAtUtc).First(),
                 StringComparer.OrdinalIgnoreCase);
-        List<string> subjectKeys = subjects.Keys
+        IEnumerable<string> distinctKeys = subjects.Keys
             .Concat(storedInventory.Keys)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        List<string> subjectKeys = distinctKeys
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .Take(options.Value.MaximumSubjects)
             .ToList();
-        bool subjectsTruncated = subjects.Keys
-            .Concat(storedInventory.Keys)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Skip(options.Value.MaximumSubjects)
-            .Any();
+        bool subjectsTruncated = distinctKeys.Skip(options.Value.MaximumSubjects).Any();
 
         List<DeviceCleanupCandidate> all = subjectKeys
             .Select(key => Classify(
@@ -77,49 +162,22 @@ internal sealed class DeviceCleanupService(
                 sourceSnapshot,
                 options.Value))
             .ToList();
-        IEnumerable<DeviceCleanupCandidate> filtered = request.IncludeWithoutSignals
+        IEnumerable<DeviceCleanupCandidate> filtered = includeWithoutSignals
             ? all
             : all.Where(candidate => candidate.Classification is
                 DeviceCleanupClassification.PotentialCleanup or DeviceCleanupClassification.Review);
-        string search = request.Search?.Trim() ?? string.Empty;
-        if (search.Length > 0)
+        string trimmedSearch = search?.Trim() ?? string.Empty;
+        if (trimmedSearch.Length > 0)
         {
             filtered = filtered.Where(candidate =>
-                $"{candidate.Host} {candidate.SubjectKey} {candidate.ClassificationExplanation}"
-                    .Contains(search, StringComparison.OrdinalIgnoreCase));
+                $"{candidate.Host} {candidate.SubjectKey} {candidate.Description} {candidate.ClassificationExplanation}"
+                    .Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase));
         }
 
         List<DeviceCleanupCandidate> matches = filtered
             .OrderBy(candidate => candidate.Classification)
             .ThenBy(candidate => candidate.Host, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        long offset = (long)(request.Page - 1) * request.PageSize;
-        IReadOnlyList<DeviceCleanupCandidate> page = offset >= matches.Count
-            ? []
-            : [.. matches.Skip((int)offset).Take(request.PageSize)];
-
-        DeviceCleanupAssessment? selected = null;
-        if (!string.IsNullOrWhiteSpace(request.SelectedHost))
-        {
-            string selectedKey = Key(request.SelectedHost);
-            DeviceCleanupCandidate? candidate = all.FirstOrDefault(item =>
-                string.Equals(item.SubjectKey, selectedKey, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(item.Host, request.SelectedHost.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (candidate is null)
-            {
-                return Result.Failure<DeviceCleanupPage>(Error.NotFound(
-                    $"No cleanup evidence was found for '{request.SelectedHost.Trim()}'."));
-            }
-
-            DeviceCleanupInventoryEvidence? selectedInventory =
-                await inventoryEvidenceProvider.GetLatestAsync(candidate.SubjectKey, cancellationToken);
-            selected = ComposeAssessment(
-                candidate,
-                subjects.GetValueOrDefault(candidate.SubjectKey),
-                selectedInventory,
-                sourceSnapshot.Sources);
-        }
-
         IReadOnlyList<ActionEvidenceSourceState> sources =
         [
             .. sourceSnapshot.Sources,
@@ -130,14 +188,12 @@ internal sealed class DeviceCleanupService(
                     ? "No stored Inventory snapshots are available."
                     : $"{inventory.Count} latest stored Inventory snapshot(s) were evaluated."),
         ];
-        return Result.Success(new DeviceCleanupPage(
-            page,
-            matches.Count,
-            request.Page,
-            request.PageSize,
-            sourceSnapshot.AssessedAtUtc,
+        return Result.Success(new CandidateSet(
+            all,
+            matches,
+            subjects,
+            sourceSnapshot,
             sources,
-            selected,
             subjectsTruncated));
     }
 
@@ -218,16 +274,29 @@ internal sealed class DeviceCleanupService(
         }
 
         string host = subject?.Host ?? inventory?.Host ?? subject?.SubjectKey ?? string.Empty;
+        string? description = FirstDescription(subject?.ActiveDirectory.Description, subject?.Opsi.Description);
+        string? descriptionSource = description is null
+            ? null
+            : !string.IsNullOrWhiteSpace(subject?.ActiveDirectory.Description)
+                ? "Active Directory"
+                : "opsi";
         return new DeviceCleanupCandidate(
             Key(subject?.SubjectKey ?? inventory?.Host ?? string.Empty),
             host,
+            description,
+            descriptionSource,
             classification,
             explanation,
+            ExistsWhenAvailable(subject?.ActiveDirectory.Exists, snapshot, "Active Directory"),
             subject?.ActiveDirectory.Enabled,
             subject?.ActiveDirectory.LastLogonAtUtc,
+            ExistsWhenAvailable(subject?.Kaspersky.Exists, snapshot, "Kaspersky"),
             subject?.Kaspersky.LastSeenAtUtc,
+            ExistsWhenAvailable(subject?.Opsi.Exists, snapshot, "opsi"),
             subject?.Opsi.LastSeenAtUtc,
+            ExistsWhenAvailable(subject?.Nessus.Exists, snapshot, "Nessus"),
             subject?.Nessus.LastCompletedScanAtUtc,
+            inventory is not null,
             inventory?.CapturedAtUtc,
             relevantFindings.Count);
     }
@@ -302,5 +371,34 @@ internal sealed class DeviceCleanupService(
     private static int AgeDays(DateTimeOffset timestamp, DateTimeOffset assessedAtUtc) =>
         (int)Math.Floor(Math.Max(0, (assessedAtUtc - timestamp).TotalDays));
 
+    private static string? FirstDescription(params string?[] values) => values
+        .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+        ?.Trim();
+
+    private static bool? ExistsWhenAvailable(
+        bool? exists,
+        DeviceCleanupEvidenceSnapshot snapshot,
+        string source)
+    {
+        if (exists is true)
+        {
+            return true;
+        }
+
+        return snapshot.Sources.FirstOrDefault(item =>
+            string.Equals(item.Source, source, StringComparison.OrdinalIgnoreCase))?.Availability
+            == ActionEvidenceAvailability.Available
+                ? false
+                : null;
+    }
+
     private static string Key(string value) => value.Trim().ToUpperInvariant();
+
+    private sealed record CandidateSet(
+        IReadOnlyList<DeviceCleanupCandidate> All,
+        IReadOnlyList<DeviceCleanupCandidate> Matches,
+        IReadOnlyDictionary<string, DeviceCleanupSubjectEvidence> Subjects,
+        DeviceCleanupEvidenceSnapshot SourceSnapshot,
+        IReadOnlyList<ActionEvidenceSourceState> Sources,
+        bool SubjectsTruncated);
 }

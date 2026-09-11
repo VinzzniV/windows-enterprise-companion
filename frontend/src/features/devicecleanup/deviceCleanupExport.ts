@@ -39,6 +39,8 @@ export function toDeviceCleanupMarkdown(
     '> Read-only evidence snapshot. This file does not disable, move or delete a directory object.',
     '',
     `- Device: ${line(assessment.candidate.host)}`,
+    `- Description: ${line(assessment.candidate.description)}`,
+    `- Description source: ${line(assessment.candidate.descriptionSource)}`,
     `- Classification: ${assessment.candidate.classification}`,
     `- Classification basis: ${line(assessment.candidate.classificationExplanation)}`,
     `- Manual decision: ${decisionLabel[decision]}`,

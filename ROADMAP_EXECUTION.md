@@ -1,10 +1,11 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `COMPLETE_PENDING_MERGE`
+Status: `COMPLETE`
 
-Current phase: Roadmap completion audit and release verification
+Current phase: Post-roadmap product refinement complete
 
-Current slice: Merge the fully verified roadmap branch through Draft PR #28
+Current slice: Device Cleanup Excel export completed on
+`codex/device-cleanup-excel-export`
 
 ## Done
 
@@ -250,6 +251,20 @@ Current slice: Merge the fully verified roadmap branch through Draft PR #28
   (`daa29b247ce09bd8dd4f756a81e3676a7e1913e1c5839b9cc7eaf565687f78df`).
   The ZIP contains 619 entries including the host executable, frontend entry
   point and application settings. Release `v0.1.0` remains unchanged.
+- Device Cleanup now exports every candidate matching the active filter to one
+  filterable `.xlsx` workbook rather than exporting only the visible page. The
+  workbook carries device description with source provenance, classification,
+  separate AD, Kaspersky, opsi, Nessus and WEC Inventory states and timestamps,
+  relevant-finding counts, source coverage and explicit truncation metadata.
+- The export performs one explicit, cancellable ICMP echo per exported device
+  only after the save dialog is confirmed. Timeout and bounded parallelism are
+  configuration values. It performs no WinRM check, retry, source refresh,
+  persistence or directory write, and a missing reply is explicitly
+  inconclusive rather than an offline or deletion claim.
+- Device Cleanup list rows now expose the source-backed description. Generated
+  contracts, backend behavior and frontend integration tests cover the full
+  filtered export, description precedence, typed UTC spreadsheet dates,
+  unavailable evidence, workbook validation and cancellation behavior.
 
 ## Deferred release gates
 
@@ -356,12 +371,22 @@ Current slice: Merge the fully verified roadmap branch through Draft PR #28
   ZIP artifact `9663342701` is 91,969,707 bytes and installer artifact
   `9663344878` is 62,930,001 bytes. Both downloaded packages match their
   committed SHA-256 records; no tag or release was created.
+- Device Cleanup Excel export baseline is
+  `e89395fe874d64aa09ad185185df804390025e95`. Final local verification passes a
+  warning-free Release build, all 738 backend tests, all 461 frontend tests,
+  390 generated bridge contracts, the production frontend build and the High
+  severity NPM audit gate. Two existing Moderate Vitest advisories remain
+  deferred because the available remediation requires a breaking major update.
+- The workbook test saves with Open XML validation enabled and reopens the
+  resulting file. Device Cleanup export coverage includes complete current-
+  filter selection across server pages and explicit one-probe-per-device Ping
+  outcomes.
 
 ## Next
 
-1. Require green pull-request CI on the exact final documentation head.
-2. Preserve a successful release-free packaging proof for that head or its
-   documentation-only predecessor.
-3. When both repository merge gates are green, mark Draft PR #28 ready and
-   merge it under D-006. Do not create a version tag, publish an installer or
-   create a GitHub Release without explicit user approval.
+1. Review and merge `codex/device-cleanup-excel-export` through the normal
+   pull-request gates.
+2. Validate the exported source timestamps and explicit Ping outcomes against
+   designated non-critical clients in the company environment.
+3. Do not create a version tag, publish an installer or create a GitHub Release
+   without explicit user approval.
