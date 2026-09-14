@@ -554,10 +554,13 @@ export interface AdComputer {
   name: string;
   dnsHostName: string | null;
   operatingSystem: string | null;
-  enabled: boolean;
+  enabled: boolean | null;
   description: string | null;
   distinguishedName: string | null;
   lastLogonDate: string | null;
+  objectId: string | null;
+  securityIdentifier: string | null;
+  directoryScope: string | null;
 }
 
 export interface AdComputerSearchResult {
@@ -1022,7 +1025,7 @@ export interface ClientWorkspaceListItem {
   name: string;
   os: string | null;
   description: string | null;
-  enabled: boolean;
+  enabled: boolean | null;
   scanned: boolean;
   capturedAtUtc: string | null;
   saved: boolean;

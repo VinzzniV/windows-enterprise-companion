@@ -9,7 +9,7 @@ public sealed record ClientWorkspaceListItem(
     string Name,
     string? Os,
     string? Description,
-    bool Enabled,
+    bool? Enabled,
     bool Scanned,
     DateTimeOffset? CapturedAtUtc,
     bool Saved,
@@ -140,7 +140,7 @@ internal static class ClientWorkspacePaging
                 Name = device.ComputerName,
                 Os = device.ActiveDirectory.OperatingSystem,
                 Description = device.ActiveDirectory.Description,
-                Enabled = device.ActiveDirectory.Enabled ?? true,
+                Enabled = device.ActiveDirectory.Enabled,
                 InAd = device.ActiveDirectory.Exists,
                 Environment = device,
             };
@@ -161,7 +161,7 @@ internal static class ClientWorkspacePaging
                     Host = stored.Host,
                     Key = key,
                     Name = stored.Host,
-                    Enabled = true,
+                    Enabled = null,
                 };
                 byKey[key] = client;
             }
@@ -180,7 +180,7 @@ internal static class ClientWorkspacePaging
                     Host = target.Host,
                     Key = key,
                     Name = string.IsNullOrWhiteSpace(target.Label) ? target.Host : target.Label.Trim(),
-                    Enabled = true,
+                    Enabled = null,
                 };
                 byKey[key] = client;
             }
@@ -310,7 +310,7 @@ internal static class ClientWorkspacePaging
         public required string Name { get; init; }
         public string? Os { get; init; }
         public string? Description { get; init; }
-        public bool Enabled { get; init; }
+        public bool? Enabled { get; init; }
         public bool Scanned { get; set; }
         public DateTimeOffset? CapturedAtUtc { get; set; }
         public bool Saved { get; set; }

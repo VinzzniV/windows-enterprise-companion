@@ -81,7 +81,8 @@ export function clientResults(
 
   for (const computer of directory) {
     const candidate = ensure(computer.dnsHostName ?? computer.name, computer.name);
-    candidate.details.add(computer.enabled ? 'Active Directory' : 'AD disabled');
+    candidate.details.add(computer.enabled === false ? 'AD disabled'
+      : computer.enabled === true ? 'Active Directory' : 'AD account state unknown');
     if (computer.operatingSystem) candidate.details.add(computer.operatingSystem);
   }
   for (const stored of inventory) ensure(stored.host, stored.host).details.add('Stored inventory');

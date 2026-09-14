@@ -133,6 +133,37 @@ public sealed class ComputerSearchServiceTests
     }
 
     [Fact]
+    public async Task Inventory_PreservesScopedIdentityAndUnknownAccountState()
+    {
+        SetUpDomainJoined();
+        Guid first = Guid.NewGuid();
+        Guid second = Guid.NewGuid();
+        SetUpComputerEntries(
+            Entry("CN=PC1,OU=Old,DC=kauth,DC=local", ("name", "PC1"),
+                ("objectGUID", Convert.ToBase64String(first.ToByteArray()))),
+            Entry("CN=PC1,OU=New,DC=kauth,DC=local", ("name", "PC1"),
+                ("objectGUID", Convert.ToBase64String(second.ToByteArray()))));
+
+        Result<AdComputerInventory> result = await CreateService().LoadAsync(
+            new AdComputerInventoryQuery(null, null, ScanCredentials.CurrentUser, 10), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Computers.Count);
+        Assert.Equal(new Guid?[] { first, second }, result.Value.Computers.Select(computer => computer.ObjectId));
+        Assert.All(result.Value.Computers, computer =>
+        {
+            Assert.Null(computer.Enabled);
+            Assert.Null(computer.SecurityIdentifier);
+            Assert.Equal(DomainName, computer.DirectoryScope);
+        });
+        await _directoryReader.Received(1).SearchBoundedAsync(
+            Arg.Is<DirectorySearchQuery>(query => query.Attributes.Contains("objectGUID")
+                && query.Attributes.Contains("objectSid") && !query.Attributes.Contains("*")),
+            10,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Search_TruncatesToTheConfiguredLimit()
     {
         SetUpDomainJoined();

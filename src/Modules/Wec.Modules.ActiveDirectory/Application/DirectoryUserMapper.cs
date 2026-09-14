@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Security.Principal;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
 using Wec.Core.Results;
@@ -36,8 +35,8 @@ internal static class DirectoryUserMapper
         DirectoryEntryData entry,
         DirectoryUserPrivilegedAccess? privilegedAccess = null)
     {
-        byte[]? objectGuidBytes = entry.GetBytes("objectGUID");
-        if (objectGuidBytes is not { Length: 16 })
+        Guid? objectId = DirectoryIdentityValues.ObjectId(entry);
+        if (objectId is null)
         {
             return Result.Failure<DirectoryUserRecord>(new Error(
                 ErrorCode.DirectoryUnavailable,
@@ -53,8 +52,8 @@ internal static class DirectoryUserMapper
             ?? entry.DistinguishedName;
 
         return Result.Success(new DirectoryUserRecord(
-            new Guid(objectGuidBytes),
-            ParseSid(entry.GetBytes("objectSid")),
+            objectId.Value,
+            DirectoryIdentityValues.SecurityIdentifier(entry),
             displayName,
             entry.GetFirstValue("sAMAccountName"),
             entry.GetFirstValue("userPrincipalName"),
@@ -79,23 +78,6 @@ internal static class DirectoryUserMapper
                 DirectoryUserAccessCoverage.NotEvaluated,
                 "Privileged access is evaluated only for an individual user profile.",
                 [])));
-    }
-
-    private static string? ParseSid(byte[]? bytes)
-    {
-        if (bytes is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return new SecurityIdentifier(bytes, 0).Value;
-        }
-        catch (ArgumentException)
-        {
-            return null;
-        }
     }
 
     private static DateTimeOffset? ParseFileTime(long? fileTime, bool treatNeverAsNull = false)

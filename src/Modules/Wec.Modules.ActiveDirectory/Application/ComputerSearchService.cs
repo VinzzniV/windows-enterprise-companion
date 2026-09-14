@@ -9,10 +9,13 @@ public sealed record AdComputer(
     string Name,
     string? DnsHostName,
     string? OperatingSystem,
-    bool Enabled,
+    bool? Enabled,
     string? Description = null,
     string? DistinguishedName = null,
-    DateTimeOffset? LastLogonDate = null);
+    DateTimeOffset? LastLogonDate = null,
+    Guid? ObjectId = null,
+    string? SecurityIdentifier = null,
+    string? DirectoryScope = null);
 
 public sealed record AdComputerSearchResult(
     bool DomainJoined,
@@ -66,7 +69,7 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 context.Value.DomainName!,
                 context.Value.DefaultNamingContext!,
                 AdFilters.ComputersByName(nameFilter, includeDisabled),
-                ["name", "dNSHostName", "operatingSystem", "userAccountControl", "description", "lastLogonTimestamp"],
+                ["name", "dNSHostName", "operatingSystem", "userAccountControl", "description", "lastLogonTimestamp", "objectGUID", "objectSid"],
                 DirectorySearchScope.Subtree,
                 _options.PageSize,
                 _options.SearchTimeout,
@@ -84,10 +87,13 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 entry.GetFirstValue("name") ?? entry.DistinguishedName,
                 entry.GetFirstValue("dNSHostName"),
                 entry.GetFirstValue("operatingSystem"),
-                Enabled: ((entry.GetLong("userAccountControl") ?? 0) & AdFilters.UacAccountDisabled) == 0,
+                Enabled: entry.GetLong("userAccountControl") is { } uac ? (uac & AdFilters.UacAccountDisabled) == 0 : null,
                 entry.GetFirstValue("description"),
                 entry.DistinguishedName,
-                ParseFileTime(entry.GetLong("lastLogonTimestamp"))))
+                ParseFileTime(entry.GetLong("lastLogonTimestamp")),
+                DirectoryIdentityValues.ObjectId(entry),
+                DirectoryIdentityValues.SecurityIdentifier(entry),
+                context.Value.DomainName))
             .OrderBy(computer => computer.Name, StringComparer.OrdinalIgnoreCase)];
 
         bool truncated = entries.Value.TotalCount > computers.Count;
@@ -126,7 +132,10 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 computer.Description,
                 computer.Enabled,
                 computer.DistinguishedName ?? string.Empty,
-                computer.LastLogonDate))
+                computer.LastLogonDate,
+                computer.ObjectId,
+                computer.SecurityIdentifier,
+                computer.DirectoryScope))
             .ToList();
 
         return Result.Success(new AdComputerInventory(

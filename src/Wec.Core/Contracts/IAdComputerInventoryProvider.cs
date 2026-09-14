@@ -9,9 +9,12 @@ public sealed record AdComputerInventoryItem(
     string? DnsHostName,
     string? OperatingSystem,
     string? Description,
-    bool Enabled,
+    bool? Enabled,
     string DistinguishedName,
-    DateTimeOffset? LastLogonDate);
+    DateTimeOffset? LastLogonDate,
+    Guid? ObjectId = null,
+    string? SecurityIdentifier = null,
+    string? DirectoryScope = null);
 
 public sealed record AdComputerInventoryQuery(
     string? Domain,

@@ -20,8 +20,7 @@ export interface ClientEntry {
   os: string | null;
   /** AD description (free-text note maintained by the admins). */
   description: string | null;
-  /** AD enabled flag (true when the source doesn't know). */
-  enabled: boolean;
+  enabled: boolean | null;
   /** Has a stored inventory snapshot. */
   scanned: boolean;
   capturedAtUtc: string | null;
@@ -71,7 +70,7 @@ export function buildClientList(
       name: device ? device.computerName : legacy!.name,
       os: device ? device.activeDirectory.operatingSystem : legacy!.operatingSystem,
       description: device ? device.activeDirectory.description ?? device.opsi.description : legacy!.description,
-      enabled: device ? device.activeDirectory.enabled ?? true : legacy!.enabled,
+      enabled: device ? device.activeDirectory.enabled : legacy!.enabled,
       scanned: false,
       capturedAtUtc: null,
       securityScanned: false,
@@ -95,7 +94,7 @@ export function buildClientList(
         name: stored.host,
         os: null,
         description: null,
-        enabled: true,
+        enabled: null,
         scanned: true,
         capturedAtUtc: stored.capturedAtUtc,
         securityScanned: false,
@@ -119,7 +118,7 @@ export function buildClientList(
         name: target.label.trim() || target.host,
         os: null,
         description: null,
-        enabled: true,
+        enabled: null,
         scanned: false,
         capturedAtUtc: null,
         securityScanned: false,
@@ -144,7 +143,7 @@ export function buildClientList(
         name: stored.host,
         os: null,
         description: null,
-        enabled: true,
+        enabled: null,
         scanned: false,
         capturedAtUtc: null,
         securityScanned: true,

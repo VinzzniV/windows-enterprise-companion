@@ -16,6 +16,9 @@ const directoryComputer: AdComputer = {
   description: null,
   distinguishedName: 'CN=PC-42,OU=Clients,DC=corp,DC=example',
   lastLogonDate: null,
+  objectId: null,
+  securityIdentifier: null,
+  directoryScope: 'corp.example',
 };
 
 const savedClient: SavedTarget = {
