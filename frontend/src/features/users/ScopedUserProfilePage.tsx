@@ -112,7 +112,8 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
         {ad && <Card title="AD direct groups">
           <p className="mb-3 text-xs text-muted">{ad.access.privilegedCoverageExplanation} Privileged allowlist coverage: {ad.access.privilegedCoverage}. Nested and primary-group membership are not included in memberOf.</p>
           <Input type="search" aria-label="Filter AD direct groups" value={groupFilter} onChange={event => setGroupFilter(event.target.value)} />
-          <ul className="mt-3 max-h-96 space-y-2 overflow-y-auto">{filteredGroups.map((group, index) => <li key={index} className="text-sm">{group.name}
+          <ul className="mt-3 max-h-96 space-y-2 overflow-y-auto">{filteredGroups.map((group, index) => <li key={index} className="text-sm">
+            {directory?.data?.directoryScope ? <Link className="text-accent-400 underline" to={`/groups/resolve?scope=${encodeURIComponent(directory.data.directoryScope)}&dn=${encodeURIComponent(group.distinguishedName)}`}>{group.name}</Link> : group.name}
             {ad.access.directPrivilegedGroups.some(privileged => privileged.distinguishedName === group.distinguishedName) && <span className="ml-2 text-warn-400">Privileged allowlist</span>}
             <p className="break-all text-xs text-muted">{group.distinguishedName}</p></li>)}</ul>
           {filteredGroups.length === 0 && <p className="mt-3 text-sm text-muted">No direct group matches the current filter in this source evidence.</p>}

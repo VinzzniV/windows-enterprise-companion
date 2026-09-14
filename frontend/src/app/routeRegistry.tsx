@@ -25,6 +25,12 @@ const ScopedUserProfilePage = lazy(() => import('../features/users/ScopedUserPro
   .then((module) => ({ default: module.ScopedUserProfilePage })));
 const ResolveObservedUserPage = lazy(() => import('../features/users/ResolveObservedUserPage')
   .then((module) => ({ default: module.ResolveObservedUserPage })));
+const GroupProfilePage = lazy(() => import('../features/groups/GroupProfilePage')
+  .then((module) => ({ default: module.GroupProfilePage })));
+const GroupsPage = lazy(() => import('../features/groups/GroupsPage')
+  .then((module) => ({ default: module.GroupsPage })));
+const ResolveGroupPage = lazy(() => import('../features/groups/ResolveGroupPage')
+  .then((module) => ({ default: module.ResolveGroupPage })));
 const ActiveDirectoryPage = lazy(() => import('../features/activedirectory/ActiveDirectoryPage')
   .then((module) => ({ default: module.ActiveDirectoryPage })));
 const EmployeeLifecyclePage = lazy(() => import('../features/employeelifecycle/EmployeeLifecyclePage')
@@ -84,6 +90,9 @@ export const appRoutes: readonly AppRouteDefinition[] = [
   { id: 'user-detail', path: '/users/:objectId', sectionLabel: 'Users', Component: UserDetailPage },
   { id: 'resolve-user-sid', path: '/users/resolve', sectionLabel: 'Users', Component: ResolveObservedUserPage },
   { id: 'user-profile', path: '/users/:source/:scope/:objectId', sectionLabel: 'Users', Component: ScopedUserProfilePage },
+  { id: 'group-profile', path: '/groups/:source/:scope/:objectId', sectionLabel: 'Groups', Component: GroupProfilePage },
+  { id: 'groups', path: '/groups', sectionLabel: 'Groups', Component: GroupsPage },
+  { id: 'resolve-group', path: '/groups/resolve', sectionLabel: 'Groups', Component: ResolveGroupPage },
   { id: 'microsoft365', path: '/microsoft365', sectionLabel: 'Microsoft 365', Component: Microsoft365Page, navigation: { group: 'fleet', label: 'Microsoft 365', icon: navIcons.activedirectory, searchTerms: ['m365', 'entra', 'azure ad', 'intune', 'licenses', 'cloud'] } },
   { id: 'active-directory', path: '/activedirectory', sectionLabel: 'Active Directory', Component: ActiveDirectoryPage, navigation: { group: 'fleet', label: 'Active Directory', icon: navIcons.activedirectory, searchTerms: ['ad', 'directory', 'users', 'groups'] } },
   { id: 'employee-lifecycle-legacy', path: '/employeelifecycle', sectionLabel: 'Clients', Component: EmployeeLifecyclePage },

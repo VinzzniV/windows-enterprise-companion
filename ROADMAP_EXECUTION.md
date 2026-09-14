@@ -79,7 +79,15 @@ Implementation plan and required parity matrix:
   group/member pages and a connection-isolated memory cache; 112 AD tests pass.
   Cached Entra groups/members expose independent query state and preserve
   limited-information objects; all 54 M365 tests pass. The group profile/UI
-  consumer and links from AD direct groups are the next slice.
+  consumer and links from AD direct groups follow in the same phase.
+- Initial GroupManagement composition/profile, DN/SID resolution and separate
+  bounded source discovery are implemented. Eight module tests cover native
+  member links, limited objects, duplicate group identities, scoped DN
+  resolution and session isolation; 11 focused group/user UI tests pass.
+  Group/member GUID routes work for AD and Entra without traversing source
+  home pages. Contracts now contain 470 types; the frontend build passes.
+  Source discovery is intentionally labelled per-source; the common bounded
+  index, list/search integration and full navigation parity remain Phase 6/7.
 
 ## Done
 

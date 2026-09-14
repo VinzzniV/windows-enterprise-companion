@@ -36,6 +36,21 @@ export interface CachedDirectoryComputer {
   stale: boolean;
 }
 
+export interface CachedDirectoryGroupIdentity {
+  state: DirectoryGroupReadState;
+  data: DirectoryGroupIdentityResult | null;
+}
+
+export interface CachedDirectoryGroupMembers {
+  state: DirectoryGroupReadState;
+  data: DirectoryGroupMemberPage | null;
+}
+
+export interface CachedDirectoryGroupPage {
+  state: DirectoryGroupReadState;
+  data: DirectoryGroupPage | null;
+}
+
 export interface CachedDirectoryUser {
   data: DirectoryUserIdentityResult | null;
   lastAttemptAtUtc: string;
@@ -80,6 +95,67 @@ export interface DirectoryComputerIdentityResult {
   retrievedAtUtc: string;
   computers: AdComputerInventoryItem[];
   truncated: boolean;
+}
+
+export interface DirectoryGroupIdentityResult {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  groups: DirectoryGroupRecord[];
+  truncated: boolean;
+}
+
+export interface DirectoryGroupMember {
+  objectId: string | null;
+  securityIdentifier: string | null;
+  kind: ObjectKind | null;
+  objectClass: string | null;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  distinguishedName: string;
+}
+
+export interface DirectoryGroupMemberPage {
+  directoryScope: string;
+  groupObjectId: string;
+  retrievedAtUtc: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  members: DirectoryGroupMember[];
+  coverageExplanation: string;
+}
+
+export interface DirectoryGroupPage {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  groups: DirectoryGroupRecord[];
+}
+
+export interface DirectoryGroupReadState {
+  retrievedAtUtc: string | null;
+  lastAttemptAtUtc: string | null;
+  lastAttemptError: Error | null;
+  sessionRevision: number;
+  revision: number;
+  retainedUntilUtc: string | null;
+  freshUntilUtc: string | null;
+  stale: boolean;
+}
+
+export interface DirectoryGroupRecord {
+  objectId: string | null;
+  securityIdentifier: string | null;
+  directoryScope: string;
+  name: string;
+  samAccountName: string | null;
+  distinguishedName: string;
+  description: string | null;
+  securityEnabled: boolean | null;
+  groupScope: string | null;
 }
 
 export interface DirectoryInventoryConnection {
@@ -372,6 +448,14 @@ export interface Microsoft365Group {
   membershipRule: string | null;
   membershipRuleProcessingState: string | null;
   visibility: string | null;
+}
+
+export interface Microsoft365GroupContext {
+  tenantId: string | null;
+  sessionRevision: number;
+  revision: number;
+  groupReads: CachedMicrosoft365Groups[];
+  directMembers: CachedMicrosoft365Members | null;
 }
 
 export interface Microsoft365License {
@@ -1698,6 +1782,44 @@ export interface UpdateTaskRequest {
   status?: LifecycleTaskStatus;
   assignee?: string | null;
   dueDate?: string | null;
+}
+
+export interface DirectoryGroupPageRequest {
+  directoryScope: string;
+  connection?: DirectoryInventoryConnection | null;
+  search?: string | null;
+  page?: number;
+  pageSize?: number;
+  refresh?: boolean;
+}
+
+export type GroupProfileRead = 'CACHED' | 'DIRECTORY_IDENTITY' | 'DIRECTORY_MEMBERS';
+
+export interface GroupProfileRequest {
+  reference: ObjectReference;
+  connection?: DirectoryInventoryConnection | null;
+  read?: GroupProfileRead;
+  memberPage?: number;
+  memberPageSize?: number;
+}
+
+export interface GroupProfileResult {
+  reference: ObjectReference;
+  title: string;
+  identity: IdentityEvidence;
+  explanation: string;
+  directory: CachedDirectoryGroupIdentity | null;
+  directoryMembers: CachedDirectoryGroupMembers | null;
+  cloud: Microsoft365GroupContext | null;
+  relationships: ObjectRelationship[];
+  sourceErrors: Error[];
+}
+
+export interface ResolveGroupRequest {
+  directoryScope: string;
+  connection?: DirectoryInventoryConnection | null;
+  distinguishedName?: string | null;
+  securityIdentifier?: string | null;
 }
 
 export interface DiskEncryptionStatus {
