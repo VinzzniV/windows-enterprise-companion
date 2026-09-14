@@ -29,6 +29,8 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<IActionHandler, SearchAdComputersHandler>();
         services.AddScoped<UserSearchService>();
         services.AddScoped<IDirectoryUserReadProvider, DirectoryUserReadService>();
+        services.AddSingleton<DirectoryUserSnapshotCache>();
+        services.AddScoped<IDirectoryUserSnapshotProvider, DirectoryUserSnapshotProvider>();
         services.AddScoped<IActionHandler, SearchAdUsersHandler>();
     }
 }
