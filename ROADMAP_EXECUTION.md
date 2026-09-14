@@ -67,8 +67,14 @@ Implementation plan and required parity matrix:
   collisions and session changes during composition. Release build has zero
   warnings/errors; 454 generated contracts and 31 focused frontend tests pass.
   Leaver marks survive tab changes; cloud facts remain outside its assessment
-  and export. General group destinations, inverse Windows-SID navigation and
-  legacy route parity are not yet complete.
+  and export. General group destinations and legacy route parity are not yet
+  complete.
+- Stored Windows observations now link to an explicit bounded SID resolver.
+  Only a validated directory-scoped GUID opens an account; the destination
+  reuses the cached native identity. All 94 AD and 31 UserManagement tests,
+  9 focused user UI tests, 5 Client overview UI tests and the production build
+  pass. Contracts now contain 455 generated types. No additional Windows
+  identity capture was introduced.
 
 ## Done
 

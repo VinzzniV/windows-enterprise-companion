@@ -2879,6 +2879,12 @@ export interface ListUsersRequest {
   connection?: UserDirectoryConnectionRequest | null;
 }
 
+export interface ResolveUserSidRequest {
+  securityIdentifier: string;
+  directoryScope: string;
+  connection?: UserDirectoryConnectionRequest | null;
+}
+
 export interface PageResult<T> {
   items: T[];
   total: number;

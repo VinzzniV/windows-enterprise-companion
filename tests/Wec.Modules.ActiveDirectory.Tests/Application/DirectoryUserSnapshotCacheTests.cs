@@ -21,6 +21,22 @@ public sealed class DirectoryUserSnapshotCacheTests
         Task.FromResult(Result.Success(new DirectoryUserIdentityResult("example.test", _clock.UtcNow, null)));
 
     [Fact]
+    public async Task SidReadCanOpenItsReturnedGuidFromTheSameScopedCache()
+    {
+        using var cache = Create();
+        const string sid = "S-1-5-21-1-2-3-1001";
+        var user = new DirectoryUserRecord(_query.ObjectId!.Value, sid, "Name", null, null, null, null, null, null,
+            null, "CN=Name,DC=example,DC=test", "DC=example,DC=test", null, null, null, null, null, null, null, [],
+            new(DirectoryUserAccessCoverage.NotEvaluated, "Unknown", []), "example.test");
+        var sidQuery = _query with { ObjectId = null, SecurityIdentifier = sid };
+        await cache.LoadAsync(sidQuery, _ => Task.FromResult(Result.Success(new DirectoryUserIdentityResult("example.test", _clock.UtcNow, user))), CancellationToken.None);
+        Assert.Same(user, cache.Read(_query, CancellationToken.None)!.Data!.User);
+        Assert.Null(cache.Read(_query with { ObjectId = Guid.NewGuid() }, CancellationToken.None));
+        _clock.UtcNow.Returns(_clock.UtcNow.AddHours(2));
+        Assert.Null(cache.Read(_query, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task FailedAttemptKeepsSameSourceFactsUntilOriginalRetention()
     {
         using var cache = Create();

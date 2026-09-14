@@ -22,7 +22,18 @@ internal sealed class DirectoryUserSnapshotCache(IClock clock, IOptions<ActiveDi
         lock (_gate)
         {
             Activate(query);
-            return Read(Key(query));
+            CachedDirectoryUser? exact = Read(Key(query));
+            if (exact is not null) { return exact; }
+            CachedDirectoryUser? latest = null;
+            foreach (string key in _cache.Keys.ToArray())
+            {
+                CachedDirectoryUser? observed = Read(key);
+                DirectoryUserRecord? user = observed?.Data?.User;
+                bool matches = user is not null && (query.ObjectId is { } id ? user.ObjectId == id
+                    : string.Equals(user.Sid, query.SecurityIdentifier, StringComparison.OrdinalIgnoreCase));
+                if (matches && (latest is null || observed!.Revision > latest.Revision)) { latest = observed; }
+            }
+            return latest;
         }
     }
 

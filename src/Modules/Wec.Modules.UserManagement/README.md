@@ -10,6 +10,9 @@ Read-only, AD-authoritative user inventory and User 360 composition (ADR 0019).
   (ADR 0022). Reads cached source projections; only `loadDirectoryIdentity`
   requests an explicit bounded AD GUID/SID read. Cloud refresh uses the source
   owner's typed action and expected tenant, then recomposes cached evidence.
+- `usermanagement/resolveSid` — explicit, bounded inverse read for a stored
+  Windows SID in a selected directory. It returns only a validated scoped GUID;
+  the account profile reuses the same session's cached native identity.
 - `usermanagement/getUserProfile` — immutable-ID lookup with identity,
   lifecycle timestamps, direct groups and SID-allowlisted privileged-access
   evidence plus SID-matched Inventory device relationships.

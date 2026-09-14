@@ -6,7 +6,9 @@ import { objectPath } from '../../shared/objects/objectRoutes';
 import { ScopedUserProfilePage } from './ScopedUserProfilePage';
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), cancel: vi.fn(), export: vi.fn() }));
-vi.mock('../../shared/bridge/bridgeClient', () => ({ invokeCancellable: mocks.invoke, invoke: mocks.export }));
+vi.mock('../../shared/bridge/bridgeClient', async (original) => ({
+  ...await original<typeof import('../../shared/bridge/bridgeClient')>(), invokeCancellable: mocks.invoke, invoke: mocks.export,
+}));
 vi.mock('../../shared/targets/TargetContext', () => ({ useTargets: () => ({ adminCredentials: null }) }));
 vi.mock('../../shared/viewCache', () => ({ loadView: () => null }));
 const tenant = '11111111-1111-1111-1111-111111111111';

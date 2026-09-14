@@ -13,6 +13,7 @@ public sealed class UserManagementModule : IModule
         services.AddScoped<UserManagementService>();
         services.AddScoped<ScopedUserProfileService>();
         services.AddScoped<IActionHandler, ScopedUserProfileHandler>();
+        services.AddScoped<IActionHandler, ResolveUserSidHandler>();
         services.AddScoped<IActionHandler, ListUsersHandler>();
         services.AddScoped<IActionHandler, GetUserProfileHandler>();
         services.AddScoped<IActionHandler, ExportLeaverReviewHandler>();

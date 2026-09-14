@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type {
   ClientHealthOverview,
   ClientInventoryOverview,
@@ -244,6 +244,7 @@ function UserSummary({ host, users, metadata }: {
   users: ClientUserOverview | null;
   metadata: ClientOverviewSourceMetadata;
 }) {
+  const location = useLocation();
   return <Card title="Linked users">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -261,6 +262,8 @@ function UserSummary({ host, users, metadata }: {
           </div>
           <p className="mt-1 text-xs text-slate-400">{relationshipLabel(observation.relationshipType)} · observed {date(observation.observedAtUtc)} · {observation.source}</p>
           <p className="mt-1 text-xs text-slate-500">{observation.explanation}</p>
+          <Link className="mt-2 inline-block text-xs text-accent-400 underline" state={{ returnObject: location.pathname + location.search }}
+            to={`/users/resolve?sid=${encodeURIComponent(observation.directorySid)}`}>Resolve this SID to an AD account</Link>
         </li>)}
       </ul> : <p className="text-sm text-slate-400">The latest Inventory scan contains no named interactive-user observation.</p>}
       {users.unresolvedProfileCount > 0 && <p className="mt-3 text-xs text-slate-400">{users.unresolvedProfileCount} additional local profile{users.unresolvedProfileCount === 1 ? '' : 's'} cannot be linked to a displayed directory identity from stored evidence alone.</p>}
