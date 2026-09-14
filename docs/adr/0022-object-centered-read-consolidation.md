@@ -69,6 +69,11 @@ Existing source records cannot prove one physical device across all sources.
     Graph, fixed scope allowlist, credentials, elevation and release gates
     remain unchanged. No tag, release or installer publication is authorized.
 
+Nessus identity preservation uses an additive nullable `host_uuid`/`bios_uuid`
+mapping of fields the existing importer already reads. Legacy ambiguous
+`asset_id` values keep unknown provenance; no automatic backfill or historical
+key rewrite occurs. New full-address source keys prevent short-name collisions.
+
 ## Alternatives Considered
 
 | Option | Assessment |

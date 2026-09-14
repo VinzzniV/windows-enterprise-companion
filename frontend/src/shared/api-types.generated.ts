@@ -2662,6 +2662,8 @@ export interface NessusAsset {
   info: number;
   ports: number[];
   scanSources: string[];
+  hostUuid: string | null;
+  biosUuid: string | null;
 }
 
 export interface NessusFinding {
