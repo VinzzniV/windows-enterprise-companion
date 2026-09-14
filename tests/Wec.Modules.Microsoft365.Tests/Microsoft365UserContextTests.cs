@@ -27,6 +27,18 @@ public sealed class Microsoft365UserContextTests
     private static Microsoft365User User(string id = UserId) => new(id, "Name", "same@example.test", null, null, null, null, null, null, null, Sid, null, null);
 
     [Fact]
+    public async Task SelectedUserFacetRetainsOtherCachedIdentityEvidenceForCollisionChecks()
+    {
+        using var service = Create();
+        var otherQuery = new Microsoft365Query(Microsoft365Resource.User, OtherId);
+        _reader.ReadAsync(otherQuery, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data { Users = [User(OtherId)] }));
+        await service.ReadAsync(otherQuery, true, CancellationToken.None, TenantId);
+        var context = (await service.ReadCachedAsync(TenantId, UserId, Sid, CancellationToken.None)).Value;
+        Assert.Contains(context.UserReads, read => read.State.Query == otherQuery && read.Users.Single().OnPremisesSid == Sid);
+        Assert.Equal(UserId, context.UserLicenses!.State.Query.ObjectId);
+    }
+
+    [Fact]
     public async Task EmptyUserContextDoesNotReadSourcesOrClaimNoLicenses()
     {
         using var service = Create();

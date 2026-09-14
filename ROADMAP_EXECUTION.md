@@ -4,8 +4,9 @@ Status: `IN_PROGRESS`
 
 Current phase: Object-centered consolidation (ADR 0022)
 
-Current slice: Phase 1 route/candidate preservation and Phase 2 cached composition
-seams required by the first device profile.
+Current slice: Phase 4 scoped user profiles and inverse SID relationships.
+Phase 1 legacy candidate/route fixes and Phase 2 bounded local batching remain
+explicit follow-ups before the working-set/list milestone.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
@@ -56,6 +57,18 @@ Implementation plan and required parity matrix:
 - Remaining Phase 1 work: replace legacy first/latest name choices with visible
   source candidates and route resolution, including legacy Nessus host links.
   The original hygiene projection remains a heuristic during this migration.
+- Initial scoped user profiles now compose cache-only AD/Entra facts and expose
+  independent group, device, license and optional activity reads. The exact SID
+  Graph query uses existing fields/scopes and stops after two returned users;
+  partial inventories cannot establish uniqueness. Entra-only/guest accounts
+  remain usable without AD/Windows facts; UPN/SID conflicts remain candidates.
+  AD SID/GUID reads have a bounded connection-scoped cache (93 AD tests).
+  Twenty-six UserManagement tests and 51 M365 tests pass, including identity
+  collisions and session changes during composition. Release build has zero
+  warnings/errors; 454 generated contracts and 31 focused frontend tests pass.
+  Leaver marks survive tab changes; cloud facts remain outside its assessment
+  and export. General group destinations, inverse Windows-SID navigation and
+  legacy route parity are not yet complete.
 
 ## Done
 

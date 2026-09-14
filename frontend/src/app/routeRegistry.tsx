@@ -21,6 +21,8 @@ const Microsoft365Page = lazy(() => import('../features/microsoft365/Microsoft36
   .then((module) => ({ default: module.Microsoft365Page })));
 const UserDetailPage = lazy(() => import('../features/users/UserDetailPage')
   .then((module) => ({ default: module.UserDetailPage })));
+const ScopedUserProfilePage = lazy(() => import('../features/users/ScopedUserProfilePage')
+  .then((module) => ({ default: module.ScopedUserProfilePage })));
 const ActiveDirectoryPage = lazy(() => import('../features/activedirectory/ActiveDirectoryPage')
   .then((module) => ({ default: module.ActiveDirectoryPage })));
 const EmployeeLifecyclePage = lazy(() => import('../features/employeelifecycle/EmployeeLifecyclePage')
@@ -78,6 +80,7 @@ export const appRoutes: readonly AppRouteDefinition[] = [
   { id: 'device-profile', path: '/devices/:source/:scope/:objectId', sectionLabel: 'Devices', Component: DeviceProfilePage },
   { id: 'users', path: '/users', sectionLabel: 'Users', Component: UsersPage, navigation: { group: 'fleet', label: 'Users', icon: navIcons.users, searchTerms: ['people', 'accounts', 'identity', 'lifecycle'] } },
   { id: 'user-detail', path: '/users/:objectId', sectionLabel: 'Users', Component: UserDetailPage },
+  { id: 'user-profile', path: '/users/:source/:scope/:objectId', sectionLabel: 'Users', Component: ScopedUserProfilePage },
   { id: 'microsoft365', path: '/microsoft365', sectionLabel: 'Microsoft 365', Component: Microsoft365Page, navigation: { group: 'fleet', label: 'Microsoft 365', icon: navIcons.activedirectory, searchTerms: ['m365', 'entra', 'azure ad', 'intune', 'licenses', 'cloud'] } },
   { id: 'active-directory', path: '/activedirectory', sectionLabel: 'Active Directory', Component: ActiveDirectoryPage, navigation: { group: 'fleet', label: 'Active Directory', icon: navIcons.activedirectory, searchTerms: ['ad', 'directory', 'users', 'groups'] } },
   { id: 'employee-lifecycle-legacy', path: '/employeelifecycle', sectionLabel: 'Clients', Component: EmployeeLifecyclePage },

@@ -60,7 +60,7 @@ describe('device profiles', () => {
     await screen.findByRole('heading', { name: 'Cloud device' });
     fireEvent.click(screen.getByRole('button', { name: 'Load this Entra source' }));
     await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(3));
-    expect(mocks.invoke.mock.calls[1]).toEqual(['microsoft365', 'read', { resource: 'DEVICE', objectId: id, tenantId: tenant, refresh: true }]);
+    expect(mocks.invoke.mock.calls[1]).toEqual(['microsoft365', 'read', { resource: 'DEVICE', objectId: id, securityIdentifier: null, tenantId: tenant, refresh: true }]);
     expect(mocks.invoke.mock.calls[2][0]).toBe('clients');
   });
 

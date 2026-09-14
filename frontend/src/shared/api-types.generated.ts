@@ -36,6 +36,17 @@ export interface CachedDirectoryComputer {
   stale: boolean;
 }
 
+export interface CachedDirectoryUser {
+  data: DirectoryUserIdentityResult | null;
+  lastAttemptAtUtc: string;
+  lastAttemptError: Error | null;
+  sessionRevision: number;
+  revision: number;
+  retainedUntilUtc: string | null;
+  stale: boolean;
+  freshUntilUtc: string | null;
+}
+
 export interface ClientObservedUserEvidence {
   directorySid: string;
   accountDisplay: string;
@@ -86,6 +97,43 @@ export type DirectoryUserAccountStateFilter = 'ALL' | 'ENABLED' | 'DISABLED';
 export interface DirectoryUserGroup {
   distinguishedName: string;
   name: string;
+}
+
+export interface DirectoryUserIdentityResult {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  user: DirectoryUserRecord | null;
+}
+
+export interface DirectoryUserPrivilegedAccess {
+  coverage: DirectoryUserAccessCoverage;
+  explanation: string;
+  directMemberships: DirectoryUserGroup[];
+}
+
+export interface DirectoryUserRecord {
+  objectId: string;
+  sid: string | null;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  mail: string | null;
+  employeeId: string | null;
+  department: string | null;
+  title: string | null;
+  managerDistinguishedName: string | null;
+  distinguishedName: string;
+  organizationalUnitPath: string;
+  enabled: boolean | null;
+  createdAtUtc: string | null;
+  accountExpiresAtUtc: string | null;
+  replicatedLastLogonAtUtc: string | null;
+  passwordLastSetAtUtc: string | null;
+  passwordExpiresAtUtc: string | null;
+  passwordNeverExpires: boolean | null;
+  directGroups: DirectoryUserGroup[];
+  privilegedAccess: DirectoryUserPrivilegedAccess;
+  directoryScope: string | null;
 }
 
 export type DirectoryUserSortDirection = 'ASCENDING' | 'DESCENDING';
@@ -218,9 +266,29 @@ export interface CachedEntraDevices {
   devices: Microsoft365Device[];
 }
 
+export interface CachedEntraUsers {
+  state: Microsoft365ReadState;
+  users: Microsoft365User[];
+}
+
 export interface CachedIntuneDevices {
   state: Microsoft365ReadState;
   devices: Microsoft365ManagedDevice[];
+}
+
+export interface CachedMicrosoft365Activity {
+  state: Microsoft365ReadState;
+  activity: Microsoft365Activity | null;
+}
+
+export interface CachedMicrosoft365Groups {
+  state: Microsoft365ReadState;
+  groups: Microsoft365Group[];
+}
+
+export interface CachedMicrosoft365Licenses {
+  state: Microsoft365ReadState;
+  licenses: Microsoft365License[];
 }
 
 export interface CachedMicrosoft365Members {
@@ -397,6 +465,20 @@ export interface Microsoft365User {
   onPremisesSid: string | null;
   onPremisesImmutableId: string | null;
   assignedLicenses: Microsoft365AssignedLicense[] | null;
+}
+
+export interface Microsoft365UserContext {
+  tenantId: string | null;
+  sessionRevision: number;
+  revision: number;
+  userReads: CachedEntraUsers[];
+  tenantLicenses: CachedMicrosoft365Licenses;
+  userLicenses: CachedMicrosoft365Licenses | null;
+  directGroups: CachedMicrosoft365Groups | null;
+  registeredDevices: CachedEntraDevices | null;
+  associatedIntune: CachedIntuneDevices[];
+  signIn: CachedMicrosoft365Activity | null;
+  registration: CachedMicrosoft365Activity | null;
 }
 
 export type IdentityEvidence = 'SCOPED_ID' | 'ADDRESS_CANDIDATE' | 'ALIAS_CANDIDATE' | 'AMBIGUOUS' | 'CONFLICT' | 'UNRESOLVED';
@@ -2608,6 +2690,27 @@ export interface SavedTarget {
   role: string;
   userName: string | null;
   createdAtUtc: string;
+}
+
+export interface ScopedUserProfile {
+  reference: ObjectReference;
+  title: string;
+  identity: IdentityEvidence;
+  explanation: string;
+  directory: CachedDirectoryUser | null;
+  adProfile: UserProfileResult | null;
+  cloud: Microsoft365UserContext | null;
+  entraUser: Microsoft365User | null;
+  relationships: ObjectRelationship[];
+  candidates: ObjectRelationship[];
+  sourceErrors: Error[];
+}
+
+export interface ScopedUserProfileRequest {
+  reference: ObjectReference;
+  connection?: UserDirectoryConnectionRequest | null;
+  loadDirectoryIdentity?: boolean;
+  directoryScope?: string | null;
 }
 
 export interface UserDirectoryConnectionRequest {

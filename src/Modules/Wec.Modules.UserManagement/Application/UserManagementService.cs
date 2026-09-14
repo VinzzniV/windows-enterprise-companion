@@ -68,7 +68,11 @@ internal sealed class UserManagementService
                 "The requested directory user was not found."));
         }
 
-        DirectoryUserRecord user = result.Value;
+        return await ComposeAsync(result.Value, cancellationToken);
+    }
+
+    internal async Task<Result<UserProfileResult>> ComposeAsync(DirectoryUserRecord user, CancellationToken cancellationToken)
+    {
         UserDeviceProfile devices = await GetDeviceProfileAsync(user.Sid, cancellationToken);
         return Result.Success(new UserProfileResult(
             new UserIdentityProfile(

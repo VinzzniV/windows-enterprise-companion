@@ -281,7 +281,7 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
             string? userId = userObjectId is null ? null : Guid.Parse(userObjectId).ToString("D");
             List<Microsoft365Query> users = [new(Microsoft365Resource.Users)];
             if (userId is not null) { users.Add(new(Microsoft365Resource.User, userId)); }
-            else { users.AddRange(_cache.Keys.Where(query => query.Resource == Microsoft365Resource.User)); }
+            users.AddRange(_cache.Keys.Where(query => query.Resource == Microsoft365Resource.User && query.ObjectId != userId));
             if (sid is not null) { users.Add(new(Microsoft365Resource.UsersBySid, SecurityIdentifier: sid)); }
             Microsoft365Query tenantLicenses = new(Microsoft365Resource.Licenses);
             Microsoft365Query licenses = new(Microsoft365Resource.UserLicenses, userId);
