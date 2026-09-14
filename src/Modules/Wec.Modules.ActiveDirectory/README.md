@@ -105,3 +105,10 @@ mocked; no automated test touches a real domain. The infrastructure suite
 contains a 25,000-entry paged fixture that verifies exact counts, offsets and
 bounded materialization. Use the optional [Active Directory lab runbook](../../../docs/active-directory-lab.md)
 for workgroup, domain, credentials, paging, and large-directory smoke checks.
+# Scoped computer identity reads
+
+ADR 0022 adds `IDirectoryComputerReadProvider` for explicit GUID/SID reads.
+It verifies the requested directory against RootDSE's default naming context,
+uses an allowlisted bounded computer query, and preserves duplicate results.
+Returned identity evidence must match the requested ID. Names never select an
+identity and these reads expose no directory write capability.

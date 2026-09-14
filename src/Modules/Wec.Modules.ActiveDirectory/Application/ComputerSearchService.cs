@@ -30,6 +30,7 @@ public sealed record AdComputerSearchResult(
 /// </summary>
 internal sealed class ComputerSearchService : IAdComputerInventoryProvider
 {
+    internal static readonly string[] Attributes = ["name", "dNSHostName", "operatingSystem", "userAccountControl", "description", "lastLogonTimestamp", "objectGUID", "objectSid"];
     private readonly DomainContextService _domainContextService;
     private readonly IDirectoryReader _directoryReader;
     private readonly ActiveDirectoryOptions _options;
@@ -69,7 +70,7 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 context.Value.DomainName!,
                 context.Value.DefaultNamingContext!,
                 AdFilters.ComputersByName(nameFilter, includeDisabled),
-                ["name", "dNSHostName", "operatingSystem", "userAccountControl", "description", "lastLogonTimestamp", "objectGUID", "objectSid"],
+                Attributes,
                 DirectorySearchScope.Subtree,
                 _options.PageSize,
                 _options.SearchTimeout,
@@ -93,7 +94,7 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 ParseFileTime(entry.GetLong("lastLogonTimestamp")),
                 DirectoryIdentityValues.ObjectId(entry),
                 DirectoryIdentityValues.SecurityIdentifier(entry),
-                context.Value.DomainName))
+                DirectoryIdentityValues.DirectoryScope(context.Value.DefaultNamingContext!)))
             .OrderBy(computer => computer.Name, StringComparer.OrdinalIgnoreCase)];
 
         bool truncated = entries.Value.TotalCount > computers.Count;
@@ -125,17 +126,7 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
         bool truncated = result.Value.Truncated || source.Count > limit;
         IReadOnlyList<AdComputerInventoryItem> computers = source
             .Take(limit)
-            .Select(computer => new AdComputerInventoryItem(
-                computer.Name,
-                computer.DnsHostName,
-                computer.OperatingSystem,
-                computer.Description,
-                computer.Enabled,
-                computer.DistinguishedName ?? string.Empty,
-                computer.LastLogonDate,
-                computer.ObjectId,
-                computer.SecurityIdentifier,
-                computer.DirectoryScope))
+            .Select(ToInventory)
             .ToList();
 
         return Result.Success(new AdComputerInventory(
@@ -144,6 +135,18 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
             computers,
             truncated));
     }
+
+    internal static AdComputerInventoryItem ToInventory(AdComputer computer) => new(
+        computer.Name, computer.DnsHostName, computer.OperatingSystem, computer.Description, computer.Enabled,
+        computer.DistinguishedName ?? string.Empty, computer.LastLogonDate, computer.ObjectId,
+        computer.SecurityIdentifier, computer.DirectoryScope);
+
+    internal static AdComputerInventoryItem MapIdentity(DirectoryEntryData entry, string scope) => new(
+        entry.GetFirstValue("name") ?? entry.DistinguishedName, entry.GetFirstValue("dNSHostName"),
+        entry.GetFirstValue("operatingSystem"), entry.GetFirstValue("description"),
+        entry.GetLong("userAccountControl") is { } uac ? (uac & AdFilters.UacAccountDisabled) == 0 : null,
+        entry.DistinguishedName, ParseFileTime(entry.GetLong("lastLogonTimestamp")),
+        DirectoryIdentityValues.ObjectId(entry), DirectoryIdentityValues.SecurityIdentifier(entry), scope);
 
     private static DateTimeOffset? ParseFileTime(long? fileTime)
     {
