@@ -81,6 +81,9 @@ internal static class AdFilters
     public static string ComputerBySid(string sid)
         => $"(&(objectCategory=computer)(objectSid={EscapeFilterValue(sid)}))";
 
+    public static string UserBySid(string sid)
+        => $"(&(objectCategory=person)(objectClass=user)(objectSid={EscapeFilterValue(sid)}))";
+
     private static string EscapedGuid(Guid objectId)
     {
         var escaped = new StringBuilder(16 * 3);

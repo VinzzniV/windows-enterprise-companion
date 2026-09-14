@@ -265,7 +265,7 @@ public sealed class UserSearchServiceTests
                 Arg.Is<DirectorySearchQuery>(query =>
                     query.LdapFilter == AdFilters.UserByObjectGuid(objectId)
                     && query.Attributes.Contains("objectGUID", StringComparer.Ordinal)),
-                1,
+                2,
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success(new BoundedDirectorySearchResult(0, [])));
 
@@ -291,7 +291,7 @@ public sealed class UserSearchServiceTests
         string privilegedGroupDn = $"CN=Domänen-Admins,CN=Users,{NamingContext}";
         _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.LdapFilter == AdFilters.UserByObjectGuid(objectId)),
-                1,
+                2,
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success(new BoundedDirectorySearchResult(1,
             [
@@ -354,7 +354,7 @@ public sealed class UserSearchServiceTests
         var objectId = new Guid("00112233-4455-6677-8899-aabbccddeeff");
         _directoryReader.SearchBoundedAsync(
                 Arg.Is<DirectorySearchQuery>(query => query.LdapFilter == AdFilters.UserByObjectGuid(objectId)),
-                1,
+                2,
                 Arg.Any<CancellationToken>())
             .Returns(Result.Success(new BoundedDirectorySearchResult(1,
             [

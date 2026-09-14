@@ -43,7 +43,13 @@ public sealed record DirectoryUserPageQuery(
 
 public sealed record DirectoryUserIdentityQuery(
     DirectoryUserReadConnection Connection,
-    Guid ObjectId);
+    Guid ObjectId,
+    string? DirectoryScope = null);
+
+public sealed record DirectoryUserSidQuery(
+    DirectoryUserReadConnection Connection,
+    string SecurityIdentifier,
+    string? DirectoryScope = null);
 
 public sealed record DirectoryUserGroup(
     string DistinguishedName,
@@ -86,7 +92,8 @@ public sealed record DirectoryUserRecord(
     DateTimeOffset? PasswordExpiresAtUtc,
     bool? PasswordNeverExpires,
     IReadOnlyList<DirectoryUserGroup> DirectGroups,
-    DirectoryUserPrivilegedAccess PrivilegedAccess);
+    DirectoryUserPrivilegedAccess PrivilegedAccess,
+    string? DirectoryScope = null);
 
 public sealed record DirectoryUserPage(
     bool DomainJoined,
@@ -109,5 +116,9 @@ public interface IDirectoryUserReadProvider
 
     Task<Result<DirectoryUserRecord?>> GetByIdAsync(
         DirectoryUserIdentityQuery query,
+        CancellationToken cancellationToken);
+
+    Task<Result<DirectoryUserRecord?>> GetBySidAsync(
+        DirectoryUserSidQuery query,
         CancellationToken cancellationToken);
 }
