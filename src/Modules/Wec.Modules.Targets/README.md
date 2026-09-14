@@ -1,5 +1,10 @@
 # Wec.Modules.Targets
 
+`SavedClientListProvider` exposes bounded Client-role address/label/creation-time
+rows for the object working set. Original saved-target IDs remain available;
+user names are excluded from this list projection. Other saved roles retain
+their existing specialist navigation and are not reclassified as Client rows.
+
 Persists **saved targets** so frequently used servers and clients don't have to
 be re-typed (ADR 0010): a print server, opsi server, domain controller, or a
 specific client. A saved target is **host + role + optional user name** — it

@@ -1,5 +1,16 @@
 # Wec.Modules.Clients
 
+`clients/getStoredObjectLists` composes bounded address projections from
+Inventory, Security and saved Client-role targets through
+`IStoredDeviceListProvider`. Each source reads two SQL queries without loading
+snapshot payloads/findings; one failed source leaves other results available.
+Native record IDs, full addresses, observation timestamps, individual source
+totals and content revisions remain visible. The configurable
+`Wec:ObjectWorkingSet:MaximumRecords` defaults to 5000 and also supplies the
+overall frontend working-set bound. Optional targeted search is explicit and
+literal; SQLite's default LIKE case behavior applies. No Windows/provider scan
+or saved-target mutation is performed.
+
 Device profile read composition over concrete Core projections (ADR 0022).
 `clients/getOverview` retains its bridge contract, options section and existing
 stored Inventory/software/Health/Security/user evidence behavior after extraction

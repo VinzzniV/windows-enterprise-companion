@@ -13,6 +13,11 @@ Implementation plan and required parity matrix:
 
 ## Current consolidation verification (2026-09-14)
 
+- Local address contributions now include Inventory, Security-only and saved
+  Client-role records through bounded source-owned projections. Two real SQLite
+  tests verify minimal SQL, exact addresses, native record IDs, latest ties,
+  literal search, source errors and cancellation; all 19 Clients tests pass.
+  Release build is warning-free and 483 generated bridge types are current.
 - AD user list projections now preserve scoped native IDs, unknown state,
   duplicates, independent page totals and bounded session cache state without
   building profiles per row. All 124 AD tests and warning-free Release build

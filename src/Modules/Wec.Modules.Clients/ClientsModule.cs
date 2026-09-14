@@ -14,6 +14,7 @@ public sealed class ClientsModule : IModule
         services.AddScoped<DeviceProfileService>();
         services.AddScoped<IActionHandler, DeviceProfileHandler>();
         services.AddScoped<IActionHandler, DeviceWorkspaceHandler>();
+        services.AddScoped<IActionHandler, StoredObjectListsHandler>();
         services.AddScoped<IActionHandler, GetClientOverviewHandler>();
     }
 }

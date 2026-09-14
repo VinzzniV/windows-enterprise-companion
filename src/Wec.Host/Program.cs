@@ -319,6 +319,10 @@ internal static partial class Program
             .Validate(value => (string.IsNullOrEmpty(value.TenantId) || Guid.TryParse(value.TenantId, out _))
                 && (string.IsNullOrEmpty(value.ClientId) || Guid.TryParse(value.ClientId, out _)), "Microsoft 365 identifiers must be GUIDs.")
             .ValidateOnStart();
+
+        builder.Services.AddOptions<ObjectWorkingSetOptions>()
+            .Bind(builder.Configuration.GetSection(ObjectWorkingSetOptions.SectionName))
+            .ValidateDataAnnotations().ValidateOnStart();
         builder.Services.AddOptions<Microsoft365CacheOptions>()
             .Bind(builder.Configuration.GetSection(Microsoft365CacheOptions.SectionName))
             .Validate(value => value.FreshFor > TimeSpan.Zero && value.RetainFor >= value.FreshFor

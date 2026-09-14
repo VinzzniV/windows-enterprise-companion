@@ -100,6 +100,10 @@ machine as the current user.
 
 ## Tests
 
+`InventoryStoredDeviceListProvider` exposes a bounded address-only Core
+projection, including equally recent snapshot records and their original IDs.
+It does not deserialize payloads; empty historical host rows remain stored.
+
 `tests/Wec.Modules.Inventory.Tests` — unit tests with mocked seams, incl.
 per-host caching, remote snapshots without software, monitor decoding.
 `tests/Wec.Infrastructure.IntegrationTests` — per-host persistence round

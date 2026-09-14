@@ -342,6 +342,15 @@ export interface SecurityCoverageReportData {
 
 export type ServiceCredentialKind = 'KASPERSKY' | 'OPSI' | 'NESSUS';
 
+export interface StoredDeviceAddressRow {
+  recordId: string;
+  host: string;
+  label: string;
+  observedAtUtc: string;
+}
+
+export type StoredDeviceListSource = 'INVENTORY' | 'SECURITY' | 'SAVED_CLIENTS';
+
 export type UserDeviceRelationshipConfidence = 'HIGH' | 'MEDIUM';
 
 export interface UserDeviceRelationshipCoverage {
@@ -1253,6 +1262,26 @@ export interface DeviceWorkspaceRequest {
 
 export interface GetClientOverviewRequest {
   host: string;
+}
+
+export interface StoredObjectListRead {
+  source: StoredDeviceListSource;
+  revision: string;
+  totalRecords: number | null;
+  records: StoredDeviceAddressRow[];
+  error: Error | null;
+}
+
+export interface StoredObjectLists {
+  workspace: WecWorkspaceIdentity;
+  maximumRecords: number;
+  retrievedAtUtc: string;
+  search: string | null;
+  reads: StoredObjectListRead[];
+}
+
+export interface StoredObjectListsRequest {
+  search?: string | null;
 }
 
 export interface DeviceCleanupAssessment {
