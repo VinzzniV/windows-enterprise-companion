@@ -25,6 +25,10 @@ Neither action connects, scans, launches tools or selects an operational endpoin
 The management owner removes cached opsi observations when the active opsi session
 changes. Its cache-only check never restores credentials or opens a connection.
 The opsi inventory adapter also rejects a completion from a replaced session.
+Stored KSC credentials participate in the management cache fingerprint when no
+explicit session override is supplied. Replacement/removal and changes during
+source I/O invalidate cached completions; serialized fingerprint buffers are
+zeroed immediately and connection `ToString` methods redact their fields.
 
 Device profile read composition over concrete Core projections (ADR 0022).
 `clients/getOverview` retains its bridge contract, options section and existing

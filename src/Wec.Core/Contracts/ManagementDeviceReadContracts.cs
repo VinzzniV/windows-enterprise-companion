@@ -5,14 +5,20 @@ public sealed record DirectoryInventoryConnection(
     string? Server = null,
     string? UserName = null,
     string? UserDomain = null,
-    string? Password = null);
+    string? Password = null)
+{
+    public override string ToString() => "DirectoryInventoryConnection { Protected }";
+}
 
 public sealed record KasperskyInventoryConnection(
     string? Server = null,
     int? Port = null,
     string? UserName = null,
     string? Domain = null,
-    string? Password = null);
+    string? Password = null)
+{
+    public override string ToString() => "KasperskyInventoryConnection { Protected }";
+}
 
 public sealed record ManagementDeviceSourceState(
     string Source,

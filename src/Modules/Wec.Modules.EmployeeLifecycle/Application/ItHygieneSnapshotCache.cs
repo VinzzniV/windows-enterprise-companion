@@ -5,7 +5,7 @@ using Wec.Core.Contracts;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
-internal sealed class ItHygieneSnapshotCache : IDisposable
+internal sealed class ItHygieneSnapshotCache(IServiceCredentialStore credentials) : IDisposable
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _readGate = new(1, 1);
@@ -52,9 +52,11 @@ internal sealed class ItHygieneSnapshotCache : IDisposable
             }
             Result<ItHygieneResult> loaded = await load(request, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
+            string completedFingerprint = Fingerprint(request);
             lock (_gate)
             {
                 if (session != _session) { return Changed(); }
+                if (completedFingerprint != fingerprint) { Activate(completedFingerprint); return Changed(); }
                 ++_revision;
                 if (loaded.IsSuccess)
                 {
@@ -83,9 +85,12 @@ internal sealed class ItHygieneSnapshotCache : IDisposable
     private static Result<ItHygieneResult> Changed() => Result.Failure<ItHygieneResult>(new(ErrorCode.DirectoryUnavailable,
         "The management connection context changed. Read the sources again in the selected context."));
     private static bool Cacheable(ItHygieneResult result) => result.Sources.Kaspersky.Availability != InventorySourceAvailability.Unavailable;
-    private static string Fingerprint(ItHygieneRequest request)
+    private string Fingerprint(ItHygieneRequest request)
     {
-        byte[] json = JsonSerializer.SerializeToUtf8Bytes(new { request.ActiveDirectory, request.Kaspersky });
+        Result<StoredServiceCredential?>? stored = !string.IsNullOrWhiteSpace(request.Kaspersky?.UserName) && request.Kaspersky.Password is not null
+            ? null : credentials.Read(ServiceCredentialKind.Kaspersky);
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(new { request.ActiveDirectory, request.Kaspersky,
+            StoredKaspersky = stored is { IsSuccess: true } ? stored.Value : null, StoredCredentialError = stored?.Error?.Code });
         try { return Convert.ToHexString(SHA256.HashData(json)); }
         finally { CryptographicOperations.ZeroMemory(json); }
     }

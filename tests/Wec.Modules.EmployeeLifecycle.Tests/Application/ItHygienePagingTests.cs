@@ -22,7 +22,7 @@ public sealed class ItHygienePagingTests
     [Fact]
     public async Task SnapshotCacheReusesMatchingRequestAndForceRefreshesOnce()
     {
-        using var cache = new ItHygieneSnapshotCache();
+        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
         var request = new ItHygieneRequest(new DirectoryInventoryConnection(Server: "dc01"));
         int loads = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
@@ -43,7 +43,7 @@ public sealed class ItHygienePagingTests
     [Fact]
     public async Task SnapshotCacheDoesNotReuseAnotherConnectionRequest()
     {
-        using var cache = new ItHygieneSnapshotCache();
+        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
         int loads = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
         {
@@ -60,7 +60,7 @@ public sealed class ItHygienePagingTests
     [Fact]
     public async Task SnapshotCacheIgnoresUiOperationIdForTheSameConnection()
     {
-        using var cache = new ItHygieneSnapshotCache();
+        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
         int loads = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
         {
@@ -77,7 +77,7 @@ public sealed class ItHygienePagingTests
     [Fact]
     public async Task SnapshotCacheRetriesAfterAnUnavailableKasperskyResult()
     {
-        using var cache = new ItHygieneSnapshotCache();
+        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
         var request = new ItHygieneRequest();
         int loads = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
