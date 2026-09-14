@@ -39,6 +39,8 @@ public sealed record ManagementDeviceSnapshot(
     IReadOnlyList<OpsiComputerInventoryItem> Opsi,
     IReadOnlyList<NessusComputerInventoryItem> Nessus)
 {
+    public Guid SnapshotId { get; init; }
+    public Guid? OpsiSessionId { get; init; }
     public long SessionRevision { get; init; }
     public long Revision { get; init; }
 }

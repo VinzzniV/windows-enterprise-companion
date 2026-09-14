@@ -11,6 +11,21 @@ overall frontend working-set bound. Optional targeted search is explicit and
 literal; SQLite's default LIKE case behavior applies. No Windows/provider scan
 or saved-target mutation is performed.
 
+`clients/getCachedManagementObjectLists` reads the existing raw management cache
+through its Core owner seam. The configured working-set limit is shared fairly
+across AD, KSC, opsi and Nessus; optional targeted search filters the cached records
+before bounding them. Source counts/errors and unknown scopes remain independent.
+Native scoped AD IDs are preserved; every original record also gets a disposable
+snapshot locator so duplicates and missing native IDs remain individually readable.
+`clients/getManagementRecord` resolves exactly that workspace/snapshot/source/index
+and fails after replacement. The random snapshot identifier prevents an old link
+from referring to another row after application restart. It is not a device ID.
+Neither action connects, scans, launches tools or selects an operational endpoint.
+
+The management owner removes cached opsi observations when the active opsi session
+changes. Its cache-only check never restores credentials or opens a connection.
+The opsi inventory adapter also rejects a completion from a replaced session.
+
 Device profile read composition over concrete Core projections (ADR 0022).
 `clients/getOverview` retains its bridge contract, options section and existing
 stored Inventory/software/Health/Security/user evidence behavior after extraction

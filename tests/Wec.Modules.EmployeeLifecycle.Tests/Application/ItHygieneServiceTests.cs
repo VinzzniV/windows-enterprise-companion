@@ -533,6 +533,7 @@ public sealed class ItHygieneServiceTests
 
     private sealed class OpsiProvider(Result<OpsiComputerInventory> result) : IOpsiComputerInventoryProvider
     {
+        public Guid? CurrentSessionId => null;
         public Task<Result<OpsiComputerInventory>> LoadAsync(
             int limit,
             CancellationToken cancellationToken) => Task.FromResult(result);

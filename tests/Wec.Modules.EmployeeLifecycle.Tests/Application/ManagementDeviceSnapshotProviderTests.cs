@@ -1,4 +1,5 @@
 using Wec.Core.Contracts;
+using NSubstitute;
 using Wec.Core.Results;
 using Wec.Modules.EmployeeLifecycle.Application;
 
@@ -44,7 +45,7 @@ public sealed class ManagementDeviceSnapshotProviderTests
     public async Task CachedReadsAreIsolatedByCredentialsAndNeverLoadMissingSources()
     {
         using var cache = new ItHygieneSnapshotCache();
-        var provider = new ManagementDeviceSnapshotProvider(cache);
+        var provider = new ManagementDeviceSnapshotProvider(cache, Substitute.For<IOpsiComputerInventoryProvider>());
         var connection = new DirectoryInventoryConnection(Domain: "a.example", UserName: "reader", Password: "test-a");
         var snapshot = new ManagementDeviceSnapshot(DateTimeOffset.UnixEpoch, [], [], [], [], []);
         int calls = 0;
@@ -65,12 +66,29 @@ public sealed class ManagementDeviceSnapshotProviderTests
         Assert.Same(snapshot.ActiveDirectory, cached!.ActiveDirectory);
         Assert.True(cached.SessionRevision > 0);
         Assert.True(cached.Revision > cached.SessionRevision);
+        Assert.NotEqual(Guid.Empty, cached.SnapshotId);
+        Assert.Equal(cached.SnapshotId, (await provider.ReadCachedAsync(connection, null, CancellationToken.None))!.SnapshotId);
         Assert.Null(await provider.ReadCachedAsync(connection with { Password = "test-b" }, null, CancellationToken.None));
         Assert.Equal(1, calls);
 
         await cache.GetAsync(new ItHygieneRequest(connection with { Domain = "b.example" }), false,
             (_, _) => Task.FromResult(Result.Failure<ItHygieneResult>(new Error(ErrorCode.AccessDenied, "Read denied."))), CancellationToken.None);
         Assert.Null(await provider.ReadCachedAsync(connection, null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task SourceRecordLinksCannotReuseSnapshotIdsAfterRefreshOrProcessCacheReplacement()
+    {
+        using var firstCache = new ItHygieneSnapshotCache();
+        using var secondCache = new ItHygieneSnapshotCache();
+        var request = new ItHygieneRequest();
+        Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __) => Task.FromResult(Result.Success(SourceResult()));
+        await firstCache.GetAsync(request, false, Load, CancellationToken.None);
+        Guid first = (await firstCache.ReadCachedAsync(request, CancellationToken.None))!.SnapshotId;
+        await firstCache.GetAsync(request, true, Load, CancellationToken.None);
+        await secondCache.GetAsync(request, false, Load, CancellationToken.None);
+        Assert.NotEqual(first, (await firstCache.ReadCachedAsync(request, CancellationToken.None))!.SnapshotId);
+        Assert.NotEqual(first, (await secondCache.ReadCachedAsync(request, CancellationToken.None))!.SnapshotId);
     }
 
     [Fact]
@@ -125,6 +143,33 @@ public sealed class ManagementDeviceSnapshotProviderTests
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new ManagementDeviceSnapshotProvider(cache).ReadCachedAsync(null, null, cancellation.Token));
+            new ManagementDeviceSnapshotProvider(cache, Substitute.For<IOpsiComputerInventoryProvider>()).ReadCachedAsync(null, null, cancellation.Token));
+    }
+
+    [Fact]
+    public async Task OpsiSessionSwitchDropsOnlyItsCachedRecordsWithoutConnectingOrReadingSources()
+    {
+        using var cache = new ItHygieneSnapshotCache();
+        IOpsiComputerInventoryProvider opsi = Substitute.For<IOpsiComputerInventoryProvider>();
+        var provider = new ManagementDeviceSnapshotProvider(cache, opsi);
+        Guid original = Guid.NewGuid();
+        opsi.CurrentSessionId.Returns(original);
+        ItHygieneResult data = SourceResult();
+        data = data with { SourceRecords = data.SourceRecords! with { OpsiSessionId = original,
+            Opsi = [new("old.example", null, null, null, null)], Sources = [new("Opsi", "opsi.example", "Available", null, 1)] } };
+        await cache.GetAsync(new(), false, (_, _) => Task.FromResult(Result.Success(data)), CancellationToken.None);
+        ManagementDeviceSnapshot cached = (await provider.ReadCachedAsync(null, null, CancellationToken.None))!;
+        Assert.Single(cached.Opsi);
+        opsi.CurrentSessionId.Returns((Guid?)null);
+        ManagementDeviceSnapshot disconnected = (await provider.ReadCachedAsync(null, null, CancellationToken.None))!;
+        Assert.Empty(disconnected.Opsi);
+        Assert.Single(disconnected.ActiveDirectory);
+        Assert.Equal(cached.SnapshotId, disconnected.SnapshotId);
+        Assert.Equal("NotConnected", disconnected.Sources[0].Availability);
+        opsi.CurrentSessionId.Returns(Guid.NewGuid());
+        ManagementDeviceSnapshot switched = (await provider.ReadCachedAsync(null, null, CancellationToken.None))!;
+        Assert.Empty(switched.Opsi);
+        Assert.Equal("NotLoaded", switched.Sources[0].Availability);
+        await opsi.DidNotReceiveWithAnyArgs().LoadAsync(default, default);
     }
 }

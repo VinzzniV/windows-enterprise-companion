@@ -289,6 +289,8 @@ export interface ManagementDeviceSnapshot {
   kaspersky: KasperskyDeviceRecord[];
   opsi: OpsiComputerInventoryItem[];
   nessus: NessusComputerInventoryItem[];
+  snapshotId: string;
+  opsiSessionId: string | null;
   sessionRevision: number;
   revision: number;
 }
@@ -1256,6 +1258,68 @@ export interface DeviceProfileResult {
   candidates: ObjectRelationship[];
   sourceErrors: Error[];
 }
+
+export interface ManagementDeviceListRead {
+  source: ManagementDeviceSource;
+  state: ManagementDeviceSourceState;
+  matchingCachedRecords: number | null;
+  limited: boolean;
+  rows: ManagementDeviceListRow[];
+}
+
+export interface ManagementDeviceListRequest {
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+  search?: string | null;
+}
+
+export interface ManagementDeviceListRow {
+  reference: ManagementDeviceRecordReference;
+  nativeReference: ObjectReference | null;
+  label: string;
+  aliases: string[];
+  accountEnabled: boolean | null;
+  operatingSystem: string | null;
+  securityIdentifier: string | null;
+}
+
+export interface ManagementDeviceObjectLists {
+  workspace: WecWorkspaceIdentity;
+  snapshotId: string | null;
+  opsiSessionId: string | null;
+  sessionRevision: number;
+  revision: number;
+  retrievedAtUtc: string | null;
+  maximumRecords: number;
+  search: string | null;
+  reads: ManagementDeviceListRead[];
+}
+
+export interface ManagementDeviceRecordProfile {
+  record: ManagementDeviceListRow;
+  sourceState: ManagementDeviceSourceState;
+  retrievedAtUtc: string;
+  identityExplanation: string;
+  activeDirectory: AdComputerInventoryItem | null;
+  kaspersky: KasperskyDeviceRecord | null;
+  opsi: OpsiComputerInventoryItem | null;
+  nessus: NessusComputerInventoryItem | null;
+}
+
+export interface ManagementDeviceRecordReference {
+  workspace: string;
+  snapshotId: string;
+  source: ManagementDeviceSource;
+  recordIndex: number;
+}
+
+export interface ManagementDeviceRecordRequest {
+  reference: ManagementDeviceRecordReference;
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+}
+
+export type ManagementDeviceSource = 'ACTIVE_DIRECTORY' | 'KASPERSKY' | 'OPSI' | 'NESSUS';
 
 export interface DeviceWorkspaceRequest {
 }

@@ -2,13 +2,24 @@ using Wec.Core.Contracts;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
-internal sealed class ManagementDeviceSnapshotProvider(ItHygieneSnapshotCache cache) : IManagementDeviceSnapshotProvider
+internal sealed class ManagementDeviceSnapshotProvider(ItHygieneSnapshotCache cache, IOpsiComputerInventoryProvider opsi) : IManagementDeviceSnapshotProvider
 {
-    public Task<ManagementDeviceSnapshot?> ReadCachedAsync(
+    public async Task<ManagementDeviceSnapshot?> ReadCachedAsync(
         DirectoryInventoryConnection? activeDirectory,
         KasperskyInventoryConnection? kaspersky,
-        CancellationToken cancellationToken) =>
-        cache.ReadCachedAsync(new ItHygieneRequest(activeDirectory, kaspersky), cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        ManagementDeviceSnapshot? snapshot = await cache.ReadCachedAsync(new ItHygieneRequest(activeDirectory, kaspersky), cancellationToken);
+        Guid? currentSession = opsi.CurrentSessionId;
+        if (snapshot is null || snapshot.OpsiSessionId == currentSession) { return snapshot; }
+        return snapshot with
+        {
+            Opsi = [], OpsiSessionId = currentSession,
+            Sources = snapshot.Sources.Select(state => state.Source != "Opsi" ? state
+                : state with { Availability = currentSession is null ? "NotConnected" : "NotLoaded", LoadedRecords = 0,
+                    Error = "The opsi session changed. Read its inventory again in the selected session." }).ToArray(),
+        };
+    }
 
     internal static ManagementDeviceSnapshot Project(
         HygieneSourceLoad load, DateTimeOffset retrievedAtUtc, ItHygieneRequest request, ItLifecycleOptions options)
@@ -27,7 +38,7 @@ internal sealed class ManagementDeviceSnapshotProvider(ItHygieneSnapshotCache ca
             State("Kaspersky", EndpointScope(request.Kaspersky?.Server ?? options.Kaspersky.Server), load.States.Kaspersky, ksc.Length),
             State("Opsi", load.Opsi.IsSuccess ? load.Opsi.Value.SourceScope : null, load.States.Opsi, opsi.Count),
             State("Nessus", null, load.States.Nessus, nessus.Count),
-        ], ad, ksc, opsi, nessus);
+        ], ad, ksc, opsi, nessus) { OpsiSessionId = load.Opsi.IsSuccess ? load.Opsi.Value.SessionId : null };
     }
 
     private static ManagementDeviceSourceState State(string source, string? scope, InventorySourceState state, int count) =>

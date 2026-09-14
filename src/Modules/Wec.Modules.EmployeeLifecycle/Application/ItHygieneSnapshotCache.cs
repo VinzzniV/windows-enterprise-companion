@@ -59,7 +59,7 @@ internal sealed class ItHygieneSnapshotCache : IDisposable
                 if (loaded.IsSuccess)
                 {
                     _sourceSnapshot = loaded.Value.SourceRecords is { } sources
-                        ? sources with { SessionRevision = _session, Revision = _revision } : null;
+                        ? sources with { SnapshotId = Guid.NewGuid(), SessionRevision = _session, Revision = _revision } : null;
                     loaded = Result.Success(loaded.Value with { SourceRecords = _sourceSnapshot });
                     if (Cacheable(loaded.Value)) { _snapshot = loaded.Value; }
                 }
