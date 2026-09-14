@@ -20,7 +20,9 @@ vi.mock('../shared/bridge/bridgeClient', () => ({
     promise: action === 'getStoredObjectLists' ? Promise.resolve({ workspace: { scope: 'local', localComputerName: 'TESTHOST' },
       maximumRecords: 5000, maximumSourceReads: 128, retrievedAtUtc: '2026-09-14T10:00:00Z', search: null, reads: [] })
       : action === 'getCachedObjectLists' ? Promise.resolve({ tenantId: null, sessionRevision: 0, revision: 0,
-        recordLimit: 5000, cachedSourceRecords: 0, loadedSourceRecords: 0, truncated: false, reads: [] }) : invokeMock(module, action, payload),
+        recordLimit: 5000, cachedSourceRecords: 0, loadedSourceRecords: 0, truncated: false, reads: [] })
+        : action === 'getCachedManagementObjectLists' ? Promise.resolve({ workspace: { scope: 'local', localComputerName: 'TESTHOST' },
+          snapshotId: null, opsiSessionId: null, sessionRevision: 0, revision: 0, retrievedAtUtc: null, maximumRecords: 5000, search: null, reads: [] }) : invokeMock(module, action, payload),
     cancel: vi.fn(),
   }),
   subscribe: vi.fn(() => () => {}),

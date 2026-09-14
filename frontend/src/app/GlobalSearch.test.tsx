@@ -60,6 +60,8 @@ describe('GlobalSearch', () => {
       if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
       if (action === 'getStoredObjectLists') return Promise.resolve({ workspace: { scope: 'local', localComputerName: 'LOCAL' },
         maximumRecords: 5000, maximumSourceReads: 128, retrievedAtUtc: new Date().toISOString(), search: null, reads: [] });
+      if (action === 'getCachedManagementObjectLists') return Promise.resolve({ workspace: { scope: 'local', localComputerName: 'LOCAL' },
+        snapshotId: null, opsiSessionId: null, sessionRevision: 0, revision: 0, retrievedAtUtc: null, maximumRecords: 5000, search: null, reads: [] });
       if (action === 'getCachedObjectLists') return Promise.resolve({ tenantId: '11111111-1111-1111-1111-111111111111', sessionRevision: 1,
         revision: 1, recordLimit: 5000, cachedSourceRecords: 1, loadedSourceRecords: 1, truncated: false, reads: [{
           state: { query: { resource: 'USERS', objectId: null, securityIdentifier: null }, snapshotRevision: 1, availability: 'AVAILABLE',

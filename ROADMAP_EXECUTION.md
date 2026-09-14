@@ -5,14 +5,23 @@ Status: `IN_PROGRESS`
 Current phase: Object-centered consolidation (ADR 0022)
 
 Current slice: Phase 6 bounded working-set index and unified lists/search.
-Phase 1 legacy candidate/route fixes and remaining Phase 2 local index projections
-remain explicit follow-ups before the working-set/list milestone.
+Source-only management records and their exact snapshot destinations are integrated.
+Phase 1 legacy candidate/route fixes, targeted AD computer discovery and G2
+compatibility remain explicit follow-ups before the navigation milestone.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
 
 ## Current consolidation verification (2026-09-14)
 
+- Raw AD/KSC/opsi/Nessus records now enter the shared index, including duplicate
+  names, missing native IDs and source-only records. Disposable snapshot locators
+  open all original fields without selecting a Windows target. Opsi session
+  replacement and stored KSC credential changes invalidate affected evidence;
+  late reads are rejected. The source/projection suites pass (24 Clients,
+  94 EmployeeLifecycle, 37 PatchManagement and 89 Host tests). Release is
+  warning-free; 491 contracts, 101 affected frontend tests and production build
+  pass. Company/tenant/remote acceptance remains unperformed.
 - The bounded React working set now feeds object lists and global search.
   Scoped-ID deduplication precedes whole-set filters/sort/page; partial sources,
   collisions, expired facts and unavailable counts stay explicit. Cached updates
@@ -499,9 +508,9 @@ Implementation plan and required parity matrix:
 
 ## Next
 
-1. Complete consolidation Phase 1 identity preservation, then concrete cached
-   projections and device/account profiles (phases 2–4).
-2. Add source-native groups, bounded lists/search and navigation after G2 parity
-   (phases 5–7), then full regression/security/documentation closure (phase 9).
+1. Finish targeted AD computer discovery and remaining legacy candidate/route
+   fixes; complete the working-set and source-profile compatibility checks.
+2. Verify every G2 workflow before switching C2 navigation, then run full
+   regression/security/desktop checks and finish documentation (phase 9).
 3. Keep company/tenant/remote-client acceptance explicitly unverified until run.
    No tag, release or installer publication without explicit approval.

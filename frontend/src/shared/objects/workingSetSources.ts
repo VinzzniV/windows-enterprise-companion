@@ -1,6 +1,24 @@
-import type { CachedDirectoryGroupPage, CachedDirectoryUserList, Microsoft365ObjectLists, ObjectReference, StoredObjectLists } from '../api-types.generated';
-import { objectReference } from './objectRoutes';
-import type { WorkingSetObservation, WorkingSetRead } from './workingSet';
+import type { CachedDirectoryGroupPage, CachedDirectoryUserList, ManagementDeviceObjectLists, Microsoft365ObjectLists, ObjectReference, StoredObjectLists } from '../api-types.generated';
+import { objectReference, objectSourceLabel } from './objectRoutes';
+import type { WorkingSetObservation, WorkingSetRead, WorkingSetSource } from './workingSet';
+
+export const workingSetSourceLabel: Record<WorkingSetSource, string> = { ...objectSourceLabel, KASPERSKY: 'Kaspersky', OPSI: 'opsi', NESSUS: 'Nessus' };
+
+export function managementWorkingSetReads(lists: ManagementDeviceObjectLists): WorkingSetRead[] {
+  return lists.reads.map(read => ({
+    key: `management:${JSON.stringify([read.source, lists.search])}`, title: `${workingSetSourceLabel[read.source]} management records${lists.search ? ` · ${lists.search}` : ''}`,
+    family: 'management', collectionKey: JSON.stringify(['management', lists.search]), scope: read.state.scope,
+    sessionRevision: lists.sessionRevision, revision: JSON.stringify([lists.snapshotId, lists.revision, lists.opsiSessionId, read.state]),
+    retrievedAtUtc: lists.retrievedAtUtc, lastAttemptAtUtc: null, retainedUntilUtc: null, freshUntilUtc: null,
+    availability: ['Available', 'Partial', 'Truncated'].includes(read.state.availability) ? 'available'
+      : read.state.availability === 'NotConnected' ? 'disconnected' : read.state.availability === 'NotLoaded' ? 'not-loaded' : 'unavailable',
+    coverage: read.state.availability === 'Available' ? 'complete' : ['Partial', 'Truncated'].includes(read.state.availability) ? 'partial' : 'unknown',
+    error: read.state.error, sourceTotal: read.matchingCachedRecords, cachedRecordCount: read.matchingCachedRecords ?? 0,
+    limited: read.limited, rows: read.rows.map(row => ({ kind: 'DEVICE', source: read.source, reference: row.nativeReference,
+      managementReference: row.reference, label: row.label, aliases: row.aliases, accountEnabled: row.accountEnabled,
+      operatingSystem: row.operatingSystem, sid: row.securityIdentifier, registrationDeviceId: null, assignedSkuIds: null })),
+  }));
+}
 
 export function cloudWorkingSetReads(lists: Microsoft365ObjectLists): WorkingSetRead[] {
   return lists.reads.map(read => ({

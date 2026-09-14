@@ -4,6 +4,7 @@ import type { CachedDirectoryGroupPage, CachedDirectoryUserList, Microsoft365Res
 import { invokeCancellable, type CancellableBridgeInvocation } from '../bridge/bridgeClient';
 import { presentError } from '../bridge/errorPresentation';
 import { useTargets } from '../targets/TargetContext';
+import { useEnvironmentOptional } from '../environment/EnvironmentContext';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { toUserDirectoryConnection } from '../../features/users/users';
@@ -12,6 +13,7 @@ import { directoryGroupWorkingSetRead, directoryUserWorkingSetRead } from './wor
 
 export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
   const workspace = useWorkingSet();
+  const environment = useEnvironmentOptional();
   const { adminCredentials } = useTargets();
   const [endpoint, setEndpoint] = useState(workspace.directoryEndpoint ?? { domain: '', server: '' });
   const [search, setSearch] = useState('');
@@ -25,7 +27,14 @@ export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
     if (workspace.directoryEndpoint) workspace.clearFamily('directory');
     setEndpoint(next);
   };
-  useEffect(() => { cancel(); return () => { generation.current++; active.current?.cancel(); active.current = null; }; }, [adminCredentials, workspace.cloudGeneration, workspace.directoryGeneration]);
+  useEffect(() => { cancel(); return () => { generation.current++; active.current?.cancel(); active.current = null; }; }, [adminCredentials, workspace.cloudGeneration, workspace.directoryGeneration, workspace.managementGeneration]);
+  const readManagement = async () => {
+    if (!environment) return;
+    const own = ++generation.current; setBusy(true); setError(null);
+    try { await environment.refresh(); if (own === generation.current) await workspace.refreshCached(true); }
+    catch (caught) { if (own === generation.current) setError(presentError(caught).message); }
+    finally { if (own === generation.current) setBusy(false); }
+  };
   const readDirectory = async () => {
     const own = ++generation.current; active.current?.cancel(); setBusy(true); setError(null);
     const selection = { scope: endpoint.domain.trim(), search, page, pageSize: 100 };
@@ -68,6 +77,9 @@ export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
     {kind === 'DEVICE' && <div className="mb-3 flex flex-wrap items-end gap-3">
       <label>Stored address query<Input value={search} maxLength={100} onChange={event => setSearch(event.target.value)} /></label>
       <Button disabled={workspace.busy || !search.trim()} onClick={() => void workspace.refreshCached(true, search.trim())}>Load matching stored addresses</Button>
+      {environment && <Button disabled={environment.loading || busy} onClick={() => void readManagement()}>Read configured management sources</Button>}
+      {environment?.loading && <Button onClick={() => { cancel(); environment.cancel(); }}>Cancel management source read</Button>}
+      {environment?.error && <p role="alert" className="text-fail-400">{environment.error.message}</p>}
     </div>}
     <div className="flex flex-wrap items-center gap-3">
       <Button disabled={busy} onClick={() => void readCloud(kind === 'USER' ? 'USERS' : kind === 'GROUP' ? 'GROUPS' : 'DEVICES')}>Read bounded Entra inventory</Button>

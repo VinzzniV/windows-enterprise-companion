@@ -27,6 +27,7 @@ import { ConfirmDangerAction } from '../../shared/ui/ConfirmDangerAction';
 import { CredentialFields, type CredentialValues } from '../../shared/targets/Credentials';
 import { useTargetsOptional } from '../../shared/targets/TargetContext';
 import { useEnvironmentOptional } from '../../shared/environment/EnvironmentContext';
+import { useOptionalWorkingSet } from '../../shared/objects/WorkingSetContext';
 import {
   isSettingsSection,
   SettingsSectionNavigation,
@@ -54,6 +55,7 @@ export function SettingsPage() {
   const activeSection: SettingsSectionId = isSettingsSection(requestedSection) ? requestedSection : 'overview';
   const targets = useTargetsOptional();
   const environment = useEnvironmentOptional();
+  const workspace = useOptionalWorkingSet();
   const [appInfo, setAppInfo] = useState<AppInfoResponse | null>(null);
   const [itLifecycle, setItLifecycle] = useState<ItLifecycleSettingsValue | null>(null);
   const [savedItLifecycle, setSavedItLifecycle] = useState<ItLifecycleSettingsValue | null>(null);
@@ -180,11 +182,12 @@ export function SettingsPage() {
       .catch((caught: unknown) => setOpsiError(presentError(caught, {
         message: 'The opsi settings or connection could not be updated.',
       })))
-      .finally(() => setOpsiBusy(false));
+      .finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const connectOpsi = () => {
     if (!opsi) return;
+    workspace?.clearFamily('management');
     setOpsiBusy(true); setOpsiError(null);
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'connect', {
       server: opsi.server, userName: opsiUserName, password: opsiPassword,
@@ -195,11 +198,12 @@ export function SettingsPage() {
       if (rememberOpsi) setCredentialStatuses((current) => current && ({ ...current, opsi: { saved: true, userName: status.userName, domain: null } }));
     }).catch((caught: unknown) => setOpsiError(presentError(caught, {
       message: 'The opsi settings or connection could not be updated.',
-    }))).finally(() => setOpsiBusy(false));
+    }))).finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const connectStoredOpsi = () => {
     if (!opsi) return;
+    workspace?.clearFamily('management');
     setOpsiBusy(true); setOpsiError(null);
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'connect', {
       server: opsi.server, userName: '', password: null,
@@ -208,11 +212,12 @@ export function SettingsPage() {
       setOpsiStatus(status); environment?.invalidate();
     }).catch((caught: unknown) => setOpsiError(presentError(caught, {
       message: 'The opsi settings or connection could not be updated.',
-    }))).finally(() => setOpsiBusy(false));
+    }))).finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const saveKasperskyCredential = () => {
     if (!targets) return;
+    workspace?.clearFamily('management');
     setSaving(true); setSaveError(null);
     invoke<ServiceCredentialStatus>('system', 'saveServiceCredential', {
       kind: 'KASPERSKY', userName: kasperskyDraft.userName,
@@ -224,10 +229,11 @@ export function SettingsPage() {
       environment?.invalidate();
     }).catch((caught: unknown) => setSaveError(presentError(caught, {
       message: 'The settings change could not be saved.',
-    }))).finally(() => setSaving(false));
+    }))).finally(() => { setSaving(false); void workspace?.refreshCached(); });
   };
 
   const deleteCredential = (kind: 'KASPERSKY' | 'OPSI') => {
+    workspace?.clearFamily('management');
     setSaving(true); setSaveError(null);
     invoke<ServiceCredentialStatus>('system', 'deleteServiceCredential', { kind })
       .then((status) => {
@@ -239,16 +245,17 @@ export function SettingsPage() {
         environment?.invalidate();
       }).catch((caught: unknown) => setSaveError(presentError(caught, {
         message: 'The settings change could not be saved.',
-      }))).finally(() => setSaving(false));
+      }))).finally(() => { setSaving(false); void workspace?.refreshCached(); });
   };
 
   const disconnectOpsi = () => {
+    workspace?.clearFamily('management');
     setOpsiBusy(true); setOpsiError(null);
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'disconnect', {})
       .then((status) => { setOpsiStatus(status); environment?.invalidate(); })
       .catch((caught: unknown) => setOpsiError(presentError(caught, {
         message: 'The opsi settings or connection could not be updated.',
-      }))).finally(() => setOpsiBusy(false));
+      }))).finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const saveNessusSettings = () => {

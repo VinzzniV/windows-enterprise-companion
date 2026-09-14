@@ -1,11 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import type { Microsoft365ObjectLists, StoredObjectLists, WecWorkspaceIdentity } from '../api-types.generated';
+import type { ManagementDeviceObjectLists, Microsoft365ObjectLists, StoredObjectLists, WecWorkspaceIdentity } from '../api-types.generated';
 import { invokeCancellable, type CancellableBridgeInvocation } from '../bridge/bridgeClient';
 import { presentError } from '../bridge/errorPresentation';
 import { useTargets } from '../targets/TargetContext';
+import { useEnvironmentRequest } from '../environment/EnvironmentContext';
 import { captureWorkingSet, type WorkingSetPolicy, type WorkingSetRead, type WorkingSetSnapshot } from './workingSet';
-import { cloudWorkingSetReads, storedWorkingSetReads } from './workingSetSources';
+import { cloudWorkingSetReads, managementWorkingSetReads, storedWorkingSetReads } from './workingSetSources';
 
 export interface WorkingDirectoryEndpoint { domain: string; server: string }
 interface WorkspaceState {
@@ -17,6 +18,10 @@ interface WorkspaceState {
   cloudSession: number | null;
   cloudGeneration: number;
   directoryGeneration: number;
+  managementGeneration: number;
+  managementSession: number | null;
+  managementSnapshot: string | null;
+  opsiSession: string | null;
   busy: boolean;
   error: string | null;
 }
@@ -30,7 +35,7 @@ interface WorkingSetContextValue extends WorkspaceState {
 }
 
 const initial: WorkspaceState = { displayed: null, available: null, policy: null, workspace: null, directoryEndpoint: null,
-  cloudSession: null, cloudGeneration: 0, directoryGeneration: 0, busy: false, error: null };
+  cloudSession: null, cloudGeneration: 0, directoryGeneration: 0, managementGeneration: 0, managementSession: null, managementSnapshot: null, opsiSession: null, busy: false, error: null };
 const Context = createContext<WorkingSetContextValue | null>(null);
 
 function publish(state: WorkspaceState, reads: readonly WorkingSetRead[], policy: WorkingSetPolicy, apply: boolean): WorkspaceState {
@@ -41,6 +46,8 @@ function publish(state: WorkspaceState, reads: readonly WorkingSetRead[], policy
 export function WorkingSetProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { adminCredentials } = useTargets();
+  const environment = useEnvironmentRequest();
+  const activeEnvironment = useRef(environment);
   const [state, setState] = useState<WorkspaceState>(initial);
   const current = useRef(state);
   const requests = useRef<CancellableBridgeInvocation<unknown>[]>([]);
@@ -61,6 +68,10 @@ export function WorkingSetProvider({ children }: { children: ReactNode }) {
       const next = { ...previous, busy: false, error: null,
         cloudGeneration: previous.cloudGeneration + (family === 'cloud' ? 1 : 0),
         directoryGeneration: previous.directoryGeneration + (family === 'directory' ? 1 : 0),
+        managementGeneration: previous.managementGeneration + (family === 'management' ? 1 : 0),
+        managementSession: family === 'management' ? null : previous.managementSession,
+        managementSnapshot: family === 'management' ? null : previous.managementSnapshot,
+        opsiSession: family === 'management' ? null : previous.opsiSession,
         directoryEndpoint: family === 'directory' ? null : previous.directoryEndpoint,
         cloudSession: family === 'cloud' ? null : previous.cloudSession };
       return policy ? publish(next, reads, policy, true) : next;
@@ -73,40 +84,53 @@ export function WorkingSetProvider({ children }: { children: ReactNode }) {
     update(previous => ({ ...previous, busy: true, error: null }));
     let local: CancellableBridgeInvocation<StoredObjectLists>;
     let cloud: CancellableBridgeInvocation<Microsoft365ObjectLists>;
+    let management: CancellableBridgeInvocation<ManagementDeviceObjectLists>;
     try {
       local = invokeCancellable<StoredObjectLists>('clients', 'getStoredObjectLists', storedSearch ? { search: storedSearch } : undefined);
       requests.current = [local];
       void local.promise.catch(() => undefined);
       cloud = invokeCancellable<Microsoft365ObjectLists>('microsoft365', 'getCachedObjectLists');
       requests.current.push(cloud);
+      void cloud.promise.catch(() => undefined);
+      management = invokeCancellable<ManagementDeviceObjectLists>('clients', 'getCachedManagementObjectLists', { ...activeEnvironment.current, search: storedSearch });
+      requests.current.push(management);
     } catch (caught) {
       if (own === generation.current) update(previous => ({ ...previous, busy: false, error: presentError(caught).message }));
       cancelReads();
       return;
     }
-    const results = await Promise.allSettled([local.promise, cloud.promise]);
+    const results = await Promise.allSettled([local.promise, cloud.promise, management.promise]);
     if (own !== generation.current) return;
     requests.current = [];
     update(previous => {
       const stored = results[0].status === 'fulfilled' ? results[0].value : null;
       const microsoft365 = results[1].status === 'fulfilled' ? results[1].value : null;
+      const managed = results[2].status === 'fulfilled' ? results[2].value : null;
       const failure = results.find(result => result.status === 'rejected');
       const error = failure?.status === 'rejected' ? presentError(failure.reason).message : null;
       const scopeChanged = stored !== null && previous.workspace !== null && stored.workspace.scope !== previous.workspace.scope;
       const cloudChanged = microsoft365 !== null && previous.policy !== null && (microsoft365.sessionRevision !== previous.cloudSession
         || microsoft365.tenantId !== previous.policy?.tenantId);
+      const managementChanged = managed !== null && previous.managementSession !== null
+        && (managed.sessionRevision !== previous.managementSession || managed.opsiSessionId !== previous.opsiSession);
+      const managementSnapshotChanged = managed !== null && managed.snapshotId !== previous.managementSnapshot;
       const tenantId = microsoft365 !== null ? microsoft365.tenantId : previous.policy?.tenantId ?? null;
       const policy = stored ? { maximumRecords: stored.maximumRecords, maximumSourceReads: stored.maximumSourceReads,
         directoryScope: scopeChanged ? null : previous.policy?.directoryScope ?? null, tenantId }
         : previous.policy ? { ...previous.policy, tenantId } : null;
       if (!policy) return { ...previous, busy: false, error: error ?? 'The working-set policy could not be loaded.' };
       const retained = scopeChanged ? [] : previous.available?.reads.filter(read => (read.family !== 'cloud' || microsoft365 === null)
-        && (read.family !== 'stored' || stored === null || read.collectionKey !== JSON.stringify(['stored', stored.search]))) ?? [];
-      const reads = [...retained, ...(stored ? storedWorkingSetReads(stored) : []), ...(microsoft365 ? cloudWorkingSetReads(microsoft365) : [])];
+        && (read.family !== 'stored' || stored === null || read.collectionKey !== JSON.stringify(['stored', stored.search]))
+        && (read.family !== 'management' || managed === null || !managementChanged && !managementSnapshotChanged && read.collectionKey !== JSON.stringify(['management', managed.search]))) ?? [];
+      const reads = [...retained, ...(stored ? storedWorkingSetReads(stored) : []), ...(microsoft365 ? cloudWorkingSetReads(microsoft365) : []),
+        ...(managed ? managementWorkingSetReads(managed) : [])];
       const next = { ...previous, workspace: stored?.workspace ?? previous.workspace, cloudSession: microsoft365?.sessionRevision ?? previous.cloudSession,
         cloudGeneration: previous.cloudGeneration + (cloudChanged ? 1 : 0), directoryGeneration: previous.directoryGeneration + (scopeChanged ? 1 : 0),
+        managementGeneration: previous.managementGeneration + (managementChanged || scopeChanged ? 1 : 0),
+        managementSession: managed?.sessionRevision ?? previous.managementSession, opsiSession: managed ? managed.opsiSessionId : previous.opsiSession,
+        managementSnapshot: managed ? managed.snapshotId : previous.managementSnapshot,
         directoryEndpoint: scopeChanged ? null : previous.directoryEndpoint, busy: false, error };
-      return publish(next, reads, policy, apply || cloudChanged || scopeChanged);
+      return publish(next, reads, policy, apply || cloudChanged || scopeChanged || managementChanged);
     });
   }, [cancelReads, update]);
 
@@ -121,14 +145,19 @@ export function WorkingSetProvider({ children }: { children: ReactNode }) {
     });
   }, [update]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (credentials.current === adminCredentials) return;
     credentials.current = adminCredentials;
     clearFamily('directory');
-    clearFamily('management');
   }, [adminCredentials, clearFamily]);
 
-  useEffect(() => { void refreshCached(); return cancelReads; }, [location.pathname, refreshCached, cancelReads]);
+  useLayoutEffect(() => {
+    if (activeEnvironment.current === environment) return;
+    activeEnvironment.current = environment;
+    clearFamily('management');
+  }, [environment, clearFamily]);
+
+  useEffect(() => { void refreshCached(); return cancelReads; }, [location.pathname, environment, refreshCached, cancelReads]);
 
   useEffect(() => {
     const deadlines = [...state.available?.reads ?? [], ...state.displayed?.reads ?? []]
@@ -157,7 +186,7 @@ export function useWorkingSet(): WorkingSetContextValue {
 
 export function useWorkingSetSessions() {
   const value = useContext(Context);
-  return { cloud: value?.cloudGeneration ?? 0, directory: value?.directoryGeneration ?? 0 };
+  return { cloud: value?.cloudGeneration ?? 0, directory: value?.directoryGeneration ?? 0, management: value?.managementGeneration ?? 0 };
 }
 
 export function useOptionalWorkingSet() { return useContext(Context); }

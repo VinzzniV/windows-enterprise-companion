@@ -1,10 +1,14 @@
-import type { Microsoft365Resource, ObjectKind, ObjectReference, ObjectSource } from '../api-types.generated';
+import type { ManagementDeviceRecordReference, Microsoft365Resource, ObjectKind, ObjectReference, ObjectSource } from '../api-types.generated';
 import { hostAddressKey } from '../targets/hostAddress';
+import { managementRecordPath } from './managementRecordRoutes';
+
+export type WorkingSetSource = ObjectSource | 'KASPERSKY' | 'OPSI' | 'NESSUS';
 
 export interface WorkingSetObservation {
   reference: ObjectReference | null;
   kind: ObjectKind;
-  source: ObjectSource;
+  source: WorkingSetSource;
+  managementReference?: ManagementDeviceRecordReference;
   label: string;
   aliases: readonly string[];
   accountEnabled: boolean | null;
@@ -95,7 +99,8 @@ function sameSourceObjects(reads: readonly WorkingSetRead[]): WorkingSetObject[]
     read.rows.forEach((row, index) => {
       const reference = validReference(row.reference) && row.reference.kind === row.kind && row.reference.source === row.source
         && read.scope !== null && canonical(read.scope) === canonical(row.reference.scope) ? row.reference : null;
-      const key = reference ? workingSetReferenceKey(reference) : JSON.stringify(['unresolved', read.key, index]);
+      const key = reference ? workingSetReferenceKey(reference) : row.managementReference ? managementRecordPath(row.managementReference)
+        : JSON.stringify(['unresolved', read.key, index]);
       const previous = objects.get(key);
       const observation = { ...row, reference, readKey: read.key };
       if (previous) {
@@ -264,7 +269,7 @@ export function captureWorkingSet(input: readonly WorkingSetRead[], policy: Work
 export interface WorkingSetFilter {
   kind?: ObjectKind;
   query?: string;
-  source?: ObjectSource;
+  source?: WorkingSetSource;
   accountState?: 'enabled' | 'disabled' | 'unknown';
   operatingSystem?: string;
   skuId?: string;

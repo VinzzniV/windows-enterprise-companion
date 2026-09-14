@@ -8,7 +8,7 @@ import { useEnvironmentRequest } from '../../shared/environment/EnvironmentConte
 export function useDeviceProfile(reference: ObjectReference) {
   const context = useEnvironmentRequest();
   const sessions = useWorkingSetSessions();
-  const sessionKey = String(sessions.cloud) + ':' + sessions.directory;
+  const sessionKey = String(sessions.cloud) + ':' + sessions.directory + ':' + sessions.management;
   const refreshCached = useOptionalWorkingSet()?.refreshCached;
   const generation = useRef(0);
   const active = useRef<CancellableBridgeInvocation<unknown> | null>(null);

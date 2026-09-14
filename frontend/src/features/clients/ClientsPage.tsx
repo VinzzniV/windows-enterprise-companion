@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type {
   AppInfoResponse,
   ClientWorkspaceListItem,
@@ -358,11 +358,12 @@ export function ClientsPage() {
   };
 
   return <div className="flex flex-col gap-4">
-    <PageHeader title="Clients" subtitle="Canonical device inventory and fleet posture across AD, Kaspersky, opsi, Nessus and WEC scans">
+    <PageHeader title="Clients" subtitle="Client posture and Windows operations from existing management evidence">
       <div className="flex gap-2"><Button variant="secondary" onClick={() => navigate('/clients/compare')}>Compare</Button>
         <Button variant="secondary" onClick={probeOnline} disabled={probing || !rows.length}>{probing ? 'Checking…' : 'Check page connectivity'}</Button>
         <Button variant="secondary" onClick={() => { setPage(1); setRefreshRevision((current) => current + 1); }} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</Button></div>
     </PageHeader>
+    <Link className="text-sm text-accent-400 underline" to="/devices">Open the shared device working set</Link>
     {probeError && <ErrorState
       title="Client connectivity check failed"
       {...probeError}

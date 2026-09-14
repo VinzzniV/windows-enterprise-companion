@@ -19,6 +19,7 @@ const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage
   .then((module) => ({ default: module.ClientDetailPage })));
 const DeviceProfilePage = lazy(() => import('../features/clients/DeviceProfilePage')
   .then((module) => ({ default: module.DeviceProfilePage })));
+const ManagementRecordPage = lazy(() => import('../features/clients/ManagementRecordPage').then(module => ({ default: module.ManagementRecordPage })));
 const UsersPage = lazy(() => import('../features/users/UsersPage')
   .then((module) => ({ default: module.UsersPage })));
 const Microsoft365Page = lazy(() => import('../features/microsoft365/Microsoft365Page')
@@ -90,6 +91,7 @@ export const appRoutes: readonly AppRouteDefinition[] = [
   { id: 'client-compare', path: '/clients/compare', sectionLabel: 'Clients', Component: ComparePage },
   { id: 'client-detail', path: '/clients/:host', sectionLabel: 'Clients', Component: ClientDetailPage },
   { id: 'device-profile', path: '/devices/:source/:scope/:objectId', sectionLabel: 'Devices', Component: DeviceProfilePage },
+  { id: 'management-record', path: '/devices/records/:source/:workspace/:snapshot/:index', sectionLabel: 'Devices', Component: ManagementRecordPage },
   { id: 'devices-workspace', path: '/devices', sectionLabel: 'Devices', Component: DevicesWorkingSetPage },
   { id: 'users-workspace', path: '/users/workspace', sectionLabel: 'Users', Component: UsersWorkingSetPage },
   { id: 'groups-workspace', path: '/groups/workspace', sectionLabel: 'Groups', Component: GroupsWorkingSetPage },

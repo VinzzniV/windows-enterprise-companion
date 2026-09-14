@@ -89,6 +89,9 @@ export function Microsoft365Page() {
     <PageHeader title="Microsoft 365" subtitle="Microsoft Graph · read-only administrative evidence">
       <Badge tone={connection?.connected ? 'accent' : 'neutral'}>{connection?.connected ? 'Signed in' : 'Not connected'}</Badge>
     </PageHeader>
+    <nav aria-label="Object workspaces" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
+      <Link to="/devices">Device working set</Link><Link to="/users/workspace">Account working set</Link><Link to="/groups/workspace">Group working set</Link>
+    </nav>
     <Card title="Connection">
       <div className="grid gap-3 md:grid-cols-2">
         <label className="text-xs text-muted">Tenant ID<Input value={configuration.tenantId} disabled={auth.busy}

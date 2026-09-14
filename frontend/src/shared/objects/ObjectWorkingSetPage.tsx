@@ -1,9 +1,11 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import type { ObjectKind, ObjectSource } from '../api-types.generated';
+import type { ObjectKind } from '../api-types.generated';
 import { objectPath, objectSourceLabel } from './objectRoutes';
 import { useWorkingSet } from './WorkingSetContext';
-import { queryWorkingSet, type WorkingSetObject } from './workingSet';
+import { queryWorkingSet, type WorkingSetObject, type WorkingSetSource } from './workingSet';
+import { workingSetSourceLabel } from './workingSetSources';
+import { managementRecordPath } from './managementRecordRoutes';
 import { WorkingSetCoverage } from './WorkingSetCoverage';
 import { WorkingSetSourceControls } from './WorkingSetSourceControls';
 import { DataTable, type DataColumn } from '../ui/DataTable';
@@ -12,7 +14,7 @@ import { Select } from '../ui/Select';
 import { PageHeader } from '../ui/PageHeader';
 
 const positions = new Map<string, { scroll: number; focus: string | null }>();
-const sources: ObjectSource[] = ['ACTIVE_DIRECTORY', 'ENTRA', 'INTUNE', 'WEC'];
+const sources: WorkingSetSource[] = ['ACTIVE_DIRECTORY', 'ENTRA', 'INTUNE', 'WEC', 'KASPERSKY', 'OPSI', 'NESSUS'];
 const titles: Record<ObjectKind, string> = { DEVICE: 'Devices', USER: 'Users', GROUP: 'Groups' };
 
 export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
@@ -61,10 +63,14 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
         className="break-all text-xs text-accent-400 underline" to={objectPath(reference)}
         state={{ directoryEndpoint: workspace.directoryEndpoint, fromWorkingSet: `${location.pathname}${location.search}` }}>
         {objectSourceLabel[reference.source]} · {reference.id}</Link>)}
-        {row.references.length === 0 && <span className="text-warn-400">Scoped source identity unavailable</span>}</div></div> },
+        {row.observations.filter(observation => observation.managementReference).map((observation, index) => <Link
+          key={index} data-object-focus={managementRecordPath(observation.managementReference!)} className="text-xs text-accent-400 underline"
+          to={managementRecordPath(observation.managementReference!)} state={{ fromWorkingSet: `${location.pathname}${location.search}` }}>
+          Open {workingSetSourceLabel[observation.source]} source record {observation.managementReference!.recordIndex + 1}</Link>)}
+        {row.references.length === 0 && <span className="text-warn-400">Stable scoped device identity unavailable</span>}</div></div> },
     { header: 'Source evidence', cell: row => <ul className="space-y-2 text-xs">{row.observations.map((observation, index) => <li key={index}>
-      <strong>{objectSourceLabel[observation.source]}</strong> · {observation.label}
-      <p className="break-all text-muted">{observation.reference?.scope ?? 'Scope unavailable'}{observation.operatingSystem ? ` · ${observation.operatingSystem}` : ''}</p>
+      <strong>{workingSetSourceLabel[observation.source]}</strong> · {observation.label}
+      <p className="break-all text-muted">{workspace.displayed?.reads.find(read => read.key === observation.readKey)?.scope ?? 'Scope unavailable'}{observation.operatingSystem ? ` · ${observation.operatingSystem}` : ''}</p>
       {kind !== 'GROUP' && <p>Account: {observation.accountEnabled === null ? 'Unknown / not supplied' : observation.accountEnabled ? 'Enabled' : 'Disabled'}</p>}
       {observation.observedAtUtc && <p>Observed: {new Date(observation.observedAtUtc).toLocaleString()}</p>}
     </li>)}</ul> },
@@ -72,7 +78,7 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
       {row.hasCandidates && <p className="text-warn-400">Similar source records exist; candidate evidence does not confirm identity.</p>}
       {row.duplicateSourceIdentity && <p className="text-warn-400">Duplicate native ID in a source result. Inspect source records.</p>}
       {row.conflictingIdentityEvidence && <p className="text-warn-400">Conflicting identity values are retained.</p>}
-      {row.references.every(reference => reference.source === 'WEC') && <p>Stored execution address; physical device identity unconfirmed.</p>}
+      {row.references.length > 0 && row.references.every(reference => reference.source === 'WEC') && <p>Stored execution address; physical device identity unconfirmed.</p>}
       {row.references.length > 1 && <p>Related by verified scoped IDs and sufficient cached query coverage.</p>}
       {!row.hasCandidates && !row.duplicateSourceIdentity && !row.conflictingIdentityEvidence && row.references.length === 1 && row.references[0].source !== 'WEC' && <p>Scoped source object.</p>}
     </div> },
@@ -87,7 +93,7 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
     <div className="flex flex-wrap items-end gap-3">
       <label className="text-xs text-muted">Search loaded {titles[kind].toLowerCase()}<Input value={query} onChange={event => change('q', event.target.value)} /></label>
       <label className="text-xs text-muted">Source<Select value={source ?? ''} onChange={event => change('source', event.target.value)}><option value="">All loaded sources</option>
-        {sources.filter(value => kind === 'DEVICE' || value !== 'INTUNE' && value !== 'WEC').map(value => <option key={value} value={value}>{objectSourceLabel[value]}</option>)}</Select></label>
+        {sources.filter(value => kind === 'DEVICE' || value === 'ACTIVE_DIRECTORY' || value === 'ENTRA').map(value => <option key={value} value={value}>{workingSetSourceLabel[value]}</option>)}</Select></label>
       {kind !== 'GROUP' && <label className="text-xs text-muted">Account state<Select value={accountState ?? ''} onChange={event => change('account', event.target.value)}>
         <option value="">Any / conflicting</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option><option value="unknown">Unknown / not supplied</option></Select></label>}
       {kind === 'DEVICE' && <label className="text-xs text-muted">Operating system (exact)<Input value={operatingSystem} onChange={event => change('os', event.target.value)} /></label>}

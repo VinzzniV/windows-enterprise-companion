@@ -37,3 +37,13 @@ before paging. URL state restores filters and paging through profile navigation;
 bounded in-memory positions restore list scroll/focus. The initial routes are
 `/devices`, `/users/workspace` and `/groups/workspace`; existing specialist
 workspaces and navigation remain until the G2 parity migration.
+
+Raw management cache reads contribute original AD/KSC/opsi/Nessus observations.
+`managementRecordRoutes.ts` uses a disposable workspace/snapshot/source/index
+locator when a scoped native ID is missing. Duplicate source names remain separate;
+the same observation repeated by a targeted cached query is deduplicated without
+claiming physical identity. `ManagementRecordPage` exposes all original fields,
+source uncertainty and candidate navigation without a Windows execution target.
+Its Nessus findings link retains the exact stored asset key. Source refresh replaces
+old locator queries in the available revision; a connection change immediately
+removes the displayed evidence. The random snapshot ID prevents cross-run reuse.
