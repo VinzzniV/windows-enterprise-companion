@@ -47,6 +47,13 @@ internal sealed class DirectoryUserReadService : IDirectoryUserReadProvider
                 false, null, null, query.Page, query.PageSize, 0, []));
         }
 
+        string? directoryScope = DirectoryIdentityValues.DirectoryScope(context.Value.DefaultNamingContext!);
+        if (query.DirectoryScope is not null && !string.Equals(directoryScope,
+            query.DirectoryScope.Trim().TrimEnd('.'), StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Failure<DirectoryUserPage>(new(ErrorCode.DirectoryUnavailable,
+                "The connected directory naming context does not match this user list."));
+        }
         string baseDn = string.IsNullOrWhiteSpace(query.BaseDistinguishedName)
             ? context.Value.DefaultNamingContext!
             : query.BaseDistinguishedName.Trim();
@@ -80,7 +87,7 @@ internal sealed class DirectoryUserReadService : IDirectoryUserReadProvider
             ? Result.Failure<DirectoryUserPage>(mapped.Error!)
             : Result.Success(new DirectoryUserPage(
                 true,
-                context.Value.DomainName,
+                DirectoryIdentityValues.DirectoryScope(context.Value.DefaultNamingContext!),
                 baseDn,
                 query.Page,
                 query.PageSize,

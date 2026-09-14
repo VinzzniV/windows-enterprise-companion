@@ -15,6 +15,7 @@ public sealed class UserManagementModule : IModule
         services.AddScoped<IActionHandler, ScopedUserProfileHandler>();
         services.AddScoped<IActionHandler, ResolveUserSidHandler>();
         services.AddScoped<IActionHandler, ListUsersHandler>();
+        services.AddScoped<IActionHandler, DirectoryUserListHandler>();
         services.AddScoped<IActionHandler, GetUserProfileHandler>();
         services.AddScoped<IActionHandler, ExportLeaverReviewHandler>();
     }

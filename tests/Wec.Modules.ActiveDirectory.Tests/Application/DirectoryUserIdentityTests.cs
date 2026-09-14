@@ -101,4 +101,21 @@ public sealed class DirectoryUserIdentityTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Create().GetBySidAsync(new(Connection, Sid), cancellation.Token));
         await _reader.DidNotReceiveWithAnyArgs().SearchAsync(default!, default);
     }
+
+    [Fact]
+    public async Task UserPageUsesActualDnsScopeAndChecksItBeforeSearching()
+    {
+        _reader.SearchPageAsync(Arg.Any<DirectorySearchQuery>(), Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new BoundedDirectorySearchResult(1, [User(ObjectId)])));
+        var query = new DirectoryUserPageQuery(Connection with { Domain = "EXAMPLE" }, null, null, null,
+            DirectoryUserAccountStateFilter.All, 1, 100, DirectoryUserSortField.SamAccountName,
+            DirectoryUserSortDirection.Ascending, Scope);
+        var result = await Create().GetPageAsync(query, CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(Scope, result.Value.DomainName);
+        Assert.Equal(Scope, Assert.Single(result.Value.Users).DirectoryScope);
+        _reader.ClearReceivedCalls();
+        Assert.True((await Create().GetPageAsync(query with { DirectoryScope = "other.test" }, CancellationToken.None)).IsFailure);
+        await _reader.DidNotReceiveWithAnyArgs().SearchPageAsync(default!, default, default, default);
+    }
 }

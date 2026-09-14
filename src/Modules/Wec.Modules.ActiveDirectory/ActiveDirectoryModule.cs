@@ -33,6 +33,8 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<IDirectoryUserReadProvider, DirectoryUserReadService>();
         services.AddSingleton<DirectoryUserSnapshotCache>();
         services.AddScoped<IDirectoryUserSnapshotProvider, DirectoryUserSnapshotProvider>();
+        services.AddSingleton<DirectoryUserListCache>();
+        services.AddScoped<IDirectoryUserListProvider, DirectoryUserListProvider>();
         services.AddScoped<IActionHandler, SearchAdUsersHandler>();
     }
 }

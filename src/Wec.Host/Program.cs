@@ -323,6 +323,7 @@ internal static partial class Program
             .Bind(builder.Configuration.GetSection(Microsoft365CacheOptions.SectionName))
             .Validate(value => value.FreshFor > TimeSpan.Zero && value.RetainFor >= value.FreshFor
                 && value.RetainFor <= TimeSpan.FromHours(24) && value.MaximumEntries is >= 1 and <= 128
+                && value.MaximumObjectListRecords is >= 1 and <= 50000
                 && value.LicenseWarningRatio is > 0 and <= 1, "Microsoft 365 cache limits are invalid.")
             .ValidateOnStart();
         builder.Services.AddSingleton<IServiceCredentialStore, WindowsCredentialStore>();

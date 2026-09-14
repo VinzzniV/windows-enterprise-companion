@@ -20,12 +20,22 @@ public sealed class Microsoft365BoundaryTests
         Assert.Equal(allowed, WebViewBridge.HasTrustedOrigin(source, "https://app.wec"));
 
     [Fact]
-    public void Microsoft365HandlersResolveWithoutAuthenticationOrExternalReads()
+    public async Task Microsoft365HandlersResolveWithoutAuthenticationOrExternalReads()
     {
         using IHost host = Program.BuildHost([]);
         using IServiceScope scope = host.Services.CreateScope();
-        Assert.Equal(5, scope.ServiceProvider.GetServices<IActionHandler>().Count(handler => handler.Module == "microsoft365"));
+        Assert.Equal(["connect", "disconnect", "getCachedObjectLists", "getContext", "getStatus", "read"],
+            scope.ServiceProvider.GetServices<IActionHandler>().Where(handler => handler.Module == "microsoft365")
+                .Select(handler => handler.Action).OrderBy(action => action, StringComparer.Ordinal));
         Assert.False(scope.ServiceProvider.GetRequiredService<IMicrosoft365Reader>().Connection.Connected);
+        var lists = await scope.ServiceProvider.GetRequiredService<IMicrosoft365ObjectListProvider>()
+            .ReadObjectListsCachedAsync(null, CancellationToken.None);
+        Assert.True(lists.IsSuccess);
+        Assert.All(lists.Value.Reads, read =>
+        {
+            Assert.Equal(Microsoft365Availability.NotConnected, read.State.Availability);
+            Assert.Empty(read.Rows);
+        });
     }
 
     [Theory]

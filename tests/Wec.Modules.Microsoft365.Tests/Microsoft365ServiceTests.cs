@@ -22,8 +22,98 @@ public sealed class Microsoft365ServiceTests
             .Returns(Result.Success(new Microsoft365Data()));
     }
 
-    private Microsoft365Service Create(int maximumEntries = 32) => new(_reader, _clock,
-        Options.Create(new Microsoft365CacheOptions { MaximumEntries = maximumEntries }));
+    private Microsoft365Service Create(int maximumEntries = 32, int maximumObjectListRecords = 5000) => new(_reader, _clock,
+        Options.Create(new Microsoft365CacheOptions { MaximumEntries = maximumEntries, MaximumObjectListRecords = maximumObjectListRecords }));
+
+    [Fact]
+    public async Task ObjectListsAreCacheOnlyAndPreserveSourceBoundsDuplicatesAndUnknownFields()
+    {
+        using var service = Create(maximumObjectListRecords: 2);
+        var empty = await service.ReadObjectListsCachedAsync(null, TestContext());
+        Assert.Equal(4, empty.Value.Reads.Count);
+        Assert.All(empty.Value.Reads, read => Assert.Empty(read.Rows));
+        await _reader.DidNotReceive().ReadAsync(Arg.Any<Microsoft365Query>(), Arg.Any<CancellationToken>());
+        var user = new Microsoft365User("33333333-3333-3333-3333-333333333333", "Name", "account@example.test", null,
+            null, "Guest", null, null, null, null, "S-1-5-21-1-2-3-1001", null, [new("sku", [])]);
+        _reader.ReadAsync(Users, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
+        {
+            Users = [user, user with { DisplayName = "Conflicting name" }, user with { Id = null }], TotalCount = 1000, Truncated = true,
+        }));
+        await service.ReadAsync(Users, true, TestContext());
+        var listed = (await service.ReadObjectListsCachedAsync(null, TestContext())).Value;
+        Assert.Equal(3, listed.CachedSourceRecords);
+        Assert.Equal(2, listed.LoadedSourceRecords);
+        Assert.True(listed.Truncated);
+        var source = Assert.Single(listed.Reads, read => read.State.Query == Users);
+        Assert.Equal(3, source.State.LoadedCount);
+        Assert.Equal(1000, source.State.DeclaredTotal);
+        Assert.Equal(EvidenceCoverage.Partial, source.State.Coverage);
+        Assert.Equal(2, source.Rows.Count);
+        Assert.All(source.Rows, row => { Assert.Null(row.AccountEnabled); Assert.Equal(user.Id, row.ObjectId); Assert.Equal("sku", Assert.Single(row.AssignedSkuIds!)); });
+        Assert.Equal("Conflicting name", source.Rows[1].DisplayName);
+        await _reader.Received(1).ReadAsync(Users, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ObjectListsKeepIntuneRegistrationAndAssociatedUserIdsDistinctAndRetainMissingIds()
+    {
+        _reader.Connection.Returns(_reader.Connection with { Configuration = _reader.Connection.Configuration with { EnableIntune = true } });
+        using var service = Create();
+        Microsoft365Query managed = new(Microsoft365Resource.ManagedDevices);
+        _reader.ReadAsync(managed, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
+        {
+            ManagedDevices = [new("managed", "Device", "associated-user", "candidate@example.test", "Windows", null, null, null,
+                null, null, null, null, null, "registration"), new(null, "Limited record", null, null, null, null, null, null, null, null, null, null, null, null)],
+        }));
+        await service.ReadAsync(managed, true, TestContext());
+        var rows = Assert.Single((await service.ReadObjectListsCachedAsync(null, TestContext())).Value.Reads,
+            read => read.State.Query == managed).Rows;
+        Assert.Equal(2, rows.Count);
+        Assert.Equal("managed", rows[0].ObjectId);
+        Assert.Equal("registration", rows[0].RegistrationDeviceId);
+        Assert.Equal("associated-user", rows[0].AssociatedUserId);
+        Assert.Null(rows[1].ObjectId);
+        _reader.Connection.Returns(_reader.Connection with { Configuration = _reader.Connection.Configuration with { EnableIntune = false } });
+        Assert.Empty(Assert.Single((await service.ReadObjectListsCachedAsync(null, TestContext())).Value.Reads,
+            read => read.State.Query == managed).Rows);
+    }
+
+    [Fact]
+    public async Task ObjectListsExposeFailureAndExpiryWithoutRetryingAndRejectOtherTenant()
+    {
+        using var service = Create();
+        _reader.ReadAsync(Users, Arg.Any<CancellationToken>()).Returns(Result.Failure<Microsoft365Data>(new(ErrorCode.AccessDenied, "Denied")));
+        await service.ReadAsync(Users, true, TestContext());
+        var failed = Assert.Single((await service.ReadObjectListsCachedAsync(null, TestContext())).Value.Reads, read => read.State.Query == Users);
+        Assert.Equal(Microsoft365Availability.Unavailable, failed.State.Availability);
+        Assert.NotNull(failed.State.LastAttemptError);
+        _clock.UtcNow.Returns(_clock.UtcNow.AddHours(2));
+        Assert.Equal(Microsoft365Availability.NotCached,
+            Assert.Single((await service.ReadObjectListsCachedAsync(null, TestContext())).Value.Reads, read => read.State.Query == Users).State.Availability);
+        Assert.True((await service.ReadObjectListsCachedAsync("33333333-3333-3333-3333-333333333333", TestContext())).IsFailure);
+        await _reader.Received(1).ReadAsync(Users, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ObjectListsRemainResponsiveDuringSourceReadAndDiscardSessionDataOnDisconnect()
+    {
+        using var service = Create();
+        await service.ReadAsync(Users, true, TestContext());
+        var completion = new TaskCompletionSource<Result<Microsoft365Data>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _reader.ReadAsync(Users, Arg.Any<CancellationToken>()).Returns(completion.Task);
+        var loading = service.ReadAsync(Users, true, TestContext());
+        var cached = service.ReadObjectListsCachedAsync(null, TestContext());
+        Assert.True(cached.IsCompletedSuccessfully);
+        Assert.True(Assert.Single((await cached).Value.Reads, read => read.State.Query == Users).State.Loading);
+        completion.SetResult(Result.Success(new Microsoft365Data()));
+        await loading;
+        long revision = (await cached).Value.SessionRevision;
+        await service.DisconnectAsync(TestContext());
+        var disconnected = (await service.ReadObjectListsCachedAsync(null, TestContext())).Value;
+        Assert.True(disconnected.SessionRevision > revision);
+        Assert.All(disconnected.Reads, read => Assert.Empty(read.Rows));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.ReadObjectListsCachedAsync(null, new CancellationToken(true)));
+    }
 
     [Fact]
     public async Task NavigationReusesStaleDataUntilExplicitRefresh()

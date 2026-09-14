@@ -2,12 +2,13 @@ using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Microsoft365;
 using Wec.Core.Results;
+using Wec.Core.Objects;
 using Wec.Modules.Microsoft365.Domain;
 
 namespace Wec.Modules.Microsoft365.Application;
 
 internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clock,
-    IOptions<Microsoft365CacheOptions> options) : IMicrosoft365DeviceContextProvider, IMicrosoft365UserContextProvider, IMicrosoft365GroupContextProvider, IDisposable
+    IOptions<Microsoft365CacheOptions> options) : IMicrosoft365DeviceContextProvider, IMicrosoft365UserContextProvider, IMicrosoft365GroupContextProvider, IMicrosoft365ObjectListProvider, IDisposable
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _readGate = new(1, 1);
@@ -331,6 +332,92 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
             return Task.FromResult(Result.Success(new Microsoft365GroupContext(scope, _generation, _revision,
                 groups.Select(query => new CachedMicrosoft365Groups(State(query), CachedData(query)?.Groups ?? [])).ToArray(),
                 groupId is null ? null : new(State(members), CachedData(members)?.Members ?? []))));
+        }
+    }
+
+    public Task<Result<Microsoft365ObjectLists>> ReadObjectListsCachedAsync(string? tenantId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (tenantId is not null && !ValidId(tenantId))
+        {
+            return Task.FromResult(Result.Failure<Microsoft365ObjectLists>(new(ErrorCode.InvalidRequest, "Use a valid tenant GUID.")));
+        }
+        lock (_gate)
+        {
+            Expire();
+            string? scope = ValidId(Connection.Configuration.TenantId) ? Guid.Parse(Connection.Configuration.TenantId).ToString("D") : null;
+            if (tenantId is not null && Guid.Parse(tenantId).ToString("D") != scope)
+            {
+                return Task.FromResult(SessionChanged<Microsoft365ObjectLists>());
+            }
+            Microsoft365Query[] inventories = [new(Microsoft365Resource.Users), new(Microsoft365Resource.Groups),
+                new(Microsoft365Resource.Devices), new(Microsoft365Resource.ManagedDevices)];
+            IEnumerable<Microsoft365Query> queries = inventories.Concat(_cache.Keys.Where(query => IsObjectListResource(query.Resource))
+                .OrderBy(query => query.Resource).ThenBy(query => query.ObjectId, StringComparer.Ordinal)
+                .ThenBy(query => query.SecurityIdentifier, StringComparer.Ordinal)).Distinct();
+            var reads = new List<Microsoft365ObjectListRead>();
+            int cached = 0;
+            int loaded = 0;
+            foreach (Microsoft365Query query in queries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Microsoft365ReadState state = State(query);
+                Microsoft365Data? data = state.Availability == Microsoft365Availability.Available ? CachedData(query) : null;
+                var rows = new List<Microsoft365ObjectListRow>();
+                if (data is not null)
+                {
+                    foreach (Microsoft365ObjectListRow row in ObjectListRows(query, data))
+                    {
+                        ++cached;
+                        if (loaded >= options.Value.MaximumObjectListRecords) { continue; }
+                        rows.Add(row); ++loaded;
+                    }
+                }
+                reads.Add(new(state, rows));
+            }
+            return Task.FromResult(Result.Success(new Microsoft365ObjectLists(scope, _generation, _revision,
+                options.Value.MaximumObjectListRecords, cached, loaded, cached > loaded, reads)));
+        }
+    }
+
+    private static bool IsObjectListResource(Microsoft365Resource resource) => resource is
+        Microsoft365Resource.Users or Microsoft365Resource.User or Microsoft365Resource.UsersBySid
+        or Microsoft365Resource.Groups or Microsoft365Resource.Group or Microsoft365Resource.UserGroups
+        or Microsoft365Resource.Devices or Microsoft365Resource.Device or Microsoft365Resource.UserDevices
+        or Microsoft365Resource.ManagedDevices or Microsoft365Resource.ManagedDevice;
+
+    private static IEnumerable<Microsoft365ObjectListRow> ObjectListRows(Microsoft365Query query, Microsoft365Data data)
+    {
+        switch (query.Resource)
+        {
+            case Microsoft365Resource.Users or Microsoft365Resource.User or Microsoft365Resource.UsersBySid:
+                foreach (Microsoft365User user in data.Users)
+                {
+                    yield return new(ObjectKind.User, ObjectSource.Entra, user.Id, user.DisplayName, user.UserPrincipalName,
+                        user.AccountEnabled, null, user.OnPremisesSid, null, null,
+                        user.AssignedLicenses?.Where(license => !string.IsNullOrWhiteSpace(license.SkuId)).Select(license => license.SkuId!).ToArray());
+                }
+                break;
+            case Microsoft365Resource.Groups or Microsoft365Resource.Group or Microsoft365Resource.UserGroups:
+                foreach (Microsoft365Group group in data.Groups)
+                {
+                    yield return new(ObjectKind.Group, ObjectSource.Entra, group.Id, group.DisplayName, null, null, null, null, null, null, null);
+                }
+                break;
+            case Microsoft365Resource.Devices or Microsoft365Resource.Device or Microsoft365Resource.UserDevices:
+                foreach (Microsoft365Device device in data.Devices)
+                {
+                    yield return new(ObjectKind.Device, ObjectSource.Entra, device.Id, device.DisplayName, null, device.AccountEnabled,
+                        device.OperatingSystem, null, device.DeviceId, null, null);
+                }
+                break;
+            case Microsoft365Resource.ManagedDevices or Microsoft365Resource.ManagedDevice:
+                foreach (Microsoft365ManagedDevice device in data.ManagedDevices)
+                {
+                    yield return new(ObjectKind.Device, ObjectSource.Intune, device.Id, device.DeviceName, device.UserPrincipalName, null,
+                        device.OperatingSystem, null, device.EntraDeviceId, device.UserId, null);
+                }
+                break;
         }
     }
 

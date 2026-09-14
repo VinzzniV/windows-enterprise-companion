@@ -20,6 +20,16 @@ Failures retain earlier facts only until the original retention deadline;
 failure-only reads count toward `IdentityCacheMaximumEntries`. No cache read
 performs LDAP I/O, and late results from a former context are discarded.
 
+`IDirectoryUserListProvider` supplies a minimal source-owned user list for the
+working set: scoped GUID/SID, names, nullable account state and department.
+It reuses the bounded AD page reader (maximum 100 rows per page) without
+composing profiles or making per-account membership queries. RootDSE scope is
+checked before searching. Pages retain source totals, duplicates and their own
+read/error/expiry metadata, bounded by `IdentityCacheMaximumEntries`. Cache
+reads do not wait for LDAP; context changes discard old pages and late results.
+`usermanagement/readDirectoryPage` exposes this projection with cache-only
+behavior by default; `refresh: true` explicitly reads the selected page.
+
 Read-only Active Directory analysis (M4). Access strategy: ADR 0006 (revised
 2026-07-03) — LDAP via the search-only `IDirectoryReader` Core seam,
 authenticated as the current Windows identity or with optional explicit

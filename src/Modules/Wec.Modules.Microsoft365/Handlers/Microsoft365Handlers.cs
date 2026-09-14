@@ -7,6 +7,7 @@ using Wec.Modules.Microsoft365.Domain;
 namespace Wec.Modules.Microsoft365.Handlers;
 
 public sealed record Microsoft365EmptyRequest;
+public sealed record Microsoft365ObjectListsRequest(string? TenantId = null);
 public sealed record Microsoft365ReadRequest(Microsoft365Resource Resource, string? ObjectId = null, bool Refresh = false,
     string? TenantId = null, string? SecurityIdentifier = null);
 public sealed record Microsoft365ContextRequest(string? Sid = null, string? UserPrincipalName = null,
@@ -18,6 +19,13 @@ internal sealed class Microsoft365StatusHandler(Microsoft365Service service) : I
     public string Action => "getStatus";
     public async Task<Result<Microsoft365Status>> HandleAsync(Microsoft365EmptyRequest payload, CancellationToken cancellationToken) =>
         Result.Success(await service.StatusAsync(cancellationToken).ConfigureAwait(false));
+}
+internal sealed class Microsoft365ObjectListsHandler(IMicrosoft365ObjectListProvider source) : IActionHandler<Microsoft365ObjectListsRequest, Microsoft365ObjectLists>
+{
+    public string Module => "microsoft365";
+    public string Action => "getCachedObjectLists";
+    public Task<Result<Microsoft365ObjectLists>> HandleAsync(Microsoft365ObjectListsRequest payload, CancellationToken cancellationToken) =>
+        source.ReadObjectListsCachedAsync(payload.TenantId, cancellationToken);
 }
 internal sealed class Microsoft365ConnectHandler(Microsoft365Service service) : IActionHandler<Microsoft365Configuration, Microsoft365Connection>
 {

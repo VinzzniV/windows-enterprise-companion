@@ -62,6 +62,17 @@ export interface CachedDirectoryUser {
   freshUntilUtc: string | null;
 }
 
+export interface CachedDirectoryUserList {
+  data: DirectoryUserListPage | null;
+  lastAttemptAtUtc: string | null;
+  lastAttemptError: Error | null;
+  sessionRevision: number;
+  revision: number;
+  retainedUntilUtc: string | null;
+  freshUntilUtc: string | null;
+  stale: boolean;
+}
+
 export interface ClientObservedUserEvidence {
   directorySid: string;
   accountDisplay: string;
@@ -179,6 +190,26 @@ export interface DirectoryUserIdentityResult {
   directoryScope: string;
   retrievedAtUtc: string;
   user: DirectoryUserRecord | null;
+}
+
+export interface DirectoryUserListEntry {
+  objectId: string;
+  securityIdentifier: string | null;
+  directoryScope: string;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  enabled: boolean | null;
+  department: string | null;
+}
+
+export interface DirectoryUserListPage {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  users: DirectoryUserListEntry[];
 }
 
 export interface DirectoryUserPrivilegedAccess {
@@ -496,6 +527,36 @@ export interface Microsoft365Member {
   displayName: string | null;
   objectType: string | null;
   userPrincipalName: string | null;
+}
+
+export interface Microsoft365ObjectListRead {
+  state: Microsoft365ReadState;
+  rows: Microsoft365ObjectListRow[];
+}
+
+export interface Microsoft365ObjectListRow {
+  kind: ObjectKind;
+  source: ObjectSource;
+  objectId: string | null;
+  displayName: string | null;
+  userPrincipalName: string | null;
+  accountEnabled: boolean | null;
+  operatingSystem: string | null;
+  securityIdentifier: string | null;
+  registrationDeviceId: string | null;
+  associatedUserId: string | null;
+  assignedSkuIds: string[] | null;
+}
+
+export interface Microsoft365ObjectLists {
+  tenantId: string | null;
+  sessionRevision: number;
+  revision: number;
+  recordLimit: number;
+  cachedSourceRecords: number;
+  loadedSourceRecords: number;
+  truncated: boolean;
+  reads: Microsoft365ObjectListRead[];
 }
 
 export interface Microsoft365Query {
@@ -2059,6 +2120,10 @@ export interface Microsoft365ContextRequest {
 export interface Microsoft365EmptyRequest {
 }
 
+export interface Microsoft365ObjectListsRequest {
+  tenantId?: string | null;
+}
+
 export interface Microsoft365ReadRequest {
   resource: Microsoft365Resource;
   objectId?: string | null;
@@ -2978,6 +3043,15 @@ export interface UserSummary {
   organizationalUnitPath: string;
   enabled: boolean | null;
   replicatedLastLogonAtUtc: string | null;
+}
+
+export interface DirectoryUserListRequest {
+  directoryScope: string;
+  connection?: UserDirectoryConnectionRequest | null;
+  search?: string | null;
+  page?: number;
+  pageSize?: number;
+  refresh?: boolean;
 }
 
 export interface ExportLeaverReviewRequest {

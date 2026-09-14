@@ -13,6 +13,13 @@ Implementation plan and required parity matrix:
 
 ## Current consolidation verification (2026-09-14)
 
+- AD user list projections now preserve scoped native IDs, unknown state,
+  duplicates, independent page totals and bounded session cache state without
+  building profiles per row. All 124 AD tests and warning-free Release build
+  pass. Cached M365 list projections retain minimal original observations and
+  source query state under an explicit record bound; all 58 M365 tests pass.
+  The bridge generator produces 478 types. Unified list consumption is the
+  next part of the current slice.
 - Stored Inventory SID relationships now use a configurable bounded batch and
   three SQL queries regardless of host count. Exact addresses, latest timestamp
   ties, legacy/unreadable rows and partial coverage are preserved. Eight real

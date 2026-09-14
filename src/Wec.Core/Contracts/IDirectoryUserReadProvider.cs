@@ -39,7 +39,8 @@ public sealed record DirectoryUserPageQuery(
     int Page,
     int PageSize,
     DirectoryUserSortField SortField,
-    DirectoryUserSortDirection SortDirection);
+    DirectoryUserSortDirection SortDirection,
+    string? DirectoryScope = null);
 
 public sealed record DirectoryUserIdentityQuery(
     DirectoryUserReadConnection Connection,
