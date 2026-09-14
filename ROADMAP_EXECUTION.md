@@ -4,7 +4,8 @@ Status: `IN_PROGRESS`
 
 Current phase: Object-centered consolidation (ADR 0022)
 
-Current slice: Phase 1 identity preservation and its required cached source seam.
+Current slice: Phase 1 route/candidate preservation and Phase 2 cached composition
+seams required by the first device profile.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
@@ -30,8 +31,20 @@ Implementation plan and required parity matrix:
   records and duplicates, including Nessus-only records. Cache-only reads check
   connection context and cancellation. All 93 EmployeeLifecycle tests pass;
   source adapters and frozen Lifecycle tables remain with their existing owner.
+- Nessus imports retain full addresses and new UUID provenance. The additive
+  migration preserves historical keys/ambiguous IDs; all 175 Infrastructure
+  tests and 8 import tests pass.
+- Client overview composition now belongs to the Clients module, with unchanged
+  bridge/options contracts. All 5 Clients and 89 Host tests pass.
+- M365 cache-only reads no longer wait for source I/O. Query state has separate
+  success/attempt/retention times, coverage and revisions; failures remain
+  bounded, and session changes discard late results. All 43 M365 tests pass.
+- Concrete cached M365 device/Intune/registered-owner reads preserve original
+  records and query provenance. Targeted AD GUID/SID reads validate the actual
+  naming context, retain ambiguity and reject missing returned ID evidence;
+  all 74 AD tests pass. These seams precede their device-profile consumer.
 - Remaining Phase 1 work: replace legacy first/latest name choices with visible
-  source candidates and route resolution, and preserve new Nessus import keys.
+  source candidates and route resolution, including legacy Nessus host links.
   The original hygiene projection remains a heuristic during this migration.
 
 ## Done

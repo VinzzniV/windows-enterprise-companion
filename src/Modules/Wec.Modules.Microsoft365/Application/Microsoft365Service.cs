@@ -7,7 +7,7 @@ using Wec.Modules.Microsoft365.Domain;
 namespace Wec.Modules.Microsoft365.Application;
 
 internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clock,
-    IOptions<Microsoft365CacheOptions> options) : IDisposable
+    IOptions<Microsoft365CacheOptions> options) : IMicrosoft365DeviceContextProvider, IDisposable
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _readGate = new(1, 1);
@@ -213,6 +213,45 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
             });
         }
     }
+
+    public Task<Result<Microsoft365DeviceContext>> ReadCachedAsync(string? tenantId, string? deviceObjectId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (tenantId is not null && !ValidId(tenantId) || deviceObjectId is not null && !ValidId(deviceObjectId))
+        {
+            return Task.FromResult(Result.Failure<Microsoft365DeviceContext>(new(ErrorCode.InvalidRequest, "Use valid tenant and device object IDs.")));
+        }
+        lock (_gate)
+        {
+            Expire();
+            string? scope = ValidId(Connection.Configuration.TenantId) ? Guid.Parse(Connection.Configuration.TenantId).ToString("D") : null;
+            if (tenantId is not null && !string.Equals(Guid.Parse(tenantId).ToString("D"), scope, StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(SessionChanged<Microsoft365DeviceContext>());
+            }
+            List<Microsoft365Query> deviceQueries = [new(Microsoft365Resource.Devices)];
+            if (deviceObjectId is not null)
+            {
+                deviceQueries.Add(new(Microsoft365Resource.Device, Guid.Parse(deviceObjectId).ToString("D")));
+            }
+            else
+            {
+                deviceQueries.AddRange(_cache.Keys.Where(query => query.Resource == Microsoft365Resource.Device));
+            }
+            Microsoft365Query managed = new(Microsoft365Resource.ManagedDevices);
+            Microsoft365Query? owners = deviceObjectId is null ? null : new(Microsoft365Resource.DeviceOwners, Guid.Parse(deviceObjectId).ToString("D"));
+            return Task.FromResult(Result.Success(new Microsoft365DeviceContext(scope, _generation, _revision,
+                deviceQueries.Select(query => new CachedEntraDevices(State(query), DeviceData(query))).ToArray(),
+                new(State(managed), Connection.Connected ? _cache.GetValueOrDefault(managed)?.Snapshot?.Data?.ManagedDevices ?? [] : []),
+                owners is null ? null : new(State(owners), Connection.Connected ? _cache.GetValueOrDefault(owners)?.Snapshot?.Data?.Members ?? [] : []))));
+        }
+    }
+
+    private IReadOnlyList<Microsoft365Device> DeviceData(Microsoft365Query query) =>
+        Connection.Connected ? _cache.GetValueOrDefault(query)?.Snapshot?.Data?.Devices ?? [] : [];
+
+    private static bool ValidId(string? id) => Guid.TryParse(id, out Guid value) && value != Guid.Empty;
 
     internal static Microsoft365LicenseCapacity Capacity(Microsoft365License license, double warningRatio)
     {

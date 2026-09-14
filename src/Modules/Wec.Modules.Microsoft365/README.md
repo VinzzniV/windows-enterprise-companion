@@ -1,5 +1,10 @@
 # Wec.Modules.Microsoft365
 
+`IMicrosoft365DeviceContextProvider` exposes concrete cached Entra, Intune and
+registered-owner facets to Clients. Each query retains its own state and raw
+records (including duplicates). Tenant mismatches fail before any read; cache
+misses never invoke Graph. Object detail reads remain separate from inventories.
+
 Read-only Microsoft Graph source. Infrastructure owns Graph/MSAL; this module
 owns the bounded session cache, license capacity calculations, correlation
 policy and transport-independent handlers. It references only Wec.Core.
