@@ -299,6 +299,10 @@ internal sealed class UserManagementService
 
     private static UserDeviceEvidenceCoverage ToCoverage(UserDeviceRelationshipCoverage coverage)
     {
+        if (coverage.WorkingSetTruncated || coverage.MultipleLatestSnapshotDeviceCount > 0)
+        {
+            return UserDeviceEvidenceCoverage.Partial;
+        }
         if (coverage.StoredDeviceCount > 0
             && coverage.NotCapturedDeviceCount == coverage.StoredDeviceCount
             && coverage.UnavailableDeviceCount == 0)
@@ -320,6 +324,10 @@ internal sealed class UserManagementService
         UserDeviceEvidenceCoverage coverage,
         UserDeviceRelationshipCoverage sourceCoverage) => coverage switch
     {
+        _ when sourceCoverage.WorkingSetTruncated =>
+            "Only the configured bounded working set of stored Inventory records was evaluated; additional device relationships may exist.",
+        _ when sourceCoverage.MultipleLatestSnapshotDeviceCount > 0 =>
+            "Some devices have multiple equally recent snapshots. Their observations remain separate and may disagree.",
         UserDeviceEvidenceCoverage.Available when sourceCoverage.StoredDeviceCount == 0 =>
             "No stored Inventory devices are available for relationship evaluation.",
         UserDeviceEvidenceCoverage.Available =>

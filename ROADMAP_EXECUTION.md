@@ -5,14 +5,19 @@ Status: `IN_PROGRESS`
 Current phase: Object-centered consolidation (ADR 0022)
 
 Current slice: Phase 6 bounded working-set index and unified lists/search.
-Phase 1 legacy candidate/route fixes and Phase 2 bounded local batching remain
-explicit follow-ups before the working-set/list milestone.
+Phase 1 legacy candidate/route fixes and remaining Phase 2 local index projections
+remain explicit follow-ups before the working-set/list milestone.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
 
 ## Current consolidation verification (2026-09-14)
 
+- Stored Inventory SID relationships now use a configurable bounded batch and
+  three SQL queries regardless of host count. Exact addresses, latest timestamp
+  ties, legacy/unreadable rows and partial coverage are preserved. Eight real
+  SQLite persistence tests, 48 Inventory tests, 33 UserManagement tests, 13
+  affected UI tests, contract generation and frontend production build pass.
 - Source inspection confirms the M365 foundation and integrated UI at `8e3640d`;
   the former current-slice header was stale. Historical results below remain
   history, not evidence of this run.

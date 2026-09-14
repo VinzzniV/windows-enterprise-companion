@@ -55,6 +55,7 @@ const profile: UserProfileResult = {
     explanation: 'No stored Inventory devices are available for relationship evaluation.',
     sourceCoverage: {
       storedDeviceCount: 0,
+      evaluatedDeviceCount: 0, workingSetTruncated: false, multipleLatestSnapshotDeviceCount: 0,
       evidenceCapturedDeviceCount: 0,
       notCapturedDeviceCount: 0,
       unavailableDeviceCount: 0,
@@ -73,6 +74,7 @@ const profileWithDevice: UserProfileResult = {
     explanation: 'Some stored devices have missing Inventory user evidence.',
     sourceCoverage: {
       storedDeviceCount: 12,
+      evaluatedDeviceCount: 12, workingSetTruncated: false, multipleLatestSnapshotDeviceCount: 0,
       evidenceCapturedDeviceCount: 8,
       notCapturedDeviceCount: 3,
       unavailableDeviceCount: 1,

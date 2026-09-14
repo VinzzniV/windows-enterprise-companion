@@ -38,7 +38,7 @@ function adProfile(): UserProfileResult {
     employeeId: null, department: null, title: null, managerDistinguishedName: null, distinguishedName: 'CN=ad,DC=example,DC=test', organizationalUnitPath: 'DC=example,DC=test' },
     lifecycle: { enabled: true, createdAtUtc: null, accountExpiresAtUtc: null, replicatedLastLogonAtUtc: null, passwordLastSetAtUtc: null, passwordExpiresAtUtc: null, passwordNeverExpires: null },
     access: { directGroups: [], privilegedCoverage: 'NOT_EVALUATED', privilegedCoverageExplanation: 'Not evaluated', directPrivilegedGroups: [] },
-    devices: { coverage: 'NOT_CAPTURED', explanation: 'No stored evidence', sourceCoverage: { storedDeviceCount: 0, evidenceCapturedDeviceCount: 0, notCapturedDeviceCount: 0, unavailableDeviceCount: 0, truncatedDeviceCount: 0 }, totalLinkedDeviceCount: 0, linkedDevicesTruncated: false, linkedDevices: [] } };
+    devices: { coverage: 'NOT_CAPTURED', explanation: 'No stored evidence', sourceCoverage: { evaluatedDeviceCount: 0, workingSetTruncated: false, multipleLatestSnapshotDeviceCount: 0, storedDeviceCount: 0, evidenceCapturedDeviceCount: 0, notCapturedDeviceCount: 0, unavailableDeviceCount: 0, truncatedDeviceCount: 0 }, totalLinkedDeviceCount: 0, linkedDevicesTruncated: false, linkedDevices: [] } };
 }
 function Navigation() { const navigate = useNavigate(); return <button onClick={() => navigate(`/users/entra/${tenant}/${other}`)}>Other account</button>; }
 function page() {

@@ -220,6 +220,27 @@ public sealed class UserManagementServiceTests
         Assert.Contains("missing", result.Value.Devices.Explanation, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(true, 0, "bounded working set")]
+    [InlineData(false, 2, "multiple equally recent")]
+    public async Task GetProfile_DoesNotPresentBoundedOrAmbiguousEvidenceAsComplete(bool limited, int multiple, string explanation)
+    {
+        _directoryUsers.GetByIdAsync(Arg.Any<DirectoryUserIdentityQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success<DirectoryUserRecord?>(User()));
+        _deviceRelationships.GetForDirectorySidAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new UserDeviceRelationshipSnapshot(new UserDeviceRelationshipCoverage(100, 25, 0, 0, 0)
+            {
+                EvaluatedDeviceCount = 25,
+                WorkingSetTruncated = limited,
+                MultipleLatestSnapshotDeviceCount = multiple,
+            }, []));
+        Result<UserProfileResult> result = await CreateService().GetProfileAsync(
+            new DirectoryUserIdentityQuery(CurrentConnection(), ObjectId), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(UserDeviceEvidenceCoverage.Partial, result.Value.Devices.Coverage);
+        Assert.Contains(explanation, result.Value.Devices.Explanation, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task GetProfile_LabelsLegacySnapshotsAsNotCaptured()
     {

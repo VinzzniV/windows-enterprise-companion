@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Contracts;
 using Wec.Modules.Inventory.Application;
@@ -13,82 +14,61 @@ public sealed class InventoryUserDeviceRelationshipProviderTests
     private readonly IHardwareSnapshotRepository _repository = Substitute.For<IHardwareSnapshotRepository>();
 
     [Fact]
-    public async Task ExactSidMatchMergesInteractiveAndProfileEvidencePerDevice()
+    public async Task ExactSidMatchMergesInteractiveAndProfileEvidencePerDeviceWithOneBoundedRead()
     {
-        _repository.ListHostsAsync(Arg.Any<CancellationToken>()).Returns(
-            [new StoredInventoryHost("PC-42", CapturedAt), new StoredInventoryHost("PC-99", CapturedAt)]);
-        _repository.GetLatestAsync("PC-42", Arg.Any<CancellationToken>()).Returns(
-            Cached(Evidence(
-                new InteractiveDomainUserEvidence(RequestedSid, "CORP", "alex"),
-                [new LocalUserProfileEvidence(RequestedSid, CapturedAt.AddDays(-1))])));
-        _repository.GetLatestAsync("PC-99", Arg.Any<CancellationToken>()).Returns(
-            Cached(Evidence(
-                new InteractiveDomainUserEvidence("S-1-5-21-1-2-3-2200", "CORP", "alex"),
-                [new LocalUserProfileEvidence("S-1-5-21-1-2-3-2200", null)])));
-        var provider = new InventoryUserDeviceRelationshipProvider(_repository);
-
-        UserDeviceRelationshipSnapshot result = await provider.GetForDirectorySidAsync(
-            RequestedSid,
-            CancellationToken.None);
-
+        _repository.GetLatestUserEvidenceBatchAsync(25, Arg.Any<CancellationToken>()).Returns(new StoredInventoryUserEvidenceBatch(2, 2,
+            [Record(1, "PC-42", Evidence(new(RequestedSid, "CORP", "alex"), [new(RequestedSid, CapturedAt.AddDays(-1))])),
+             Record(2, "PC-99", Evidence(new("S-1-5-21-1-2-3-2200", "CORP", "alex"), [new("S-1-5-21-1-2-3-2200", null)]))]));
+        UserDeviceRelationshipSnapshot result = await Provider().GetForDirectorySidAsync(RequestedSid, CancellationToken.None);
         UserLinkedDeviceEvidence device = Assert.Single(result.Devices);
         Assert.Equal("PC-42", device.Host);
-        Assert.Equal(
-            [UserDeviceRelationshipType.LastInteractiveUser, UserDeviceRelationshipType.ProfilePresent],
+        Assert.Equal([UserDeviceRelationshipType.LastInteractiveUser, UserDeviceRelationshipType.ProfilePresent],
             device.Observations.Select(observation => observation.RelationshipType));
         Assert.Equal(UserDeviceRelationshipConfidence.High, device.Observations[0].Confidence);
         Assert.Equal(UserDeviceRelationshipConfidence.Medium, device.Observations[1].Confidence);
         Assert.All(device.Observations, observation => Assert.Equal("WEC Inventory", observation.Source));
         Assert.Equal(2, result.Coverage.EvidenceCapturedDeviceCount);
+        Assert.Equal(2, result.Coverage.EvaluatedDeviceCount);
+        Assert.False(result.Coverage.WorkingSetTruncated);
+        await _repository.Received(1).GetLatestUserEvidenceBatchAsync(25, Arg.Any<CancellationToken>());
+        await _repository.DidNotReceive().ListHostsAsync(Arg.Any<CancellationToken>());
+        await _repository.DidNotReceive().GetLatestAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task CoverageKeepsLegacyUnavailableAndTruncatedSourcesVisible()
+    public async Task CoverageKeepsLegacyUnavailableTruncatedAndUnreadableSourcesVisible()
     {
-        _repository.ListHostsAsync(Arg.Any<CancellationToken>()).Returns(
-            [new StoredInventoryHost("LEGACY", CapturedAt), new StoredInventoryHost("PARTIAL", CapturedAt)]);
-        _repository.GetLatestAsync("LEGACY", Arg.Any<CancellationToken>()).Returns(Cached(userEvidence: null));
-        _repository.GetLatestAsync("PARTIAL", Arg.Any<CancellationToken>()).Returns(Cached(
-            new DeviceUserEvidence(
-                UserEvidenceSourceState.Unavailable,
-                null,
-                new UserEvidenceCaptureError("WMI_UNAVAILABLE", "Unavailable."),
-                UserEvidenceSourceState.Available,
-                [],
-                null,
-                LocalProfilesTruncated: true)));
-        var provider = new InventoryUserDeviceRelationshipProvider(_repository);
-
-        UserDeviceRelationshipSnapshot result = await provider.GetForDirectorySidAsync(
-            RequestedSid,
-            CancellationToken.None);
-
+        _repository.GetLatestUserEvidenceBatchAsync(25, Arg.Any<CancellationToken>()).Returns(new StoredInventoryUserEvidenceBatch(30, 30,
+            [Record(1, "LEGACY", null), Record(2, "PARTIAL", new(UserEvidenceSourceState.Unavailable, null,
+                new("WMI_UNAVAILABLE", "Unavailable."), UserEvidenceSourceState.Available, [], null, true)),
+             new(3, "BAD", CapturedAt, false, null)]));
+        UserDeviceRelationshipSnapshot result = await Provider().GetForDirectorySidAsync(RequestedSid, CancellationToken.None);
         Assert.Empty(result.Devices);
-        Assert.Equal(2, result.Coverage.StoredDeviceCount);
+        Assert.Equal(30, result.Coverage.StoredDeviceCount);
+        Assert.Equal(3, result.Coverage.EvaluatedDeviceCount);
+        Assert.True(result.Coverage.WorkingSetTruncated);
         Assert.Equal(1, result.Coverage.EvidenceCapturedDeviceCount);
         Assert.Equal(1, result.Coverage.NotCapturedDeviceCount);
-        Assert.Equal(1, result.Coverage.UnavailableDeviceCount);
+        Assert.Equal(2, result.Coverage.UnavailableDeviceCount);
         Assert.Equal(1, result.Coverage.TruncatedDeviceCount);
     }
 
-    private static CachedHardwareSnapshot Cached(DeviceUserEvidence? userEvidence) =>
-        new(Snapshot(userEvidence), CapturedAt);
+    [Fact]
+    public async Task EquallyRecentSnapshotsAndDifferentProfileObservationsRemainVisible()
+    {
+        _repository.GetLatestUserEvidenceBatchAsync(25, Arg.Any<CancellationToken>()).Returns(new StoredInventoryUserEvidenceBatch(1, 2,
+            [Record(1, "PC.corp.example", Evidence(null, [new(RequestedSid, null), new(RequestedSid, CapturedAt.AddDays(-1))])),
+             Record(2, "PC.corp.example", Evidence(new(RequestedSid, "CORP", "renamed"), []))]));
+        UserDeviceRelationshipSnapshot result = await Provider().GetForDirectorySidAsync(RequestedSid, CancellationToken.None);
+        Assert.Equal(3, Assert.Single(result.Devices).Observations.Count);
+        Assert.Equal(1, result.Coverage.EvaluatedDeviceCount);
+        Assert.Equal(1, result.Coverage.EvidenceCapturedDeviceCount);
+        Assert.Equal(1, result.Coverage.MultipleLatestSnapshotDeviceCount);
+    }
 
-    private static DeviceUserEvidence Evidence(
-        InteractiveDomainUserEvidence? interactive,
-        IReadOnlyList<LocalUserProfileEvidence> profiles) => new(
-        UserEvidenceSourceState.Available,
-        interactive,
-        null,
-        UserEvidenceSourceState.Available,
-        profiles,
-        null,
-        LocalProfilesTruncated: false);
-
-    private static HardwareSnapshot Snapshot(DeviceUserEvidence? userEvidence) => new(
-        new CpuInfo("CPU", 4, 8, 3000),
-        [],
-        [],
-        new OperatingSystemInfo("Windows 11", "10.0", "26100", "64-bit"),
-        UserEvidence: userEvidence);
+    private InventoryUserDeviceRelationshipProvider Provider() => new(_repository,
+        Options.Create(new InventoryOptions { MaxStoredEvidenceRecords = 25 }));
+    private static StoredInventoryUserEvidence Record(long id, string host, DeviceUserEvidence? evidence) => new(id, host, CapturedAt, true, evidence);
+    private static DeviceUserEvidence Evidence(InteractiveDomainUserEvidence? interactive, IReadOnlyList<LocalUserProfileEvidence> profiles) =>
+        new(UserEvidenceSourceState.Available, interactive, null, UserEvidenceSourceState.Available, profiles, null, false);
 }

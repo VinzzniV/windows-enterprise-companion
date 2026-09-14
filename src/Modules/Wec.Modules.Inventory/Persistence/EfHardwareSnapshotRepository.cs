@@ -59,6 +59,40 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
             .Where(snapshot => snapshot.Host == hostKey)
             .ExecuteDeleteAsync(cancellationToken);
 
+    public async Task<StoredInventoryUserEvidenceBatch> GetLatestUserEvidenceBatchAsync(
+        int maximumRecords, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumRecords);
+        await using var transaction = _dbContext.Database.CurrentTransaction is null
+            ? await _dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        IQueryable<HardwareSnapshotRecord> stored = _dbContext.Set<HardwareSnapshotRecord>()
+            .AsNoTracking().Where(record => record.Host.Trim() != string.Empty);
+        IQueryable<HardwareSnapshotRecord> latest = stored.Where(record => !stored.Any(other =>
+            other.Host == record.Host && other.CapturedAtUtc > record.CapturedAtUtc));
+        int hostCount = await stored.Select(record => record.Host).Distinct().CountAsync(cancellationToken);
+        int recordCount = await latest.CountAsync(cancellationToken);
+        List<HardwareSnapshotRecord> records = await latest.OrderBy(record => record.Host).ThenBy(record => record.Id)
+            .Take(maximumRecords).ToListAsync(cancellationToken);
+        var evidence = new List<StoredInventoryUserEvidence>(records.Count);
+        foreach (HardwareSnapshotRecord record in records)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                StoredUserEvidencePayload? payload = JsonSerializer.Deserialize<StoredUserEvidencePayload>(record.PayloadJson);
+                evidence.Add(new(record.Id, record.Host, record.CapturedAtUtc, payload is not null, payload?.UserEvidence));
+            }
+            catch (JsonException)
+            {
+                _logger.LogWarning("Unreadable stored Inventory user evidence {SnapshotId}", record.Id);
+                evidence.Add(new(record.Id, record.Host, record.CapturedAtUtc, false, null));
+            }
+        }
+        return new(hostCount, recordCount, evidence);
+    }
+
+    private sealed record StoredUserEvidencePayload(DeviceUserEvidence? UserEvidence);
+
     public async Task SaveAsync(
         string hostKey,
         HardwareSnapshot snapshot,

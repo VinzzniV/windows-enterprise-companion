@@ -319,6 +319,9 @@ export interface UserDeviceRelationshipCoverage {
   notCapturedDeviceCount: number;
   unavailableDeviceCount: number;
   truncatedDeviceCount: number;
+  evaluatedDeviceCount: number | null;
+  workingSetTruncated: boolean;
+  multipleLatestSnapshotDeviceCount: number;
 }
 
 export interface UserDeviceRelationshipObservation {

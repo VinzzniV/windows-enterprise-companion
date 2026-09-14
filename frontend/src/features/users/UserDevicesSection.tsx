@@ -151,11 +151,14 @@ export function UserDevicesSection({ profile }: { profile: UserProfileResult }) 
       <p className="mt-2 text-sm text-slate-300">{devices.explanation}</p>
       <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3 lg:grid-cols-5">
         <div><dt className="text-muted">Stored devices</dt><dd className="mt-0.5 font-mono text-slate-200">{devices.sourceCoverage.storedDeviceCount}</dd></div>
+        <div><dt className="text-muted">Evaluated devices</dt><dd className="mt-0.5 font-mono text-slate-200">{devices.sourceCoverage.evaluatedDeviceCount ?? 'Unknown'}</dd></div>
         <div><dt className="text-muted">Evidence captured</dt><dd className="mt-0.5 font-mono text-slate-200">{devices.sourceCoverage.evidenceCapturedDeviceCount}</dd></div>
         <div><dt className="text-muted">Older snapshots</dt><dd className="mt-0.5 font-mono text-slate-200">{devices.sourceCoverage.notCapturedDeviceCount}</dd></div>
         <div><dt className="text-muted">Unavailable</dt><dd className="mt-0.5 font-mono text-slate-200">{devices.sourceCoverage.unavailableDeviceCount}</dd></div>
         <div><dt className="text-muted">Source truncated</dt><dd className="mt-0.5 font-mono text-slate-200">{devices.sourceCoverage.truncatedDeviceCount}</dd></div>
       </dl>
+      {devices.sourceCoverage.workingSetTruncated && <p className="mt-2 text-xs text-warn-300">The stored-record limit was reached. Counts and relationships describe the evaluated working set.</p>}
+      {devices.sourceCoverage.multipleLatestSnapshotDeviceCount > 0 && <p className="mt-2 text-xs text-warn-300">{devices.sourceCoverage.multipleLatestSnapshotDeviceCount} evaluated devices have multiple equally recent snapshots; all matching observations are retained.</p>}
       <p className="mt-3 text-xs text-muted">Stored evidence only. Opening this view does not run Inventory, Health, Security or Nessus scans.</p>
     </section>
 
