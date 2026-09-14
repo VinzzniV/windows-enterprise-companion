@@ -18,6 +18,7 @@
     <ProjectReference Include="..\Modules\Wec.Modules.Reporting\Wec.Modules.Reporting.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.ActiveDirectory\Wec.Modules.ActiveDirectory.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.UserManagement\Wec.Modules.UserManagement.csproj" />
+    <ProjectReference Include="..\Modules\Wec.Modules.Microsoft365\Wec.Modules.Microsoft365.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.ActionCenter\Wec.Modules.ActionCenter.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.DeviceCleanup\Wec.Modules.DeviceCleanup.csproj" />
     <ProjectReference Include="..\Modules\Wec.Modules.PatchManagement\Wec.Modules.PatchManagement.csproj" />

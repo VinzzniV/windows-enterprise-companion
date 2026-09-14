@@ -83,6 +83,11 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 
 ## Current program
 
+- Microsoft 365 uses delegated MSAL/WAM and Graph v1.0 as a read-only source
+  (ADR 0021). No secrets/tokens in the bridge or persistence, no browser listener,
+  application permissions or Graph writes. Cloud inventories remain session-local;
+  correlations require explicit identity evidence and never infer ownership.
+
 The active program is `docs/ultimate-admin-tool-roadmap.md`. Follow its phases
 and slices in order unless a verified dependency requires a documented reorder.
 The original M1 is complete and remains architectural history.

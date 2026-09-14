@@ -22,6 +22,9 @@ using Wec.Infrastructure.Registry;
 using Wec.Infrastructure.Shell;
 using Wec.Core.Modules;
 using Wec.Infrastructure.Time;
+using Wec.Infrastructure.Microsoft365;
+using Wec.Core.Microsoft365;
+using Wec.Modules.Microsoft365;
 using Wec.Infrastructure.Wmi;
 using Wec.Infrastructure.EventLog;
 using Wec.Infrastructure.Network;
@@ -254,6 +257,7 @@ internal static partial class Program
             new ReportingModule(),
             new ActiveDirectoryModule(),
             new UserManagementModule(),
+            new Microsoft365Module(),
             new ActionCenterModule(),
             new DeviceCleanupModule(),
             new PatchManagementModule(),
@@ -301,6 +305,21 @@ internal static partial class Program
         builder.Services.AddSingleton<ISaveFileDialogService, WinFormsSaveFileDialogService>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
+        builder.Services.AddSingleton<Microsoft365AuthenticationWindow>();
+        builder.Services.AddSingleton<IMicrosoft365AuthenticationWindow>(provider => provider.GetRequiredService<Microsoft365AuthenticationWindow>());
+        builder.Services.AddSingleton<IMicrosoft365Reader, MicrosoftGraphReader>();
+        builder.Services.AddOptions<Microsoft365Options>()
+            .Bind(builder.Configuration.GetSection(Microsoft365Options.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(value => (string.IsNullOrEmpty(value.TenantId) || Guid.TryParse(value.TenantId, out _))
+                && (string.IsNullOrEmpty(value.ClientId) || Guid.TryParse(value.ClientId, out _)), "Microsoft 365 identifiers must be GUIDs.")
+            .ValidateOnStart();
+        builder.Services.AddOptions<Microsoft365CacheOptions>()
+            .Bind(builder.Configuration.GetSection(Microsoft365CacheOptions.SectionName))
+            .Validate(value => value.FreshFor > TimeSpan.Zero && value.RetainFor >= value.FreshFor
+                && value.RetainFor <= TimeSpan.FromHours(24) && value.MaximumEntries is >= 1 and <= 128
+                && value.LicenseWarningRatio is > 0 and <= 1, "Microsoft 365 cache limits are invalid.")
+            .ValidateOnStart();
         builder.Services.AddSingleton<IServiceCredentialStore, WindowsCredentialStore>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();
         builder.Services.AddSingleton<IActionHandler, ProbeHostsHandler>();

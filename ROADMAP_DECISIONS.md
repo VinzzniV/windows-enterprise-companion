@@ -208,6 +208,16 @@ product decision during the planned implementation:
   bus, arbitrary PowerShell, AI features or automatic remediation;
 - code signing remains a separate later topic.
 
+## D-009 — Microsoft 365 read-only source is authorized
+
+Decision: explicit implementation request received on 2026-09-14.
+The user authorizes Microsoft Graph as a new external source and the specified
+tenant, user, group, device, license, optional Intune and authentication-report
+fields. ADR 0021 records delegated MSAL/WAM authentication, least-privilege read
+scopes, session-only cloud caching and evidence-aware correlation. No directory
+write, mailbox contents, secret persistence or unattended application identity
+is authorized. Tenant configuration and live acceptance remain external gates.
+
 ## Autonomous execution readiness
 
 The roadmap may be implemented autonomously after a separate explicit start

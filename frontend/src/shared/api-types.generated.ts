@@ -113,6 +113,142 @@ export interface TargetRequest {
   password?: string | null;
 }
 
+export interface Microsoft365Activity {
+  lastSignInAtUtc: string | null;
+  lastSuccessfulSignInAtUtc: string | null;
+  mfaRegistered: boolean | null;
+  mfaCapable: boolean | null;
+  methodsRegistered: string[] | null;
+}
+
+export interface Microsoft365AssignedLicense {
+  skuId: string | null;
+  disabledPlans: string[] | null;
+}
+
+export interface Microsoft365Configuration {
+  tenantId: string;
+  clientId: string;
+  enableIntune?: boolean;
+  enableAuthenticationReports?: boolean;
+}
+
+export interface Microsoft365Connection {
+  configuration: Microsoft365Configuration;
+  connected: boolean;
+  account: string | null;
+  permissions: Microsoft365ScopeGrant[];
+}
+
+export interface Microsoft365Data {
+  tenants: Microsoft365Tenant[];
+  users: Microsoft365User[];
+  groups: Microsoft365Group[];
+  devices: Microsoft365Device[];
+  managedDevices: Microsoft365ManagedDevice[];
+  licenses: Microsoft365License[];
+  members: Microsoft365Member[];
+  activity: Microsoft365Activity | null;
+  totalCount: number | null;
+  truncated: boolean;
+}
+
+export interface Microsoft365Device {
+  id: string | null;
+  deviceId: string | null;
+  displayName: string | null;
+  operatingSystem: string | null;
+  operatingSystemVersion: string | null;
+  trustType: string | null;
+  accountEnabled: boolean | null;
+  approximateLastSignInAtUtc: string | null;
+}
+
+export interface Microsoft365Group {
+  id: string | null;
+  displayName: string | null;
+  securityEnabled: boolean | null;
+  mailEnabled: boolean | null;
+  groupTypes: string[] | null;
+  membershipRule: string | null;
+  membershipRuleProcessingState: string | null;
+  visibility: string | null;
+}
+
+export interface Microsoft365License {
+  id: string | null;
+  skuId: string | null;
+  skuPartNumber: string | null;
+  capabilityStatus: string | null;
+  appliesTo: string | null;
+  enabledSeats: number | null;
+  consumedSeats: number | null;
+  servicePlans: Microsoft365ServicePlan[] | null;
+}
+
+export interface Microsoft365ManagedDevice {
+  id: string | null;
+  deviceName: string | null;
+  userId: string | null;
+  userPrincipalName: string | null;
+  operatingSystem: string | null;
+  operatingSystemVersion: string | null;
+  complianceState: string | null;
+  managementState: string | null;
+  enrollmentType: string | null;
+  lastSyncAtUtc: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  entraDeviceId: string | null;
+}
+
+export interface Microsoft365Member {
+  id: string | null;
+  displayName: string | null;
+  objectType: string | null;
+  userPrincipalName: string | null;
+}
+
+export interface Microsoft365Query {
+  resource: Microsoft365Resource;
+  objectId: string | null;
+}
+
+export type Microsoft365Resource = 'TENANT' | 'USERS' | 'USER' | 'GROUPS' | 'GROUP' | 'DEVICES' | 'DEVICE' | 'MANAGED_DEVICES' | 'LICENSES' | 'USER_LICENSES' | 'USER_GROUPS' | 'USER_DEVICES' | 'GROUP_MEMBERS' | 'DEVICE_OWNERS' | 'USER_ACTIVITY' | 'USER_REGISTRATION';
+
+export interface Microsoft365ScopeGrant {
+  scope: string;
+  granted: boolean;
+}
+
+export interface Microsoft365ServicePlan {
+  id: string | null;
+  name: string | null;
+  status: string | null;
+}
+
+export interface Microsoft365Tenant {
+  id: string | null;
+  displayName: string | null;
+}
+
+export interface Microsoft365User {
+  id: string | null;
+  displayName: string | null;
+  userPrincipalName: string | null;
+  mail: string | null;
+  accountEnabled: boolean | null;
+  userType: string | null;
+  department: string | null;
+  jobTitle: string | null;
+  officeLocation: string | null;
+  createdAtUtc: string | null;
+  onPremisesSid: string | null;
+  onPremisesImmutableId: string | null;
+  assignedLicenses: Microsoft365AssignedLicense[] | null;
+}
+
 export interface PortRemovalResult {
   name: string;
   removed: boolean;
@@ -123,7 +259,14 @@ export type PrivilegeLevel = 'STANDARD_USER' | 'ADMINISTRATOR';
 
 export type CheckStatus = 'SUCCEEDED' | 'FAILED' | 'REQUIRES_ELEVATION' | 'NOT_APPLICABLE';
 
-export type ErrorCode = 'INTERNAL_ERROR' | 'ACCESS_DENIED' | 'NOT_FOUND' | 'WMI_UNAVAILABLE' | 'INVALID_REQUEST' | 'UNKNOWN_ACTION' | 'NETWORK_PROBE_FAILED' | 'EVENT_LOG_UNAVAILABLE' | 'FILE_WRITE_FAILED' | 'DIRECTORY_UNAVAILABLE' | 'DNS_RESOLUTION_FAILED' | 'CONNECTION_TIMEOUT' | 'AUTHENTICATION_FAILED' | 'WIN_RM_UNAVAILABLE' | 'UNSUPPORTED_REMOTE_OPERATION' | 'SERVICE_UNAVAILABLE' | 'REMOTE_COMMAND_FAILED';
+export interface Error {
+  code: ErrorCode;
+  message: string;
+  details: string | null;
+  requiredPrivilege: PrivilegeLevel | null;
+}
+
+export type ErrorCode = 'INTERNAL_ERROR' | 'ACCESS_DENIED' | 'NOT_FOUND' | 'WMI_UNAVAILABLE' | 'INVALID_REQUEST' | 'UNKNOWN_ACTION' | 'NETWORK_PROBE_FAILED' | 'EVENT_LOG_UNAVAILABLE' | 'FILE_WRITE_FAILED' | 'DIRECTORY_UNAVAILABLE' | 'DNS_RESOLUTION_FAILED' | 'CONNECTION_TIMEOUT' | 'AUTHENTICATION_FAILED' | 'WIN_RM_UNAVAILABLE' | 'UNSUPPORTED_REMOTE_OPERATION' | 'SERVICE_UNAVAILABLE' | 'REMOTE_COMMAND_FAILED' | 'MICROSOFT365_NOT_CONNECTED' | 'MICROSOFT365_AUTHENTICATION_REQUIRED' | 'MICROSOFT365_CONSENT_REQUIRED' | 'MICROSOFT365_PERMISSION_MISSING' | 'MICROSOFT365_ACCESS_DENIED' | 'MICROSOFT365_NOT_FOUND' | 'MICROSOFT365_THROTTLED' | 'MICROSOFT365_UNAVAILABLE' | 'MICROSOFT365_OFFLINE' | 'MICROSOFT365_UNSUPPORTED' | 'MICROSOFT365_CONFIGURATION_INVALID' | 'MICROSOFT365_TIMEOUT' | 'MICROSOFT365_INVALID_RESPONSE';
 
 export interface WingetPackageInfo {
   id: string;
@@ -1449,6 +1592,63 @@ export interface RunBatchInventoryRequest {
 export interface StoredInventoryHost {
   host: string;
   capturedAtUtc: string;
+}
+
+export interface Microsoft365Correlation {
+  state: string;
+  explanation: string;
+  user: Microsoft365User | null;
+  device: Microsoft365Device | null;
+  managedDevice: Microsoft365ManagedDevice | null;
+  observedAtUtc: string | null;
+  stale: boolean;
+}
+
+export interface Microsoft365LicenseCapacity {
+  skuId: string | null;
+  remainingSeats: number | null;
+  nearlyExhausted: boolean | null;
+  overAssigned: boolean | null;
+}
+
+export interface Microsoft365Snapshot {
+  query: Microsoft365Query;
+  data: Microsoft365Data | null;
+  updatedAtUtc: string | null;
+  stale: boolean;
+  refreshError: Error | null;
+  licenseCapacity: Microsoft365LicenseCapacity[];
+}
+
+export interface Microsoft365SourceStatus {
+  resource: Microsoft365Resource;
+  updatedAtUtc: string | null;
+  stale: boolean;
+  truncated: boolean;
+  totalCount: number | null;
+  loadedCount: number | null;
+  lastRefreshError: Error | null;
+}
+
+export interface Microsoft365Status {
+  connection: Microsoft365Connection;
+  sources: Microsoft365SourceStatus[];
+}
+
+export interface Microsoft365ContextRequest {
+  sid?: string | null;
+  userPrincipalName?: string | null;
+  host?: string | null;
+  entraDeviceId?: string | null;
+}
+
+export interface Microsoft365EmptyRequest {
+}
+
+export interface Microsoft365ReadRequest {
+  resource: Microsoft365Resource;
+  objectId?: string | null;
+  refresh?: boolean;
 }
 
 export type DeviceKind = 'UNKNOWN' | 'PRINTER' | 'COMPUTER' | 'NETWORK_DEVICE';

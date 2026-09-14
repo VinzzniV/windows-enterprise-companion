@@ -1,11 +1,12 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `COMPLETE`
+Status: `IN_PROGRESS`
 
-Current phase: Post-roadmap product refinement complete
+Current phase: Microsoft 365 read-only integration (ADR 0021)
 
-Current slice: Device Cleanup Excel export completed on
-`codex/device-cleanup-excel-export`
+Current slice: Graph authentication, read contracts and session cache on
+`codex/microsoft-365-read-only`, based on `228b719`.
+Analysis and implementation plan: `docs/microsoft-365-implementation.md`.
 
 ## Done
 
