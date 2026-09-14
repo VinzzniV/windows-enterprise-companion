@@ -197,20 +197,24 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
             Microsoft365Snapshot? users = _cache.GetValueOrDefault(new(Microsoft365Resource.Users))?.Snapshot;
             Microsoft365Snapshot? devices = _cache.GetValueOrDefault(new(Microsoft365Resource.Devices))?.Snapshot;
             Microsoft365Snapshot? managed = _cache.GetValueOrDefault(new(Microsoft365Resource.ManagedDevices))?.Snapshot;
-            if (entraDeviceId is not null && devices is null)
+            Microsoft365Snapshot[] deviceReads = _cache.Values.Select(entry => entry.Snapshot)
+                .Where(snapshot => snapshot?.Query.Resource is Microsoft365Resource.Device or Microsoft365Resource.Devices && snapshot.Data is not null)
+                .Select(snapshot => snapshot!).ToArray();
+            List<Microsoft365Device> deviceEvidence = [];
+            foreach (Microsoft365Snapshot read in deviceReads)
             {
-                devices = _cache.Values.Select(entry => entry.Snapshot).FirstOrDefault(snapshot => snapshot?.Query.Resource == Microsoft365Resource.Device
-                    && snapshot.Data?.Devices.Any(device => string.Equals(device.DeviceId, entraDeviceId, StringComparison.OrdinalIgnoreCase)) == true);
+                deviceEvidence.AddRange(read.Data!.Devices.Where(device => !deviceEvidence.Contains(device)).ToArray());
             }
             bool user = host is null && entraDeviceId is null;
             Microsoft365Snapshot? source = user ? users : devices;
             Microsoft365Correlation context = user
                 ? Microsoft365CorrelationPolicy.User(users?.Data?.Users ?? [], sid, upn, users?.Data?.Truncated == false)
-                : Microsoft365CorrelationPolicy.Device(devices?.Data?.Devices ?? [], managed?.Data?.ManagedDevices ?? [], host, entraDeviceId);
+                : Microsoft365CorrelationPolicy.Device(deviceEvidence, managed?.Data?.ManagedDevices ?? [], host, entraDeviceId, devices?.Data?.Truncated == false);
             return Task.FromResult(context with
             {
-                ObservedAtUtc = source?.UpdatedAtUtc,
-                Stale = source is null || IsStale(source) || !user && (managed is null || IsStale(managed)),
+                ObservedAtUtc = user ? source?.UpdatedAtUtc : deviceReads.Length == 0 ? null : deviceReads.Min(read => read.UpdatedAtUtc),
+                Stale = user ? source is null || IsStale(source)
+                    : deviceReads.Length == 0 || deviceReads.Any(IsStale) || managed is null || IsStale(managed),
                 Explanation = context.Explanation + (source?.Data?.Truncated == true ? " Source inventory is incomplete." : string.Empty),
             });
         }
@@ -292,6 +296,9 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
             Microsoft365Query registration = new(Microsoft365Resource.UserRegistration, userId);
             Microsoft365Query[] managed = new[] { new Microsoft365Query(Microsoft365Resource.ManagedDevices) }
                 .Concat(_cache.Keys.Where(query => query.Resource == Microsoft365Resource.ManagedDevice)).ToArray();
+            HashSet<Guid> associatedIds = managed.SelectMany(query => CachedData(query)?.ManagedDevices ?? [])
+                .Where(device => userId is not null && ValidId(device.Id) && ValidId(device.UserId) && Guid.Parse(device.UserId!) == Guid.Parse(userId))
+                .Select(device => Guid.Parse(device.Id!)).ToHashSet();
             return Task.FromResult(Result.Success(new Microsoft365UserContext(scope, _generation, _revision,
                 users.Select(query => new CachedEntraUsers(State(query), CachedData(query)?.Users ?? [])).ToArray(),
                 new(State(tenantLicenses), CachedData(tenantLicenses)?.Licenses ?? []),
@@ -300,7 +307,8 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
                 userId is null ? null : new(State(devices), CachedData(devices)?.Devices ?? []),
                 managed.Select(query => new CachedIntuneDevices(State(query),
                     Connection.Configuration.EnableIntune ? (CachedData(query)?.ManagedDevices ?? [])
-                        .Where(device => userId is not null && ValidId(device.UserId) && Guid.Parse(device.UserId!) == Guid.Parse(userId)).ToArray() : [])).ToArray(),
+                        .Where(device => userId is not null && (ValidId(device.UserId) && Guid.Parse(device.UserId!) == Guid.Parse(userId)
+                            || ValidId(device.Id) && associatedIds.Contains(Guid.Parse(device.Id!)))).ToArray() : [])).ToArray(),
                 userId is null ? null : new(State(activity), CachedData(activity)?.Activity),
                 userId is null ? null : new(State(registration), CachedData(registration)?.Activity))));
         }

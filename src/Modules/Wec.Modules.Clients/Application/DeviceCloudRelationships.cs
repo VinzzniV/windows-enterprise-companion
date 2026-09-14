@@ -12,11 +12,12 @@ internal static class DeviceCloudRelationships
     internal static Microsoft365Device[] PrimaryEntra(ObjectReference reference, Microsoft365DeviceContext context)
     {
         if (reference.Source != ObjectSource.Entra) { return []; }
-        CachedEntraDevices? detail = context.EntraReads.FirstOrDefault(read => read.State.Query.Resource == Microsoft365Resource.Device
-            && SameId(read.State.Query.ObjectId, reference.Id) && read.State.Availability == Microsoft365Availability.Available);
-        IEnumerable<Microsoft365Device> devices = detail?.Devices
-            ?? context.EntraReads.Where(read => read.State.Query.Resource == Microsoft365Resource.Devices).SelectMany(read => read.Devices);
-        return devices.Where(device => SameId(device.Id, reference.Id)).ToArray();
+        List<Microsoft365Device> devices = [];
+        foreach (CachedEntraDevices read in context.EntraReads)
+        {
+            devices.AddRange(read.Devices.Where(device => SameId(device.Id, reference.Id) && !devices.Contains(device)).ToArray());
+        }
+        return devices.ToArray();
     }
 
     internal static Microsoft365ManagedDevice[] PrimaryIntune(ObjectReference reference, Microsoft365DeviceContext context) =>
@@ -24,9 +25,12 @@ internal static class DeviceCloudRelationships
 
     private static Microsoft365ManagedDevice[] IntuneEvidence(Microsoft365DeviceContext context)
     {
-        CachedIntuneDevices[] details = context.ManagedDetails.Where(read => read.State.Availability == Microsoft365Availability.Available).ToArray();
-        return context.Intune.Devices.Where(device => !details.Any(read => SameId(read.State.Query.ObjectId, device.Id)))
-            .Concat(details.SelectMany(read => read.Devices)).ToArray();
+        List<Microsoft365ManagedDevice> devices = [.. context.Intune.Devices];
+        foreach (CachedIntuneDevices read in context.ManagedDetails)
+        {
+            devices.AddRange(read.Devices.Where(device => !devices.Contains(device)).ToArray());
+        }
+        return devices.ToArray();
     }
 
     internal static Microsoft365DeviceContext Filter(ObjectReference reference, Microsoft365DeviceContext context, IReadOnlyList<string> names)
@@ -59,14 +63,15 @@ internal static class DeviceCloudRelationships
         List<ObjectRelationship> links = [];
         Microsoft365Device[] entra = PrimaryEntra(reference, context);
         Microsoft365ManagedDevice[] intune = PrimaryIntune(reference, context);
+        Microsoft365ManagedDevice[] managedEvidence = IntuneEvidence(context);
         if (entra.Length == 1)
         {
-            Microsoft365Device[] conflictingIds = context.EntraReads.SelectMany(read => read.Devices)
-                .Where(device => SameId(device.DeviceId, entra[0].DeviceId) && !SameId(device.Id, entra[0].Id)).ToArray();
-            if (conflictingIds.Length == 0)
+            if (UniqueEntraRegistration(context, entra[0]))
             {
-                foreach (Microsoft365ManagedDevice managed in IntuneEvidence(context).Where(device => SameId(device.EntraDeviceId, entra[0].DeviceId)))
+                foreach (Microsoft365ManagedDevice managed in managedEvidence.Where(device => SameId(device.EntraDeviceId, entra[0].DeviceId)))
                 {
+                    Microsoft365ManagedDevice[] sameEnrollment = managedEvidence.Where(device => SameId(device.Id, managed.Id)).ToArray();
+                    if (sameEnrollment.Length != 1) { continue; }
                     Add(links, context.TenantId, ObjectKind.Device, ObjectSource.Intune, managed.Id, managed.DeviceName,
                         "Intune enrollment record", "Exact deviceId / azureADDeviceId reference. Multiple enrollment records remain separate.");
                     AddAssociatedUser(links, context.TenantId, managed);
@@ -88,9 +93,9 @@ internal static class DeviceCloudRelationships
         if (intune.Length == 1)
         {
             AddAssociatedUser(links, context.TenantId, intune[0]);
-            CachedEntraDevices? inventory = context.EntraReads.SingleOrDefault(read => read.State.Query.Resource == Microsoft365Resource.Devices);
-            Microsoft365Device[] matches = inventory?.Devices.Where(device => SameId(device.DeviceId, intune[0].EntraDeviceId)).ToArray() ?? [];
-            if (matches.Length == 1 && inventory?.State.Coverage == EvidenceCoverage.ReturnedSet)
+            Microsoft365Device[] matches = context.EntraReads.Where(read => read.State.Query.Resource == Microsoft365Resource.Devices)
+                .SelectMany(read => read.Devices).Where(device => SameId(device.DeviceId, intune[0].EntraDeviceId)).ToArray();
+            if (matches.Length == 1 && UniqueEntraRegistration(context, matches[0]))
             {
                 Add(links, context.TenantId, ObjectKind.Device, ObjectSource.Entra, matches[0].Id, matches[0].DisplayName,
                     "Entra device record", "Exact azureADDeviceId / deviceId reference in the loaded directory set.");
@@ -99,12 +104,22 @@ internal static class DeviceCloudRelationships
         return links.Distinct().ToArray();
     }
 
+    private static bool UniqueEntraRegistration(Microsoft365DeviceContext context, Microsoft365Device primary) =>
+        context.EntraReads.Any(read => read.State.Query.Resource == Microsoft365Resource.Devices
+            && read.State.Availability == Microsoft365Availability.Available && read.State.Coverage == EvidenceCoverage.ReturnedSet
+            && read.Devices.Count(device => SameId(device.DeviceId, primary.DeviceId)) == 1
+            && read.Devices.Any(device => SameId(device.Id, primary.Id) && SameId(device.DeviceId, primary.DeviceId)))
+        && !context.EntraReads.Any(read => read.Devices.Count(device => SameId(device.DeviceId, primary.DeviceId)) > 1
+            || read.Devices.Any(device => SameId(device.DeviceId, primary.DeviceId) && !SameId(device.Id, primary.Id)
+                || SameId(device.Id, primary.Id) && !SameId(device.DeviceId, primary.DeviceId)));
+
     internal static IReadOnlyList<ObjectRelationship> Candidates(ObjectReference reference, Microsoft365DeviceContext context,
         IReadOnlyList<string> names, IReadOnlyList<ObjectRelationship> confirmed)
     {
         if (context.TenantId is null) { return []; }
         List<ObjectRelationship> candidates = [];
         Microsoft365ManagedDevice[] primaryIntune = PrimaryIntune(reference, context);
+        Microsoft365Device[] primaryEntra = PrimaryEntra(reference, context);
         foreach (Microsoft365Device device in context.EntraReads.SelectMany(read => read.Devices))
         {
             if (reference.Source == ObjectSource.Entra && SameId(device.Id, reference.Id)) { continue; }
@@ -121,10 +136,14 @@ internal static class DeviceCloudRelationships
         foreach (Microsoft365ManagedDevice device in IntuneEvidence(context))
         {
             if (reference.Source == ObjectSource.Intune && SameId(device.Id, reference.Id)) { continue; }
-            if (NameEvidence(names, device.DeviceName) is { } evidence)
+            IdentityEvidence? name = NameEvidence(names, device.DeviceName);
+            bool deviceId = primaryEntra.Any(entra => SameId(entra.DeviceId, device.EntraDeviceId));
+            if (name is not null || deviceId)
             {
-                Candidate(candidates, context.TenantId, ObjectSource.Intune, device.Id, device.DeviceName, evidence,
-                    "Device name candidate only; no Windows/AD to Intune identity is established.");
+                Candidate(candidates, context.TenantId, ObjectSource.Intune, device.Id, device.DeviceName,
+                    deviceId ? IdentityEvidence.Ambiguous : name!.Value, deviceId
+                        ? "The registration ID matches but its uniqueness or enrollment evidence is incomplete or conflicting. Inspect this enrollment separately."
+                        : "Device name candidate only; no Windows/AD to Intune identity is established.");
             }
         }
         return candidates.Where(candidate => !confirmed.Any(link => link.Target == candidate.Target)).Distinct().ToArray();
@@ -150,7 +169,7 @@ internal static class DeviceCloudRelationships
 
     private static void AddAssociatedUser(List<ObjectRelationship> links, string scope, Microsoft365ManagedDevice managed) =>
         Add(links, scope, ObjectKind.User, ObjectSource.Entra, managed.UserId, managed.UserPrincipalName,
-            "Associated user (Intune)", "Intune's reported userId; this is not a primary-user or ownership claim.");
+            "Associated user (Intune)", $"Intune enrollment {managed.Id} reports userId {managed.UserId}; this is not a primary-user or ownership claim.");
 
     private static void Add(List<ObjectRelationship> links, string scope, ObjectKind kind, ObjectSource source,
         string? id, string? label, string relation, string explanation)

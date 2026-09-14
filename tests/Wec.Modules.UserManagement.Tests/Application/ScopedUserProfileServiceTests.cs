@@ -154,6 +154,24 @@ public sealed class ScopedUserProfileServiceTests
     }
 
     [Fact]
+    public async Task ConflictingIntuneUserObservationsBecomeCandidatesWithQueryProvenance()
+    {
+        var old = new Microsoft365ManagedDevice(OtherId, "Device", CloudId, null, null, null, null, null, null, null, null, null, null, null);
+        _context = Context(new CachedEntraUsers(State(Microsoft365Resource.User, id: CloudId), [User(null)])) with
+        {
+            AssociatedIntune = [new(State(Microsoft365Resource.ManagedDevices), [old]),
+                new(State(Microsoft365Resource.ManagedDevice, id: OtherId), [old with { UserId = OtherId }])],
+        };
+        var result = (await Create().GetAsync(new(CloudReference), CancellationToken.None)).Value;
+        Assert.Empty(result.Relationships);
+        var candidate = Assert.Single(result.Candidates);
+        Assert.Equal(IdentityEvidence.Conflict, candidate.Evidence);
+        Assert.Contains("ManagedDevices", candidate.Explanation, StringComparison.Ordinal);
+        Assert.Contains(OtherId, candidate.Explanation, StringComparison.Ordinal);
+        Assert.Equal(2, result.Cloud!.AssociatedIntune.Count);
+    }
+
+    [Fact]
     public async Task SessionChangeDuringStoredDeviceCompositionDiscardsMixedResult()
     {
         CacheAd();

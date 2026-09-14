@@ -128,7 +128,12 @@ internal sealed class ScopedUserProfileService(IDirectoryUserSnapshotProvider di
             candidates.Add(new(new(ObjectKind.User, ObjectSource.ActiveDirectory, directoryScope!, possible.ObjectId.ToString("D")), possible.DisplayName,
                 "Possible AD account", IdentityEvidence.Ambiguous, "The AD SID resolves, but uniqueness or consistency of the Entra SID is not established. No AD facts are composed into this account."));
         }
-        if (primary is not null && context is not null) { links.AddRange(UserAccountRelationships.CloudLinks(context)); }
+        if (primary is not null && context is not null)
+        {
+            IReadOnlyList<ObjectRelationship> cloudLinks = UserAccountRelationships.CloudLinks(context, primary.Id);
+            links.AddRange(cloudLinks.Where(link => link.Evidence == IdentityEvidence.ScopedId));
+            candidates.AddRange(cloudLinks.Where(link => link.Evidence != IdentityEvidence.ScopedId));
+        }
         foreach (UserLinkedDeviceProfile device in adProfile?.Devices.LinkedDevices ?? [])
         {
             links.Add(new(new(ObjectKind.Device, ObjectSource.Wec, workspace.Scope, device.Host), device.Host, "Stored SID observation (Windows)",

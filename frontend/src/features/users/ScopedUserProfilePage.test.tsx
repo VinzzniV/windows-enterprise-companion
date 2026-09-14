@@ -46,6 +46,22 @@ function page() {
     <Route path="/users/:source/:scope/:objectId" element={<ScopedUserProfilePage />} />
   </Routes></MemoryRouter>);
 }
+
+it('shows conflicting enrollment observations with original user IDs in the Devices section', async () => {
+  const value = profile();
+  const device = { id: other, deviceName: 'Enrollment', userId: id, userPrincipalName: null, operatingSystem: null, operatingSystemVersion: null,
+    complianceState: null, managementState: null, enrollmentType: null, lastSyncAtUtc: null, manufacturer: null, model: null, serialNumber: null, entraDeviceId: null };
+  value.cloud!.associatedIntune = [{ state: state('MANAGED_DEVICES'), devices: [device] }, { state: state('MANAGED_DEVICE'), devices: [{ ...device, userId: other }] }];
+  value.candidates = [{ target: { kind: 'DEVICE', source: 'INTUNE', scope: tenant, id: other }, label: 'Inspect conflicting enrollment',
+    relation: 'Associated user (Intune)', evidence: 'CONFLICT', explanation: 'Loaded observations disagree about this enrollment.' }];
+  mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+  page();
+  await screen.findByRole('heading', { name: 'Cloud account' });
+  fireEvent.click(screen.getByRole('button', { name: 'Devices' }));
+  expect(screen.getByText(`Enrollment · Reported user: ${id}`)).toBeTruthy();
+  expect(screen.getByText(`Enrollment · Reported user: ${other}`)).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Inspect conflicting enrollment' }).getAttribute('href')).toBe(`/devices/intune/${tenant}/${other}`);
+});
 beforeEach(() => {
   mocks.invoke.mockReset(); mocks.cancel.mockReset(); mocks.export.mockReset();
   mocks.invoke.mockReturnValue({ promise: Promise.resolve(profile()), cancel: mocks.cancel });

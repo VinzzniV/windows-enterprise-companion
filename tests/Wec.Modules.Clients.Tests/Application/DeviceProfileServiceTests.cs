@@ -176,6 +176,45 @@ public sealed class DeviceProfileServiceTests
     }
 
     [Fact]
+    public async Task PartialEntraSetDoesNotConfirmForwardEnrollmentEvenWhenNamesDiffer()
+    {
+        Cloud([Device(name: "Directory name")], [Managed() with { DeviceName = "Other name" }], partial: true);
+        var profile = (await Create().GetAsync(new(Reference()), CancellationToken.None)).Value;
+        Assert.DoesNotContain(profile.Relationships, link => link.Target.Source == ObjectSource.Intune || link.Relation == "Associated user (Intune)");
+        Assert.Contains(profile.Candidates, link => link.Target.Source == ObjectSource.Intune && link.Evidence == IdentityEvidence.Ambiguous);
+    }
+
+    [Fact]
+    public async Task AssociatedUserLinksPreserveEachEnrollmentAsSupportingEvidence()
+    {
+        Cloud([Device()], [Managed(), Managed(DeviceId)]);
+        var profile = (await Create().GetAsync(new(Reference()), CancellationToken.None)).Value;
+        var users = profile.Relationships.Where(link => link.Relation == "Associated user (Intune)").ToArray();
+        Assert.Equal(2, users.Length);
+        Assert.Contains(users, link => link.Explanation.Contains(ObjectId, StringComparison.Ordinal));
+        Assert.Contains(users, link => link.Explanation.Contains(DeviceId, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ConflictingEnrollmentDetailAndInventoryRetainBothUsersWithoutConfirmingEither()
+    {
+        var context = new Microsoft365DeviceContext(TenantId, 1, 2, [new(State(Microsoft365Resource.Devices), [Device()])],
+            new(State(Microsoft365Resource.ManagedDevices), [Managed()]), null)
+        {
+            ManagedDetails = [new(State(Microsoft365Resource.ManagedDevice) with { Query = new(Microsoft365Resource.ManagedDevice, ObjectId) },
+                [Managed() with { UserId = DeviceId }])],
+        };
+        _cloud.ReadCachedAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>(), Arg.Any<string?>()).Returns(Result.Success(context));
+        var profile = (await Create().GetAsync(new(Reference(ObjectSource.Intune)), CancellationToken.None)).Value;
+        Assert.Equal(IdentityEvidence.Ambiguous, profile.Identity);
+        Assert.Empty(profile.Relationships);
+        Assert.Equal(UserId, Assert.Single(profile.Cloud!.Intune.Devices).UserId);
+        Assert.Equal(DeviceId, Assert.Single(profile.Cloud.ManagedDetails[0].Devices).UserId);
+        var entra = (await Create().GetAsync(new(Reference()), CancellationToken.None)).Value;
+        Assert.DoesNotContain(entra.Relationships, link => link.Target.Source == ObjectSource.Intune);
+    }
+
+    [Fact]
     public async Task PartialEntraSetDoesNotProveUniqueInverseDeviceRelationship()
     {
         Cloud([Device()], [Managed()], partial: true);

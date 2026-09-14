@@ -9,7 +9,7 @@ import { Card } from '../../shared/ui/Card';
 import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Spinner } from '../../shared/ui/Spinner';
-import { CloudFields, CloudUserFields, timestamp } from '../microsoft365/Microsoft365Fields';
+import { CloudFields, CloudManagedFields, CloudUserFields, timestamp } from '../microsoft365/Microsoft365Fields';
 import { LeaverReviewSection } from './LeaverReviewSection';
 import { UserDevicesSection } from './UserDevicesSection';
 import { useUserProfile } from './useUserProfile';
@@ -106,7 +106,7 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
         {cloud?.userReads.map((read, index) => <CloudSource key={index} title={read.state.query.resource === 'USERS_BY_SID' ? 'Entra users with exact SID'
           : read.state.query.resource === 'USER' ? 'Entra user object' : 'bounded Entra user inventory'} state={read.state} view={view} />)}
         <ObjectRelationships title="Account relationships supported by source IDs" links={profile.relationships.filter(link => link.target.kind === 'USER')} />
-        <ObjectRelationships title="Separate account candidates and conflicts" links={profile.candidates} />
+        <ObjectRelationships title="Separate account candidates and conflicts" links={profile.candidates.filter(link => link.target.kind === 'USER')} />
       </div>
       <div hidden={section !== 'access'} className="space-y-4">
         {ad && <Card title="AD direct groups">
@@ -124,8 +124,14 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
       <div hidden={section !== 'devices'} className="space-y-4">
         {ad && <UserDevicesSection profile={ad} />}
         {cloud?.registeredDevices && <CloudSource title="Entra registered devices" state={cloud.registeredDevices.state} view={view} />}
-        {cloud?.associatedIntune.map((read, index) => <CloudSource key={index} title={read.state.query.resource === 'MANAGED_DEVICE' ? 'Intune device object' : 'bounded Intune inventory'} state={read.state} view={view} />)}
+        {cloud?.associatedIntune.map((read, index) => <CloudSource key={index} title={read.state.query.resource === 'MANAGED_DEVICE' ? 'Intune device object' : 'bounded Intune inventory'} state={read.state} view={view}>
+          {read.devices.map((device, position) => <details key={position} className="my-3 rounded border border-slate-800 p-3">
+            <summary>{device.deviceName ?? device.id ?? 'Limited-information enrollment'} · Reported user: {device.userId ?? 'Unknown'}</summary>
+            <CloudManagedFields device={device} />
+          </details>)}
+        </CloudSource>)}
         <ObjectRelationships title="Device relationships supported by source IDs" links={profile.relationships.filter(link => link.target.kind === 'DEVICE')} />
+        <ObjectRelationships title="Device candidates and conflicting associations" links={profile.candidates.filter(link => link.target.kind === 'DEVICE')} />
       </div>
       <div hidden={section !== 'licenses'} className="space-y-4">
         <Card title="Entra assigned SKU evidence">

@@ -31,7 +31,7 @@ internal static class Microsoft365CorrelationPolicy
     }
 
     internal static Microsoft365Correlation Device(IEnumerable<Microsoft365Device> devices,
-        IEnumerable<Microsoft365ManagedDevice> managedDevices, string? host, string? entraDeviceId)
+        IEnumerable<Microsoft365ManagedDevice> managedDevices, string? host, string? entraDeviceId, bool completeDeviceSet = true)
     {
         bool stable = ValidId(entraDeviceId);
         Microsoft365Device[] matches = devices.Where(device => stable
@@ -42,6 +42,10 @@ internal static class Microsoft365CorrelationPolicy
             return Unknown(matches.Length > 1 ? "Ambiguous" : "Not matched", "No unique Entra device relationship in the loaded evidence. WEC/AD computer names are not stable cloud identifiers.");
         }
         Microsoft365Device matched = matches[0];
+        if (stable && !completeDeviceSet)
+        {
+            return new("Candidate", "Matching deviceId in incomplete directory evidence; uniqueness is not established. Open the scoped device profile.", null, matched, null, null, false);
+        }
         Microsoft365ManagedDevice[] managed = managedDevices.Where(device => SameId(device.EntraDeviceId, matched.DeviceId)).ToArray();
         if (managed.Length > 1)
         {

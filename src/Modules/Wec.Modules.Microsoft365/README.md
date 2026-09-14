@@ -1,5 +1,12 @@
 # Wec.Modules.Microsoft365
 
+User contexts retain conflicting userId observations for the same Intune
+enrollment, including the original query and retrieval state. Device profiles
+require complete unique Entra registration evidence in both directions;
+enrollments and associated-user links retain their individual provenance.
+Legacy context reads inspect every cached device object instead of selecting
+the first matching detail.
+
 `IMicrosoft365GroupContextProvider` exposes cached group object/inventory reads
 and direct members with separate query coverage, errors and session revision.
 Limited-information objects and duplicate source rows remain intact; this seam

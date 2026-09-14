@@ -66,7 +66,7 @@ internal static class UserAccountRelationships
             primary is not null && SameId(primary.Id, user.Id) || candidates.Any(candidate => SameId(candidate.Target.Id, user.Id))).ToArray() }).ToArray(),
     };
 
-    internal static IReadOnlyList<ObjectRelationship> CloudLinks(Microsoft365UserContext context)
+    internal static IReadOnlyList<ObjectRelationship> CloudLinks(Microsoft365UserContext context, string? userId)
     {
         if (context.TenantId is null) { return []; }
         List<ObjectRelationship> links = [];
@@ -82,16 +82,22 @@ internal static class UserAccountRelationships
         {
             foreach (Microsoft365ManagedDevice device in read.Devices)
             {
-                Add(ObjectKind.Device, ObjectSource.Intune, device.Id, device.DeviceName, "Associated user (Intune)", "Exact Intune userId references this Entra account. This is not a primary-user or ownership claim.");
+                if (!SameId(device.UserId, userId)) { continue; }
+                bool conflict = context.AssociatedIntune.Any(other => other.Devices.Any(candidate => SameId(candidate.Id, device.Id)
+                    && !SameId(candidate.UserId, userId)) || other.Devices.Count(candidate => SameId(candidate.Id, device.Id)) > 1);
+                string evidence = $"Intune enrollment {device.Id}, {read.State.Query.Resource}, retrieved {read.State.RetrievedAtUtc:O}. ";
+                Add(ObjectKind.Device, ObjectSource.Intune, device.Id, device.DeviceName, "Associated user (Intune)", evidence + (conflict
+                    ? "Loaded observations disagree about this enrollment's userId. Inspect the enrollment; no current account association is confirmed."
+                    : "Exact userId references this Entra account. This is not a primary-user or ownership claim."), conflict ? IdentityEvidence.Conflict : IdentityEvidence.ScopedId);
             }
         }
         return links.Distinct().ToArray();
 
-        void Add(ObjectKind kind, ObjectSource source, string? id, string? label, string relation, string explanation)
+        void Add(ObjectKind kind, ObjectSource source, string? id, string? label, string relation, string explanation, IdentityEvidence evidence = IdentityEvidence.ScopedId)
         {
             if (Guid.TryParse(id, out Guid parsed) && parsed != Guid.Empty)
             {
-                links.Add(new(new(kind, source, context.TenantId, parsed.ToString("D")), label ?? id!, relation, IdentityEvidence.ScopedId, explanation));
+                links.Add(new(new(kind, source, context.TenantId, parsed.ToString("D")), label ?? id!, relation, evidence, explanation));
             }
         }
     }

@@ -26,6 +26,46 @@ public sealed class Microsoft365ServiceTests
         Options.Create(new Microsoft365CacheOptions { MaximumEntries = maximumEntries, MaximumObjectListRecords = maximumObjectListRecords }));
 
     [Fact]
+    public async Task UserContextIncludesConflictingObservationsForSameIntuneEnrollmentOnly()
+    {
+        const string account = "33333333-3333-3333-3333-333333333333";
+        const string otherAccount = "44444444-4444-4444-4444-444444444444";
+        const string enrollment = "55555555-5555-5555-5555-555555555555";
+        _reader.Connection.Returns(_reader.Connection with { Configuration = _reader.Connection.Configuration with { EnableIntune = true } });
+        using var service = Create();
+        var inventory = new Microsoft365Query(Microsoft365Resource.ManagedDevices);
+        var detail = new Microsoft365Query(Microsoft365Resource.ManagedDevice, enrollment);
+        var old = new Microsoft365ManagedDevice(enrollment, "PC", account, null, null, null, null, null, null, null, null, null, null, null);
+        _reader.ReadAsync(inventory, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
+            { ManagedDevices = [old, old with { Id = otherAccount, UserId = otherAccount }] }));
+        _reader.ReadAsync(detail, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data { ManagedDevices = [old with { UserId = otherAccount }] }));
+        await service.ReadAsync(inventory, true, TestContext());
+        await service.ReadAsync(detail, true, TestContext());
+        var context = (await ((IMicrosoft365UserContextProvider)service).ReadCachedAsync(null, account, null, TestContext())).Value;
+        Assert.Equal(2, context.AssociatedIntune.Count);
+        Assert.All(context.AssociatedIntune, read => Assert.Equal(enrollment, Assert.Single(read.Devices).Id));
+        Assert.Equal(otherAccount, context.AssociatedIntune[1].Devices[0].UserId);
+        await _reader.ReceivedWithAnyArgs(2).ReadAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task LegacyDeviceContextDoesNotPickFirstCachedDetailWithSharedRegistrationId()
+    {
+        const string registration = "33333333-3333-3333-3333-333333333333";
+        using var service = Create();
+        foreach (string id in new[] { "44444444-4444-4444-4444-444444444444", "55555555-5555-5555-5555-555555555555" })
+        {
+            var query = new Microsoft365Query(Microsoft365Resource.Device, id);
+            _reader.ReadAsync(query, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
+                { Devices = [new(id, registration, "PC", null, null, null, null, null)] }));
+            await service.ReadAsync(query, true, TestContext());
+        }
+        var context = await service.ContextAsync(null, null, null, registration, TestContext());
+        Assert.Equal("Ambiguous", context.State);
+        Assert.Null(context.Device);
+    }
+
+    [Fact]
     public async Task ObjectListsAreCacheOnlyAndPreserveSourceBoundsDuplicatesAndUnknownFields()
     {
         using var service = Create(maximumObjectListRecords: 2);
