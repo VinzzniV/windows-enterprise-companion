@@ -15,7 +15,7 @@ internal static class Microsoft365Scopes
     internal static string[] For(Microsoft365Resource resource) => resource switch
     {
         Microsoft365Resource.Tenant => ["User.Read"],
-        Microsoft365Resource.Users or Microsoft365Resource.User => ["User.Read.All"],
+        Microsoft365Resource.Users or Microsoft365Resource.User or Microsoft365Resource.UsersBySid => ["User.Read.All"],
         Microsoft365Resource.Groups or Microsoft365Resource.Group or Microsoft365Resource.GroupMembers => ["GroupMember.Read.All"],
         Microsoft365Resource.UserGroups => ["User.Read.All", "GroupMember.Read.All"],
         Microsoft365Resource.Devices or Microsoft365Resource.Device or Microsoft365Resource.DeviceOwners => ["Device.Read.All"],

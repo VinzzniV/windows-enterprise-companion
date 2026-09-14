@@ -7,7 +7,8 @@ using Wec.Modules.Microsoft365.Domain;
 namespace Wec.Modules.Microsoft365.Handlers;
 
 public sealed record Microsoft365EmptyRequest;
-public sealed record Microsoft365ReadRequest(Microsoft365Resource Resource, string? ObjectId = null, bool Refresh = false, string? TenantId = null);
+public sealed record Microsoft365ReadRequest(Microsoft365Resource Resource, string? ObjectId = null, bool Refresh = false,
+    string? TenantId = null, string? SecurityIdentifier = null);
 public sealed record Microsoft365ContextRequest(string? Sid = null, string? UserPrincipalName = null,
     string? Host = null, string? EntraDeviceId = null);
 
@@ -36,7 +37,7 @@ internal sealed class Microsoft365ReadHandler(Microsoft365Service service) : IAc
     public string Module => "microsoft365";
     public string Action => "read";
     public Task<Result<Microsoft365Snapshot>> HandleAsync(Microsoft365ReadRequest payload, CancellationToken cancellationToken) =>
-        service.ReadAsync(new(payload.Resource, payload.ObjectId), payload.Refresh, cancellationToken, payload.TenantId);
+        service.ReadAsync(new(payload.Resource, payload.ObjectId, payload.SecurityIdentifier), payload.Refresh, cancellationToken, payload.TenantId);
 }
 internal sealed class Microsoft365ContextHandler(Microsoft365Service service) : IActionHandler<Microsoft365ContextRequest, Microsoft365Correlation>
 {

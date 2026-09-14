@@ -6,7 +6,7 @@ public enum Microsoft365Resource
 {
     Tenant, Users, User, Groups, Group, Devices, Device, ManagedDevices,
     Licenses, UserLicenses, UserGroups, UserDevices, GroupMembers, DeviceOwners,
-    UserActivity, UserRegistration, ManagedDevice,
+    UserActivity, UserRegistration, ManagedDevice, UsersBySid,
 }
 
 public sealed record Microsoft365Configuration(string TenantId, string ClientId,
@@ -15,7 +15,7 @@ public sealed record Microsoft365Configuration(string TenantId, string ClientId,
 public sealed record Microsoft365ScopeGrant(string Scope, bool Granted);
 public sealed record Microsoft365Connection(Microsoft365Configuration Configuration,
     bool Connected, string? Account, IReadOnlyList<Microsoft365ScopeGrant> Permissions);
-public sealed record Microsoft365Query(Microsoft365Resource Resource, string? ObjectId = null);
+public sealed record Microsoft365Query(Microsoft365Resource Resource, string? ObjectId = null, string? SecurityIdentifier = null);
 public sealed record Microsoft365Tenant(string? Id, string? DisplayName);
 public sealed record Microsoft365AssignedLicense(string? SkuId, IReadOnlyList<string>? DisabledPlans);
 public sealed record Microsoft365User(string? Id, string? DisplayName, string? UserPrincipalName,

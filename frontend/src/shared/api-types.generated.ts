@@ -344,6 +344,7 @@ export interface Microsoft365Member {
 export interface Microsoft365Query {
   resource: Microsoft365Resource;
   objectId: string | null;
+  securityIdentifier: string | null;
 }
 
 export interface Microsoft365ReadState {
@@ -364,7 +365,7 @@ export interface Microsoft365ReadState {
   freshUntilUtc: string | null;
 }
 
-export type Microsoft365Resource = 'TENANT' | 'USERS' | 'USER' | 'GROUPS' | 'GROUP' | 'DEVICES' | 'DEVICE' | 'MANAGED_DEVICES' | 'LICENSES' | 'USER_LICENSES' | 'USER_GROUPS' | 'USER_DEVICES' | 'GROUP_MEMBERS' | 'DEVICE_OWNERS' | 'USER_ACTIVITY' | 'USER_REGISTRATION' | 'MANAGED_DEVICE';
+export type Microsoft365Resource = 'TENANT' | 'USERS' | 'USER' | 'GROUPS' | 'GROUP' | 'DEVICES' | 'DEVICE' | 'MANAGED_DEVICES' | 'LICENSES' | 'USER_LICENSES' | 'USER_GROUPS' | 'USER_DEVICES' | 'GROUP_MEMBERS' | 'DEVICE_OWNERS' | 'USER_ACTIVITY' | 'USER_REGISTRATION' | 'MANAGED_DEVICE' | 'USERS_BY_SID';
 
 export interface Microsoft365ScopeGrant {
   scope: string;
@@ -1854,6 +1855,7 @@ export interface Microsoft365ReadRequest {
   objectId?: string | null;
   refresh?: boolean;
   tenantId?: string | null;
+  securityIdentifier?: string | null;
 }
 
 export type DeviceKind = 'UNKNOWN' | 'PRINTER' | 'COMPUTER' | 'NETWORK_DEVICE';

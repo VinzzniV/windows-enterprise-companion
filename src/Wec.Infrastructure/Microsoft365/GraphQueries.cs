@@ -10,23 +10,23 @@ internal static class GraphQueries
     private const string DeviceFields = "id,deviceId,displayName,operatingSystem,operatingSystemVersion,trustType,accountEnabled,approximateLastSignInDateTime";
     private const string ManagedDeviceFields = "id,deviceName,userId,userPrincipalName,operatingSystem,osVersion,complianceState,managementState,deviceEnrollmentType,lastSyncDateTime,manufacturer,model,serialNumber,azureADDeviceId";
 
-    internal static bool NeedsObjectId(Microsoft365Resource resource) => resource is not
-        (Microsoft365Resource.Tenant or Microsoft365Resource.Users or Microsoft365Resource.Groups
-        or Microsoft365Resource.Devices or Microsoft365Resource.ManagedDevices or Microsoft365Resource.Licenses);
+    internal static bool NeedsObjectId(Microsoft365Resource resource) => Microsoft365QueryValidation.RequiresObjectId(resource);
 
     internal static string Path(Microsoft365Query query, int pageSize)
     {
-        if (!Enum.IsDefined(query.Resource) || (NeedsObjectId(query.Resource)
-            && (!Guid.TryParse(query.ObjectId, out Guid id) || id == Guid.Empty)))
+        var normalized = Microsoft365QueryValidation.Normalize(query);
+        if (normalized.IsFailure)
         {
             throw new ArgumentException("A valid Graph resource and non-empty object ID are required.", nameof(query));
         }
+        query = normalized.Value;
         string? objectId = query.ObjectId is null ? null : Guid.Parse(query.ObjectId).ToString("D");
         string page = "&$top=" + pageSize.ToString(CultureInfo.InvariantCulture);
         return query.Resource switch
         {
             Microsoft365Resource.Tenant => "organization?$select=id,displayName",
             Microsoft365Resource.Users => $"users?$select={UserFields}&$count=true{page}",
+            Microsoft365Resource.UsersBySid => $"users?$select={UserFields}&$filter=onPremisesSecurityIdentifier%20eq%20'{query.SecurityIdentifier}'&$top=2",
             Microsoft365Resource.User => $"users/{objectId}?$select={UserFields}",
             Microsoft365Resource.Groups => $"groups?$select={GroupFields}&$count=true{page}",
             Microsoft365Resource.Group => $"groups/{objectId}?$select={GroupFields}",

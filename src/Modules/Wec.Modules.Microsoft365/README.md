@@ -8,6 +8,14 @@ Known Intune IDs use the [Graph v1.0 managedDevice read](https://learn.microsoft
 with the existing selected fields and `DeviceManagementManagedDevices.Read.All`.
 They do not require a tenant-wide inventory or a Primary User query.
 
+`IMicrosoft365UserContextProvider` exposes cached identity, license, direct-group,
+registered-device, Intune-userId, sign-in and registration evidence separately.
+An explicit SID query uses the documented [`onPremisesSecurityIdentifier eq`
+filter](https://learn.microsoft.com/en-us/graph/api/resources/user?view=graph-rest-1.0)
+under existing `User.Read.All`, retaining at most two users to detect ambiguity.
+It has its own query/coverage state and never promotes a partial general user
+inventory to complete coverage. No new fields or permissions are requested.
+
 Read-only Microsoft Graph source. Infrastructure owns Graph/MSAL; this module
 owns the bounded session cache, license capacity calculations, correlation
 policy and transport-independent handlers. It references only Wec.Core.

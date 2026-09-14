@@ -18,20 +18,21 @@ export const resourceLabels: Record<Microsoft365Resource, string> = {
   USER_LICENSES: 'User licenses', USER_GROUPS: 'Direct user groups', USER_DEVICES: 'Registered user devices',
   GROUP_MEMBERS: 'Direct group members', DEVICE_OWNERS: 'Registered device owners',
   USER_ACTIVITY: 'Sign-in evidence', USER_REGISTRATION: 'MFA registration',
+  USERS_BY_SID: 'Users with exact on-premises SID',
 };
 const topResources: Microsoft365Resource[] = ['TENANT', 'USERS', 'LICENSES', 'GROUPS', 'DEVICES', 'MANAGED_DEVICES'];
 
-function QueryPanel({ resource, objectId, onRead }: { resource: Microsoft365Resource; objectId: string | null; onRead(): void }) {
+function QueryPanel({ resource, objectId, securityIdentifier, onRead }: { resource: Microsoft365Resource; objectId: string | null; securityIdentifier: string | null; onRead(): void }) {
   const query = useMicrosoft365Action<Microsoft365Snapshot>();
   const { run } = query;
-  useEffect(() => { void run('read', { resource, objectId }); }, [run, resource, objectId]);
+  useEffect(() => { void run('read', { resource, objectId, securityIdentifier }); }, [run, resource, objectId, securityIdentifier]);
   useEffect(() => { if (query.data || query.error) onRead(); }, [query.data, query.error, onRead]);
   const parent: Microsoft365Resource | null = resource.startsWith('USER_') ? 'USER' : resource === 'GROUP_MEMBERS' ? 'GROUP' : resource === 'DEVICE_OWNERS' ? 'DEVICE' : null;
   const device = query.data?.data?.devices[0];
   return <Card title={resourceLabels[resource]}>
     <div className="mb-3 flex flex-wrap items-center gap-3">
       {parent && objectId && <Link className="text-sm text-accent-400 underline" to={cloudPath(parent, objectId)}>Back to {parent.toLowerCase()}</Link>}
-      <Button disabled={query.busy} onClick={() => void run('read', { resource, objectId, refresh: true })}>Refresh this source</Button>
+      <Button disabled={query.busy} onClick={() => void run('read', { resource, objectId, securityIdentifier, refresh: true })}>Refresh this source</Button>
       {query.busy && <><Spinner label="Reading Microsoft Graph…" /><Button onClick={query.cancel}>Cancel</Button></>}
     </div>
     {query.error && <p role="alert" className="mb-3 text-sm text-fail-400">{query.error}{query.data ? ' Previous data remains visible; it has not been refreshed.' : ''}</p>}
@@ -45,6 +46,7 @@ export function Microsoft365Page() {
   const requested = parameters.get('resource') ?? 'TENANT';
   const resource: Microsoft365Resource = Object.hasOwn(resourceLabels, requested) ? requested as Microsoft365Resource : 'TENANT';
   const objectId = parameters.get('objectId');
+  const securityIdentifier = resource === 'USERS_BY_SID' ? parameters.get('securityIdentifier') : null;
   const status = useMicrosoft365Action<Microsoft365Status>();
   const auth = useMicrosoft365Action<Microsoft365Connection | boolean>();
   const [connection, setConnection] = useState<Microsoft365Connection | null>(null);
@@ -126,7 +128,7 @@ export function Microsoft365Page() {
         </div>;
       })}</div>
     </Card>}
-    {connection?.connected ? <QueryPanel key={`${sessionRevision}:${resource}:${objectId ?? ''}`} resource={resource} objectId={objectId} onRead={refreshStatus} />
+    {connection?.connected ? <QueryPanel key={`${sessionRevision}:${resource}:${objectId ?? ''}:${securityIdentifier ?? ''}`} resource={resource} objectId={objectId} securityIdentifier={securityIdentifier} onRead={refreshStatus} />
       : <p className="text-sm text-muted">Sign in to read Microsoft 365. Existing AD and local client views remain available.</p>}
   </div>;
 }

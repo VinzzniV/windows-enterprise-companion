@@ -18,7 +18,7 @@ const secondId = '33333333-3333-3333-3333-333333333333';
 
 function state(resource: Microsoft365ReadState['query']['resource'], objectId: string | null = null): Microsoft365ReadState {
   const now = Date.now();
-  return { query: { resource, objectId }, tenantId: tenant, sessionRevision: 1, snapshotRevision: 1, availability: 'AVAILABLE',
+  return { query: { resource, objectId, securityIdentifier: null }, tenantId: tenant, sessionRevision: 1, snapshotRevision: 1, availability: 'AVAILABLE',
     loading: false, retrievedAtUtc: new Date(now).toISOString(), lastAttemptAtUtc: new Date(now).toISOString(), lastAttemptError: null,
     retainedUntilUtc: new Date(now + 3600_000).toISOString(), freshUntilUtc: new Date(now + 600_000).toISOString(), freshness: 'FRESH', coverage: 'RETURNED_SET', loadedCount: 1, declaredTotal: null };
 }

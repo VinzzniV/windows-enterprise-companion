@@ -260,6 +260,27 @@ public sealed class GraphReaderTests
         Content = new StringContent(json, Encoding.UTF8, "application/json"),
     };
 
+    [Fact]
+    public async Task SidLookupUsesExistingReadScopeAndStopsAfterDuplicateEvidence()
+    {
+        const string sid = "S-1-5-21-1-2-3-1001";
+        var fake = new FakeHandler((request, _, _) =>
+        {
+            string query = Uri.UnescapeDataString(request.RequestUri!.Query);
+            Assert.Contains($"onPremisesSecurityIdentifier eq '{sid}'", query, StringComparison.Ordinal);
+            Assert.Contains("$top=2", query, StringComparison.Ordinal);
+            return Task.FromResult(Json($$"""{"@odata.nextLink":"https://graph.microsoft.com/v1.0/users?$skiptoken=next","value":[{"id":"one","onPremisesSecurityIdentifier":"{{sid}}"},{"id":"two","onPremisesSecurityIdentifier":"{{sid}}"}]}"""));
+        });
+        using var http = new HttpClient(new GraphReadOnlyHandler(new(), fake));
+        using var graph = new GraphServiceClient(http, new AnonymousAuthenticationProvider());
+        var data = await MicrosoftGraphReader.ReadDataAsync(graph.RequestAdapter,
+            new(Microsoft365Resource.UsersBySid, SecurityIdentifier: sid), new(), CancellationToken.None);
+        Assert.Equal(2, data.Users.Count);
+        Assert.True(data.Truncated);
+        Assert.Equal(1, fake.Count);
+        Assert.Equal(["User.Read.All"], Microsoft365Scopes.For(Microsoft365Resource.UsersBySid));
+    }
+
     private sealed class FakeHandler(Func<HttpRequestMessage, int, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         public int Count { get; private set; }

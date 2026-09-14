@@ -56,7 +56,7 @@ export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snaps
       ['MFA registered', data.activity?.mfaRegistered], ['MFA capable', data.activity?.mfaCapable],
       ['Registered method categories', data.activity?.methodsRegistered?.join(', ')],
     ]} /><p className="mt-3 text-xs text-muted">Reports can lag and require tenant roles and licensing. Registration is not MFA enforcement. Missing timestamps do not mean the account never signed in. Registration reports are unavailable for disabled users.</p></>;
-  } else if (resource === 'USERS' || resource === 'USER') {
+  } else if (resource === 'USERS' || resource === 'USER' || resource === 'USERS_BY_SID') {
     content = resource === 'USER' && data.users[0] ? <>
       <CloudUserFields user={data.users[0]} />
       <div className="my-3 flex flex-wrap gap-4">{([

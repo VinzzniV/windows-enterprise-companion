@@ -7,7 +7,7 @@ using Wec.Modules.Microsoft365.Domain;
 namespace Wec.Modules.Microsoft365.Application;
 
 internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clock,
-    IOptions<Microsoft365CacheOptions> options) : IMicrosoft365DeviceContextProvider, IDisposable
+    IOptions<Microsoft365CacheOptions> options) : IMicrosoft365DeviceContextProvider, IMicrosoft365UserContextProvider, IDisposable
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _readGate = new(1, 1);
@@ -29,7 +29,7 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
         lock (_gate)
         {
             Expire();
-            Microsoft365SourceStatus[] sources = _cache.Where(pair => pair.Key.ObjectId is null).Select(pair =>
+            Microsoft365SourceStatus[] sources = _cache.Where(pair => pair.Key.ObjectId is null && pair.Key.SecurityIdentifier is null).Select(pair =>
             {
                 Microsoft365ReadState state = State(pair.Key);
                 return new Microsoft365SourceStatus(pair.Key.Resource, state.RetrievedAtUtc,
@@ -111,14 +111,9 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
     internal async Task<Result<Microsoft365Snapshot>> ReadAsync(Microsoft365Query query, bool refresh, CancellationToken cancellationToken,
         string? expectedTenantId = null)
     {
-        bool requiresId = query.Resource is not (Microsoft365Resource.Tenant or Microsoft365Resource.Users
-            or Microsoft365Resource.Groups or Microsoft365Resource.Devices or Microsoft365Resource.ManagedDevices or Microsoft365Resource.Licenses);
-        if (!Enum.IsDefined(query.Resource) || requiresId != (query.ObjectId is not null)
-            || query.ObjectId is not null && (!Guid.TryParse(query.ObjectId, out Guid id) || id == Guid.Empty))
-        {
-            return Result.Failure<Microsoft365Snapshot>(new Error(ErrorCode.InvalidRequest, "Use a known Microsoft 365 resource and a valid object ID only for object queries."));
-        }
-        query = query with { ObjectId = query.ObjectId is null ? null : Guid.Parse(query.ObjectId).ToString("D") };
+        Result<Microsoft365Query> normalized = Microsoft365QueryValidation.Normalize(query);
+        if (normalized.IsFailure) { return Result.Failure<Microsoft365Snapshot>(normalized.Error!); }
+        query = normalized.Value;
         cancellationToken.ThrowIfCancellationRequested();
         long generation;
         long requestedRevision;
@@ -264,6 +259,54 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
 
     private IReadOnlyList<Microsoft365Device> DeviceData(Microsoft365Query query) =>
         Connection.Connected ? _cache.GetValueOrDefault(query)?.Snapshot?.Data?.Devices ?? [] : [];
+
+    public Task<Result<Microsoft365UserContext>> ReadCachedAsync(string? tenantId, string? userObjectId,
+        string? securityIdentifier, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string? sid = Microsoft365QueryValidation.AccountSid(securityIdentifier);
+        if (tenantId is not null && !ValidId(tenantId) || userObjectId is not null && !ValidId(userObjectId)
+            || securityIdentifier is not null && sid is null)
+        {
+            return Task.FromResult(Result.Failure<Microsoft365UserContext>(new(ErrorCode.InvalidRequest, "Use valid tenant/user GUIDs and an exact AD account SID.")));
+        }
+        lock (_gate)
+        {
+            Expire();
+            string? scope = ValidId(Connection.Configuration.TenantId) ? Guid.Parse(Connection.Configuration.TenantId).ToString("D") : null;
+            if (tenantId is not null && !string.Equals(Guid.Parse(tenantId).ToString("D"), scope, StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(SessionChanged<Microsoft365UserContext>());
+            }
+            string? userId = userObjectId is null ? null : Guid.Parse(userObjectId).ToString("D");
+            List<Microsoft365Query> users = [new(Microsoft365Resource.Users)];
+            if (userId is not null) { users.Add(new(Microsoft365Resource.User, userId)); }
+            else { users.AddRange(_cache.Keys.Where(query => query.Resource == Microsoft365Resource.User)); }
+            if (sid is not null) { users.Add(new(Microsoft365Resource.UsersBySid, SecurityIdentifier: sid)); }
+            Microsoft365Query tenantLicenses = new(Microsoft365Resource.Licenses);
+            Microsoft365Query licenses = new(Microsoft365Resource.UserLicenses, userId);
+            Microsoft365Query groups = new(Microsoft365Resource.UserGroups, userId);
+            Microsoft365Query devices = new(Microsoft365Resource.UserDevices, userId);
+            Microsoft365Query activity = new(Microsoft365Resource.UserActivity, userId);
+            Microsoft365Query registration = new(Microsoft365Resource.UserRegistration, userId);
+            Microsoft365Query[] managed = new[] { new Microsoft365Query(Microsoft365Resource.ManagedDevices) }
+                .Concat(_cache.Keys.Where(query => query.Resource == Microsoft365Resource.ManagedDevice)).ToArray();
+            return Task.FromResult(Result.Success(new Microsoft365UserContext(scope, _generation, _revision,
+                users.Select(query => new CachedEntraUsers(State(query), CachedData(query)?.Users ?? [])).ToArray(),
+                new(State(tenantLicenses), CachedData(tenantLicenses)?.Licenses ?? []),
+                userId is null ? null : new(State(licenses), CachedData(licenses)?.Licenses ?? []),
+                userId is null ? null : new(State(groups), CachedData(groups)?.Groups ?? []),
+                userId is null ? null : new(State(devices), CachedData(devices)?.Devices ?? []),
+                managed.Select(query => new CachedIntuneDevices(State(query),
+                    Connection.Configuration.EnableIntune ? (CachedData(query)?.ManagedDevices ?? [])
+                        .Where(device => userId is not null && ValidId(device.UserId) && Guid.Parse(device.UserId!) == Guid.Parse(userId)).ToArray() : [])).ToArray(),
+                userId is null ? null : new(State(activity), CachedData(activity)?.Activity),
+                userId is null ? null : new(State(registration), CachedData(registration)?.Activity))));
+        }
+    }
+
+    private Microsoft365Data? CachedData(Microsoft365Query query) => Connection.Connected
+        ? _cache.GetValueOrDefault(query)?.Snapshot?.Data : null;
 
     private static bool ValidId(string? id) => Guid.TryParse(id, out Guid value) && value != Guid.Empty;
 

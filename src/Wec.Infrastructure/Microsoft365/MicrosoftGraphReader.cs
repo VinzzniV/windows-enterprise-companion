@@ -142,6 +142,8 @@ public sealed class MicrosoftGraphReader : IMicrosoft365Reader, IDisposable
                 page => page.Value, items => new Microsoft365Data { Tenants = items.Select(item => new Microsoft365Tenant(item.Id, item.DisplayName)).ToArray() }, options, cancellationToken).ConfigureAwait(false),
             Microsoft365Resource.Users => await ReadPagesAsync(adapter, path, UserCollectionResponse.CreateFromDiscriminatorValue,
                 page => page.Value, items => new Microsoft365Data { Users = items.Select(GraphMapping.User).ToArray() }, options, cancellationToken).ConfigureAwait(false),
+            Microsoft365Resource.UsersBySid => await ReadPagesAsync(adapter, path, UserCollectionResponse.CreateFromDiscriminatorValue,
+                page => page.Value, items => new Microsoft365Data { Users = items.Select(GraphMapping.User).ToArray() }, options, cancellationToken, maximumItems: 2).ConfigureAwait(false),
             Microsoft365Resource.Groups or Microsoft365Resource.UserGroups => await ReadPagesAsync(adapter, path, GroupCollectionResponse.CreateFromDiscriminatorValue,
                 page => page.Value, items => new Microsoft365Data { Groups = items.Select(GraphMapping.Group).ToArray() }, options, cancellationToken).ConfigureAwait(false),
             Microsoft365Resource.Devices or Microsoft365Resource.UserDevices => await ReadPagesAsync(adapter, path, DeviceCollectionResponse.CreateFromDiscriminatorValue,
@@ -160,7 +162,7 @@ public sealed class MicrosoftGraphReader : IMicrosoft365Reader, IDisposable
 
     private static async Task<Microsoft365Data> ReadPagesAsync<TPage, TItem>(IRequestAdapter adapter, string path,
         ParsableFactory<TPage> factory, Func<TPage, List<TItem>?> readItems, Func<List<TItem>, Microsoft365Data> map,
-        Microsoft365Options options, CancellationToken cancellationToken) where TPage : BaseCollectionPaginationCountResponse, IParsable
+        Microsoft365Options options, CancellationToken cancellationToken, int? maximumItems = null) where TPage : BaseCollectionPaginationCountResponse, IParsable
     {
         string? next = "https://graph.microsoft.com/v1.0/" + path;
         string collectionPath = new Uri(next).AbsolutePath;
@@ -168,7 +170,8 @@ public sealed class MicrosoftGraphReader : IMicrosoft365Reader, IDisposable
         var items = new List<TItem>();
         long? total = null;
         int pages = 0;
-        while (next is not null && pages < options.MaximumPages && items.Count < options.MaximumItems)
+        int itemLimit = Math.Min(options.MaximumItems, maximumItems ?? options.MaximumItems);
+        while (next is not null && pages < options.MaximumPages && items.Count < itemLimit)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!visited.Add(next) || !GraphReadOnlyHandler.IsAllowed(new Uri(next))
@@ -183,7 +186,7 @@ public sealed class MicrosoftGraphReader : IMicrosoft365Reader, IDisposable
                 throw new InvalidDataException("Graph collection contains invalid count or null records.");
             }
             total ??= page.OdataCount;
-            int remaining = options.MaximumItems - items.Count;
+            int remaining = itemLimit - items.Count;
             items.AddRange(values.Take(remaining));
             next = page.OdataNextLink;
             pages++;
