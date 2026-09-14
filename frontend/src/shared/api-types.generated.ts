@@ -1275,6 +1275,7 @@ export interface StoredObjectListRead {
 export interface StoredObjectLists {
   workspace: WecWorkspaceIdentity;
   maximumRecords: number;
+  maximumSourceReads: number;
   retrievedAtUtc: string;
   search: string | null;
   reads: StoredObjectListRead[];

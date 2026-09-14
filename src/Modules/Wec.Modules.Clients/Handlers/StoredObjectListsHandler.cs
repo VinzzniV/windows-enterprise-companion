@@ -12,7 +12,7 @@ namespace Wec.Modules.Clients.Handlers;
 public sealed record StoredObjectListsRequest(string? Search = null);
 public sealed record StoredObjectListRead(StoredDeviceListSource Source, string Revision, int? TotalRecords,
     IReadOnlyList<StoredDeviceAddressRow> Records, Error? Error);
-public sealed record StoredObjectLists(WecWorkspaceIdentity Workspace, int MaximumRecords,
+public sealed record StoredObjectLists(WecWorkspaceIdentity Workspace, int MaximumRecords, int MaximumSourceReads,
     DateTimeOffset RetrievedAtUtc, string? Search, IReadOnlyList<StoredObjectListRead> Reads);
 
 internal sealed class StoredObjectListsHandler(IEnumerable<IStoredDeviceListProvider> sources,
@@ -38,6 +38,6 @@ internal sealed class StoredObjectListsHandler(IEnumerable<IStoredDeviceListProv
             string revision = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { total, records, page.Error })));
             reads.Add(new(source.Source, revision, total, records, page.Error));
         }
-        return Result.Success(new StoredObjectLists(workspace, options.Value.MaximumRecords, clock.UtcNow, search, reads));
+        return Result.Success(new StoredObjectLists(workspace, options.Value.MaximumRecords, options.Value.MaximumSourceReads, clock.UtcNow, search, reads));
     }
 }
