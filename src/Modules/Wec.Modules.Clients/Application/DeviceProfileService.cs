@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Wec.Core.Contracts;
 using Wec.Core.Microsoft365;
 using Wec.Core.Objects;
@@ -7,7 +8,7 @@ using Wec.Core.Targets;
 namespace Wec.Modules.Clients.Application;
 
 internal sealed class DeviceProfileService(WecWorkspaceIdentity workspace, ClientOverviewService localOverview,
-    IInventoryClientSnapshotProvider storedHosts, ISavedClientTargetProvider savedTargets,
+    IEnumerable<IStoredDeviceListProvider> storedSources, IOptions<ObjectWorkingSetOptions> options,
     IDirectoryComputerReadProvider directory, IManagementDeviceSnapshotProvider management,
     IMicrosoft365DeviceContextProvider cloud)
 {
@@ -38,10 +39,17 @@ internal sealed class DeviceProfileService(WecWorkspaceIdentity workspace, Clien
         };
         List<Error> errors = [];
         List<ObjectRelationship> candidates = [];
-        IReadOnlyList<string> hosts = (await storedHosts.ListHostsAsync(cancellationToken)).Select(item => item.Host)
-            .Concat((await savedTargets.ListClientsAsync(cancellationToken)).Select(item => item.Host))
-            .Append(workspace.LocalComputerName).Where(host => !string.IsNullOrWhiteSpace(host))
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        List<StoredDeviceCandidateSource> storedCoverage = [];
+        List<string> loadedHosts = [workspace.LocalComputerName];
+        foreach (IStoredDeviceListProvider source in storedSources)
+        {
+            await ReadStored(source, null);
+            if (reference.Source == ObjectSource.Wec && !loadedHosts.Contains(reference.Id, StringComparer.OrdinalIgnoreCase))
+            {
+                await ReadStored(source, reference.Id);
+            }
+        }
+        string[] hosts = loadedHosts.Where(host => !string.IsNullOrWhiteSpace(host)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         string? operationalHost = null;
         if (reference.Source == ObjectSource.Wec)
         {
@@ -146,7 +154,16 @@ internal sealed class DeviceProfileService(WecWorkspaceIdentity workspace, Clien
         cancellationToken.ThrowIfCancellationRequested();
         return Result.Success(new DeviceProfileResult(reference, title, identity, explanation, operationalHost, wec, ad,
             adRecords, cloudContext is null ? null : DeviceCloudRelationships.Filter(reference, cloudContext, names), related,
-            relationships, candidates.Distinct().ToArray(), errors));
+            relationships, candidates.Distinct().ToArray(), errors) { StoredCandidateSources = storedCoverage });
+
+        async Task ReadStored(IStoredDeviceListProvider source, string? search)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Result<StoredDeviceAddressPage> page = await source.ReadAsync(options.Value.MaximumRecords, search, cancellationToken);
+            storedCoverage.Add(new(source.Source, search, page.IsSuccess ? page.Value.Records.Count : 0,
+                page.IsSuccess ? page.Value.TotalRecords : null, page.Error));
+            if (page.IsSuccess) { loadedHosts.AddRange(page.Value.Records.Select(row => row.Host)); }
+        }
     }
 
     private ObjectRelationship WecCandidate(string host, string explanation) => new(

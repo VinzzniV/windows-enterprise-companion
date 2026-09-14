@@ -16,8 +16,7 @@ public sealed class DeviceProfileServiceTests
     private const string DeviceId = "33333333-3333-3333-3333-333333333333";
     private const string UserId = "44444444-4444-4444-4444-444444444444";
     private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
-    private readonly IInventoryClientSnapshotProvider _hosts = Substitute.For<IInventoryClientSnapshotProvider>();
-    private readonly ISavedClientTargetProvider _saved = Substitute.For<ISavedClientTargetProvider>();
+    private readonly IStoredDeviceListProvider _hosts = Substitute.For<IStoredDeviceListProvider>();
     private readonly IDirectoryComputerReadProvider _directory = Substitute.For<IDirectoryComputerReadProvider>();
     private readonly IManagementDeviceSnapshotProvider _management = Substitute.For<IManagementDeviceSnapshotProvider>();
     private readonly IMicrosoft365DeviceContextProvider _cloud = Substitute.For<IMicrosoft365DeviceContextProvider>();
@@ -25,8 +24,7 @@ public sealed class DeviceProfileServiceTests
 
     public DeviceProfileServiceTests()
     {
-        _hosts.ListHostsAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<InventoryClientSnapshotHost>());
-        _saved.ListClientsAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<SavedClientTarget>());
+        _hosts.ReadAsync(Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Result.Success(new StoredDeviceAddressPage(0, [])));
         Cloud();
     }
 
@@ -37,7 +35,7 @@ public sealed class DeviceProfileServiceTests
         var overview = new ClientOverviewService(_inventory, Substitute.For<IInstalledSoftwareInventoryProvider>(),
             Substitute.For<IDeviceHealthSnapshotProvider>(), Substitute.For<ISecurityReportDataProvider>(),
             Substitute.For<IClientUserRelationshipProvider>(), clock, Options.Create(new ClientOverviewOptions()));
-        return new(new("workspace", Environment.MachineName), overview, _hosts, _saved, _directory, _management, _cloud);
+        return new(new("workspace", Environment.MachineName), overview, [_hosts], Options.Create(new ObjectWorkingSetOptions { MaximumRecords = 2 }), _directory, _management, _cloud);
     }
 
     private static ObjectReference Reference(ObjectSource source = ObjectSource.Entra, string id = ObjectId) =>
@@ -58,6 +56,35 @@ public sealed class DeviceProfileServiceTests
     private static Microsoft365Device Device(string id = ObjectId, string name = "PC") => new(id, DeviceId, name, null, null, null, null, null);
     private static Microsoft365ManagedDevice Managed(string id = ObjectId) => new(id, "PC", UserId, null, null, null, null, null, null,
         null, null, null, null, DeviceId);
+
+    [Fact]
+    public async Task ExactTargetOutsideBoundedInventoryUsesTargetedSearchAndKeepsCoverage()
+    {
+        _hosts.ReadAsync(2, null, Arg.Any<CancellationToken>()).Returns(Result.Success(new StoredDeviceAddressPage(50000,
+            [new("1", "AA", "AA", Now), new("2", "AB", "AB", Now)])));
+        _hosts.ReadAsync(2, "ZZ", Arg.Any<CancellationToken>()).Returns(Result.Success(new StoredDeviceAddressPage(1,
+            [new("50000", "ZZ", "ZZ", Now)])));
+        var profile = (await Create().GetAsync(new(Reference(ObjectSource.Wec, "ZZ")), CancellationToken.None)).Value;
+        Assert.Equal("ZZ", profile.OperationalHost);
+        Assert.Equal(2, profile.StoredCandidateSources.Count);
+        Assert.Equal(50000, profile.StoredCandidateSources[0].TotalRecords);
+        Assert.Equal(2, profile.StoredCandidateSources[0].LoadedRecords);
+        await _hosts.Received(1).ReadAsync(2, "ZZ", Arg.Any<CancellationToken>());
+        await _inventory.Received(1).GetLatestAsync("ZZ", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task FailedStoredCandidateSourceDoesNotDiscardCloudProfileOrInventZeroTotal()
+    {
+        Cloud([Device()]);
+        _hosts.ReadAsync(Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<StoredDeviceAddressPage>(new(ErrorCode.ServiceUnavailable, "Stored source unavailable")));
+        var profile = (await Create().GetAsync(new(Reference()), CancellationToken.None)).Value;
+        Assert.Equal("PC", profile.Title);
+        var source = Assert.Single(profile.StoredCandidateSources);
+        Assert.Null(source.TotalRecords);
+        Assert.Equal(ErrorCode.ServiceUnavailable, source.Error!.Code);
+    }
 
     [Fact]
     public async Task EntraOnlyProfileRetainsScopedAnchorAndNeverLoadsLocalOrDirectoryEvidence()
@@ -104,10 +131,8 @@ public sealed class DeviceProfileServiceTests
     [Fact]
     public async Task ShortHostCollisionRequiresSelectionAndDoesNotReadLocalSnapshot()
     {
-        _hosts.ListHostsAsync(Arg.Any<CancellationToken>()).Returns(new[]
-        {
-            new InventoryClientSnapshotHost("PC.alpha.test", Now), new InventoryClientSnapshotHost("PC.beta.test", Now),
-        });
+        _hosts.ReadAsync(Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Result.Success(new StoredDeviceAddressPage(2,
+            [new("1", "PC.alpha.test", "PC.alpha.test", Now), new("2", "PC.beta.test", "PC.beta.test", Now)])));
         var profile = (await Create().GetAsync(new(Reference(ObjectSource.Wec, "PC")), CancellationToken.None)).Value;
         Assert.Equal(IdentityEvidence.Ambiguous, profile.Identity);
         Assert.Equal(2, profile.Candidates.Count);
@@ -118,10 +143,8 @@ public sealed class DeviceProfileServiceTests
     [Fact]
     public async Task ExactStoredHostWinsBeforeAliasesWithoutChangingItsStorageKey()
     {
-        _hosts.ListHostsAsync(Arg.Any<CancellationToken>()).Returns(new[]
-        {
-            new InventoryClientSnapshotHost("PC", Now), new InventoryClientSnapshotHost("PC.alpha.test", Now),
-        });
+        _hosts.ReadAsync(Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(Result.Success(new StoredDeviceAddressPage(2,
+            [new("1", "PC", "PC", Now), new("2", "PC.alpha.test", "PC.alpha.test", Now)])));
         var profile = (await Create().GetAsync(new(Reference(ObjectSource.Wec, "pc")), CancellationToken.None)).Value;
         Assert.Equal("PC", profile.OperationalHost);
         await _inventory.Received(1).GetLatestAsync("PC", Arg.Any<CancellationToken>());

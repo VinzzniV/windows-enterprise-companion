@@ -26,7 +26,9 @@ public sealed class InventoryStoredDeviceListProvider(DbContext dbContext) : ISt
                 selected = selected.Where(record => EF.Functions.Like(record.Host, pattern, "!"));
             }
             int total = await selected.CountAsync(cancellationToken);
-            var records = await selected.OrderBy(record => record.Host).ThenBy(record => record.Id).Take(maximumRecords)
+            string? exact = search?.Trim();
+            var records = await selected.OrderBy(record => exact != null && EF.Functions.Collate(record.Host, "NOCASE") == exact ? 0 : 1)
+                .ThenBy(record => record.Host).ThenBy(record => record.Id).Take(maximumRecords)
                 .Select(record => new { record.Id, record.Host, Label = record.Host, ObservedAtUtc = record.CapturedAtUtc })
                 .ToListAsync(cancellationToken);
             return Result.Success(new StoredDeviceAddressPage(total, records.Select(record => new StoredDeviceAddressRow(

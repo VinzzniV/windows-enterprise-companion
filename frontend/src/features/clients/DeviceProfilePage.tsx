@@ -110,6 +110,14 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
         {sourceRetained(cloud.registeredOwners.state, view.now) && cloud.registeredOwners.members.map((member, index) => <p key={index} className="text-sm">{member.displayName ?? 'Limited-information object'} · {member.objectType ?? 'Type unavailable'} · {member.id ?? 'ID unavailable'}</p>)}
       </Card>}
       <div className="grid gap-4 lg:grid-cols-2"><Relations title="Relationships supported by source IDs" links={profile.relationships} /><Relations title="Candidates requiring selection" links={profile.candidates} /></div>
+      <Card title="Stored Windows candidate coverage">
+        <p className="text-xs text-muted">Candidates use bounded local address lists. Missing candidates do not prove absence. An exact requested address is searched separately if needed.</p>
+        {profile.storedCandidateSources.map((source, index) => <p key={index} className="mt-2 text-xs">
+          {source.source} · {source.search ? `Search: ${source.search}` : 'Loaded address list'} · {source.loadedRecords} loaded / {source.totalRecords ?? 'unknown'} source records
+          {source.totalRecords !== null && source.loadedRecords < source.totalRecords ? ' · Partial coverage' : ''}
+          {source.error && <span role="alert" className="text-fail-400"> · {source.error.message}</span>}
+        </p>)}
+      </Card>
       <ManagementCandidates profile={profile} />
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={environment.loading || view.busy} onClick={() => void environment.refresh().then(() => view.load())}>Load management sources: AD, KSC, opsi, Nessus</Button>

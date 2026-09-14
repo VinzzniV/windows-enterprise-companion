@@ -1273,6 +1273,7 @@ export interface DeviceProfileResult {
   relationships: ObjectRelationship[];
   candidates: ObjectRelationship[];
   sourceErrors: Error[];
+  storedCandidateSources: StoredDeviceCandidateSource[];
 }
 
 export interface ManagementDeviceListRead {
@@ -1336,6 +1337,14 @@ export interface ManagementDeviceRecordRequest {
 }
 
 export type ManagementDeviceSource = 'ACTIVE_DIRECTORY' | 'KASPERSKY' | 'OPSI' | 'NESSUS';
+
+export interface StoredDeviceCandidateSource {
+  source: StoredDeviceListSource;
+  search: string | null;
+  loadedRecords: number;
+  totalRecords: number | null;
+  error: Error | null;
+}
 
 export interface DeviceWorkspaceRequest {
 }

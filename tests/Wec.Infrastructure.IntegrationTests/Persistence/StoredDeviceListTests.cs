@@ -64,6 +64,27 @@ public sealed class StoredDeviceListTests : IDisposable
     }
 
     [Fact]
+    public async Task ExactAddressPrecedesEarlierSubstringMatchesUnderSmallBound()
+    {
+        using WecDbContext context = IntegrationDbContextFactory.Create(_path);
+        await context.Database.MigrateAsync();
+        foreach (string host in new[] { "aa-pc", "PC", "zz-pc" })
+        {
+            context.Add(new HardwareSnapshotRecord { Host = host, CapturedAtUtc = Now, PayloadJson = "{}" });
+            context.Add(new SecurityScanRecord { Host = host, StartedAtUtc = Now, CompletedAtUtc = Now, Status = "Completed" });
+            context.Add(new SavedTargetRecord { Host = host, Label = host, Role = TargetRoles.Client, CreatedAtUtc = Now });
+        }
+        await context.SaveChangesAsync();
+        IStoredDeviceListProvider[] sources = [new InventoryStoredDeviceListProvider(context), new SecurityStoredDeviceListProvider(context), new SavedClientListProvider(context)];
+        foreach (IStoredDeviceListProvider source in sources)
+        {
+            var page = (await source.ReadAsync(1, "pc", CancellationToken.None)).Value;
+            Assert.Equal(3, page.TotalRecords);
+            Assert.Equal("PC", Assert.Single(page.Records).Host);
+        }
+    }
+
+    [Fact]
     public async Task StorageFailureIsTypedAndCancellationIsNotConvertedIntoEmptyData()
     {
         using WecDbContext context = IntegrationDbContextFactory.Create(_path);

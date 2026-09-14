@@ -26,7 +26,7 @@ function state(resource: Microsoft365ReadState['query']['resource'], objectId: s
 function profile(source: ObjectSource = 'ENTRA'): DeviceProfileResult {
   return {
     reference: { kind: 'DEVICE', source, scope: tenant, id }, title: 'Cloud device', identity: 'SCOPED_ID', explanation: 'Scoped source identity.', operationalHost: null,
-    wec: null, directory: null, directoryRecords: [], managementCandidates: null, relationships: [], candidates: [], sourceErrors: [],
+    wec: null, directory: null, directoryRecords: [], managementCandidates: null, relationships: [], candidates: [], sourceErrors: [], storedCandidateSources: [],
     cloud: { tenantId: tenant, sessionRevision: 1, revision: 1,
       entraReads: [{ state: state('DEVICE', id), devices: [{ id, deviceId: secondId, displayName: 'Cloud device', operatingSystem: null, operatingSystemVersion: null, trustType: null, accountEnabled: false, approximateLastSignInAtUtc: null }] }],
       intune: { state: { ...state('MANAGED_DEVICES'), availability: 'NOT_ENABLED', loadedCount: null }, devices: [] },

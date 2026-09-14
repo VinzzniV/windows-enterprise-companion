@@ -22,4 +22,10 @@ public sealed record DeviceProfileResult(
     ManagementDeviceSnapshot? ManagementCandidates,
     IReadOnlyList<ObjectRelationship> Relationships,
     IReadOnlyList<ObjectRelationship> Candidates,
-    IReadOnlyList<Error> SourceErrors);
+    IReadOnlyList<Error> SourceErrors)
+{
+    public IReadOnlyList<StoredDeviceCandidateSource> StoredCandidateSources { get; init; } = [];
+}
+
+public sealed record StoredDeviceCandidateSource(StoredDeviceListSource Source, string? Search,
+    int LoadedRecords, int? TotalRecords, Error? Error);

@@ -1,5 +1,10 @@
 # Wec.Modules.Clients
 
+Device profiles use the configured bounded local address projections, with
+source totals/errors exposed independently. A requested WEC address outside
+the initial page gets a targeted bounded read; exact address matches precede
+substring matches. Profile composition never enumerates all stored hosts.
+
 `clients/getStoredObjectLists` composes bounded address projections from
 Inventory, Security and saved Client-role targets through
 `IStoredDeviceListProvider`. Each source reads two SQL queries without loading
