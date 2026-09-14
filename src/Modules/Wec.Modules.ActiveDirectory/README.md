@@ -14,6 +14,11 @@ be unknown. Member rows preserve non-user and limited-information objects.
 Direct membership uses the `memberOf` backlink, with no recursion or effective
 permission calculation; primary groups and external-directory completeness
 are not covered. The four privileged-group allowlist remains independent.
+Group identity, member and list queries have independent in-memory read state.
+Their shared connection context invalidates all entries on a context change.
+Failures retain earlier facts only until the original retention deadline;
+failure-only reads count toward `IdentityCacheMaximumEntries`. No cache read
+performs LDAP I/O, and late results from a former context are discarded.
 
 Read-only Active Directory analysis (M4). Access strategy: ADR 0006 (revised
 2026-07-03) — LDAP via the search-only `IDirectoryReader` Core seam,

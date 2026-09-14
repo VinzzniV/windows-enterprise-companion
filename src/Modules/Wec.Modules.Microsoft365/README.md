@@ -1,5 +1,10 @@
 # Wec.Modules.Microsoft365
 
+`IMicrosoft365GroupContextProvider` exposes cached group object/inventory reads
+and direct members with separate query coverage, errors and session revision.
+Limited-information objects and duplicate source rows remain intact; this seam
+does not start Graph calls or expand nested memberships.
+
 `IMicrosoft365DeviceContextProvider` exposes concrete cached Entra, Intune and
 registered-owner facets to Clients. Each query retains its own state and raw
 records (including duplicates). Tenant mismatches fail before any read; cache

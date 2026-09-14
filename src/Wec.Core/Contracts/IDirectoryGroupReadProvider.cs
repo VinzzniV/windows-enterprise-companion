@@ -23,8 +23,18 @@ public sealed record DirectoryGroupPage(string DirectoryScope, DateTimeOffset Re
 public sealed record DirectoryGroupMemberPage(string DirectoryScope, Guid GroupObjectId, DateTimeOffset RetrievedAtUtc,
     int Page, int PageSize, int TotalCount, IReadOnlyList<DirectoryGroupMember> Members, string CoverageExplanation);
 
+public sealed record DirectoryGroupReadState(DateTimeOffset? RetrievedAtUtc, DateTimeOffset? LastAttemptAtUtc,
+    Error? LastAttemptError, long SessionRevision, long Revision, DateTimeOffset? RetainedUntilUtc,
+    DateTimeOffset? FreshUntilUtc, bool Stale);
+public sealed record CachedDirectoryGroupIdentity(DirectoryGroupReadState State, DirectoryGroupIdentityResult? Data);
+public sealed record CachedDirectoryGroupMembers(DirectoryGroupReadState State, DirectoryGroupMemberPage? Data);
+public sealed record CachedDirectoryGroupPage(DirectoryGroupReadState State, DirectoryGroupPage? Data);
+
 public interface IDirectoryGroupReadProvider
 {
+    Task<CachedDirectoryGroupIdentity> ReadCachedIdentityAsync(DirectoryGroupIdentityQuery query, CancellationToken cancellationToken);
+    Task<CachedDirectoryGroupMembers> ReadCachedMembersAsync(DirectoryGroupMemberQuery query, CancellationToken cancellationToken);
+    Task<CachedDirectoryGroupPage> ReadCachedPageAsync(DirectoryGroupPageQuery query, CancellationToken cancellationToken);
     Task<Result<DirectoryGroupIdentityResult>> ReadIdentityAsync(DirectoryGroupIdentityQuery query, CancellationToken cancellationToken);
     Task<Result<DirectoryGroupPage>> ReadPageAsync(DirectoryGroupPageQuery query, CancellationToken cancellationToken);
     Task<Result<DirectoryGroupMemberPage>> ReadMembersAsync(DirectoryGroupMemberQuery query, CancellationToken cancellationToken);

@@ -31,7 +31,7 @@ public sealed class DirectoryGroupReadServiceTests
     private DirectoryGroupReadService Create()
     {
         var options = Options.Create(new ActiveDirectoryOptions());
-        return new(new DomainContextService(Substitute.For<IWmiQueryService>(), _reader, options), _reader, _clock, options);
+        return new(new DomainContextService(Substitute.For<IWmiQueryService>(), _reader, options), _reader, _clock, options, new DirectoryGroupSnapshotCache(_clock, options));
     }
     private static DirectoryEntryData Entry(string name = "Operations", string dn = "CN=Operations,DC=example,DC=test",
         string? type = "-2147483646", string[]? classes = null, bool includeId = true)

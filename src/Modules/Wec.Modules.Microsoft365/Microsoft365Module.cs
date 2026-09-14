@@ -14,6 +14,7 @@ public sealed class Microsoft365Module : IModule
         services.AddSingleton<Microsoft365Service>();
         services.AddSingleton<IMicrosoft365DeviceContextProvider>(provider => provider.GetRequiredService<Microsoft365Service>());
         services.AddSingleton<IMicrosoft365UserContextProvider>(provider => provider.GetRequiredService<Microsoft365Service>());
+        services.AddSingleton<IMicrosoft365GroupContextProvider>(provider => provider.GetRequiredService<Microsoft365Service>());
         services.AddScoped<IActionHandler, Microsoft365StatusHandler>();
         services.AddScoped<IActionHandler, Microsoft365ConnectHandler>();
         services.AddScoped<IActionHandler, Microsoft365DisconnectHandler>();

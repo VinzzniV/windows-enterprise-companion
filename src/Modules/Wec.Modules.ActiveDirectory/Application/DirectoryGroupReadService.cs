@@ -9,19 +9,68 @@ using Wec.Core.Results;
 namespace Wec.Modules.ActiveDirectory.Application;
 
 internal sealed class DirectoryGroupReadService(DomainContextService domainContext, IDirectoryReader reader,
-    IClock clock, IOptions<ActiveDirectoryOptions> options) : IDirectoryGroupReadProvider
+    IClock clock, IOptions<ActiveDirectoryOptions> options, DirectoryGroupSnapshotCache cache) : IDirectoryGroupReadProvider
 {
     private static readonly string[] GroupAttributes = ["objectGUID", "objectSid", "name", "sAMAccountName", "description", "groupType", "distinguishedName"];
     private static readonly string[] MemberAttributes = ["objectGUID", "objectSid", "objectClass", "displayName", "name", "sAMAccountName", "userPrincipalName", "distinguishedName"];
 
+    public Task<CachedDirectoryGroupIdentity> ReadCachedIdentityAsync(DirectoryGroupIdentityQuery query, CancellationToken cancellationToken)
+    {
+        var read = cache.Read(query.Connection, query.DirectoryScope, DirectoryGroupSnapshotCache.IdentityKey(query), cancellationToken, query.ObjectId);
+        return Task.FromResult(new CachedDirectoryGroupIdentity(read.State, read.Data.Identity));
+    }
+    public Task<CachedDirectoryGroupMembers> ReadCachedMembersAsync(DirectoryGroupMemberQuery query, CancellationToken cancellationToken)
+    {
+        var read = cache.Read(query.Connection, query.DirectoryScope, DirectoryGroupSnapshotCache.MembersKey(query), cancellationToken);
+        return Task.FromResult(new CachedDirectoryGroupMembers(read.State, read.Data.Members));
+    }
+    public Task<CachedDirectoryGroupPage> ReadCachedPageAsync(DirectoryGroupPageQuery query, CancellationToken cancellationToken)
+    {
+        var read = cache.Read(query.Connection, query.DirectoryScope, DirectoryGroupSnapshotCache.PageKey(query), cancellationToken);
+        return Task.FromResult(new CachedDirectoryGroupPage(read.State, read.Data.Page));
+    }
     public async Task<Result<DirectoryGroupIdentityResult>> ReadIdentityAsync(DirectoryGroupIdentityQuery query, CancellationToken cancellationToken)
+    {
+        if (!ValidIdentity(query)) { return Invalid<DirectoryGroupIdentityResult>("A directory scope and exactly one valid group identity are required."); }
+        var result = await cache.LoadAsync(query.Connection, query.DirectoryScope, DirectoryGroupSnapshotCache.IdentityKey(query), async token =>
+        {
+            var loaded = await LoadIdentityAsync(query, token);
+            return loaded.IsSuccess ? Result.Success(new DirectoryGroupReadData(Identity: loaded.Value)) : Result.Failure<DirectoryGroupReadData>(loaded.Error!);
+        }, cancellationToken);
+        return result.IsSuccess ? Result.Success(result.Value.Identity!) : Result.Failure<DirectoryGroupIdentityResult>(result.Error!);
+    }
+    public async Task<Result<DirectoryGroupPage>> ReadPageAsync(DirectoryGroupPageQuery query, CancellationToken cancellationToken)
+    {
+        if (!ValidScope(query.DirectoryScope) || !ValidPage(query.Page, query.PageSize) || query.Search?.Length > 100)
+        {
+            return Invalid<DirectoryGroupPage>("The requested group page is outside the supported bounds.");
+        }
+        var result = await cache.LoadAsync(query.Connection, query.DirectoryScope, DirectoryGroupSnapshotCache.PageKey(query), async token =>
+        {
+            var loaded = await LoadPageAsync(query, token);
+            return loaded.IsSuccess ? Result.Success(new DirectoryGroupReadData(Page: loaded.Value)) : Result.Failure<DirectoryGroupReadData>(loaded.Error!);
+        }, cancellationToken);
+        return result.IsSuccess ? Result.Success(result.Value.Page!) : Result.Failure<DirectoryGroupPage>(result.Error!);
+    }
+    public async Task<Result<DirectoryGroupMemberPage>> ReadMembersAsync(DirectoryGroupMemberQuery query, CancellationToken cancellationToken)
+    {
+        if (!ValidScope(query.DirectoryScope) || !ValidPage(query.Page, query.PageSize) || query.GroupObjectId == Guid.Empty)
+        {
+            return Invalid<DirectoryGroupMemberPage>("The requested member page or group identity is invalid.");
+        }
+        var result = await cache.LoadAsync(query.Connection, query.DirectoryScope, DirectoryGroupSnapshotCache.MembersKey(query), async token =>
+        {
+            var loaded = await LoadMembersAsync(query, token);
+            return loaded.IsSuccess ? Result.Success(new DirectoryGroupReadData(Members: loaded.Value)) : Result.Failure<DirectoryGroupReadData>(loaded.Error!);
+        }, cancellationToken);
+        return result.IsSuccess ? Result.Success(result.Value.Members!) : Result.Failure<DirectoryGroupMemberPage>(result.Error!);
+    }
+
+    private async Task<Result<DirectoryGroupIdentityResult>> LoadIdentityAsync(DirectoryGroupIdentityQuery query, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string? sid = NormalizeSid(query.SecurityIdentifier);
-        if (!ValidScope(query.DirectoryScope) || query.ObjectId == Guid.Empty
-            || (query.ObjectId is null ? 0 : 1) + (query.SecurityIdentifier is null ? 0 : 1) + (query.DistinguishedName is null ? 0 : 1) != 1
-            || query.SecurityIdentifier is not null && sid is null
-            || query.DistinguishedName is not null && !ValidDn(query.DistinguishedName))
+        if (!ValidIdentity(query))
         {
             return Invalid<DirectoryGroupIdentityResult>("Specify a directory DNS scope and exactly one valid group GUID, SID or distinguished name.");
         }
@@ -42,7 +91,7 @@ internal sealed class DirectoryGroupReadService(DomainContextService domainConte
         return Result.Success(new DirectoryGroupIdentityResult(scope, clock.UtcNow, groups, result.Value.TotalCount > groups.Length));
     }
 
-    public async Task<Result<DirectoryGroupPage>> ReadPageAsync(DirectoryGroupPageQuery query, CancellationToken cancellationToken)
+    private async Task<Result<DirectoryGroupPage>> LoadPageAsync(DirectoryGroupPageQuery query, CancellationToken cancellationToken)
     {
         if (!ValidScope(query.DirectoryScope) || !ValidPage(query.Page, query.PageSize) || query.Search?.Length > 100)
         {
@@ -61,13 +110,13 @@ internal sealed class DirectoryGroupReadService(DomainContextService domainConte
             result.Value.Entries.Select(entry => MapGroup(entry, scope)).ToArray()));
     }
 
-    public async Task<Result<DirectoryGroupMemberPage>> ReadMembersAsync(DirectoryGroupMemberQuery query, CancellationToken cancellationToken)
+    private async Task<Result<DirectoryGroupMemberPage>> LoadMembersAsync(DirectoryGroupMemberQuery query, CancellationToken cancellationToken)
     {
         if (!ValidPage(query.Page, query.PageSize) || query.GroupObjectId == Guid.Empty)
         {
             return Invalid<DirectoryGroupMemberPage>("Use a non-empty group GUID and a page size from 1 to 100.");
         }
-        Result<DirectoryGroupIdentityResult> identity = await ReadIdentityAsync(new(query.Connection, query.DirectoryScope, query.GroupObjectId), cancellationToken);
+        Result<DirectoryGroupIdentityResult> identity = await LoadIdentityAsync(new(query.Connection, query.DirectoryScope, query.GroupObjectId), cancellationToken);
         if (identity.IsFailure) { return Result.Failure<DirectoryGroupMemberPage>(identity.Error!); }
         if (identity.Value.Truncated || identity.Value.Groups.Count != 1 || identity.Value.Groups[0].ObjectId != query.GroupObjectId)
         {
@@ -124,6 +173,10 @@ internal sealed class DirectoryGroupReadService(DomainContextService domainConte
 
     private static bool ValidScope(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 253
         && Uri.CheckHostName(value.Trim().TrimEnd('.')) == UriHostNameType.Dns;
+    private static bool ValidIdentity(DirectoryGroupIdentityQuery query) => ValidScope(query.DirectoryScope) && query.ObjectId != Guid.Empty
+        && (query.ObjectId is null ? 0 : 1) + (query.SecurityIdentifier is null ? 0 : 1) + (query.DistinguishedName is null ? 0 : 1) == 1
+        && (query.SecurityIdentifier is null || NormalizeSid(query.SecurityIdentifier) is not null)
+        && (query.DistinguishedName is null || ValidDn(query.DistinguishedName));
     private static bool ValidPage(int page, int size) => page >= 1 && size is >= 1 and <= 100 && (long)(page - 1) * size <= int.MaxValue;
     private static bool ValidDn(string value) => value.Length is > 0 and <= 4096 && !value.Any(char.IsControl) && value.Contains('=', StringComparison.Ordinal);
     private static string? NormalizeSid(string? value)

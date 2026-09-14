@@ -7,7 +7,7 @@ using Wec.Modules.Microsoft365.Domain;
 namespace Wec.Modules.Microsoft365.Application;
 
 internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clock,
-    IOptions<Microsoft365CacheOptions> options) : IMicrosoft365DeviceContextProvider, IMicrosoft365UserContextProvider, IDisposable
+    IOptions<Microsoft365CacheOptions> options) : IMicrosoft365DeviceContextProvider, IMicrosoft365UserContextProvider, IMicrosoft365GroupContextProvider, IDisposable
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _readGate = new(1, 1);
@@ -307,6 +307,32 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
 
     private Microsoft365Data? CachedData(Microsoft365Query query) => Connection.Connected
         ? _cache.GetValueOrDefault(query)?.Snapshot?.Data : null;
+
+    public Task<Result<Microsoft365GroupContext>> ReadGroupCachedAsync(string? tenantId, string? groupObjectId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (tenantId is not null && !ValidId(tenantId) || groupObjectId is not null && !ValidId(groupObjectId))
+        {
+            return Task.FromResult(Result.Failure<Microsoft365GroupContext>(new(ErrorCode.InvalidRequest, "Use valid tenant and group GUIDs.")));
+        }
+        lock (_gate)
+        {
+            Expire();
+            string? scope = ValidId(Connection.Configuration.TenantId) ? Guid.Parse(Connection.Configuration.TenantId).ToString("D") : null;
+            if (tenantId is not null && Guid.Parse(tenantId).ToString("D") != scope)
+            {
+                return Task.FromResult(SessionChanged<Microsoft365GroupContext>());
+            }
+            string? groupId = groupObjectId is null ? null : Guid.Parse(groupObjectId).ToString("D");
+            List<Microsoft365Query> groups = [new(Microsoft365Resource.Groups)];
+            if (groupId is not null) { groups.Add(new(Microsoft365Resource.Group, groupId)); }
+            else { groups.AddRange(_cache.Keys.Where(query => query.Resource == Microsoft365Resource.Group)); }
+            Microsoft365Query members = new(Microsoft365Resource.GroupMembers, groupId);
+            return Task.FromResult(Result.Success(new Microsoft365GroupContext(scope, _generation, _revision,
+                groups.Select(query => new CachedMicrosoft365Groups(State(query), CachedData(query)?.Groups ?? [])).ToArray(),
+                groupId is null ? null : new(State(members), CachedData(members)?.Members ?? []))));
+        }
+    }
 
     private static bool ValidId(string? id) => Guid.TryParse(id, out Guid value) && value != Guid.Empty;
 

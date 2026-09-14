@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Object-centered consolidation (ADR 0022)
 
-Current slice: Phase 4 scoped user profiles and inverse SID relationships.
+Current slice: Phase 5 scoped group profiles and direct member navigation.
 Phase 1 legacy candidate/route fixes and Phase 2 bounded local batching remain
 explicit follow-ups before the working-set/list milestone.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
@@ -75,6 +75,11 @@ Implementation plan and required parity matrix:
   9 focused user UI tests, 5 Client overview UI tests and the production build
   pass. Contracts now contain 455 generated types. No additional Windows
   identity capture was introduced.
+- Group source seams are available: exact AD GUID/SID/DN reads, bounded sorted
+  group/member pages and a connection-isolated memory cache; 112 AD tests pass.
+  Cached Entra groups/members expose independent query state and preserve
+  limited-information objects; all 54 M365 tests pass. The group profile/UI
+  consumer and links from AD direct groups are the next slice.
 
 ## Done
 
