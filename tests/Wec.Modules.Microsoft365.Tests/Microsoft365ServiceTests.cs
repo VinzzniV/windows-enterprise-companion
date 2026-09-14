@@ -40,6 +40,15 @@ public sealed class Microsoft365ServiceTests
     }
 
     [Fact]
+    public async Task ScopedRefreshCannotQueryAnotherTenantAfterNavigation()
+    {
+        using var service = Create();
+        var result = await service.ReadAsync(Users, true, CancellationToken.None, "33333333-3333-3333-3333-333333333333");
+        Assert.Equal(ErrorCode.Microsoft365NotConnected, result.Error!.Code);
+        await _reader.DidNotReceive().ReadAsync(Arg.Any<Microsoft365Query>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task FailedRefreshPreservesPreviousTimestampAndData()
     {
         using var service = Create();

@@ -6,7 +6,7 @@ public enum Microsoft365Resource
 {
     Tenant, Users, User, Groups, Group, Devices, Device, ManagedDevices,
     Licenses, UserLicenses, UserGroups, UserDevices, GroupMembers, DeviceOwners,
-    UserActivity, UserRegistration,
+    UserActivity, UserRegistration, ManagedDevice,
 }
 
 public sealed record Microsoft365Configuration(string TenantId, string ClientId,

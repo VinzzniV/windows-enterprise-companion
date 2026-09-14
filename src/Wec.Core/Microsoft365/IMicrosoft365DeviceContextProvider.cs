@@ -12,10 +12,13 @@ public sealed record Microsoft365DeviceContext(
     long Revision,
     IReadOnlyList<CachedEntraDevices> EntraReads,
     CachedIntuneDevices Intune,
-    CachedMicrosoft365Members? RegisteredOwners);
+    CachedMicrosoft365Members? RegisteredOwners)
+{
+    public IReadOnlyList<CachedIntuneDevices> ManagedDetails { get; init; } = [];
+}
 
 public interface IMicrosoft365DeviceContextProvider
 {
     Task<Result<Microsoft365DeviceContext>> ReadCachedAsync(string? tenantId, string? deviceObjectId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, string? managedDeviceId = null);
 }

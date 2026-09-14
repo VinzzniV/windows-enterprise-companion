@@ -108,7 +108,8 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
         }
     }
 
-    internal async Task<Result<Microsoft365Snapshot>> ReadAsync(Microsoft365Query query, bool refresh, CancellationToken cancellationToken)
+    internal async Task<Result<Microsoft365Snapshot>> ReadAsync(Microsoft365Query query, bool refresh, CancellationToken cancellationToken,
+        string? expectedTenantId = null)
     {
         bool requiresId = query.Resource is not (Microsoft365Resource.Tenant or Microsoft365Resource.Users
             or Microsoft365Resource.Groups or Microsoft365Resource.Devices or Microsoft365Resource.ManagedDevices or Microsoft365Resource.Licenses);
@@ -124,6 +125,11 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
         lock (_gate)
         {
             if (_sessionChanging || !_sessionReady) { return SessionChanged<Microsoft365Snapshot>(); }
+            if (expectedTenantId is not null && (!ValidId(expectedTenantId) || !ValidId(Connection.Configuration.TenantId)
+                || Guid.Parse(expectedTenantId) != Guid.Parse(Connection.Configuration.TenantId)))
+            {
+                return SessionChanged<Microsoft365Snapshot>();
+            }
             Expire();
             generation = _generation;
             requestedRevision = _revision;
@@ -215,10 +221,11 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
     }
 
     public Task<Result<Microsoft365DeviceContext>> ReadCachedAsync(string? tenantId, string? deviceObjectId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string? managedDeviceId = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (tenantId is not null && !ValidId(tenantId) || deviceObjectId is not null && !ValidId(deviceObjectId))
+        if (tenantId is not null && !ValidId(tenantId) || deviceObjectId is not null && !ValidId(deviceObjectId)
+            || managedDeviceId is not null && !ValidId(managedDeviceId))
         {
             return Task.FromResult(Result.Failure<Microsoft365DeviceContext>(new(ErrorCode.InvalidRequest, "Use valid tenant and device object IDs.")));
         }
@@ -240,11 +247,18 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
                 deviceQueries.AddRange(_cache.Keys.Where(query => query.Resource == Microsoft365Resource.Device));
             }
             Microsoft365Query managed = new(Microsoft365Resource.ManagedDevices);
+            Microsoft365Query[] managedQueries = managedDeviceId is null
+                ? _cache.Keys.Where(query => query.Resource == Microsoft365Resource.ManagedDevice).ToArray()
+                : [new(Microsoft365Resource.ManagedDevice, Guid.Parse(managedDeviceId).ToString("D"))];
             Microsoft365Query? owners = deviceObjectId is null ? null : new(Microsoft365Resource.DeviceOwners, Guid.Parse(deviceObjectId).ToString("D"));
             return Task.FromResult(Result.Success(new Microsoft365DeviceContext(scope, _generation, _revision,
                 deviceQueries.Select(query => new CachedEntraDevices(State(query), DeviceData(query))).ToArray(),
-                new(State(managed), Connection.Connected ? _cache.GetValueOrDefault(managed)?.Snapshot?.Data?.ManagedDevices ?? [] : []),
-                owners is null ? null : new(State(owners), Connection.Connected ? _cache.GetValueOrDefault(owners)?.Snapshot?.Data?.Members ?? [] : []))));
+                new(State(managed), Connection.Connected && Connection.Configuration.EnableIntune ? _cache.GetValueOrDefault(managed)?.Snapshot?.Data?.ManagedDevices ?? [] : []),
+                owners is null ? null : new(State(owners), Connection.Connected ? _cache.GetValueOrDefault(owners)?.Snapshot?.Data?.Members ?? [] : []))
+            {
+                ManagedDetails = managedQueries.Select(query => new CachedIntuneDevices(State(query),
+                    Connection.Connected && Connection.Configuration.EnableIntune ? _cache.GetValueOrDefault(query)?.Snapshot?.Data?.ManagedDevices ?? [] : [])).ToArray(),
+            }));
         }
     }
 
@@ -278,7 +292,7 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
         Microsoft365Snapshot? snapshot = entry?.Snapshot;
         Microsoft365Data? data = snapshot?.Data;
         Microsoft365Connection connection = Connection;
-        bool disabled = query.Resource == Microsoft365Resource.ManagedDevices && !connection.Configuration.EnableIntune
+        bool disabled = query.Resource is Microsoft365Resource.ManagedDevices or Microsoft365Resource.ManagedDevice && !connection.Configuration.EnableIntune
             || query.Resource is Microsoft365Resource.UserActivity or Microsoft365Resource.UserRegistration && !connection.Configuration.EnableAuthenticationReports;
         Microsoft365Availability availability = !connection.Connected ? Microsoft365Availability.NotConnected
             : disabled ? Microsoft365Availability.NotEnabled
@@ -292,7 +306,8 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
             snapshot?.UpdatedAtUtc + options.Value.RetainFor, freshness,
             data is null ? EvidenceCoverage.Unknown : data.Truncated ? EvidenceCoverage.Partial : EvidenceCoverage.ReturnedSet,
             data is null ? null : data.Tenants.Count + data.Users.Count + data.Groups.Count + data.Devices.Count
-                + data.ManagedDevices.Count + data.Licenses.Count + data.Members.Count + (data.Activity is null ? 0 : 1), data?.TotalCount);
+                + data.ManagedDevices.Count + data.Licenses.Count + data.Members.Count + (data.Activity is null ? 0 : 1), data?.TotalCount,
+            snapshot?.UpdatedAtUtc + options.Value.FreshFor);
     }
 
     private bool IsStale(Microsoft365Snapshot snapshot) => snapshot.RefreshError is not null || snapshot.UpdatedAtUtc is null

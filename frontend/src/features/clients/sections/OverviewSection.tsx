@@ -368,25 +368,31 @@ export function OverviewSection({ host }: { host: string }) {
   if (state.kind === 'loading') return <p className="py-6 text-sm text-slate-400" role="status">Loading stored client evidence …</p>;
   if (state.kind === 'error') return <ErrorState {...state.error} controls={<Button onClick={() => loadOverview(false)}>Retry overview</Button>} />;
 
-  const inventoryMetadata = state.result.sources.find((source) => source.source === 'Inventory')!;
-  const softwareMetadata = state.result.sources.find((source) => source.source === 'Installed software')!;
-  const healthMetadata = state.result.sources.find((source) => source.source === 'Health')!;
-  const securityMetadata = state.result.sources.find((source) => source.source === 'Security')!;
-  const usersMetadata = state.result.sources.find((source) => source.source === 'Linked users')!;
   return <div className="flex flex-col gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3">
       <div><p className="text-sm font-medium text-slate-200">Client 360 evidence snapshot</p><p className="mt-0.5 text-xs text-slate-400">Stored data is read-only and never refreshed remotely on open.</p></div>
       <Button disabled={state.refreshing} onClick={() => loadOverview(true)}>{state.refreshing ? 'Refreshing …' : 'Refresh stored summaries'}</Button>
     </div>
     {state.refreshError && <CompactErrorState {...state.refreshError} />}
-    <SourceLedger host={host} sources={state.result.sources} />
-    <div className="grid gap-4 xl:grid-cols-2">
-      <InventorySummary host={host} inventory={state.result.inventory} metadata={inventoryMetadata} />
-      <HealthSummary host={host} health={state.result.health} metadata={healthMetadata} />
-      <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
-      <SecuritySummary host={host} security={state.result.security} metadata={securityMetadata} />
-      <UserSummary host={host} users={state.result.users} metadata={usersMetadata} />
-    </div>
+    <StoredClientEvidence host={host} result={state.result} />
     <ManagementContext host={host} overview={state.result} />
+  </div>;
+}
+
+export function StoredClientEvidence({ host, result }: { host: string; result: ClientOverviewResult }) {
+  const inventoryMetadata = result.sources.find((source) => source.source === 'Inventory')!;
+  const softwareMetadata = result.sources.find((source) => source.source === 'Installed software')!;
+  const healthMetadata = result.sources.find((source) => source.source === 'Health')!;
+  const securityMetadata = result.sources.find((source) => source.source === 'Security')!;
+  const usersMetadata = result.sources.find((source) => source.source === 'Linked users')!;
+  return <div className="flex flex-col gap-4">
+    <SourceLedger host={host} sources={result.sources} />
+    <div className="grid gap-4 xl:grid-cols-2">
+      <InventorySummary host={host} inventory={result.inventory} metadata={inventoryMetadata} />
+      <HealthSummary host={host} health={result.health} metadata={healthMetadata} />
+      <SoftwareSummary host={host} software={result.software} metadata={softwareMetadata} />
+      <SecuritySummary host={host} security={result.security} metadata={securityMetadata} />
+      <UserSummary host={host} users={result.users} metadata={usersMetadata} />
+    </div>
   </div>;
 }

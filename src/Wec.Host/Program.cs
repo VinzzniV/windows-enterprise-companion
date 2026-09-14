@@ -125,6 +125,7 @@ internal static partial class Program
             Environment.GetEnvironmentVariable(RuntimeInstanceProfile.EnvironmentVariableName));
         builder.Configuration.AddInMemoryCollection(runtimeProfile.ConfigurationOverrides);
         builder.Services.AddSingleton(runtimeProfile);
+        builder.Services.AddSingleton(new Wec.Core.Objects.WecWorkspaceIdentity(runtimeProfile.ObjectScope, Environment.MachineName));
 
         builder.Services
             .AddOptions<LoggingOptions>()

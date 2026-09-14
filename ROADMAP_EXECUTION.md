@@ -43,6 +43,16 @@ Implementation plan and required parity matrix:
   records and query provenance. Targeted AD GUID/SID reads validate the actual
   naming context, retain ambiguity and reject missing returned ID evidence;
   all 74 AD tests pass. These seams precede their device-profile consumer.
+- AD computer identity reads now have a bounded, context-isolated memory cache;
+  78 AD tests pass, including credentials/context changes and stale expiry.
+- Initial scoped device composition and route are implemented. Eighteen Clients
+  tests cover cloud-only operation, exact stored targets, ambiguous aliases,
+  duplicate/cloud-ID conflicts and explicit AD loads. Known Intune IDs use one
+  object read with the existing field/permission allowlist (36 Graph tests).
+  M365 has 45 passing tests including expected-tenant refresh validation.
+  Device UI/route tests cover source-only rendering, explicit refresh, limited
+  coverage, late responses and retention expiry; user/group destinations and
+  complete list/navigation integration remain in the following slices.
 - Remaining Phase 1 work: replace legacy first/latest name choices with visible
   source candidates and route resolution, including legacy Nessus host links.
   The original hygiene projection remains a heuristic during this migration.

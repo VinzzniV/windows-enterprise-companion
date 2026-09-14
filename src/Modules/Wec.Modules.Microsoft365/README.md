@@ -4,6 +4,9 @@
 registered-owner facets to Clients. Each query retains its own state and raw
 records (including duplicates). Tenant mismatches fail before any read; cache
 misses never invoke Graph. Object detail reads remain separate from inventories.
+Known Intune IDs use the [Graph v1.0 managedDevice read](https://learn.microsoft.com/en-us/graph/api/intune-devices-manageddevice-get?view=graph-rest-1.0)
+with the existing selected fields and `DeviceManagementManagedDevices.Read.All`.
+They do not require a tenant-wide inventory or a Primary User query.
 
 Read-only Microsoft Graph source. Infrastructure owns Graph/MSAL; this module
 owns the bounded session cache, license capacity calculations, correlation

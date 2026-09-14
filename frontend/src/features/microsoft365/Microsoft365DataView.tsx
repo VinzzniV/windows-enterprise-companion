@@ -110,7 +110,7 @@ export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snaps
         { header: 'Enabled', cell: row => available(row.accountEnabled) },
         { header: 'Approximate last sign-in', cell: row => timestamp(row.approximateLastSignInAtUtc) },
       ]} />;
-  } else if (resource === 'MANAGED_DEVICES') {
+  } else if (resource === 'MANAGED_DEVICES' || resource === 'MANAGED_DEVICE') {
     content = <CloudTable rows={data.managedDevices} searchText={row => `${row.deviceName ?? ''} ${row.userPrincipalName ?? ''} ${row.serialNumber ?? ''} ${row.complianceState ?? ''}`}
       columns={[
         { header: 'Device', cell: row => <details><summary className="cursor-pointer text-accent-400">{available(row.deviceName)}</summary><CloudManagedFields device={row} /></details> },

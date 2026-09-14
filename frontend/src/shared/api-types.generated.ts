@@ -13,6 +13,29 @@ export interface ActionEvidenceSourceState {
   explanation: string | null;
 }
 
+export interface AdComputerInventoryItem {
+  computerName: string;
+  dnsHostName: string | null;
+  operatingSystem: string | null;
+  description: string | null;
+  enabled: boolean | null;
+  distinguishedName: string;
+  lastLogonDate: string | null;
+  objectId: string | null;
+  securityIdentifier: string | null;
+  directoryScope: string | null;
+}
+
+export interface CachedDirectoryComputer {
+  data: DirectoryComputerIdentityResult | null;
+  lastAttemptAtUtc: string;
+  lastAttemptError: Error | null;
+  sessionRevision: number;
+  revision: number;
+  retainedUntilUtc: string | null;
+  stale: boolean;
+}
+
 export interface ClientObservedUserEvidence {
   directorySid: string;
   accountDisplay: string;
@@ -39,6 +62,13 @@ export interface DeviceCleanupUserObservation {
   profileLastUseAtUtc: string | null;
   confidence: string;
   explanation: string;
+}
+
+export interface DirectoryComputerIdentityResult {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  computers: AdComputerInventoryItem[];
+  truncated: boolean;
 }
 
 export interface DirectoryInventoryConnection {
@@ -78,6 +108,17 @@ export interface HygieneActionKasperskyConnection {
   password?: string | null;
 }
 
+export interface KasperskyDeviceRecord {
+  computerName: string;
+  fqdn: string | null;
+  dnsName: string | null;
+  recordName: string | null;
+  lastSeen: string | null;
+  agentVersion: string | null;
+  kesVersion: string | null;
+  administrationGroup: string | null;
+}
+
 export interface KasperskyInventoryConnection {
   server?: string | null;
   port?: number | null;
@@ -86,7 +127,50 @@ export interface KasperskyInventoryConnection {
   password?: string | null;
 }
 
+export interface ManagementDeviceSnapshot {
+  retrievedAtUtc: string;
+  sources: ManagementDeviceSourceState[];
+  activeDirectory: AdComputerInventoryItem[];
+  kaspersky: KasperskyDeviceRecord[];
+  opsi: OpsiComputerInventoryItem[];
+  nessus: NessusComputerInventoryItem[];
+}
+
+export interface ManagementDeviceSourceState {
+  source: string;
+  scope: string | null;
+  availability: string;
+  error: string | null;
+  loadedRecords: number;
+}
+
+export interface NessusComputerInventoryItem {
+  computerName: string;
+  assetId: string | null;
+  ipAddress: string | null;
+  lastCompletedScanUtc: string | null;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+  ports: number[];
+  scanSources: string[];
+  sourceKey: string | null;
+  fqdn: string | null;
+  hostUuid: string | null;
+  biosUuid: string | null;
+}
+
 export type NessusInventoryAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CONNECTED' | 'UNAVAILABLE';
+
+export interface OpsiComputerInventoryItem {
+  computerName: string;
+  description: string | null;
+  depotId: string | null;
+  lastSeen: string | null;
+  clientAgentVersion: string | null;
+}
 
 export interface SecurityCoverageReportData {
   isKnown: boolean;
@@ -127,6 +211,21 @@ export interface TargetRequest {
   userName?: string | null;
   domain?: string | null;
   password?: string | null;
+}
+
+export interface CachedEntraDevices {
+  state: Microsoft365ReadState;
+  devices: Microsoft365Device[];
+}
+
+export interface CachedIntuneDevices {
+  state: Microsoft365ReadState;
+  devices: Microsoft365ManagedDevice[];
+}
+
+export interface CachedMicrosoft365Members {
+  state: Microsoft365ReadState;
+  members: Microsoft365Member[];
 }
 
 export type EvidenceCoverage = 'UNKNOWN' | 'RETURNED_SET' | 'PARTIAL';
@@ -184,6 +283,16 @@ export interface Microsoft365Device {
   trustType: string | null;
   accountEnabled: boolean | null;
   approximateLastSignInAtUtc: string | null;
+}
+
+export interface Microsoft365DeviceContext {
+  tenantId: string | null;
+  sessionRevision: number;
+  revision: number;
+  entraReads: CachedEntraDevices[];
+  intune: CachedIntuneDevices;
+  registeredOwners: CachedMicrosoft365Members | null;
+  managedDetails: CachedIntuneDevices[];
 }
 
 export interface Microsoft365Group {
@@ -252,9 +361,10 @@ export interface Microsoft365ReadState {
   coverage: EvidenceCoverage;
   loadedCount: number | null;
   declaredTotal: number | null;
+  freshUntilUtc: string | null;
 }
 
-export type Microsoft365Resource = 'TENANT' | 'USERS' | 'USER' | 'GROUPS' | 'GROUP' | 'DEVICES' | 'DEVICE' | 'MANAGED_DEVICES' | 'LICENSES' | 'USER_LICENSES' | 'USER_GROUPS' | 'USER_DEVICES' | 'GROUP_MEMBERS' | 'DEVICE_OWNERS' | 'USER_ACTIVITY' | 'USER_REGISTRATION';
+export type Microsoft365Resource = 'TENANT' | 'USERS' | 'USER' | 'GROUPS' | 'GROUP' | 'DEVICES' | 'DEVICE' | 'MANAGED_DEVICES' | 'LICENSES' | 'USER_LICENSES' | 'USER_GROUPS' | 'USER_DEVICES' | 'GROUP_MEMBERS' | 'DEVICE_OWNERS' | 'USER_ACTIVITY' | 'USER_REGISTRATION' | 'MANAGED_DEVICE';
 
 export interface Microsoft365ScopeGrant {
   scope: string;
@@ -286,6 +396,32 @@ export interface Microsoft365User {
   onPremisesSid: string | null;
   onPremisesImmutableId: string | null;
   assignedLicenses: Microsoft365AssignedLicense[] | null;
+}
+
+export type IdentityEvidence = 'SCOPED_ID' | 'ADDRESS_CANDIDATE' | 'ALIAS_CANDIDATE' | 'AMBIGUOUS' | 'CONFLICT' | 'UNRESOLVED';
+
+export type ObjectKind = 'DEVICE' | 'USER' | 'GROUP';
+
+export interface ObjectReference {
+  kind: ObjectKind;
+  source: ObjectSource;
+  scope: string;
+  id: string;
+}
+
+export interface ObjectRelationship {
+  target: ObjectReference;
+  label: string;
+  relation: string;
+  evidence: IdentityEvidence;
+  explanation: string;
+}
+
+export type ObjectSource = 'ACTIVE_DIRECTORY' | 'ENTRA' | 'INTUNE' | 'WEC';
+
+export interface WecWorkspaceIdentity {
+  scope: string;
+  localComputerName: string;
 }
 
 export interface PortRemovalResult {
@@ -854,6 +990,32 @@ export interface ClientUserOverview {
   metadata: ClientOverviewSourceMetadata;
   unresolvedProfileCount: number;
   observations: ClientObservedUserEvidence[];
+}
+
+export interface DeviceProfileRequest {
+  reference: ObjectReference;
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+  loadDirectoryIdentity?: boolean;
+}
+
+export interface DeviceProfileResult {
+  reference: ObjectReference;
+  title: string;
+  identity: IdentityEvidence;
+  explanation: string;
+  operationalHost: string | null;
+  wec: ClientOverviewResult | null;
+  directory: CachedDirectoryComputer | null;
+  directoryRecords: AdComputerInventoryItem[];
+  cloud: Microsoft365DeviceContext | null;
+  managementCandidates: ManagementDeviceSnapshot | null;
+  relationships: ObjectRelationship[];
+  candidates: ObjectRelationship[];
+  sourceErrors: Error[];
+}
+
+export interface DeviceWorkspaceRequest {
 }
 
 export interface GetClientOverviewRequest {
@@ -1691,6 +1853,7 @@ export interface Microsoft365ReadRequest {
   resource: Microsoft365Resource;
   objectId?: string | null;
   refresh?: boolean;
+  tenantId?: string | null;
 }
 
 export type DeviceKind = 'UNKNOWN' | 'PRINTER' | 'COMPUTER' | 'NETWORK_DEVICE';

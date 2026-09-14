@@ -20,7 +20,7 @@ internal static class Microsoft365Scopes
         Microsoft365Resource.UserGroups => ["User.Read.All", "GroupMember.Read.All"],
         Microsoft365Resource.Devices or Microsoft365Resource.Device or Microsoft365Resource.DeviceOwners => ["Device.Read.All"],
         Microsoft365Resource.UserDevices => ["User.Read.All", "Device.Read.All"],
-        Microsoft365Resource.ManagedDevices => ["DeviceManagementManagedDevices.Read.All"],
+        Microsoft365Resource.ManagedDevices or Microsoft365Resource.ManagedDevice => ["DeviceManagementManagedDevices.Read.All"],
         Microsoft365Resource.Licenses or Microsoft365Resource.UserLicenses => ["LicenseAssignment.Read.All"],
         Microsoft365Resource.UserActivity => ["User.Read.All", "AuditLog.Read.All"],
         Microsoft365Resource.UserRegistration => ["AuditLog.Read.All"],

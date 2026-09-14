@@ -18,6 +18,8 @@ internal sealed record RuntimeInstanceProfile(
     bool IsIsolated)
 {
     internal const string EnvironmentVariableName = "WEC_INSTANCE_PROFILE";
+    internal string ObjectScope => $"{Name}-{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+        Path.GetFullPath(Environment.ExpandEnvironmentVariables(DatabasePath)).ToUpperInvariant())))[..24].ToLowerInvariant()}";
     internal const string DefaultDatabasePath = "%LOCALAPPDATA%\\Wec\\wec.db";
     internal const string DefaultLogDirectory = "%LOCALAPPDATA%\\Wec\\logs";
     internal const string DefaultWebViewDirectory = "%LOCALAPPDATA%\\Wec\\webview2";

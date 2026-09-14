@@ -223,6 +223,7 @@ public sealed class GraphReaderTests
     [InlineData(Microsoft365Resource.User)]
     [InlineData(Microsoft365Resource.Group)]
     [InlineData(Microsoft365Resource.Device)]
+    [InlineData(Microsoft365Resource.ManagedDevice)]
     [InlineData(Microsoft365Resource.UserRegistration)]
     [InlineData(Microsoft365Resource.UserActivity)]
     public async Task SingleObjectEndpointsDeserializeThroughSdk(Microsoft365Resource resource)
@@ -230,6 +231,28 @@ public sealed class GraphReaderTests
         using var http = new HttpClient(new FakeHandler((_, _, _) => Task.FromResult(Json($$"""{"id":"{{UserId}}"} """))));
         using var graph = new GraphServiceClient(http, new AnonymousAuthenticationProvider());
         Assert.NotNull(await MicrosoftGraphReader.ReadDataAsync(graph.RequestAdapter, new(resource, UserId), new(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task KnownIntuneIdReadsOnlyTheSelectedObjectWithExistingFieldAndPermissionLimits()
+    {
+        var fake = new FakeHandler((request, _, _) =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Equal($"/v1.0/deviceManagement/managedDevices/{UserId}", request.RequestUri!.AbsolutePath);
+            Assert.Contains("azureADDeviceId", request.RequestUri.Query, StringComparison.Ordinal);
+            Assert.DoesNotContain("activationLockBypassCode", request.RequestUri.Query, StringComparison.Ordinal);
+            return Task.FromResult(Json($$"""{"id":"{{UserId}}","deviceName":"PC","userId":null,"azureADDeviceId":"22222222-2222-2222-2222-222222222222"}"""));
+        });
+        using var http = new HttpClient(new GraphReadOnlyHandler(new(), fake));
+        using var graph = new GraphServiceClient(http, new AnonymousAuthenticationProvider());
+        var data = await MicrosoftGraphReader.ReadDataAsync(graph.RequestAdapter,
+            new(Microsoft365Resource.ManagedDevice, UserId), new(), CancellationToken.None);
+        var device = Assert.Single(data.ManagedDevices);
+        Assert.Equal(UserId, device.Id);
+        Assert.Null(device.UserId);
+        Assert.Equal(1, fake.Count);
+        Assert.Equal(["DeviceManagementManagedDevices.Read.All"], Microsoft365Scopes.For(Microsoft365Resource.ManagedDevice));
     }
 
     private static HttpResponseMessage Json(string json, int status = 200) => new((HttpStatusCode)status)

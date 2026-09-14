@@ -20,4 +20,5 @@ public sealed record Microsoft365ReadState(
     EvidenceFreshness Freshness,
     EvidenceCoverage Coverage,
     int? LoadedCount,
-    long? DeclaredTotal);
+    long? DeclaredTotal,
+    DateTimeOffset? FreshUntilUtc = null);

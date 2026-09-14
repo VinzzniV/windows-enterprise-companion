@@ -14,7 +14,7 @@ import { useMicrosoft365Action } from './useMicrosoft365Action';
 
 export const resourceLabels: Record<Microsoft365Resource, string> = {
   TENANT: 'Overview', USERS: 'Users', USER: 'User details', GROUPS: 'Groups', GROUP: 'Group details',
-  DEVICES: 'Entra devices', DEVICE: 'Entra device details', MANAGED_DEVICES: 'Intune devices', LICENSES: 'Licenses',
+  DEVICES: 'Entra devices', DEVICE: 'Entra device details', MANAGED_DEVICES: 'Intune devices', MANAGED_DEVICE: 'Intune device details', LICENSES: 'Licenses',
   USER_LICENSES: 'User licenses', USER_GROUPS: 'Direct user groups', USER_DEVICES: 'Registered user devices',
   GROUP_MEMBERS: 'Direct group members', DEVICE_OWNERS: 'Registered device owners',
   USER_ACTIVITY: 'Sign-in evidence', USER_REGISTRATION: 'MFA registration',

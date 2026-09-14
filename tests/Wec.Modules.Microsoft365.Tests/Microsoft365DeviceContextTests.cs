@@ -91,6 +91,23 @@ public sealed class Microsoft365DeviceContextTests
     }
 
     [Fact]
+    public async Task KnownIntuneDetailWorksWithoutLoadingInventory()
+    {
+        using var service = Create();
+        _reader.Connection.Returns(new Microsoft365Connection(new(TenantId, ObjectId, EnableIntune: true), true, "Account", []));
+        _reader.ReadAsync(new(Microsoft365Resource.ManagedDevice, ObjectId), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new Microsoft365Data
+            {
+                ManagedDevices = [new(ObjectId, "Cloud only", null, null, null, null, null, null, null, null, null, null, null, DeviceId)],
+            }));
+        await service.ReadAsync(new(Microsoft365Resource.ManagedDevice, ObjectId), true, CancellationToken.None);
+        var context = (await service.ReadCachedAsync(TenantId, null, CancellationToken.None, ObjectId)).Value;
+        Assert.Equal("Cloud only", Assert.Single(Assert.Single(context.ManagedDetails).Devices).DeviceName);
+        Assert.Equal(Microsoft365Availability.NotCached, context.Intune.State.Availability);
+        await _reader.DidNotReceive().ReadAsync(new(Microsoft365Resource.ManagedDevices), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RetentionAndDisconnectInvalidatePreviouslyProjectedData()
     {
         using var service = Create();

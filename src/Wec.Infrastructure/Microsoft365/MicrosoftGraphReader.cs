@@ -132,6 +132,10 @@ public sealed class MicrosoftGraphReader : IMicrosoft365Reader, IDisposable
         {
             return new Microsoft365Data { Devices = [GraphMapping.Device(await ReadOneAsync(adapter, path, Device.CreateFromDiscriminatorValue, cancellationToken).ConfigureAwait(false))] };
         }
+        if (query.Resource == Microsoft365Resource.ManagedDevice)
+        {
+            return new Microsoft365Data { ManagedDevices = [GraphMapping.ManagedDevice(await ReadOneAsync(adapter, path, ManagedDevice.CreateFromDiscriminatorValue, cancellationToken).ConfigureAwait(false))] };
+        }
         return query.Resource switch
         {
             Microsoft365Resource.Tenant => await ReadPagesAsync(adapter, path, OrganizationCollectionResponse.CreateFromDiscriminatorValue,
