@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Wec.Core.Contracts;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.UserManagement.Domain;
 
 namespace Wec.Modules.UserManagement.Application;
@@ -287,12 +288,10 @@ internal sealed class UserManagementService
         device.Observations.Any(observation =>
             observation.RelationshipType == UserDeviceRelationshipType.LastInteractiveUser);
 
-    private static bool IsLocalHost(string host) => HostEquals(host, Environment.MachineName);
+    private static bool IsLocalHost(string host) => HostAddress.IsExactLocalName(host, Environment.MachineName);
 
     private static bool HostEquals(string left, string right) =>
-        string.Equals(ShortHost(left), ShortHost(right), StringComparison.OrdinalIgnoreCase);
-
-    private static string ShortHost(string host) => host.Trim().Split('.')[0];
+        string.Equals(HostAddress.ComparisonKey(left), HostAddress.ComparisonKey(right), StringComparison.Ordinal);
 
     private static UserDeviceEvidenceCoverage ToCoverage(UserDeviceRelationshipCoverage coverage)
     {

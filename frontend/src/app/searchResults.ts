@@ -6,6 +6,7 @@ import type {
   UserSummary,
 } from '../shared/api-types';
 import { navigationGroups } from './routeRegistry';
+import { hostAddressKey as clientKey } from '../shared/targets/hostAddress';
 
 export type GlobalSearchCategory = 'Navigation' | 'Users' | 'Clients' | 'Saved targets';
 
@@ -58,10 +59,6 @@ interface ClientCandidate {
   host: string;
   name: string;
   details: Set<string>;
-}
-
-function clientKey(host: string): string {
-  return host.trim().split('.')[0].toLocaleUpperCase();
 }
 
 export function clientResults(

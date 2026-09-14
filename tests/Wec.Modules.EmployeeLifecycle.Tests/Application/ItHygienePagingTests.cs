@@ -7,6 +7,19 @@ namespace Wec.Modules.EmployeeLifecycle.Tests.Application;
 public sealed class ItHygienePagingTests
 {
     [Fact]
+    public void ClientWorkspacePreservesIpTargetsAndShortNameCandidates()
+    {
+        ClientWorkspacePage page = ClientWorkspacePaging.Page(
+            ResultAt(DateTimeOffset.UnixEpoch, Device("PC01", HygieneStatus.Healthy)),
+            [new InventoryClientSnapshotHost("PC01", DateTimeOffset.UnixEpoch)],
+            [new SavedClientTarget("First", "10.1.2.3"), new SavedClientTarget("Second", "10.8.9.10")],
+            new ListClientWorkspaceRequest());
+
+        Assert.Equal(4, page.Total);
+        Assert.Equal(4, page.Items.Select(item => item.Key).Distinct().Count());
+        Assert.False(Assert.Single(page.Items, item => item.InAd).Scanned);
+    }
+    [Fact]
     public async Task SnapshotCacheReusesMatchingRequestAndForceRefreshesOnce()
     {
         using var cache = new ItHygieneSnapshotCache();
@@ -137,7 +150,7 @@ public sealed class ItHygienePagingTests
             Device("ALPHA", HygieneStatus.Healthy));
         InventoryClientSnapshotHost[] scanned =
         [
-            new("alpha.other.test", DateTimeOffset.UnixEpoch.AddHours(1)),
+            new("alpha.example.test", DateTimeOffset.UnixEpoch.AddHours(1)),
             new("SCAN-ONLY", DateTimeOffset.UnixEpoch.AddHours(2)),
         ];
         SavedClientTarget[] saved =
@@ -250,7 +263,7 @@ public sealed class ItHygienePagingTests
     }
 
     [Fact]
-    public void ClientWorkspaceSummaryMatchesTheDeduplicatedCanonicalRows()
+    public void ClientWorkspacePreservesSameNamesInDifferentDomains()
     {
         HygieneDevice missing = Device("DUPLICATE", HygieneStatus.Warning, HygieneFindingCode.MissingKaspersky);
         HygieneDevice canonical = Device("DUPLICATE", HygieneStatus.Healthy) with
@@ -268,9 +281,9 @@ public sealed class ItHygienePagingTests
 
         Assert.Equal(2, result.Summary.Total);
         Assert.Equal(1, result.Summary.MissingKaspersky);
-        Assert.Equal(1, page.SnapshotTotal);
-        Assert.Equal(1, page.Summary.Total);
-        Assert.Equal(0, page.Summary.MissingKaspersky);
+        Assert.Equal(2, page.SnapshotTotal);
+        Assert.Equal(2, page.Summary.Total);
+        Assert.Equal(1, page.Summary.MissingKaspersky);
     }
 
     [Fact]

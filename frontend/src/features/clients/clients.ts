@@ -7,12 +7,13 @@ import type {
   TargetRequest,
 } from '../../shared/api-types';
 import type { CredentialValues } from '../../shared/targets/Credentials';
+import { hostAddressKey, isExactLocalName } from '../../shared/targets/hostAddress';
 
 /** A client in the workspace list, merged from AD, scan history and saved targets. */
 export interface ClientEntry {
   /** Scan target host (FQDN preferred when known). */
   host: string;
-  /** Case-insensitive identity, short name without domain suffix. */
+  /** Full address comparison key; not proof of physical device identity. */
   key: string;
   /** Short display name. */
   name: string;
@@ -35,9 +36,8 @@ export interface ClientEntry {
 
 export type GroupMode = 'none' | 'os' | 'site';
 
-/** Short, domain-less, upper-cased identity so FQDN/short/local names merge. */
 export function clientKey(host: string): string {
-  return host.trim().split('.')[0].toUpperCase();
+  return hostAddressKey(host);
 }
 
 /** Site code = the name prefix before the first '-' (KF/PK/MA/KW/SU …), else "Other". */
@@ -159,9 +159,8 @@ export function buildClientList(
   return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** True when the host is this machine (matched short-name, case-insensitively). */
 export function isLocalClient(host: string, machineName: string | null): boolean {
-  return machineName != null && machineName.trim() !== '' && clientKey(host) === clientKey(machineName);
+  return isExactLocalName(host, machineName);
 }
 
 /**

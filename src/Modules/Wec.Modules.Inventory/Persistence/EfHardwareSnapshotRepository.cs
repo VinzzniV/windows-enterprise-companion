@@ -47,14 +47,8 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
 
     public async Task<IReadOnlyList<StoredInventoryHost>> ListHostsAsync(CancellationToken cancellationToken)
     {
-        // Older databases can contain the empty host introduced when the Host
-        // column was first added. It is not a valid scan target, so remove it
-        // before returning the client list.
-        await _dbContext.Set<HardwareSnapshotRecord>()
-            .Where(snapshot => snapshot.Host.Trim() == string.Empty)
-            .ExecuteDeleteAsync(cancellationToken);
-
         return await _dbContext.Set<HardwareSnapshotRecord>()
+            .Where(snapshot => snapshot.Host.Trim() != string.Empty)
             .OrderBy(snapshot => snapshot.Host)
             .Select(snapshot => new StoredInventoryHost(snapshot.Host, snapshot.CapturedAtUtc))
             .ToListAsync(cancellationToken);

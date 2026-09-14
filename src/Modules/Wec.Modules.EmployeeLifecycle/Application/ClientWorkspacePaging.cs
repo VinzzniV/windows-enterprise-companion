@@ -1,4 +1,5 @@
 using Wec.Core.Contracts;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
@@ -300,7 +301,7 @@ internal static class ClientWorkspacePaging
     }
 
     private static string ClientKey(string host) =>
-        host.Trim().Split('.')[0].ToUpperInvariant();
+        HostAddress.ComparisonKey(host);
 
     private sealed class ClientWorkspaceEntry
     {

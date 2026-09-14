@@ -90,8 +90,6 @@ export function ClientDetailPage() {
   const refreshReport = useCallback(() => setReportRevision((revision) => revision + 1), []);
 
   const savedEntry = useMemo(
-    // Match by the same short-name key the Clients list merges on, so a client
-    // saved under its short name is recognized when opened by FQDN.
     () => savedTargets.find((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
     [savedTargets, host],
   );

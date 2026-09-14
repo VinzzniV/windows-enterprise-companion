@@ -36,6 +36,10 @@ machine as the current user.
 
 ## Design notes
 
+- Stored host lists are read-only. Empty legacy host rows are hidden from target
+  selection and retained unchanged. Exact stored addresses remain independent
+  of short-name aliases and are not rewritten by consolidation (ADR 0022).
+
 - WMI access goes exclusively through the target-aware `IWmiQueryService`
   overload — the same queries run locally and remotely.
 - BitLocker acquisition is shared with Security through the narrow
