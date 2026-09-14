@@ -61,13 +61,61 @@ public sealed class ManagementDeviceSnapshotProviderTests
 
         Assert.Null(await provider.ReadCachedAsync(connection, null, CancellationToken.None));
         await cache.GetAsync(new ItHygieneRequest(connection), false, Load, CancellationToken.None);
-        Assert.Same(snapshot, await provider.ReadCachedAsync(connection, null, CancellationToken.None));
+        var cached = await provider.ReadCachedAsync(connection, null, CancellationToken.None);
+        Assert.Same(snapshot.ActiveDirectory, cached!.ActiveDirectory);
+        Assert.True(cached.SessionRevision > 0);
+        Assert.True(cached.Revision > cached.SessionRevision);
         Assert.Null(await provider.ReadCachedAsync(connection with { Password = "test-b" }, null, CancellationToken.None));
         Assert.Equal(1, calls);
 
         await cache.GetAsync(new ItHygieneRequest(connection with { Domain = "b.example" }), false,
             (_, _) => Task.FromResult(Result.Failure<ItHygieneResult>(new Error(ErrorCode.AccessDenied, "Read denied."))), CancellationToken.None);
         Assert.Null(await provider.ReadCachedAsync(connection, null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CachedProjectionDoesNotWaitForSourceIoAndContextChangeRejectsLateCompletion()
+    {
+        using var cache = new ItHygieneSnapshotCache();
+        var completion = new TaskCompletionSource<Result<ItHygieneResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var request = new ItHygieneRequest(new DirectoryInventoryConnection(Domain: "a.example"));
+        var loading = cache.GetAsync(request, true, (_, _) => completion.Task, CancellationToken.None);
+        Assert.Null(await cache.ReadCachedAsync(request, CancellationToken.None));
+        var other = new ItHygieneRequest(new DirectoryInventoryConnection(Domain: "b.example"));
+        Assert.Null(await cache.ReadCachedAsync(other, CancellationToken.None));
+        completion.SetResult(Result.Success(SourceResult()));
+        Assert.True((await loading).IsFailure);
+        Assert.Null(await cache.ReadCachedAsync(request, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task FailedKasperskySourceDoesNotHideOtherRawSourceEvidenceOrBecomeALegacyCacheHit()
+    {
+        using var cache = new ItHygieneSnapshotCache();
+        int calls = 0;
+        Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
+        {
+            calls++; return Task.FromResult(Result.Success(SourceResult(true)));
+        }
+        var request = new ItHygieneRequest();
+        await cache.GetAsync(request, false, Load, CancellationToken.None);
+        var first = await cache.ReadCachedAsync(request, CancellationToken.None);
+        Assert.NotNull(first);
+        Assert.Single(first.ActiveDirectory);
+        await cache.GetAsync(request, false, Load, CancellationToken.None);
+        Assert.Equal(2, calls);
+        Assert.True((await cache.ReadCachedAsync(request, CancellationToken.None))!.Revision > first.Revision);
+    }
+
+    private static ItHygieneResult SourceResult(bool kscFailed = false)
+    {
+        var available = new InventorySourceState(InventorySourceAvailability.Available);
+        return new(DateTimeOffset.UnixEpoch, "a.example", new EnvironmentSourceStates(available,
+            kscFailed ? new(InventorySourceAvailability.Unavailable, "Denied") : available, available), ItHygieneService.Summarize([]), [])
+        {
+            SourceRecords = new(DateTimeOffset.UnixEpoch, [],
+                [new("PC01", "pc01.a.example", null, null, null, "CN=PC01,DC=a,DC=example", null, Guid.NewGuid())], [], [], []),
+        };
     }
 
     [Fact]

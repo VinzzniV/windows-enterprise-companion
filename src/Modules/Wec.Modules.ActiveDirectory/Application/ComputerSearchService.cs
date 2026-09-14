@@ -100,7 +100,7 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
         bool truncated = entries.Value.TotalCount > computers.Count;
         return Result.Success(new AdComputerSearchResult(
             true,
-            context.Value.DomainName,
+            DirectoryIdentityValues.DirectoryScope(context.Value.DefaultNamingContext!),
             computers,
             truncated));
     }

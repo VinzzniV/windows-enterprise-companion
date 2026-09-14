@@ -37,7 +37,11 @@ public sealed record ManagementDeviceSnapshot(
     IReadOnlyList<AdComputerInventoryItem> ActiveDirectory,
     IReadOnlyList<KasperskyDeviceRecord> Kaspersky,
     IReadOnlyList<OpsiComputerInventoryItem> Opsi,
-    IReadOnlyList<NessusComputerInventoryItem> Nessus);
+    IReadOnlyList<NessusComputerInventoryItem> Nessus)
+{
+    public long SessionRevision { get; init; }
+    public long Revision { get; init; }
+}
 
 public interface IManagementDeviceSnapshotProvider
 {

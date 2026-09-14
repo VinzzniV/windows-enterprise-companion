@@ -258,6 +258,8 @@ export interface ManagementDeviceSnapshot {
   kaspersky: KasperskyDeviceRecord[];
   opsi: OpsiComputerInventoryItem[];
   nessus: NessusComputerInventoryItem[];
+  sessionRevision: number;
+  revision: number;
 }
 
 export interface ManagementDeviceSourceState {

@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Object-centered consolidation (ADR 0022)
 
-Current slice: Phase 5 scoped group profiles and direct member navigation.
+Current slice: Phase 6 bounded working-set index and unified lists/search.
 Phase 1 legacy candidate/route fixes and Phase 2 bounded local batching remain
 explicit follow-ups before the working-set/list milestone.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
@@ -88,6 +88,10 @@ Implementation plan and required parity matrix:
   home pages. Contracts now contain 470 types; the frontend build passes.
   Source discovery is intentionally labelled per-source; the common bounded
   index, list/search integration and full navigation parity remain Phase 6/7.
+- Management cache reads now remain immediate during source I/O and expose
+  session/snapshot revisions. Context changes reject late completions, and a
+  failed KSC source no longer hides the other raw source records. The legacy
+  hygiene retry policy is preserved; all 90 EmployeeLifecycle tests pass.
 
 ## Done
 

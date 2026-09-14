@@ -63,6 +63,16 @@ public sealed class ComputerSearchServiceTests
             StringComparer.OrdinalIgnoreCase));
 
     [Fact]
+    public async Task ComputerInventoryScopeUsesActualNamingContextInsteadOfConfiguredAlias()
+    {
+        SetUpDomainJoined();
+        SetUpComputerEntries(Entry("CN=PC,DC=kauth,DC=local", ("name", "PC")));
+        var result = await CreateService().SearchAsync(new DirectoryConnection("KAUTH", null, ScanCredentials.CurrentUser), null, true, CancellationToken.None);
+        Assert.Equal("kauth.local", result.Value.DomainName);
+        Assert.Equal("kauth.local", Assert.Single(result.Value.Computers).DirectoryScope);
+    }
+
+    [Fact]
     public async Task WorkgroupMachine_ReturnsNotJoinedWithoutSearching()
     {
         _wmiQueryService.QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())

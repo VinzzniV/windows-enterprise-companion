@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Wec.Core.Results;
 using Wec.Core.Contracts;
@@ -8,73 +7,87 @@ namespace Wec.Modules.EmployeeLifecycle.Application;
 
 internal sealed class ItHygieneSnapshotCache : IDisposable
 {
-    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _gate = new();
+    private readonly SemaphoreSlim _readGate = new(1, 1);
     private string? _requestFingerprint;
     private ItHygieneResult? _snapshot;
+    private ManagementDeviceSnapshot? _sourceSnapshot;
+    private Result<ItHygieneResult>? _lastResult;
+    private long _session;
+    private long _revision;
 
-    internal async Task<ManagementDeviceSnapshot?> ReadCachedAsync(ItHygieneRequest request, CancellationToken cancellationToken)
+    internal Task<ManagementDeviceSnapshot?> ReadCachedAsync(ItHygieneRequest request, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string fingerprint = Fingerprint(request);
-        await _gate.WaitAsync(cancellationToken);
-        try
+        lock (_gate)
         {
-            return string.Equals(_requestFingerprint, fingerprint, StringComparison.Ordinal)
-                ? _snapshot?.SourceRecords
-                : null;
-        }
-        finally
-        {
-            _gate.Release();
+            Activate(fingerprint);
+            return Task.FromResult(_sourceSnapshot);
         }
     }
 
-    public async Task<Result<ItHygieneResult>> GetAsync(
-        ItHygieneRequest request,
-        bool force,
-        Func<ItHygieneRequest, CancellationToken, Task<Result<ItHygieneResult>>> load,
-        CancellationToken cancellationToken)
+    public async Task<Result<ItHygieneResult>> GetAsync(ItHygieneRequest request, bool force,
+        Func<ItHygieneRequest, CancellationToken, Task<Result<ItHygieneResult>>> load, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string fingerprint = Fingerprint(request);
-        await _gate.WaitAsync(cancellationToken);
+        long session;
+        long revision;
+        lock (_gate)
+        {
+            Activate(fingerprint);
+            session = _session;
+            revision = _revision;
+            if (!force && _snapshot is not null) { return Result.Success(_snapshot); }
+        }
+        await _readGate.WaitAsync(cancellationToken);
         try
         {
-            if (!force && _snapshot is not null && string.Equals(_requestFingerprint, fingerprint, StringComparison.Ordinal))
+            lock (_gate)
             {
-                return Result.Success(_snapshot);
-            }
-
-            if (!string.Equals(_requestFingerprint, fingerprint, StringComparison.Ordinal))
-            {
-                _snapshot = null;
-                _requestFingerprint = fingerprint;
+                if (session != _session) { return Changed(); }
+                if (_revision > revision && _lastResult is not null) { return _lastResult; }
+                if (!force && _snapshot is not null) { return Result.Success(_snapshot); }
             }
             Result<ItHygieneResult> loaded = await load(request, cancellationToken);
-            if (loaded.IsSuccess && Cacheable(loaded.Value))
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_gate)
             {
-                _requestFingerprint = fingerprint;
-                _snapshot = loaded.Value;
+                if (session != _session) { return Changed(); }
+                ++_revision;
+                if (loaded.IsSuccess)
+                {
+                    _sourceSnapshot = loaded.Value.SourceRecords is { } sources
+                        ? sources with { SessionRevision = _session, Revision = _revision } : null;
+                    loaded = Result.Success(loaded.Value with { SourceRecords = _sourceSnapshot });
+                    if (Cacheable(loaded.Value)) { _snapshot = loaded.Value; }
+                }
+                _lastResult = loaded;
+                return loaded;
             }
-
-            return loaded;
         }
-        finally
-        {
-            _gate.Release();
-        }
+        finally { _readGate.Release(); }
     }
 
-    public void Dispose() => _gate.Dispose();
-
-    private static bool Cacheable(ItHygieneResult result) =>
-        result.Sources.Kaspersky.Availability != InventorySourceAvailability.Unavailable;
-
+    private void Activate(string fingerprint)
+    {
+        if (_requestFingerprint == fingerprint) { return; }
+        _requestFingerprint = fingerprint;
+        _snapshot = null;
+        _sourceSnapshot = null;
+        _lastResult = null;
+        ++_session;
+        ++_revision;
+    }
+    private static Result<ItHygieneResult> Changed() => Result.Failure<ItHygieneResult>(new(ErrorCode.DirectoryUnavailable,
+        "The management connection context changed. Read the sources again in the selected context."));
+    private static bool Cacheable(ItHygieneResult result) => result.Sources.Kaspersky.Availability != InventorySourceAvailability.Unavailable;
     private static string Fingerprint(ItHygieneRequest request)
     {
-        byte[] json = JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            request.ActiveDirectory,
-            request.Kaspersky,
-        });
-        return Convert.ToHexString(SHA256.HashData(json));
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(new { request.ActiveDirectory, request.Kaspersky });
+        try { return Convert.ToHexString(SHA256.HashData(json)); }
+        finally { CryptographicOperations.ZeroMemory(json); }
     }
+    public void Dispose() => _readGate.Dispose();
 }
