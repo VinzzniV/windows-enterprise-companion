@@ -1120,6 +1120,22 @@ export interface GetAdPrivilegedGroupMemberPageRequest {
   connection?: DirectoryConnectionRequest | null;
 }
 
+export interface ReadAdComputerListRequest {
+  directoryScope: string;
+  connection?: DirectoryConnectionRequest | null;
+  search?: string | null;
+  limit?: number;
+  refresh?: boolean;
+}
+
+export interface ReadAdComputerListResult {
+  directoryScope: string;
+  search: string | null;
+  limit: number;
+  read: CachedDirectoryComputer | null;
+  freshUntilUtc: string | null;
+}
+
 export interface SearchAdComputersRequest {
   nameFilter?: string | null;
   includeDisabled?: boolean;

@@ -50,7 +50,8 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
         string? nameFilter,
         bool includeDisabled,
         CancellationToken cancellationToken,
-        int? resultLimit = null)
+        int? resultLimit = null,
+        string? expectedDirectoryScope = null)
     {
         Result<DomainContext> context =
             await _domainContextService.GetContextAsync(connection, cancellationToken);
@@ -62,6 +63,12 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
         if (!context.Value.DomainJoined)
         {
             return Result.Success(new AdComputerSearchResult(false, null, [], Truncated: false));
+        }
+        if (expectedDirectoryScope is not null && !string.Equals(expectedDirectoryScope,
+            DirectoryIdentityValues.DirectoryScope(context.Value.DefaultNamingContext!), StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Failure<AdComputerSearchResult>(new(ErrorCode.DirectoryUnavailable,
+                "The connected directory naming context does not match the selected computer search scope."));
         }
 
         int limit = resultLimit ?? _options.ComputerSearchLimit;

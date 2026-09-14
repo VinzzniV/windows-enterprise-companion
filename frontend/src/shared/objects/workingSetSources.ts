@@ -1,4 +1,4 @@
-import type { CachedDirectoryGroupPage, CachedDirectoryUserList, ManagementDeviceObjectLists, Microsoft365ObjectLists, ObjectReference, StoredObjectLists } from '../api-types.generated';
+import type { CachedDirectoryGroupPage, CachedDirectoryUserList, ManagementDeviceObjectLists, Microsoft365ObjectLists, ObjectReference, ReadAdComputerListResult, StoredObjectLists } from '../api-types.generated';
 import { objectReference, objectSourceLabel } from './objectRoutes';
 import type { WorkingSetObservation, WorkingSetRead, WorkingSetSource } from './workingSet';
 
@@ -46,6 +46,28 @@ export function cloudWorkingSetReads(lists: Microsoft365ObjectLists): WorkingSet
 }
 
 export interface DirectoryListSelection { scope: string; search: string; page: number; pageSize: number }
+
+export function directoryComputerWorkingSetRead(result: ReadAdComputerListResult): WorkingSetRead {
+  const read = result.read;
+  const data = read?.data;
+  const selection = { scope: result.directoryScope, search: result.search ?? '', page: 1, pageSize: result.limit };
+  return {
+    key: directoryReadKey('computers', selection), title: 'Active Directory computers', family: 'directory', scope: result.directoryScope,
+    collectionKey: JSON.stringify(['computers', result.directoryScope, result.search, result.limit]),
+    sessionRevision: read?.sessionRevision ?? 0, revision: read?.revision ?? 0, retrievedAtUtc: data?.retrievedAtUtc ?? null,
+    lastAttemptAtUtc: read?.lastAttemptAtUtc ?? null, retainedUntilUtc: read?.retainedUntilUtc ?? null, freshUntilUtc: result.freshUntilUtc,
+    availability: data ? 'available' : read?.lastAttemptError ? 'unavailable' : 'not-loaded',
+    coverage: data ? data.truncated ? 'partial' : 'complete' : 'unknown', error: read?.lastAttemptError?.message ?? null,
+    sourceTotal: data && !data.truncated ? data.computers.length : null, cachedRecordCount: data?.computers.length ?? 0, limited: false,
+    rows: data?.computers.map(computer => ({
+      reference: objectReference('DEVICE', 'ad', computer.directoryScope ?? undefined, computer.objectId ?? undefined),
+      kind: 'DEVICE', source: 'ACTIVE_DIRECTORY', label: computer.dnsHostName ?? computer.computerName,
+      aliases: [computer.computerName, computer.dnsHostName, computer.objectId, computer.distinguishedName].filter((value): value is string => Boolean(value)),
+      nativeRecordId: computer.objectId ?? undefined, accountEnabled: computer.enabled, operatingSystem: computer.operatingSystem,
+      sid: computer.securityIdentifier, registrationDeviceId: null, assignedSkuIds: null,
+    })) ?? [],
+  };
+}
 
 function directoryReadKey(kind: string, selection: DirectoryListSelection) {
   return `ad:${kind}:${JSON.stringify([selection.scope.toLowerCase(), selection.search.trim(), selection.page, selection.pageSize])}`;

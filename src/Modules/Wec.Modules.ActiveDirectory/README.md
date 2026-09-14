@@ -1,5 +1,11 @@
 # Wec.Modules.ActiveDirectory
 
+`activedirectory/readComputerList` explicitly discovers up to 100 computers in
+a verified directory DNS scope. The default call is cache-only; `refresh` uses
+the existing allowlisted LDAP search. Narrower queries reach beyond a truncated
+result. GUID/SID profile reads reuse these observations in the same credential
+context and bounded cache, preserving conflicts, query coverage and original age.
+
 Computer inventory preserves directory scope, optional objectGUID/objectSid and
 nullable account state (ADR 0022). Missing/malformed IDs are unknown, never name
 replacements; same-name records stay distinct. Reads use the existing bounded

@@ -21,6 +21,23 @@ public sealed class DirectoryComputerSnapshotCacheTests
         Task.FromResult(Result.Success(new DirectoryComputerIdentityResult("example.test", _clock.UtcNow, [], false)));
 
     [Fact]
+    public async Task DiscoveryKeepsConflictingGuidObservationsInsteadOfSelectingFirstOrLatest()
+    {
+        using var cache = Create();
+        AdComputerInventoryItem computer = new("PC", "pc.example.test", null, null, null, "CN=PC,DC=example,DC=test", null, _query.ObjectId);
+        await cache.LoadAsync(_query, _ => Task.FromResult(Result.Success(new DirectoryComputerIdentityResult("example.test", _clock.UtcNow, [computer], true))),
+            CancellationToken.None, DirectoryComputerSnapshotCache.DiscoveryKey("PC", 100));
+        _clock.UtcNow.Returns(_clock.UtcNow.AddMinutes(5));
+        await cache.LoadAsync(_query, _ => Task.FromResult(Result.Success(new DirectoryComputerIdentityResult("example.test", _clock.UtcNow, [computer with { Enabled = false }], false))),
+            CancellationToken.None, DirectoryComputerSnapshotCache.DiscoveryKey("pc.example.test", 100));
+        var read = cache.Read(_query, CancellationToken.None)!;
+        Assert.Equal(2, read.Data!.Computers.Count);
+        Assert.True(read.Data.Truncated);
+        Assert.Equal(_clock.UtcNow.AddMinutes(-5), read.Data.RetrievedAtUtc);
+        Assert.Equal(_clock.UtcNow.AddMinutes(55), read.RetainedUntilUtc);
+    }
+
+    [Fact]
     public async Task FailedAttemptKeepsSameSourceFactsUntilOriginalRetention()
     {
         using var cache = Create();

@@ -8,24 +8,31 @@ namespace Wec.Modules.ActiveDirectory.Application;
 internal sealed class DirectoryComputerReadService(DomainContextService domainContext, IDirectoryReader reader,
     IClock clock, IOptions<ActiveDirectoryOptions> options, DirectoryComputerSnapshotCache cache) : IDirectoryComputerReadProvider
 {
-    public Task<CachedDirectoryComputer?> ReadCachedAsync(DirectoryComputerIdentityQuery query, CancellationToken cancellationToken) =>
-        Task.FromResult(cache.Read(query, cancellationToken));
+    public Task<CachedDirectoryComputer?> ReadCachedAsync(DirectoryComputerIdentityQuery query, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(IsValid(query) ? cache.Read(query, cancellationToken) : null);
+    }
 
     public Task<Result<DirectoryComputerIdentityResult>> ReadIdentityAsync(DirectoryComputerIdentityQuery query,
-        CancellationToken cancellationToken) => cache.LoadAsync(query, token => LoadIdentityAsync(query, token), cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return IsValid(query) ? cache.LoadAsync(query, token => LoadIdentityAsync(query, token), cancellationToken)
+            : Task.FromResult(Result.Failure<DirectoryComputerIdentityResult>(new(ErrorCode.InvalidRequest,
+                "Specify a directory DNS scope and exactly one valid computer GUID or account SID.")));
+    }
+
+    private static bool IsValid(DirectoryComputerIdentityQuery query) => !string.IsNullOrWhiteSpace(query.DirectoryScope)
+        && query.DirectoryScope.Length <= 253 && Uri.CheckHostName(query.DirectoryScope.Trim().TrimEnd('.')) == UriHostNameType.Dns
+        && query.ObjectId != Guid.Empty && (query.ObjectId is null) != (query.SecurityIdentifier is null)
+        && (query.SecurityIdentifier is null || DirectoryIdentityValues.AccountSid(query.SecurityIdentifier) is not null);
 
     private async Task<Result<DirectoryComputerIdentityResult>> LoadIdentityAsync(DirectoryComputerIdentityQuery query,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string? sid = DirectoryIdentityValues.AccountSid(query.SecurityIdentifier);
-        if (string.IsNullOrWhiteSpace(query.DirectoryScope) || query.DirectoryScope.Length > 253
-            || query.ObjectId == Guid.Empty || (query.ObjectId is null) == (query.SecurityIdentifier is null)
-            || query.SecurityIdentifier is not null && sid is null)
-        {
-            return Result.Failure<DirectoryComputerIdentityResult>(new(ErrorCode.InvalidRequest,
-                "Specify a directory scope and exactly one valid computer GUID or account SID."));
-        }
         var connection = new DirectoryConnection(query.Connection.Domain, query.Connection.Server, query.Connection.Credentials);
         Result<DomainContext> context = await domainContext.GetContextAsync(connection, cancellationToken);
         if (context.IsFailure) { return Result.Failure<DirectoryComputerIdentityResult>(context.Error!); }

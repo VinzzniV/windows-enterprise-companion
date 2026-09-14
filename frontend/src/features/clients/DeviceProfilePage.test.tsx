@@ -7,6 +7,7 @@ import { DeviceProfilePage } from './DeviceProfilePage';
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), request: { activeDirectory: {}, kaspersky: null }, refresh: vi.fn(), cancel: vi.fn() }));
 vi.mock('../../shared/bridge/bridgeClient', () => ({ invokeCancellable: mocks.invoke }));
+vi.mock('../../shared/targets/TargetContext', () => ({ useTargets: () => ({ adminCredentials: null }) }));
 vi.mock('../../shared/environment/EnvironmentContext', () => ({
   useEnvironmentRequest: () => mocks.request,
   useEnvironment: () => ({ refresh: mocks.refresh, loading: false, cancel: mocks.cancel }),
@@ -44,6 +45,17 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('device profiles', () => {
+  it('keeps the selected directory server when opening a scoped AD profile', async () => {
+    const value = profile();
+    value.reference = { kind: 'DEVICE', source: 'ACTIVE_DIRECTORY', scope: 'example.test', id };
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+    render(<MemoryRouter initialEntries={[{ pathname: objectPath(value.reference), state: { directoryEndpoint: { domain: 'example.test', server: 'selected-dc.example.test' } } }]}>
+      <Routes><Route path="/devices/:source/:scope/:objectId" element={<DeviceProfilePage />} /></Routes></MemoryRouter>);
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('clients', 'getProfile', expect.objectContaining({
+      activeDirectory: { domain: 'example.test', server: 'selected-dc.example.test' }, loadDirectoryIdentity: false,
+    })));
+  });
+
   it('opens cloud-only evidence without source reads or a Windows action fallback', async () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Cloud device' })).toBeTruthy();

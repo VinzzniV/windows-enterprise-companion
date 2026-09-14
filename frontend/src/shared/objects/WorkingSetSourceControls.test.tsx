@@ -19,6 +19,24 @@ beforeEach(() => {
 });
 
 describe('explicit working-set source reads', () => {
+  it('loads targeted AD computers with native identity and partial coverage', async () => {
+    invokeMock.mockReturnValue({ cancel: vi.fn(), promise: Promise.resolve({ directoryScope: 'example.test', search: 'PC', limit: 100, freshUntilUtc: null,
+      read: { ...cached, data: { directoryScope: 'example.test', retrievedAtUtc: cached.lastAttemptAtUtc, truncated: true,
+        computers: [{ computerName: 'PC', dnsHostName: null, enabled: null, operatingSystem: null, distinguishedName: 'CN=PC',
+          objectId: '11111111-1111-1111-1111-111111111111', securityIdentifier: null, directoryScope: 'example.test' }] } } }) });
+    render(<MemoryRouter><WorkingSetSourceControls kind="DEVICE" /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText('Directory DNS scope'), { target: { value: 'example.test' } });
+    fireEvent.change(screen.getByLabelText('Source query'), { target: { value: 'PC' } });
+    expect(invokeMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Read AD computers (up to 100)'));
+    await waitFor(() => expect(publishDirectory).toHaveBeenCalledOnce());
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('activedirectory', 'readComputerList', {
+      connection: { domain: 'example.test' }, directoryScope: 'example.test', search: 'PC', limit: 100, refresh: true,
+    });
+    expect(publishDirectory.mock.calls[0][0]).toMatchObject({ coverage: 'partial', sourceTotal: null,
+      rows: [{ reference: { kind: 'DEVICE', source: 'ACTIVE_DIRECTORY', scope: 'example.test', id: '11111111-1111-1111-1111-111111111111' }, accountEnabled: null }] });
+  });
+
   it('loads only the requested bounded AD page and does not query while editing search fields', async () => {
     invokeMock.mockReturnValue({ requestId: 'page', cancel: vi.fn(), promise: Promise.resolve(cached) });
     render(view());

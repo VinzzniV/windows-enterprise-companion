@@ -6,13 +6,20 @@ Current phase: Object-centered consolidation (ADR 0022)
 
 Current slice: Phase 6 bounded working-set index and unified lists/search.
 Source-only management records and their exact snapshot destinations are integrated.
-Phase 1 legacy candidate/route fixes, targeted AD computer discovery and G2
+Targeted AD computer discovery is available. Phase 1 legacy candidate/route fixes and G2
 compatibility remain explicit follow-ups before the navigation milestone.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
 
 ## Current consolidation verification (2026-09-14)
+
+- Explicit AD computer discovery validates RootDSE scope and returns at most
+  100 matches. Native profile reads reuse the same bounded connection cache;
+  conflicting observations and original retention remain visible. Device routes
+  retain the selected directory endpoint. All 131 AD tests and 14 affected UI
+  tests pass; Release has no warnings/errors, 493 contracts and production
+  assets are current. Legacy identity/parity fixes precede the C2 switch.
 
 - Raw AD/KSC/opsi/Nessus records now enter the shared index, including duplicate
   names, missing native IDs and source-only records. Disposable snapshot locators

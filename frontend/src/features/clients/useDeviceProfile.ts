@@ -1,12 +1,23 @@
 import { useOptionalWorkingSet, useWorkingSetSessions } from '../../shared/objects/WorkingSetContext';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import type { DeviceProfileResult, Microsoft365Query, ObjectReference } from '../../shared/api-types.generated';
 import { invokeCancellable, type CancellableBridgeInvocation } from '../../shared/bridge/bridgeClient';
 import { presentError } from '../../shared/bridge/errorPresentation';
 import { useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
+import { useTargets } from '../../shared/targets/TargetContext';
+import { toUserDirectoryConnection, type UserDirectoryEndpoint } from '../users/users';
 
 export function useDeviceProfile(reference: ObjectReference) {
-  const context = useEnvironmentRequest();
+  const environment = useEnvironmentRequest();
+  const { adminCredentials } = useTargets();
+  const location = useLocation();
+  const context = useMemo(() => {
+    if (reference.source !== 'ACTIVE_DIRECTORY') return environment;
+    const endpoint = (location.state as { directoryEndpoint?: UserDirectoryEndpoint } | null)?.directoryEndpoint
+      ?? { domain: reference.scope, server: environment.activeDirectory?.server ?? '' };
+    return { ...environment, activeDirectory: toUserDirectoryConnection(endpoint, adminCredentials) };
+  }, [environment, reference.source, reference.scope, location.state, adminCredentials]);
   const sessions = useWorkingSetSessions();
   const sessionKey = String(sessions.cloud) + ':' + sessions.directory + ':' + sessions.management;
   const refreshCached = useOptionalWorkingSet()?.refreshCached;
