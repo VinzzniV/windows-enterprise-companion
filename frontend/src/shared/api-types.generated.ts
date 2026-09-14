@@ -319,6 +319,9 @@ export interface GetAppInfoRequest {
 export interface GetItLifecycleSettingsRequest {
 }
 
+export interface GetMicrosoft365SettingsRequest {
+}
+
 export interface GetNessusSettingsRequest {
 }
 
@@ -362,6 +365,11 @@ export interface LogEntry {
   source: string;
   summary: string;
   technicalDetails: string;
+}
+
+export interface Microsoft365SettingsResult {
+  settings: Microsoft365Configuration;
+  restartRequired: boolean;
 }
 
 export interface NessusSettingsResult {
@@ -449,6 +457,10 @@ export interface RestartElevatedResult {
 
 export interface SaveItLifecycleSettingsRequest {
   settings: ItLifecycleSettingsValue;
+}
+
+export interface SaveMicrosoft365SettingsRequest {
+  settings: Microsoft365Configuration;
 }
 
 export interface SaveNessusSettingsRequest {

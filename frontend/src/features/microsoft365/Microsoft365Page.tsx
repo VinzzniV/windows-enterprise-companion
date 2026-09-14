@@ -92,7 +92,7 @@ export function Microsoft365Page() {
         <label><input type="checkbox" checked={configuration.enableAuthenticationReports ?? false} disabled={auth.busy}
           onChange={event => setConfiguration({ ...configuration, enableAuthenticationReports: event.target.checked })} /> Include sign-in and MFA-registration reports</label>
       </div>
-      <p className="mb-3 text-xs text-muted">Windows Account Manager handles sign-in. No password or client secret is stored by WEC. Changes apply on sign-in; identifiers entered here are session-only. Defaults can be configured under Wec:Microsoft365 in user settings.</p>
+      <p className="mb-3 text-xs text-muted">Windows Account Manager handles sign-in. No password or client secret is stored by WEC. Changes apply on sign-in; identifiers entered here are session-only. <Link className="text-accent-400 underline" to="/settings?section=microsoft365">Manage saved defaults in Settings</Link>.</p>
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="primary" disabled={auth.busy || status.busy || !configuration.tenantId || !configuration.clientId} onClick={() => void connect()}>Sign in</Button>
         <Button disabled={auth.busy || !connection?.connected} onClick={() => void disconnect()}>Disconnect and clear cache</Button>

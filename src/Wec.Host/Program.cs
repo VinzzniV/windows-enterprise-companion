@@ -335,6 +335,8 @@ internal static partial class Program
         builder.Services.AddSingleton<IActionHandler, SaveOpsiSettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, GetNessusSettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, SaveNessusSettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, GetMicrosoft365SettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, SaveMicrosoft365SettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, GetServiceCredentialStatusesHandler>();
         builder.Services.AddSingleton<IActionHandler, SaveServiceCredentialHandler>();
         builder.Services.AddSingleton<IActionHandler, DeleteServiceCredentialHandler>();

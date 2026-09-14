@@ -1,5 +1,10 @@
 # Microsoft 365 implementation
 
+Local implementation and automated verification are complete. Live-tenant
+authentication/permission acceptance and published-host packaging remain open.
+The final update of `ROADMAP_EXECUTION.md` is blocked by another process's
+Windows file lock; its active-slice header is therefore older than this report.
+
 ## Repository analysis and plan (2026-09-14)
 
 Baseline: `228b719`, clean `codex/device-cleanup-excel-export` checkout.
@@ -65,6 +70,10 @@ Use an organizational, single-tenant public-client app registration. Configure
 Mobile and desktop applications redirect
 `ms-appx-web://microsoft.aad.brokerplugin/{client-id}`. Enter tenant ID and client
 ID in WEC; neither is a secret. Grant only the enabled delegated read scopes.
+Save non-secret defaults under Settings > Microsoft 365; they are merged into
+the existing user-settings file without replacing provider limits, cache options
+or other modules. Restart WEC to apply saved defaults. The connection form can
+override them for the current session. Saving settings never triggers Graph.
 WAM is required. No system-browser/device-code fallback, app secret, certificate
 private key, password flow, `.default` scope or application access is used.
 
@@ -197,12 +206,12 @@ New backend components:
   `Microsoft365Service`, `Microsoft365CorrelationPolicy`, snapshot/status/
   capacity/correlation records and five action handlers (`getStatus`, `connect`,
   `disconnect`, `read`, `getContext`). Module README and project file.
-- Host: `Microsoft365AuthenticationWindow`.
+- Host: `Microsoft365AuthenticationWindow`, `Microsoft365SettingsHandlers`.
 
 New frontend components:
 
 - `Microsoft365Page`, `Microsoft365DataView`, `Microsoft365ContextPanel`,
-  `Microsoft365Fields` and `useMicrosoft365Action`.
+  `Microsoft365Fields`, `useMicrosoft365Action`, `Microsoft365SettingsSection`.
 - The resource page contains bounded user/group/device/license/member tables,
   inline details, source status, optional report reads and native sign-in controls.
 
@@ -211,6 +220,9 @@ New tests:
 - `Wec.Modules.Microsoft365.Tests`: service/cache/license and correlation tests.
 - Infrastructure `GraphReaderTests`: real SDK deserialization over fake HTTP.
 - Host `Microsoft365BoundaryTests`: composition, timeouts and trusted origins.
+- Host `Microsoft365SettingsHandlersTests` and frontend
+  `Microsoft365SettingsSection.test.tsx`: non-secret settings persistence,
+  validation, preserving existing configuration and visible restart/error states.
 - Frontend `Microsoft365.test.tsx`: connection, errors, cancellation, null
   semantics, stale/partial data, paging, licensing and internal navigation.
 
@@ -220,6 +232,8 @@ Changed existing components:
 - Core `ErrorCode`; generated TypeScript bridge contracts.
 - Host `Program`, `MainWindow`, `WebViewBridge`, `BridgeExecutionTimeoutPolicy`
   and `appsettings.json`.
+- Host `UserSettingsStore`, frontend `SettingsPage`, its tests and section
+  navigation now include non-secret Microsoft 365 connection defaults.
 - Frontend route registry and its test, action timeouts, `UserDetailPage` and
   `ClientDetailPage`.
 - `AGENTS.md`, `ROADMAP_DECISIONS.md`, `ROADMAP_EXECUTION.md`; new ADR 0021 and
@@ -249,8 +263,8 @@ Changed existing components:
    require a maintained external catalog and have no invented fallback here.
 8. Public Microsoft cloud and delegated WAM only. No sovereign-cloud endpoint
    customization, application identity, certificate flow or unattended sync.
-9. Connection identifiers entered in the UI last for the process session;
-   administrators can set non-secret defaults in existing user settings.
+9. Connection-form overrides last for the process session. Central Settings
+   saves non-secret defaults; applying them requires the existing restart model.
 10. The existing two Moderate Vitest audit findings remain; remediation is an
     independent breaking test-tool upgrade. The new dependency override should
     be removed when the selected Graph SDK resolves a fixed Kiota version.
@@ -267,8 +281,8 @@ needed before a concrete second use case.
 - Baseline: 739 backend tests; 461 frontend tests. An initial highly parallel
   frontend run timed out in two pre-existing Settings tests; all 461 passed
   when rerun with two workers, without changing those tests or their timeout.
-- Integration verification: 809 backend tests, 472 frontend tests, warning-free
-  Release build, frontend production build and 415 generated contracts.
+- Integration verification: 815 backend tests, 475 frontend tests, warning-free
+  Release build, frontend production build and 418 generated contracts.
 - Graph coverage includes mappings, null/missing properties, SDK error parsing,
   401/403/404/429/5xx, continuation limits/cycles/origin validation, retry budgets,
   cancellation, response-size limits, read-only scope and transport guards.

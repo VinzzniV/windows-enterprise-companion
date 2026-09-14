@@ -48,6 +48,9 @@ const nessusSettings = {
 beforeEach(() => {
   invokeMock.mockReset();
   invokeMock.mockImplementation((_module: string, action: string) => {
+    if (action === 'getMicrosoft365Settings') {
+      return Promise.resolve({ settings: { tenantId: '', clientId: '', enableIntune: false, enableAuthenticationReports: false }, restartRequired: false });
+    }
     if (action === 'getAppInfo') {
       return Promise.resolve({
         version: '0.2.0',
@@ -253,7 +256,9 @@ describe('SettingsPage', () => {
   });
 
   it('keeps initial load diagnostics behind actionable guidance', async () => {
-    invokeMock.mockRejectedValueOnce(new Error('raw settings bootstrap failure'));
+    const defaultInvoke = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((module: string, action: string) => action === 'getAppInfo'
+      ? Promise.reject(new Error('raw settings bootstrap failure')) : defaultInvoke(module, action));
 
     renderSettings();
 

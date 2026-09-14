@@ -5,6 +5,7 @@ export const settingsSections = [
   { id: 'environment-health', label: 'Environment Health' },
   { id: 'vulnerability-management', label: 'Vulnerability Management' },
   { id: 'patch-management', label: 'Patch Management' },
+  { id: 'microsoft365', label: 'Microsoft 365' },
   { id: 'policy', label: 'Configuration policy' },
 ] as const;
 

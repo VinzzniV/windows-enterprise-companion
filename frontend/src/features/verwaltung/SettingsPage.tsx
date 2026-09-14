@@ -34,6 +34,7 @@ import {
   type SettingsSectionId,
 } from './SettingsSectionNavigation';
 import { SettingsValidationSummary } from './SettingsValidationSummary';
+import { Microsoft365SettingsSection } from '../microsoft365/Microsoft365SettingsSection';
 import {
   validateItLifecycleSettings,
   validateNessusSettings,
@@ -81,6 +82,7 @@ export function SettingsPage() {
   const [editingNessusCredential, setEditingNessusCredential] = useState(false);
   const [nessusCertificate, setNessusCertificate] = useState<NessusCertificateResult | null>(null);
   const [openLogsError, setOpenLogsError] = useState<ErrorPresentation | null>(null);
+  const [microsoft365Dirty, setMicrosoft365Dirty] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -307,6 +309,7 @@ export function SettingsPage() {
     ...(itLifecycleDirty ? ['environment-health' as const] : []),
     ...(nessusDirty ? ['vulnerability-management' as const] : []),
     ...(opsiDirty ? ['patch-management' as const] : []),
+    ...(microsoft365Dirty ? ['microsoft365' as const] : []),
   ]);
   const itLifecycleIssues = itLifecycle ? validateItLifecycleSettings(itLifecycle) : [];
   const nessusIssues = nessus ? validateNessusSettings(nessus) : [];
@@ -619,6 +622,9 @@ export function SettingsPage() {
         </div>
       )}
 
+      <div id={settingsSectionElementId('microsoft365')} className="scroll-mt-20">
+        <Microsoft365SettingsSection onDirtyChange={setMicrosoft365Dirty} />
+      </div>
       <div id={settingsSectionElementId('policy')} className="scroll-mt-20">
         <Card title="Configuration policy">
           <p className="text-sm text-slate-400">
