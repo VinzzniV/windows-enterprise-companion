@@ -6,9 +6,15 @@ using Wec.Core.Results;
 namespace Wec.Modules.ActiveDirectory.Application;
 
 internal sealed class DirectoryComputerReadService(DomainContextService domainContext, IDirectoryReader reader,
-    IClock clock, IOptions<ActiveDirectoryOptions> options) : IDirectoryComputerReadProvider
+    IClock clock, IOptions<ActiveDirectoryOptions> options, DirectoryComputerSnapshotCache cache) : IDirectoryComputerReadProvider
 {
-    public async Task<Result<DirectoryComputerIdentityResult>> ReadIdentityAsync(DirectoryComputerIdentityQuery query,
+    public Task<CachedDirectoryComputer?> ReadCachedAsync(DirectoryComputerIdentityQuery query, CancellationToken cancellationToken) =>
+        Task.FromResult(cache.Read(query, cancellationToken));
+
+    public Task<Result<DirectoryComputerIdentityResult>> ReadIdentityAsync(DirectoryComputerIdentityQuery query,
+        CancellationToken cancellationToken) => cache.LoadAsync(query, token => LoadIdentityAsync(query, token), cancellationToken);
+
+    private async Task<Result<DirectoryComputerIdentityResult>> LoadIdentityAsync(DirectoryComputerIdentityQuery query,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

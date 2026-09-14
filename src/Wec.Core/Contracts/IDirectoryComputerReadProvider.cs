@@ -14,8 +14,19 @@ public sealed record DirectoryComputerIdentityResult(
     IReadOnlyList<AdComputerInventoryItem> Computers,
     bool Truncated);
 
+public sealed record CachedDirectoryComputer(
+    DirectoryComputerIdentityResult? Data,
+    DateTimeOffset LastAttemptAtUtc,
+    Error? LastAttemptError,
+    long SessionRevision,
+    long Revision,
+    DateTimeOffset? RetainedUntilUtc,
+    bool Stale);
+
 public interface IDirectoryComputerReadProvider
 {
+    Task<CachedDirectoryComputer?> ReadCachedAsync(DirectoryComputerIdentityQuery query, CancellationToken cancellationToken);
+
     Task<Result<DirectoryComputerIdentityResult>> ReadIdentityAsync(DirectoryComputerIdentityQuery query,
         CancellationToken cancellationToken);
 }

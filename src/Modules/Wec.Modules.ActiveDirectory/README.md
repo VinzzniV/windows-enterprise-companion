@@ -112,3 +112,10 @@ It verifies the requested directory against RootDSE's default naming context,
 uses an allowlisted bounded computer query, and preserves duplicate results.
 Returned identity evidence must match the requested ID. Names never select an
 identity and these reads expose no directory write capability.
+
+Computer identity results use a bounded process cache (64 entries, ten minutes
+fresh, one hour retained by default). Credentials only contribute to an opaque
+in-memory context fingerprint; they are not retained in snapshots. Changing the
+connection/context discards cached evidence and rejects late results. Explicit
+refresh failures keep prior facts until their original expiry. Cache-only reads
+never invoke LDAP and remain available during source reads.

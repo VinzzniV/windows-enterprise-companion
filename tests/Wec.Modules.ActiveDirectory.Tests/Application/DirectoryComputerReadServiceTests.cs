@@ -32,7 +32,8 @@ public sealed class DirectoryComputerReadServiceTests
     private DirectoryComputerReadService Create()
     {
         var options = Options.Create(new ActiveDirectoryOptions());
-        return new(new DomainContextService(_wmi, _reader, options), _reader, _clock, options);
+        return new(new DomainContextService(_wmi, _reader, options), _reader, _clock, options,
+            new DirectoryComputerSnapshotCache(_clock, options));
     }
 
     private static DirectoryComputerIdentityQuery Query(Guid? id = null, string? sid = null) => new(

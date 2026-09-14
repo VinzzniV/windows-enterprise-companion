@@ -28,4 +28,13 @@ public sealed class ActiveDirectoryOptions
     /// <summary>Upper bound for the OU-scoped user listing (Employee Lifecycle AD view).</summary>
     [Range(1, 10_000)]
     public int UserSearchLimit { get; set; } = 500;
+
+    [Range(1, 1_000)]
+    public int IdentityCacheMaximumEntries { get; set; } = 64;
+
+    [PositiveTimeSpan]
+    public TimeSpan IdentityCacheFreshFor { get; set; } = TimeSpan.FromMinutes(10);
+
+    [PositiveTimeSpan]
+    public TimeSpan IdentityCacheRetainFor { get; set; } = TimeSpan.FromHours(1);
 }

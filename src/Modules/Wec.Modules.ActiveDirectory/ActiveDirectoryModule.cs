@@ -17,6 +17,7 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<DirectoryHygieneService>();
         services.AddScoped<ComputerSearchService>();
         services.AddScoped<IDirectoryComputerReadProvider, DirectoryComputerReadService>();
+        services.AddSingleton<DirectoryComputerSnapshotCache>();
         services.AddScoped<IAdComputerInventoryProvider>(serviceProvider =>
             serviceProvider.GetRequiredService<ComputerSearchService>());
         services.AddScoped<IActionHandler, GetAdOverviewHandler>();
