@@ -13,6 +13,15 @@ Implementation plan and required parity matrix:
 
 ## Current consolidation verification (2026-09-14)
 
+- The bounded React working set now feeds object lists and global search.
+  Scoped-ID deduplication precedes whole-set filters/sort/page; partial sources,
+  collisions, expired facts and unavailable counts stay explicit. Cached updates
+  require adoption; account/credential changes clear affected data immediately.
+  Lists expose explicit AD/Graph reads and targeted local address searches.
+  The 81 affected frontend tests, 19 Clients and 89 Host tests pass; Release
+  build is warning-free, 483 contracts and production assets are current.
+  Existing navigation/specialist routes remain. Raw management contributions,
+  source-record destinations and G2 migration are still pending.
 - Local address contributions now include Inventory, Security-only and saved
   Client-role records through bounded source-owned projections. Two real SQLite
   tests verify minimal SQL, exact addresses, native record IDs, latest ties,

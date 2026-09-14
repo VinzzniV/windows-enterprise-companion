@@ -14,6 +14,7 @@ import { presentError, type ErrorPresentation } from '../shared/bridge/errorPres
 import { appRoutes, navigationGroups, sectionLabelFor, type AppRouteDefinition } from './routeRegistry';
 import { Spinner } from '../shared/ui/Spinner';
 import { GlobalSearch } from './GlobalSearch';
+import { WorkingSetProvider } from '../shared/objects/WorkingSetContext';
 
 export type AppInfoState =
   | { kind: 'loading' }
@@ -361,7 +362,9 @@ export function App() {
     <HashRouter>
       <TargetProvider>
       <EnvironmentProvider>
+      <WorkingSetProvider>
       <ApplicationShell appInfoState={appInfoState} />
+      </WorkingSetProvider>
       </EnvironmentProvider>
       </TargetProvider>
     </HashRouter>

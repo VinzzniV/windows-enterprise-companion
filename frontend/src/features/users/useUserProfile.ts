@@ -1,3 +1,4 @@
+import { useOptionalWorkingSet, useWorkingSetSessions } from '../../shared/objects/WorkingSetContext';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { Microsoft365Query, ObjectReference, ScopedUserProfile } from '../../shared/api-types.generated';
@@ -23,15 +24,18 @@ export function useUserProfile(reference: ObjectReference, directoryScope: strin
     ?? loadView<UserDirectoryEndpoint>(userDirectoryViewKey) ?? emptyUserDirectoryEndpoint, [location.state]);
   const connection = useMemo(() => toUserDirectoryConnection(endpoint, adminCredentials), [endpoint, adminCredentials]);
   const context = useMemo(() => ({ connection, directoryScope }), [connection, directoryScope]);
+  const sessions = useWorkingSetSessions();
+  const sessionKey = String(sessions.cloud) + ':' + sessions.directory;
+  const refreshCached = useOptionalWorkingSet()?.refreshCached;
   const generation = useRef(0);
   const active = useRef<CancellableBridgeInvocation<unknown> | null>(null);
-  const [state, setState] = useState<{ reference: ObjectReference; context: typeof context; data: ScopedUserProfile | null; busy: boolean; error: string | null } | null>(null);
+  const [state, setState] = useState<{ sessionKey: string; reference: ObjectReference; context: typeof context; data: ScopedUserProfile | null; busy: boolean; error: string | null } | null>(null);
   const [now, setNow] = useState(Date.now);
-  const current = state?.reference === reference && state.context === context ? state : null;
+  const current = state?.reference === reference && state.context === context && state.sessionKey === sessionKey ? state : null;
   const load = useCallback(async (source?: (Microsoft365Query & { tenantId?: string }) | 'directory') => {
     const own = ++generation.current;
     active.current?.cancel();
-    setState(previous => ({ reference, context, data: previous?.reference === reference && previous.context === context ? previous.data : null, busy: true, error: null }));
+    setState(previous => ({ reference, context, sessionKey, data: previous?.reference === reference && previous.context === context && previous.sessionKey === sessionKey ? previous.data : null, busy: true, error: null }));
     let error: string | null = null;
     if (source && source !== 'directory') {
       try {
@@ -45,11 +49,11 @@ export function useUserProfile(reference: ObjectReference, directoryScope: strin
       const action = invokeCancellable<ScopedUserProfile>('usermanagement', 'getProfile', { reference, ...context, loadDirectoryIdentity: source === 'directory' });
       active.current = action;
       const data = await action.promise;
-      if (generation.current === own) setState({ reference, context, data, busy: false, error });
+      if (generation.current === own) setState({ reference, context, sessionKey, data, busy: false, error });
     } catch (caught) {
-      if (generation.current === own) setState({ reference, context, data: null, busy: false, error: presentError(caught).message });
-    } finally { if (generation.current === own) active.current = null; }
-  }, [reference, context]);
+      if (generation.current === own) setState({ reference, context, sessionKey, data: null, busy: false, error: presentError(caught).message });
+    } finally { if (generation.current === own) { active.current = null; if (source) void refreshCached?.(); } }
+  }, [reference, context, sessionKey, refreshCached]);
   useEffect(() => { void load(); return () => { generation.current++; active.current?.cancel(); }; }, [load]);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {

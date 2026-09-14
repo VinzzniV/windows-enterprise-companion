@@ -1,6 +1,10 @@
 import { lazy, type ComponentType, type ReactNode } from 'react';
 import { navIcons } from './navIcons';
 
+const DevicesWorkingSetPage = lazy(() => import('../shared/objects/ObjectWorkingSetPage').then(module => ({ default: module.DevicesWorkingSetPage })));
+const UsersWorkingSetPage = lazy(() => import('../shared/objects/ObjectWorkingSetPage').then(module => ({ default: module.UsersWorkingSetPage })));
+const GroupsWorkingSetPage = lazy(() => import('../shared/objects/ObjectWorkingSetPage').then(module => ({ default: module.GroupsWorkingSetPage })));
+
 const DashboardPage = lazy(() => import('../features/dashboard/DashboardPage')
   .then((module) => ({ default: module.DashboardPage })));
 const ActionCenterPage = lazy(() => import('../features/actioncenter/ActionCenterPage')
@@ -86,6 +90,9 @@ export const appRoutes: readonly AppRouteDefinition[] = [
   { id: 'client-compare', path: '/clients/compare', sectionLabel: 'Clients', Component: ComparePage },
   { id: 'client-detail', path: '/clients/:host', sectionLabel: 'Clients', Component: ClientDetailPage },
   { id: 'device-profile', path: '/devices/:source/:scope/:objectId', sectionLabel: 'Devices', Component: DeviceProfilePage },
+  { id: 'devices-workspace', path: '/devices', sectionLabel: 'Devices', Component: DevicesWorkingSetPage },
+  { id: 'users-workspace', path: '/users/workspace', sectionLabel: 'Users', Component: UsersWorkingSetPage },
+  { id: 'groups-workspace', path: '/groups/workspace', sectionLabel: 'Groups', Component: GroupsWorkingSetPage },
   { id: 'users', path: '/users', sectionLabel: 'Users', Component: UsersPage, navigation: { group: 'fleet', label: 'Users', icon: navIcons.users, searchTerms: ['people', 'accounts', 'identity', 'lifecycle'] } },
   { id: 'user-detail', path: '/users/:objectId', sectionLabel: 'Users', Component: UserDetailPage },
   { id: 'resolve-user-sid', path: '/users/resolve', sectionLabel: 'Users', Component: ResolveObservedUserPage },

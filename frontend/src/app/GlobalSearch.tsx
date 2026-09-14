@@ -1,37 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type {
-  AdComputerSearchResult,
-  ListInventoryHostsResult,
-  ListSecurityScanHostsResult,
-  StoredInventoryHost,
-  StoredSecurityScanHost,
-  UserPageResult,
-  UserSummary,
-} from '../shared/api-types';
-import { invoke } from '../shared/bridge/bridgeClient';
 import { useTargets } from '../shared/targets/TargetContext';
-import { loadView } from '../shared/viewCache';
-import {
-  emptyUserDirectoryEndpoint,
-  toUserDirectoryConnection,
-  userDirectoryViewKey,
-  type UserDirectoryEndpoint,
-} from '../features/users/users';
-import {
-  clientResults,
-  navigationResults,
-  savedTargetResults,
-  userResults,
-  type GlobalSearchCategory,
-  type GlobalSearchResult,
-} from './searchResults';
+import { useOptionalWorkingSet } from '../shared/objects/WorkingSetContext';
+import { workingSetSearch } from './workingSetSearch';
+import { navigationResults, savedTargetResults, type GlobalSearchCategory, type GlobalSearchResult } from './searchResults';
 
-const categoryOrder: readonly GlobalSearchCategory[] = ['Navigation', 'Users', 'Clients', 'Saved targets'];
-const remoteQueryMinimum = 2;
-const remoteResultLimit = 6;
-const debounceMilliseconds = 250;
-
+const categoryOrder: readonly GlobalSearchCategory[] = ['Navigation', 'Users', 'Devices', 'Groups', 'Saved targets'];
 interface GlobalSearchProps {
   open: boolean;
   onClose(): void;
@@ -39,113 +13,31 @@ interface GlobalSearchProps {
 
 export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
   const navigate = useNavigate();
-  const { adminCredentials, savedTargets } = useTargets();
+  const { savedTargets } = useTargets();
+  const workspace = useOptionalWorkingSet();
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const searchRequestId = useRef(0);
+
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const [inventoryHosts, setInventoryHosts] = useState<StoredInventoryHost[]>([]);
-  const [securityHosts, setSecurityHosts] = useState<StoredSecurityScanHost[]>([]);
-  const [directoryComputers, setDirectoryComputers] = useState<AdComputerSearchResult['computers']>([]);
-  const [users, setUsers] = useState<UserSummary[]>([]);
-  const [remoteLoading, setRemoteLoading] = useState(false);
-  const [remoteFailures, setRemoteFailures] = useState<string[]>([]);
-  const [storedSourcesFailed, setStoredSourcesFailed] = useState(false);
-
   useEffect(() => {
     if (!open) return;
-    setQuery('');
-    setActiveIndex(0);
-    setDirectoryComputers([]);
-    setUsers([]);
-    setRemoteFailures([]);
+    setQuery(''); setActiveIndex(0);
     requestAnimationFrame(() => inputRef.current?.focus());
-
-    let current = true;
-    setStoredSourcesFailed(false);
-    void Promise.allSettled([
-      invoke<ListInventoryHostsResult>('inventory', 'listHosts'),
-      invoke<ListSecurityScanHostsResult>('security', 'listHosts'),
-    ]).then(([inventory, security]) => {
-      if (!current) return;
-      if (inventory.status === 'fulfilled') setInventoryHosts(inventory.value.hosts ?? []);
-      else setInventoryHosts([]);
-      if (security.status === 'fulfilled') setSecurityHosts(security.value.hosts ?? []);
-      else setSecurityHosts([]);
-      setStoredSourcesFailed(inventory.status === 'rejected' || security.status === 'rejected');
-    });
-    return () => { current = false; };
   }, [open]);
-
-  useEffect(() => {
-    if (!open || query.trim().length < remoteQueryMinimum) {
-      searchRequestId.current += 1;
-      setDirectoryComputers([]);
-      setUsers([]);
-      setRemoteLoading(false);
-      setRemoteFailures([]);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      const currentRequest = ++searchRequestId.current;
-      const trimmedQuery = query.trim();
-      const endpoint = loadView<UserDirectoryEndpoint>(userDirectoryViewKey) ?? emptyUserDirectoryEndpoint;
-      const connection = toUserDirectoryConnection(endpoint, adminCredentials);
-      setRemoteLoading(true);
-      setRemoteFailures([]);
-      void Promise.allSettled([
-        invoke<AdComputerSearchResult>('activedirectory', 'searchComputers', {
-          nameFilter: trimmedQuery,
-          includeDisabled: true,
-          connection,
-          resultLimit: remoteResultLimit,
-        }),
-        invoke<UserPageResult>('usermanagement', 'listUsers', {
-          search: trimmedQuery,
-          accountState: 'ALL',
-          page: 1,
-          pageSize: remoteResultLimit,
-          sortField: 'DISPLAY_NAME',
-          sortDirection: 'ASCENDING',
-          connection,
-        }),
-      ]).then(([computers, userPage]) => {
-        if (searchRequestId.current !== currentRequest) return;
-        const failures: string[] = [];
-        if (computers.status === 'fulfilled') setDirectoryComputers(computers.value.computers);
-        else {
-          setDirectoryComputers([]);
-          failures.push('directory devices');
-        }
-        if (userPage.status === 'fulfilled') setUsers(userPage.value.users);
-        else {
-          setUsers([]);
-          failures.push('directory users');
-        }
-        setRemoteFailures(failures);
-      }).finally(() => {
-        if (searchRequestId.current === currentRequest) setRemoteLoading(false);
-      });
-    }, debounceMilliseconds);
-    return () => window.clearTimeout(timer);
-  }, [adminCredentials, open, query]);
 
   const results = useMemo(() => [
     ...navigationResults(query).slice(0, 12),
-    ...userResults(users),
-    ...clientResults(query, directoryComputers, inventoryHosts, securityHosts, savedTargets),
-    ...savedTargetResults(query, savedTargets),
-  ], [directoryComputers, inventoryHosts, query, savedTargets, securityHosts, users]);
-
+    ...workingSetSearch(query, workspace?.displayed ?? null),
+    ...savedTargetResults(query, savedTargets.filter(target => target.role !== 'Client')),
+  ], [query, savedTargets, workspace?.displayed]);
   useEffect(() => {
     setActiveIndex((current) => Math.min(current, Math.max(0, results.length - 1)));
   }, [results.length]);
 
   const choose = (result: GlobalSearchResult) => {
     onClose();
-    navigate(result.to);
+    navigate(result.to, { state: { directoryEndpoint: workspace?.directoryEndpoint } });
   };
 
   const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -214,7 +106,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
             ref={inputRef}
             type="search"
             role="combobox"
-            aria-label="Search navigation, users, clients and saved targets"
+            aria-label="Search navigation, users, devices, groups and saved targets"
             aria-autocomplete="list"
             aria-expanded="true"
             aria-controls="global-search-results"
@@ -222,7 +114,7 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
             value={query}
             onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }}
             onKeyDown={onInputKeyDown}
-            placeholder="Search workspaces, users, clients or saved targets…"
+            placeholder="Search loaded users, devices, groups or workspaces…"
             className="w-full bg-transparent text-base text-slate-100 outline-none placeholder:text-slate-500"
           />
         </div>
@@ -258,20 +150,14 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
             </button>)}
           </div>;
         })}
-        {results.length === 0 && !remoteLoading && <p className="px-3 py-8 text-center text-sm text-slate-400">
-          {query.trim().length < remoteQueryMinimum
-            ? 'Type at least two characters to search directory users and devices.'
-            : 'No matching navigation, users, clients or saved targets.'}
-        </p>}
-      </div>
+        {results.length === 0 && <p className="px-3 py-8 text-center text-sm text-slate-400">No matching loaded objects or workspaces. Load another source page from an object workspace to extend this search.</p>}      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 px-3 py-2 text-xs text-muted" aria-live="polite">
-        <span>{remoteLoading ? 'Searching directory…' : `${results.length} results`}</span>
-        <span>
-          {storedSourcesFailed && 'Some stored client sources are unavailable. '}
-          {remoteFailures.length > 0 && `Could not search ${remoteFailures.join(' and ')}.`}
-        </span>
-      </div>
+        <span>{results.length} results · up to six per object kind</span>
+        <span>{workspace?.displayed ? `${workspace.displayed.loadedSourceRecords} loaded source records${workspace.displayed.limited ? ' · Limited working set' : ''}` : 'Working set not loaded'}</span>
+        <span>Search uses the displayed working set; missing results do not prove absence.</span>
+        {workspace?.hasUpdates && <button type="button" onClick={workspace.applyUpdates} className="text-accent-400 underline">Apply available source updates</button>}
+        {workspace?.error && <span role="alert">{workspace.error}</span>}      </div>
     </div>
   </div>;
 }

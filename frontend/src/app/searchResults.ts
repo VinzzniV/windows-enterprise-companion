@@ -8,7 +8,7 @@ import type {
 import { navigationGroups } from './routeRegistry';
 import { hostAddressKey as clientKey } from '../shared/targets/hostAddress';
 
-export type GlobalSearchCategory = 'Navigation' | 'Users' | 'Clients' | 'Saved targets';
+export type GlobalSearchCategory = 'Navigation' | 'Users' | 'Clients' | 'Devices' | 'Groups' | 'Saved targets';
 
 export interface GlobalSearchResult {
   id: string;

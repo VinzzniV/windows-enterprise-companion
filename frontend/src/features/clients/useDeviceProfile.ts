@@ -1,3 +1,4 @@
+import { useOptionalWorkingSet, useWorkingSetSessions } from '../../shared/objects/WorkingSetContext';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DeviceProfileResult, Microsoft365Query, ObjectReference } from '../../shared/api-types.generated';
 import { invokeCancellable, type CancellableBridgeInvocation } from '../../shared/bridge/bridgeClient';
@@ -6,16 +7,19 @@ import { useEnvironmentRequest } from '../../shared/environment/EnvironmentConte
 
 export function useDeviceProfile(reference: ObjectReference) {
   const context = useEnvironmentRequest();
+  const sessions = useWorkingSetSessions();
+  const sessionKey = String(sessions.cloud) + ':' + sessions.directory;
+  const refreshCached = useOptionalWorkingSet()?.refreshCached;
   const generation = useRef(0);
   const active = useRef<CancellableBridgeInvocation<unknown> | null>(null);
-  const [state, setState] = useState<{ reference: ObjectReference; context: typeof context; data: DeviceProfileResult | null; busy: boolean; error: string | null } | null>(null);
+  const [state, setState] = useState<{ sessionKey: string; reference: ObjectReference; context: typeof context; data: DeviceProfileResult | null; busy: boolean; error: string | null } | null>(null);
   const [now, setNow] = useState(Date.now);
-  const current = state?.reference === reference && state.context === context ? state : null;
+  const current = state?.reference === reference && state.context === context && state.sessionKey === sessionKey ? state : null;
 
   const load = useCallback(async (source?: (Microsoft365Query & { tenantId?: string }) | 'directory') => {
     const own = ++generation.current;
     active.current?.cancel();
-    setState(previous => ({ reference, context, data: previous?.reference === reference && previous.context === context ? previous.data : null, busy: true, error: null }));
+    setState(previous => ({ reference, context, sessionKey, data: previous?.reference === reference && previous.context === context && previous.sessionKey === sessionKey ? previous.data : null, busy: true, error: null }));
     let sourceError: string | null = null;
     if (source && source !== 'directory') {
       try {
@@ -29,12 +33,12 @@ export function useDeviceProfile(reference: ObjectReference) {
       const request = invokeCancellable<DeviceProfileResult>('clients', 'getProfile', { reference, ...context, loadDirectoryIdentity: source === 'directory' });
       active.current = request;
       const data = await request.promise;
-      if (generation.current === own) setState({ reference, context, data, busy: false, error: sourceError });
+      if (generation.current === own) setState({ reference, context, sessionKey, data, busy: false, error: sourceError });
     } catch (caught) {
-      if (generation.current === own) setState({ reference, context,
+      if (generation.current === own) setState({ reference, context, sessionKey,
         data: null, busy: false, error: presentError(caught).message });
-    } finally { if (generation.current === own) active.current = null; }
-  }, [reference, context]);
+    } finally { if (generation.current === own) { active.current = null; if (source) void refreshCached?.(); } }
+  }, [reference, context, sessionKey, refreshCached]);
 
   useEffect(() => {
     void load();

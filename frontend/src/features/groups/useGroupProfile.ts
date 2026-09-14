@@ -1,3 +1,4 @@
+import { useOptionalWorkingSet, useWorkingSetSessions } from '../../shared/objects/WorkingSetContext';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { GroupProfileRead, GroupProfileResult, Microsoft365Query, ObjectReference } from '../../shared/api-types.generated';
@@ -18,17 +19,20 @@ export function useGroupDirectoryConnection() {
 export function useGroupProfile(reference: ObjectReference) {
   const directoryConnection = useGroupDirectoryConnection();
   const connection = reference.source === 'ACTIVE_DIRECTORY' ? directoryConnection : null;
+  const sessions = useWorkingSetSessions();
+  const sessionKey = String(sessions.cloud) + ':' + sessions.directory;
+  const refreshCached = useOptionalWorkingSet()?.refreshCached;
   const generation = useRef(0);
   const active = useRef<CancellableBridgeInvocation<unknown> | null>(null);
   const memberPage = useRef(1);
-  const [state, setState] = useState<{ reference: ObjectReference; connection: typeof connection; data: GroupProfileResult | null; busy: boolean; error: string | null } | null>(null);
+  const [state, setState] = useState<{ sessionKey: string; reference: ObjectReference; connection: typeof connection; data: GroupProfileResult | null; busy: boolean; error: string | null } | null>(null);
   const [now, setNow] = useState(Date.now);
-  const current = state?.reference === reference && state.connection === connection ? state : null;
+  const current = state?.reference === reference && state.connection === connection && state.sessionKey === sessionKey ? state : null;
   const load = useCallback(async (source?: GroupProfileRead | (Microsoft365Query & { tenantId?: string }), page?: number) => {
     const own = ++generation.current;
     active.current?.cancel();
     if (page !== undefined) memberPage.current = page;
-    setState(previous => ({ reference, connection, data: previous?.reference === reference && previous.connection === connection ? previous.data : null, busy: true, error: null }));
+    setState(previous => ({ reference, connection, sessionKey, data: previous?.reference === reference && previous.connection === connection && previous.sessionKey === sessionKey ? previous.data : null, busy: true, error: null }));
     let error: string | null = null;
     if (source && typeof source !== 'string') {
       try {
@@ -41,11 +45,11 @@ export function useGroupProfile(reference: ObjectReference) {
         read: typeof source === 'string' ? source : 'CACHED', memberPage: memberPage.current });
       active.current = request;
       const data = await request.promise;
-      if (own === generation.current) setState({ reference, connection, data, busy: false, error });
+      if (own === generation.current) setState({ reference, connection, sessionKey, data, busy: false, error });
     } catch (caught) {
-      if (own === generation.current) setState({ reference, connection, data: null, busy: false, error: presentError(caught).message });
-    } finally { if (own === generation.current) active.current = null; }
-  }, [reference, connection]);
+      if (own === generation.current) setState({ reference, connection, sessionKey, data: null, busy: false, error: presentError(caught).message });
+    } finally { if (own === generation.current) { active.current = null; if (source) void refreshCached?.(); } }
+  }, [reference, connection, sessionKey, refreshCached]);
   useEffect(() => { memberPage.current = 1; void load(); return () => { generation.current++; active.current?.cancel(); }; }, [load]);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {

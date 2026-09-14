@@ -11,6 +11,7 @@ import { cloudPath, timestamp } from './Microsoft365Fields';
 import { Microsoft365DataView } from './Microsoft365DataView';
 import { Microsoft365ContextPanel } from './Microsoft365ContextPanel';
 import { useMicrosoft365Action } from './useMicrosoft365Action';
+import { useOptionalWorkingSet } from '../../shared/objects/WorkingSetContext';
 
 export const resourceLabels: Record<Microsoft365Resource, string> = {
   TENANT: 'Overview', USERS: 'Users', USER: 'User details', GROUPS: 'Groups', GROUP: 'Group details',
@@ -42,6 +43,8 @@ function QueryPanel({ resource, objectId, securityIdentifier, onRead }: { resour
 }
 
 export function Microsoft365Page() {
+  const workspace = useOptionalWorkingSet();
+  const refreshCached = workspace?.refreshCached;
   const [parameters, setParameters] = useSearchParams();
   const requested = parameters.get('resource') ?? 'TENANT';
   const resource: Microsoft365Resource = Object.hasOwn(resourceLabels, requested) ? requested as Microsoft365Resource : 'TENANT';
@@ -53,7 +56,7 @@ export function Microsoft365Page() {
   const [configuration, setConfiguration] = useState<Microsoft365Configuration>({ tenantId: '', clientId: '', enableIntune: false, enableAuthenticationReports: false });
   const [sessionRevision, setSessionRevision] = useState(0);
   const { run: readStatus } = status;
-  const refreshStatus = useCallback(() => { void readStatus('getStatus'); }, [readStatus]);
+  const refreshStatus = useCallback(() => { void readStatus('getStatus'); void refreshCached?.(); }, [readStatus, refreshCached]);
   useEffect(() => {
     void readStatus('getStatus').then(value => {
       if (value) { setConnection(value.connection); setConfiguration(value.connection.configuration); }
@@ -61,15 +64,20 @@ export function Microsoft365Page() {
   }, [readStatus]);
 
   const connect = async () => {
+    workspace?.clearFamily('cloud');
     setConnection(null);
     const value = await auth.run('connect', configuration);
+    await refreshCached?.();
     if (value && typeof value === 'object') {
       setConnection(value); setSessionRevision(previous => previous + 1);
       await readStatus('getStatus');
     }
   };
   const disconnect = async () => {
+    workspace?.clearFamily('cloud');
+    setConnection(previous => previous ? { ...previous, connected: false, account: null, permissions: previous.permissions.map(item => ({ ...item, granted: false })) } : null);
     const result = await auth.run('disconnect');
+    await refreshCached?.();
     if (result) {
       setConnection(previous => previous ? { ...previous, connected: false, account: null, permissions: previous.permissions.map(item => ({ ...item, granted: false })) } : null);
       setSessionRevision(previous => previous + 1);
