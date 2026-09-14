@@ -5,13 +5,17 @@ namespace Wec.Modules.Microsoft365.Application;
 
 internal static class Microsoft365CorrelationPolicy
 {
-    internal static Microsoft365Correlation User(IEnumerable<Microsoft365User> users, string? sid, string? upn)
+    internal static Microsoft365Correlation User(IEnumerable<Microsoft365User> users, string? sid, string? upn, bool completeUserSet = true)
     {
         Microsoft365User[] all = users.Where(user => ValidId(user.Id)).ToArray();
         Microsoft365User[] matches = !ValidSid(sid) ? [] : all.Where(user =>
             string.Equals(user.OnPremisesSid, sid, StringComparison.OrdinalIgnoreCase)).ToArray();
         if (matches.Length == 1)
         {
+            if (!completeUserSet)
+            {
+                return new("Candidate", "Exact SID in a partial user set; uniqueness is not established. Load complete bounded evidence or resolve this SID explicitly.", matches[0], null, null, null, false);
+            }
             return new("Matched", "Exact AD SID / Entra onPremisesSecurityIdentifier match. AD remains the identity authority.", matches[0], null, null, null, false);
         }
         if (matches.Length > 1) { return Unknown("Ambiguous", "Multiple Entra users share this SID. No automatic relationship is selected."); }

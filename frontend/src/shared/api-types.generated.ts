@@ -129,6 +129,10 @@ export interface TargetRequest {
   password?: string | null;
 }
 
+export type EvidenceCoverage = 'UNKNOWN' | 'RETURNED_SET' | 'PARTIAL';
+
+export type EvidenceFreshness = 'UNKNOWN' | 'FRESH' | 'STALE';
+
 export interface Microsoft365Activity {
   lastSignInAtUtc: string | null;
   lastSuccessfulSignInAtUtc: string | null;
@@ -141,6 +145,8 @@ export interface Microsoft365AssignedLicense {
   skuId: string | null;
   disabledPlans: string[] | null;
 }
+
+export type Microsoft365Availability = 'NOT_CACHED' | 'AVAILABLE' | 'UNAVAILABLE' | 'NOT_ENABLED' | 'NOT_CONNECTED';
 
 export interface Microsoft365Configuration {
   tenantId: string;
@@ -229,6 +235,23 @@ export interface Microsoft365Member {
 export interface Microsoft365Query {
   resource: Microsoft365Resource;
   objectId: string | null;
+}
+
+export interface Microsoft365ReadState {
+  query: Microsoft365Query;
+  tenantId: string | null;
+  sessionRevision: number;
+  snapshotRevision: number;
+  availability: Microsoft365Availability;
+  loading: boolean;
+  retrievedAtUtc: string | null;
+  lastAttemptAtUtc: string | null;
+  lastAttemptError: Error | null;
+  retainedUntilUtc: string | null;
+  freshness: EvidenceFreshness;
+  coverage: EvidenceCoverage;
+  loadedCount: number | null;
+  declaredTotal: number | null;
 }
 
 export type Microsoft365Resource = 'TENANT' | 'USERS' | 'USER' | 'GROUPS' | 'GROUP' | 'DEVICES' | 'DEVICE' | 'MANAGED_DEVICES' | 'LICENSES' | 'USER_LICENSES' | 'USER_GROUPS' | 'USER_DEVICES' | 'GROUP_MEMBERS' | 'DEVICE_OWNERS' | 'USER_ACTIVITY' | 'USER_REGISTRATION';
@@ -1633,6 +1656,7 @@ export interface Microsoft365Snapshot {
   stale: boolean;
   refreshError: Error | null;
   licenseCapacity: Microsoft365LicenseCapacity[];
+  state: Microsoft365ReadState | null;
 }
 
 export interface Microsoft365SourceStatus {
@@ -1648,6 +1672,9 @@ export interface Microsoft365SourceStatus {
 export interface Microsoft365Status {
   connection: Microsoft365Connection;
   sources: Microsoft365SourceStatus[];
+  sessionRevision: number;
+  revision: number;
+  queries: Microsoft365ReadState[];
 }
 
 export interface Microsoft365ContextRequest {

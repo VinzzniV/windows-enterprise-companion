@@ -9,10 +9,19 @@ Actions: `getStatus`, `connect`, `disconnect`, `read`, `getContext` under the
 never an endpoint, query string, scope, token or arbitrary Graph command.
 
 Cache defaults: ten minutes fresh, one hour retention, 32 query entries.
-Expired-but-retained data stays visible until explicit refresh. One gate
-serializes source work and coalesces concurrent equivalent successful refreshes.
+Expired-but-retained data stays visible until explicit refresh. A source-work
+gate coalesces concurrent equivalent refreshes, including failures, without
+blocking cache-only views or status reads. A separate short lock protects state.
 Caller cancellation reaches the provider; a cancelled leader publishes no
 partial cache. Disconnect cancels reads and discards all WEC session evidence.
+
+Every query exposes retrieval/attempt/retention times, its own error and coverage,
+and session/snapshot revisions. A failed attempt does not extend fact retention
+or freshen another query. Failed detail queries count toward the same entry
+limit. Session transitions immediately hide the previous context and reject late
+results; a cancelled transition requires another explicit connection action.
+Future timestamps have unknown freshness. An exact SID observed in a truncated
+user collection remains a candidate because uniqueness is unproven.
 
 Graph collections have configurable page/item/response limits. Truncation is
 visible; totals are Graph's eventual counts when supplied. Null collections

@@ -9,143 +9,209 @@ namespace Wec.Modules.Microsoft365.Application;
 internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clock,
     IOptions<Microsoft365CacheOptions> options) : IDisposable
 {
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly Dictionary<Microsoft365Query, Microsoft365Snapshot> _cache = [];
-    private readonly Dictionary<Microsoft365Resource, Error> _sourceErrors = [];
+    private readonly object _gate = new();
+    private readonly SemaphoreSlim _readGate = new(1, 1);
+    private readonly Dictionary<Microsoft365Query, CacheEntry> _cache = [];
     private CancellationTokenSource _sessionLifetime = new();
     private long _generation;
+    private long _revision;
+    private bool _sessionChanging;
+    private bool _sessionReady = true;
+    private Microsoft365Query? _activeQuery;
+    private DateTimeOffset? _activeAttemptAtUtc;
 
-    internal async Task<Microsoft365Status> StatusAsync(CancellationToken cancellationToken)
+    private sealed record CacheEntry(Microsoft365Snapshot? Snapshot, DateTimeOffset LastAttemptAtUtc,
+        Error? Error, long Revision);
+
+    internal Task<Microsoft365Status> StatusAsync(CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
         {
             Expire();
-            Microsoft365Resource[] resources = _cache.Keys.Where(query => query.ObjectId is null).Select(query => query.Resource)
-                .Concat(_sourceErrors.Keys).Distinct().ToArray();
-            return new(reader.Connection, resources.Select(resource =>
+            Microsoft365SourceStatus[] sources = _cache.Where(pair => pair.Key.ObjectId is null).Select(pair =>
             {
-                Microsoft365Snapshot? snapshot = _cache.GetValueOrDefault(new(resource));
-                Microsoft365Data? data = snapshot?.Data;
-                return new Microsoft365SourceStatus(resource, snapshot?.UpdatedAtUtc,
-                    snapshot is null || IsStale(snapshot), data?.Truncated ?? false, data?.TotalCount,
-                    data is null ? null : data.Tenants.Count + data.Users.Count + data.Groups.Count + data.Devices.Count
-                        + data.ManagedDevices.Count + data.Licenses.Count, _sourceErrors.GetValueOrDefault(resource));
-            }).ToArray());
+                Microsoft365ReadState state = State(pair.Key);
+                return new Microsoft365SourceStatus(pair.Key.Resource, state.RetrievedAtUtc,
+                    state.Freshness != EvidenceFreshness.Fresh, state.Coverage == EvidenceCoverage.Partial,
+                    state.DeclaredTotal, state.LoadedCount, state.LastAttemptError);
+            }).ToArray();
+            Microsoft365Query[] queries = _cache.Keys.Concat(_activeQuery is null ? [] : new[] { _activeQuery }).Distinct().ToArray();
+            return Task.FromResult(new Microsoft365Status(Connection, sources)
+            {
+                SessionRevision = _generation, Revision = _revision,
+                Queries = queries.Select(State).ToArray(),
+            });
         }
-        finally { _gate.Release(); }
     }
 
-    internal async Task<Result<Microsoft365Connection>> ConnectAsync(Microsoft365Configuration configuration, CancellationToken cancellationToken)
-    {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            _cache.Clear();
-            _sourceErrors.Clear();
-            Interlocked.Increment(ref _generation);
-            _sessionLifetime.Dispose();
-            _sessionLifetime = new CancellationTokenSource();
-            await reader.DisconnectAsync(cancellationToken).ConfigureAwait(false);
-            return await reader.ConnectAsync(configuration, cancellationToken).ConfigureAwait(false);
-        }
-        finally { _gate.Release(); }
-    }
+    internal Task<Result<Microsoft365Connection>> ConnectAsync(Microsoft365Configuration configuration, CancellationToken cancellationToken) =>
+        ChangeSessionAsync(configuration, cancellationToken);
 
     internal async Task<Result<bool>> DisconnectAsync(CancellationToken cancellationToken)
     {
-        Interlocked.Increment(ref _generation);
-        await _sessionLifetime.CancelAsync().ConfigureAwait(false);
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        Result<Microsoft365Connection> result = await ChangeSessionAsync(null, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Result.Success(true) : Result.Failure<bool>(result.Error!);
+    }
+
+    private async Task<Result<Microsoft365Connection>> ChangeSessionAsync(Microsoft365Configuration? configuration,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        CancellationTokenSource previous;
+        long generation;
+        lock (_gate)
+        {
+            previous = _sessionLifetime;
+            _sessionLifetime = new CancellationTokenSource();
+            generation = ++_generation;
+            ++_revision;
+            _cache.Clear();
+            _activeQuery = null;
+            _activeAttemptAtUtc = null;
+            _sessionChanging = true;
+            _sessionReady = false;
+        }
+        await previous.CancelAsync().ConfigureAwait(false);
+        previous.Dispose();
+        bool acquired = false;
         try
         {
-            _cache.Clear();
-            _sourceErrors.Clear();
-            await reader.DisconnectAsync(cancellationToken).ConfigureAwait(false);
-            _sessionLifetime.Dispose();
-            _sessionLifetime = new CancellationTokenSource();
-            return Result.Success(true);
+            await _readGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            acquired = true;
+            CancellationTokenSource linked;
+            lock (_gate)
+            {
+                if (generation != _generation) { return SessionChanged<Microsoft365Connection>(); }
+                linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _sessionLifetime.Token);
+            }
+            using (linked)
+            {
+                await reader.DisconnectAsync(linked.Token).ConfigureAwait(false);
+                Result<Microsoft365Connection> result = configuration is null
+                    ? Result.Success(reader.Connection)
+                    : await reader.ConnectAsync(configuration, linked.Token).ConfigureAwait(false);
+                lock (_gate)
+                {
+                    if (generation == _generation) { _sessionReady = result.IsSuccess; }
+                    return generation == _generation ? result : SessionChanged<Microsoft365Connection>();
+                }
+            }
         }
-        finally { _gate.Release(); }
+        finally
+        {
+            lock (_gate)
+            {
+                if (generation == _generation) { _sessionChanging = false; ++_revision; }
+            }
+            if (acquired) { _readGate.Release(); }
+        }
     }
 
     internal async Task<Result<Microsoft365Snapshot>> ReadAsync(Microsoft365Query query, bool refresh, CancellationToken cancellationToken)
     {
         bool requiresId = query.Resource is not (Microsoft365Resource.Tenant or Microsoft365Resource.Users
             or Microsoft365Resource.Groups or Microsoft365Resource.Devices or Microsoft365Resource.ManagedDevices or Microsoft365Resource.Licenses);
-        if (!Enum.IsDefined(query.Resource) || requiresId && query.ObjectId is null
+        if (!Enum.IsDefined(query.Resource) || requiresId != (query.ObjectId is not null)
             || query.ObjectId is not null && (!Guid.TryParse(query.ObjectId, out Guid id) || id == Guid.Empty))
         {
-            return Result.Failure<Microsoft365Snapshot>(new Error(ErrorCode.InvalidRequest, "Use a known Microsoft 365 resource and a valid object ID."));
+            return Result.Failure<Microsoft365Snapshot>(new Error(ErrorCode.InvalidRequest, "Use a known Microsoft 365 resource and a valid object ID only for object queries."));
         }
         query = query with { ObjectId = query.ObjectId is null ? null : Guid.Parse(query.ObjectId).ToString("D") };
-        DateTimeOffset requestedAt = clock.UtcNow;
-        long generation = Interlocked.Read(ref _generation);
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        long generation;
+        long requestedRevision;
+        lock (_gate)
+        {
+            if (_sessionChanging || !_sessionReady) { return SessionChanged<Microsoft365Snapshot>(); }
+            Expire();
+            generation = _generation;
+            requestedRevision = _revision;
+            if (!refresh && _cache.GetValueOrDefault(query)?.Snapshot is not null) { return CachedResult(query); }
+        }
+        await _readGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (generation != Interlocked.Read(ref _generation))
+            CancellationTokenSource linked;
+            lock (_gate)
             {
-                return Result.Failure<Microsoft365Snapshot>(new Error(ErrorCode.Microsoft365NotConnected, "Microsoft 365 session changed. Reopen the view."));
+                if (generation != _generation || _sessionChanging || !_sessionReady) { return SessionChanged<Microsoft365Snapshot>(); }
+                Expire();
+                CacheEntry? cached = _cache.GetValueOrDefault(query);
+                if (cached is not null && (cached.Revision > requestedRevision || !refresh && cached.Snapshot is not null))
+                {
+                    return CachedResult(query);
+                }
+                linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _sessionLifetime.Token);
+                _activeQuery = query;
+                _activeAttemptAtUtc = clock.UtcNow;
             }
-            Expire();
-            _cache.TryGetValue(query, out Microsoft365Snapshot? cached);
-            if (cached is not null && (!refresh || cached.UpdatedAtUtc > requestedAt))
+            using (linked)
             {
-                return Result.Success(cached with { Stale = IsStale(cached) });
+                Result<Microsoft365Data> result = await reader.ReadAsync(query, linked.Token).ConfigureAwait(false);
+                linked.Token.ThrowIfCancellationRequested();
+                lock (_gate)
+                {
+                    if (generation != _generation) { return SessionChanged<Microsoft365Snapshot>(); }
+                    Expire();
+                    Microsoft365Snapshot? snapshot = _cache.GetValueOrDefault(query)?.Snapshot;
+                    if (result.IsSuccess)
+                    {
+                        snapshot = new(query, result.Value, clock.UtcNow, false, null,
+                            result.Value.Licenses.Select(license => Capacity(license, options.Value.LicenseWarningRatio)).ToArray());
+                    }
+                    else if (snapshot is not null)
+                    {
+                        snapshot = snapshot with { Stale = true, RefreshError = result.Error };
+                    }
+                    if (_cache.Count >= options.Value.MaximumEntries && !_cache.ContainsKey(query))
+                    {
+                        _cache.Remove(_cache.MinBy(pair => pair.Value.LastAttemptAtUtc).Key);
+                    }
+                    _cache[query] = new(snapshot, _activeAttemptAtUtc ?? clock.UtcNow, result.Error, ++_revision);
+                    _activeQuery = null;
+                    _activeAttemptAtUtc = null;
+                    return CachedResult(query);
+                }
             }
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _sessionLifetime.Token);
-            Result<Microsoft365Data> result = await reader.ReadAsync(query, linked.Token).ConfigureAwait(false);
-            if (result.IsFailure)
-            {
-                if (query.ObjectId is null) { _sourceErrors[query.Resource] = result.Error!; }
-                if (cached is null) { return Result.Failure<Microsoft365Snapshot>(result.Error!); }
-                Microsoft365Snapshot failed = cached with { Stale = true, RefreshError = result.Error };
-                _cache[query] = failed;
-                return Result.Success(failed);
-            }
-            if (generation != Interlocked.Read(ref _generation)) { throw new OperationCanceledException(linked.Token); }
-            if (query.ObjectId is null) { _sourceErrors.Remove(query.Resource); }
-            var snapshot = new Microsoft365Snapshot(query, result.Value, clock.UtcNow, false, null,
-                result.Value.Licenses.Select(license => Capacity(license, options.Value.LicenseWarningRatio)).ToArray());
-            if (_cache.Count >= options.Value.MaximumEntries && !_cache.ContainsKey(query))
-            {
-                _cache.Remove(_cache.MinBy(pair => pair.Value.UpdatedAtUtc).Key);
-            }
-            _cache[query] = snapshot;
-            return Result.Success(snapshot);
         }
-        finally { _gate.Release(); }
+        finally
+        {
+            lock (_gate)
+            {
+                if (generation == _generation) { _activeQuery = null; _activeAttemptAtUtc = null; }
+            }
+            _readGate.Release();
+        }
     }
 
-    internal async Task<Microsoft365Correlation> ContextAsync(string? sid, string? upn, string? host,
+    internal Task<Microsoft365Correlation> ContextAsync(string? sid, string? upn, string? host,
         string? entraDeviceId, CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
         {
             Expire();
-            Microsoft365Snapshot? users = _cache.GetValueOrDefault(new(Microsoft365Resource.Users));
-            Microsoft365Snapshot? devices = _cache.GetValueOrDefault(new(Microsoft365Resource.Devices));
-            Microsoft365Snapshot? managed = _cache.GetValueOrDefault(new(Microsoft365Resource.ManagedDevices));
+            Microsoft365Snapshot? users = _cache.GetValueOrDefault(new(Microsoft365Resource.Users))?.Snapshot;
+            Microsoft365Snapshot? devices = _cache.GetValueOrDefault(new(Microsoft365Resource.Devices))?.Snapshot;
+            Microsoft365Snapshot? managed = _cache.GetValueOrDefault(new(Microsoft365Resource.ManagedDevices))?.Snapshot;
             if (entraDeviceId is not null && devices is null)
             {
-                devices = _cache.Values.FirstOrDefault(snapshot => snapshot.Query.Resource == Microsoft365Resource.Device
+                devices = _cache.Values.Select(entry => entry.Snapshot).FirstOrDefault(snapshot => snapshot?.Query.Resource == Microsoft365Resource.Device
                     && snapshot.Data?.Devices.Any(device => string.Equals(device.DeviceId, entraDeviceId, StringComparison.OrdinalIgnoreCase)) == true);
             }
             bool user = host is null && entraDeviceId is null;
             Microsoft365Snapshot? source = user ? users : devices;
             Microsoft365Correlation context = user
-                ? Microsoft365CorrelationPolicy.User(users?.Data?.Users ?? [], sid, upn)
+                ? Microsoft365CorrelationPolicy.User(users?.Data?.Users ?? [], sid, upn, users?.Data?.Truncated == false)
                 : Microsoft365CorrelationPolicy.Device(devices?.Data?.Devices ?? [], managed?.Data?.ManagedDevices ?? [], host, entraDeviceId);
-            return context with
+            return Task.FromResult(context with
             {
                 ObservedAtUtc = source?.UpdatedAtUtc,
                 Stale = source is null || IsStale(source) || !user && (managed is null || IsStale(managed)),
                 Explanation = context.Explanation + (source?.Data?.Truncated == true ? " Source inventory is incomplete." : string.Empty),
-            };
+            });
         }
-        finally { _gate.Release(); }
     }
 
     internal static Microsoft365LicenseCapacity Capacity(Microsoft365License license, double warningRatio)
@@ -157,12 +223,58 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
             valid ? remaining < 0 : null);
     }
 
-    private bool IsStale(Microsoft365Snapshot snapshot) => snapshot.RefreshError is not null
-        || clock.UtcNow - snapshot.UpdatedAtUtc >= options.Value.FreshFor;
+    private Microsoft365Connection Connection => !_sessionReady
+        ? reader.Connection with { Connected = false, Account = null } : reader.Connection;
+
+    private Result<Microsoft365Snapshot> CachedResult(Microsoft365Query query)
+    {
+        CacheEntry entry = _cache[query];
+        return entry.Snapshot is null ? Result.Failure<Microsoft365Snapshot>(entry.Error!)
+            : Result.Success(entry.Snapshot with { Stale = IsStale(entry.Snapshot), State = State(query) });
+    }
+
+    private Microsoft365ReadState State(Microsoft365Query query)
+    {
+        CacheEntry? entry = _cache.GetValueOrDefault(query);
+        Microsoft365Snapshot? snapshot = entry?.Snapshot;
+        Microsoft365Data? data = snapshot?.Data;
+        Microsoft365Connection connection = Connection;
+        bool disabled = query.Resource == Microsoft365Resource.ManagedDevices && !connection.Configuration.EnableIntune
+            || query.Resource is Microsoft365Resource.UserActivity or Microsoft365Resource.UserRegistration && !connection.Configuration.EnableAuthenticationReports;
+        Microsoft365Availability availability = !connection.Connected ? Microsoft365Availability.NotConnected
+            : disabled ? Microsoft365Availability.NotEnabled
+            : snapshot is not null ? Microsoft365Availability.Available
+            : entry?.Error is not null ? Microsoft365Availability.Unavailable : Microsoft365Availability.NotCached;
+        EvidenceFreshness freshness = snapshot?.UpdatedAtUtc is null || snapshot.UpdatedAtUtc > clock.UtcNow
+            ? EvidenceFreshness.Unknown : IsStale(snapshot) ? EvidenceFreshness.Stale : EvidenceFreshness.Fresh;
+        return new(query, _sessionChanging ? null : connection.Configuration.TenantId, _generation, entry?.Revision ?? _revision,
+            availability, _activeQuery == query, snapshot?.UpdatedAtUtc,
+            _activeQuery == query ? _activeAttemptAtUtc : entry?.LastAttemptAtUtc, entry?.Error,
+            snapshot?.UpdatedAtUtc + options.Value.RetainFor, freshness,
+            data is null ? EvidenceCoverage.Unknown : data.Truncated ? EvidenceCoverage.Partial : EvidenceCoverage.ReturnedSet,
+            data is null ? null : data.Tenants.Count + data.Users.Count + data.Groups.Count + data.Devices.Count
+                + data.ManagedDevices.Count + data.Licenses.Count + data.Members.Count + (data.Activity is null ? 0 : 1), data?.TotalCount);
+    }
+
+    private bool IsStale(Microsoft365Snapshot snapshot) => snapshot.RefreshError is not null || snapshot.UpdatedAtUtc is null
+        || snapshot.UpdatedAtUtc > clock.UtcNow || clock.UtcNow - snapshot.UpdatedAtUtc >= options.Value.FreshFor;
+
     private void Expire()
     {
-        foreach (Microsoft365Query key in _cache.Where(pair => clock.UtcNow - pair.Value.UpdatedAtUtc >= options.Value.RetainFor)
-            .Select(pair => pair.Key).ToArray()) { _cache.Remove(key); }
+        foreach ((Microsoft365Query query, CacheEntry entry) in _cache.ToArray())
+        {
+            DateTimeOffset retainedFrom = entry.Snapshot?.UpdatedAtUtc ?? entry.LastAttemptAtUtc;
+            if (clock.UtcNow - retainedFrom < options.Value.RetainFor) { continue; }
+            if (entry.Error is not null && clock.UtcNow - entry.LastAttemptAtUtc < options.Value.RetainFor)
+            {
+                _cache[query] = entry with { Snapshot = null, Revision = ++_revision };
+            }
+            else { _cache.Remove(query); ++_revision; }
+        }
     }
-    public void Dispose() { _gate.Dispose(); _sessionLifetime.Dispose(); }
+
+    private static Result<T> SessionChanged<T>() => Result.Failure<T>(new Error(ErrorCode.Microsoft365NotConnected,
+        "Microsoft 365 session changed. Reopen the view."));
+
+    public void Dispose() { _readGate.Dispose(); _sessionLifetime.Dispose(); }
 }

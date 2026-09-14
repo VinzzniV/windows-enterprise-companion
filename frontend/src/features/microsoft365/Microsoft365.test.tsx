@@ -18,9 +18,9 @@ const emptyData: Microsoft365Data = { tenants: [], users: [], groups: [], device
 const user: Microsoft365User = { id: '11111111-1111-1111-1111-111111111111', displayName: 'Alex Example', userPrincipalName: 'alex@example.test', mail: null,
   accountEnabled: null, userType: null, department: null, jobTitle: null, officeLocation: null, createdAtUtc: null,
   onPremisesSid: null, onPremisesImmutableId: null, assignedLicenses: null };
-const status: Microsoft365Status = { connection: { configuration: { tenantId: '', clientId: '' }, connected: false, account: null, permissions: [] }, sources: [] };
+const status: Microsoft365Status = { connection: { configuration: { tenantId: '', clientId: '' }, connected: false, account: null, permissions: [] }, sources: [], sessionRevision: 0, revision: 0, queries: [] };
 const snapshot = (data: Partial<Microsoft365Data> = {}, resource: Microsoft365Snapshot['query']['resource'] = 'USERS'): Microsoft365Snapshot => ({
-  query: { resource, objectId: null }, data: { ...emptyData, ...data }, updatedAtUtc: '2026-09-14T10:00:00Z', stale: false, refreshError: null, licenseCapacity: [],
+  query: { resource, objectId: null }, data: { ...emptyData, ...data }, updatedAtUtc: '2026-09-14T10:00:00Z', stale: false, refreshError: null, licenseCapacity: [], state: null,
 });
 const renderView = (value: Microsoft365Snapshot) => render(<MemoryRouter><Microsoft365DataView snapshot={value} /></MemoryRouter>);
 
