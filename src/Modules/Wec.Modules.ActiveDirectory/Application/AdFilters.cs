@@ -39,7 +39,12 @@ internal static class AdFilters
             CultureInfo.InvariantCulture,
             $"(&(objectCategory=computer)(!({UacBitAnd}2))(lastLogonTimestamp<={lastLogonCutoffFileTime}))");
 
-    public static string GroupBySid(string sidSddl) => $"(&(objectCategory=group)(objectSid={sidSddl}))";
+    public static string GroupBySid(string sidSddl) => $"(&(objectCategory=group)(objectSid={EscapeFilterValue(sidSddl)}))";
+
+    public static string GroupByObjectGuid(Guid objectId) => $"(&(objectCategory=group)(objectGUID={EscapedGuid(objectId)}))";
+
+    public static string GroupByDistinguishedName(string distinguishedName) =>
+        $"(&(objectCategory=group)(distinguishedName={EscapeFilterValue(distinguishedName)}))";
 
     public static string DisabledDirectMembersOfGroups(IEnumerable<string> groupDistinguishedNames)
     {

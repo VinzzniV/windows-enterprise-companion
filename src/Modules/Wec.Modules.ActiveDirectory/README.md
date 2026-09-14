@@ -5,6 +5,16 @@ nullable account state (ADR 0022). Missing/malformed IDs are unknown, never name
 replacements; same-name records stay distinct. Reads use the existing bounded
 search-only LDAP seam with an explicit attribute allowlist.
 
+`IDirectoryGroupReadProvider` adds exact GUID/SID/DN group reads, paged group
+search and direct-member pages (ADR 0022). Every read verifies the actual
+RootDSE naming context. Identity reads retain at most two records; pages retain
+at most 100. Existing LDAP time limits apply; source counts cover the matches
+visible to this connection, not other naming contexts. Group types and IDs may
+be unknown. Member rows preserve non-user and limited-information objects.
+Direct membership uses the `memberOf` backlink, with no recursion or effective
+permission calculation; primary groups and external-directory completeness
+are not covered. The four privileged-group allowlist remains independent.
+
 Read-only Active Directory analysis (M4). Access strategy: ADR 0006 (revised
 2026-07-03) — LDAP via the search-only `IDirectoryReader` Core seam,
 authenticated as the current Windows identity or with optional explicit
