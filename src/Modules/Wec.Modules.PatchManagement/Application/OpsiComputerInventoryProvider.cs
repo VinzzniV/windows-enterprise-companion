@@ -81,6 +81,7 @@ internal sealed class OpsiComputerInventoryProvider : IOpsiComputerInventoryProv
 
         return Result.Success(new OpsiComputerInventory(
             computers,
-            Truncated: clients.Value.Count > take));
+            Truncated: clients.Value.Count > take,
+            SourceScope: session.Connection.ServiceUrl.Authority));
     }
 }

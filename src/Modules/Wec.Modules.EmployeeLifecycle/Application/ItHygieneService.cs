@@ -145,21 +145,10 @@ public sealed record ItHygieneResult(
     string? DomainName,
     EnvironmentSourceStates Sources,
     HygieneSummary Summary,
-    IReadOnlyList<HygieneDevice> Devices);
-
-public sealed record DirectoryInventoryConnection(
-    string? Domain = null,
-    string? Server = null,
-    string? UserName = null,
-    string? UserDomain = null,
-    string? Password = null);
-
-public sealed record KasperskyInventoryConnection(
-    string? Server = null,
-    int? Port = null,
-    string? UserName = null,
-    string? Domain = null,
-    string? Password = null);
+    IReadOnlyList<HygieneDevice> Devices)
+{
+    internal ManagementDeviceSnapshot? SourceRecords { get; init; }
+}
 
 public sealed record ItHygieneRequest(
     DirectoryInventoryConnection? ActiveDirectory = null,
@@ -272,7 +261,10 @@ internal sealed class ItHygieneService
             sourceLoad.DomainName,
             sourceLoad.States,
             summary,
-            devices));
+            devices)
+        {
+            SourceRecords = ManagementDeviceSnapshotProvider.Project(sourceLoad, now, request, _options),
+        });
     }
 
     internal static IReadOnlyList<HygieneDevice> CorrelateAndAssess(

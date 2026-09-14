@@ -1,5 +1,11 @@
 # IT Lifecycle / Environment Health MVP
 
+Object consolidation (ADR 0022) reads original management records through
+`IManagementDeviceSnapshotProvider`. This cache-only projection retains native
+names, AD IDs, source scope, errors, counts and duplicates before legacy hygiene
+correlation. It never starts a load; another connection/credential context is a
+cache miss. Existing hygiene rows remain name-based assessments during migration.
+
 The existing `Wec.Modules.EmployeeLifecycle` project and bridge module name are
 retained to keep host composition, contracts and existing installations
 compatible. Its read-only device hygiene data is presented as **Fleet posture**

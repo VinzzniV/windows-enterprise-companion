@@ -24,7 +24,10 @@ public sealed record KasperskyComputer(
     DateTimeOffset? LastSeen,
     string? AgentVersion,
     string? KesVersion,
-    string? AdministrationGroup);
+    string? AdministrationGroup,
+    string? Fqdn = null,
+    string? DnsName = null,
+    string? RecordName = null);
 
 public sealed record KasperskyInventory(
     IReadOnlyList<KasperskyComputer> Computers,
@@ -218,7 +221,10 @@ internal sealed class KasperskySecurityCenterClient : IKasperskyInventoryReader
                 GetString(values, "KLHST_WKS_RTP_AV_VERSION"),
                 FirstNotEmpty(
                     GetString(values, "grp_full_name"),
-                    GetString(values, "name"))));
+                    GetString(values, "name")),
+                GetString(values, "KLHST_WKS_FQDN"),
+                GetString(values, "KLHST_WKS_DNSNAME"),
+                GetString(values, "KLHST_WKS_DN")));
         }
 
         return result;

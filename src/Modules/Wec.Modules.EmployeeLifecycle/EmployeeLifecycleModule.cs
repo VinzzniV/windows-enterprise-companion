@@ -15,6 +15,7 @@ public sealed class EmployeeLifecycleModule : IModule
         services.AddScoped<IKasperskyInventoryReader>(serviceProvider =>
             serviceProvider.GetRequiredService<KasperskySecurityCenterClient>());
         services.AddSingleton<ItHygieneSnapshotCache>();
+        services.AddScoped<IManagementDeviceSnapshotProvider, ManagementDeviceSnapshotProvider>();
         services.AddScoped<ItHygieneService>();
         services.AddScoped<IHygieneActionEvidenceProvider, HygieneActionEvidenceProvider>();
         services.AddScoped<IDeviceCleanupEvidenceProvider, DeviceCleanupEvidenceProvider>();

@@ -41,6 +41,14 @@ export interface DeviceCleanupUserObservation {
   explanation: string;
 }
 
+export interface DirectoryInventoryConnection {
+  domain?: string | null;
+  server?: string | null;
+  userName?: string | null;
+  userDomain?: string | null;
+  password?: string | null;
+}
+
 export type DirectoryUserAccessCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'UNAVAILABLE';
 
 export type DirectoryUserAccountStateFilter = 'ALL' | 'ENABLED' | 'DISABLED';
@@ -63,6 +71,14 @@ export interface HygieneActionDirectoryConnection {
 }
 
 export interface HygieneActionKasperskyConnection {
+  server?: string | null;
+  port?: number | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
+}
+
+export interface KasperskyInventoryConnection {
   server?: string | null;
   port?: number | null;
   userName?: string | null;
@@ -1060,14 +1076,6 @@ export interface DepartmentListResult {
   departments: DepartmentInfo[];
 }
 
-export interface DirectoryInventoryConnection {
-  domain?: string | null;
-  server?: string | null;
-  userName?: string | null;
-  userDomain?: string | null;
-  password?: string | null;
-}
-
 export interface EmployeeDetails {
   id: number;
   firstName: string;
@@ -1255,14 +1263,6 @@ export interface KasperskyDeviceData {
   agentVersion: string | null;
   kesVersion: string | null;
   administrationGroup: string | null;
-}
-
-export interface KasperskyInventoryConnection {
-  server?: string | null;
-  port?: number | null;
-  userName?: string | null;
-  domain?: string | null;
-  password?: string | null;
 }
 
 export interface LifecycleAuditEntry {

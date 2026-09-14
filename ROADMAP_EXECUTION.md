@@ -4,7 +4,7 @@ Status: `IN_PROGRESS`
 
 Current phase: Object-centered consolidation (ADR 0022)
 
-Current slice: Phase 0 baseline and decisions; next Phase 1 identity preservation.
+Current slice: Phase 1 identity preservation and its required cached source seam.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
@@ -20,6 +20,19 @@ Implementation plan and required parity matrix:
 - Baseline frontend production build and High-severity dependency gate pass.
   Two existing Moderate Vitest findings remain; no High/Critical finding.
 - No company/tenant/remote-client acceptance has been performed in this run.
+- Full client/search/compare addresses and exact local-name selection are fixed;
+  historical empty Inventory rows are hidden without deletion. Targeted tests
+  and the frontend production build pass. Two Settings tests hit load-related
+  timeouts during concurrent suites; all 14 pass in an isolated rerun.
+- AD computer reads retain GUID/SID/directory scope and unknown account state;
+  64 AD tests, affected frontend tests and warning-free Release build pass.
+- The new cached management projection retains original AD/KSC/opsi/Nessus
+  records and duplicates, including Nessus-only records. Cache-only reads check
+  connection context and cancellation. All 93 EmployeeLifecycle tests pass;
+  source adapters and frozen Lifecycle tables remain with their existing owner.
+- Remaining Phase 1 work: replace legacy first/latest name choices with visible
+  source candidates and route resolution, and preserve new Nessus import keys.
+  The original hygiene projection remains a heuristic during this migration.
 
 ## Done
 

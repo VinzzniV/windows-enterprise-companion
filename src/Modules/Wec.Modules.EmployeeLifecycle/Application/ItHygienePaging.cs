@@ -1,3 +1,5 @@
+using Wec.Core.Contracts;
+
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
 public sealed record ItHygieneOverview(
