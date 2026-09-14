@@ -15,6 +15,8 @@ const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage
   .then((module) => ({ default: module.ClientDetailPage })));
 const UsersPage = lazy(() => import('../features/users/UsersPage')
   .then((module) => ({ default: module.UsersPage })));
+const Microsoft365Page = lazy(() => import('../features/microsoft365/Microsoft365Page')
+  .then((module) => ({ default: module.Microsoft365Page })));
 const UserDetailPage = lazy(() => import('../features/users/UserDetailPage')
   .then((module) => ({ default: module.UserDetailPage })));
 const ActiveDirectoryPage = lazy(() => import('../features/activedirectory/ActiveDirectoryPage')
@@ -73,6 +75,7 @@ export const appRoutes: readonly AppRouteDefinition[] = [
   { id: 'client-detail', path: '/clients/:host', sectionLabel: 'Clients', Component: ClientDetailPage },
   { id: 'users', path: '/users', sectionLabel: 'Users', Component: UsersPage, navigation: { group: 'fleet', label: 'Users', icon: navIcons.users, searchTerms: ['people', 'accounts', 'identity', 'lifecycle'] } },
   { id: 'user-detail', path: '/users/:objectId', sectionLabel: 'Users', Component: UserDetailPage },
+  { id: 'microsoft365', path: '/microsoft365', sectionLabel: 'Microsoft 365', Component: Microsoft365Page, navigation: { group: 'fleet', label: 'Microsoft 365', icon: navIcons.activedirectory, searchTerms: ['m365', 'entra', 'azure ad', 'intune', 'licenses', 'cloud'] } },
   { id: 'active-directory', path: '/activedirectory', sectionLabel: 'Active Directory', Component: ActiveDirectoryPage, navigation: { group: 'fleet', label: 'Active Directory', icon: navIcons.activedirectory, searchTerms: ['ad', 'directory', 'users', 'groups'] } },
   { id: 'employee-lifecycle-legacy', path: '/employeelifecycle', sectionLabel: 'Clients', Component: EmployeeLifecyclePage },
   { id: 'vulnerabilities', path: '/vulnerabilities', sectionLabel: 'Vulnerabilities', Component: VulnerabilitiesPage, navigation: { group: 'fleet', label: 'Vulnerabilities', icon: navIcons.vulnerabilities, searchTerms: ['nessus', 'findings', 'cve'] } },

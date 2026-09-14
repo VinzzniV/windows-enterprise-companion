@@ -21,13 +21,15 @@ import {
 } from './users';
 import { UserDevicesSection } from './UserDevicesSection';
 import { LeaverReviewSection } from './LeaverReviewSection';
+import { Microsoft365ContextPanel } from '../microsoft365/Microsoft365ContextPanel';
 
-type UserSection = 'overview' | 'access' | 'devices' | 'leaver';
+type UserSection = 'overview' | 'access' | 'devices' | 'leaver' | 'microsoft365';
 const sections: { key: UserSection; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'access', label: 'Access' },
   { key: 'devices', label: 'Devices' },
   { key: 'leaver', label: 'Leaver review' },
+  { key: 'microsoft365', label: 'Microsoft 365' },
 ];
 
 function isUserSection(value: string | null): value is UserSection {
@@ -262,5 +264,8 @@ export function UserDetailPage() {
     <div role="tabpanel" id="userpanel-leaver" aria-labelledby="usertab-leaver" hidden={section !== 'leaver'}>
       <LeaverReviewSection profile={profile} />
     </div>
+    {section === 'microsoft365' && <div role="tabpanel" id="userpanel-microsoft365" aria-labelledby="usertab-microsoft365">
+      <Microsoft365ContextPanel sid={identity.sid} userPrincipalName={identity.userPrincipalName} />
+    </div>}
   </div>;
 }

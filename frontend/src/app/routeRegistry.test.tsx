@@ -14,6 +14,7 @@ describe('routeRegistry', () => {
       'Device Cleanup',
       'Clients',
       'Users',
+      'Microsoft 365',
       'Active Directory',
       'Vulnerabilities',
       'Patch Management',

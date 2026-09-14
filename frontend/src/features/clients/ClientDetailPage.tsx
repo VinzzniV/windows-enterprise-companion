@@ -17,10 +17,11 @@ import { EventLogSection } from './sections/EventLogSection';
 import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
 import { OverviewSection } from './sections/OverviewSection';
+import { Microsoft365ContextPanel } from '../microsoft365/Microsoft365ContextPanel';
 import { openPsSession } from '../../shared/ps/openPsSession';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 
-type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
+type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting' | 'microsoft365';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -30,6 +31,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'events', label: 'Event logs' },
   { key: 'printers', label: 'Printers' },
   { key: 'reporting', label: 'Report export' },
+  { key: 'microsoft365', label: 'Microsoft 365' },
 ];
 
 function isSectionKey(value: string | null): value is SectionKey {
@@ -194,6 +196,9 @@ export function ClientDetailPage() {
           <div role="tabpanel" id="clientpanel-overview" aria-labelledby="clienttab-overview" hidden={section !== 'overview'}>
             <OverviewSection host={host} />
           </div>
+          {section === 'microsoft365' && <div role="tabpanel" id="clientpanel-microsoft365" aria-labelledby="clienttab-microsoft365">
+            <Microsoft365ContextPanel host={host} />
+          </div>}
           <div role="tabpanel" id="clientpanel-inventory" aria-labelledby="clienttab-inventory" hidden={section !== 'inventory'}>
             <InventorySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
