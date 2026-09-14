@@ -2,9 +2,9 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
-using Wec.Modules.EmployeeLifecycle.Application;
+using Wec.Modules.Clients.Application;
 
-namespace Wec.Modules.EmployeeLifecycle.Tests.Application;
+namespace Wec.Modules.Clients.Tests.Application;
 
 public sealed class ClientOverviewServiceTests
 {

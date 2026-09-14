@@ -1,6 +1,6 @@
 using Wec.Core.Configuration;
 
-namespace Wec.Modules.EmployeeLifecycle;
+namespace Wec.Modules.Clients;
 
 public sealed class ClientOverviewOptions
 {

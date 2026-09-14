@@ -1,5 +1,9 @@
 # IT Lifecycle / Environment Health MVP
 
+The `clients/getOverview` composition now belongs to `Wec.Modules.Clients`.
+Hygiene/source adapters, workspace compatibility handlers and frozen lifecycle
+data stay here; the bridge contract and options section remain compatible.
+
 Object consolidation (ADR 0022) reads original management records through
 `IManagementDeviceSnapshotProvider`. This cache-only projection retains native
 names, AD IDs, source scope, errors, counts and duplicates before legacy hygiene

@@ -37,6 +37,7 @@ using Wec.Modules.ActiveDirectory;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.DeviceCleanup;
 using Wec.Modules.EmployeeLifecycle;
+using Wec.Modules.Clients;
 using Wec.Modules.Inventory;
 using Wec.Modules.NetworkScan;
 using Wec.Modules.PatchManagement;
@@ -265,6 +266,7 @@ internal static partial class Program
             new NetworkScanModule(),
             new TargetsModule(),
             new EmployeeLifecycleModule(),
+            new ClientsModule(),
             new VulnerabilityManagementModule(),
         ];
         foreach (IModule module in modules)
