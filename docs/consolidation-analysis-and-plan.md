@@ -1,6 +1,11 @@
 # WEC consolidation analysis and implementation proposal
 
-Status: **Proposal only — no implementation authorized by this document.**
+Status: **Historical analysis; implementation authorized separately on
+2026-09-14 by ADR 0022/D-010 for phases 0–7 and 9. Phase 8 is excluded.**
+
+The proposal wording below records the original analysis. Current implementation
+and verification live in `../ROADMAP_EXECUTION.md`; historical test counts are
+not current gates.
 
 Analysis date: 2026-09-14. Inspected branch: `codex/microsoft-365-read-only`.
 Inspected application commit: `8e3640d`. The worktree was clean at the start.

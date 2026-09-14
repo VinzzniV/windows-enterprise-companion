@@ -2,11 +2,24 @@
 
 Status: `IN_PROGRESS`
 
-Current phase: Microsoft 365 read-only integration (ADR 0021)
+Current phase: Object-centered consolidation (ADR 0022)
 
-Current slice: Graph authentication, read contracts and session cache on
-`codex/microsoft-365-read-only`, based on `228b719`.
-Analysis and implementation plan: `docs/microsoft-365-implementation.md`.
+Current slice: Phase 0 baseline and decisions; next Phase 1 identity preservation.
+Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
+Implementation plan and required parity matrix:
+`docs/consolidation-analysis-and-plan.md`, sections G1/G2.
+
+## Current consolidation verification (2026-09-14)
+
+- Source inspection confirms the M365 foundation and integrated UI at `8e3640d`;
+  the former current-slice header was stale. Historical results below remain
+  history, not evidence of this run.
+- Baseline Release build: 0 warnings/errors; 815 backend tests and 475 frontend
+  tests pass; 418 generated bridge contracts are current.
+- Explicit start decisions recorded in ADR 0022/D-010 before implementation.
+- Baseline frontend production build and High-severity dependency gate pass.
+  Two existing Moderate Vitest findings remain; no High/Critical finding.
+- No company/tenant/remote-client acceptance has been performed in this run.
 
 ## Done
 
@@ -388,9 +401,9 @@ Analysis and implementation plan: `docs/microsoft-365-implementation.md`.
 
 ## Next
 
-1. Review and merge `codex/device-cleanup-excel-export` through the normal
-   pull-request gates.
-2. Validate the exported source timestamps and explicit Ping outcomes against
-   designated non-critical clients in the company environment.
-3. Do not create a version tag, publish an installer or create a GitHub Release
-   without explicit user approval.
+1. Complete consolidation Phase 1 identity preservation, then concrete cached
+   projections and device/account profiles (phases 2–4).
+2. Add source-native groups, bounded lists/search and navigation after G2 parity
+   (phases 5–7), then full regression/security/documentation closure (phase 9).
+3. Keep company/tenant/remote-client acceptance explicitly unverified until run.
+   No tag, release or installer publication without explicit approval.

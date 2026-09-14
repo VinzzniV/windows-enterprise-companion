@@ -83,6 +83,14 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
 
 ## Current program
 
+- Object-centered consolidation follows ADR 0022 and
+  `docs/consolidation-analysis-and-plan.md` (phases 0–7 and 9; no Phase 8
+  collection). Devices, accounts including Entra-only profiles, and source-native
+  groups compose concrete Core reads in memory. Scoped IDs confirm relations;
+  names remain candidates. General AD identity/direct-member reads are bounded
+  and read-only. Preserve G2 functions/deep links before switching navigation.
+  No new Graph permissions, cloud persistence, exports or manual identity links.
+
 - Microsoft 365 uses delegated MSAL/WAM and Graph v1.0 as a read-only source
   (ADR 0021). No secrets/tokens in the bridge or persistence, no browser listener,
   application permissions or Graph writes. Cloud inventories remain session-local;
