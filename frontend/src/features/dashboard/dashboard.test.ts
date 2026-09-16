@@ -181,6 +181,15 @@ describe('dashboard tile derivation', () => {
       ...overview,
       sync: { ...overview.sync, phase: 'FAILED', running: false, error: 'Nessus unavailable' },
     }, null)).toMatchObject({ value: 'Unavailable', state: 'error', tone: 'danger' });
+    expect(deriveVulnerabilityTile({
+      ...overview,
+      assets: 640,
+      includedScans: 12,
+      sync: { ...overview.sync, phase: 'FAILED', running: false, error: 'Previous synchronization interrupted' },
+    }, null)).toMatchObject({
+      value: '640 stored assets', state: 'partial', tone: 'warning',
+      note: 'Previous synchronization interrupted', coverage: '12 included scans · latest synchronization incomplete',
+    });
   });
 
   it('vulnerabilities: zero is healthy only with a successful, covered source', () => {

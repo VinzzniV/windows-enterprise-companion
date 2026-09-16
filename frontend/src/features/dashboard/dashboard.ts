@@ -266,6 +266,17 @@ export function deriveVulnerabilityTile(
     };
   }
   if (sync.phase === 'FAILED' || sync.error) {
+    if (overview.assets > 0) {
+      return {
+        value: `${overview.assets} stored assets`,
+        tone: 'warning',
+        state: 'partial',
+        note: sync.error ?? 'The last Nessus sync failed; stored results are retained',
+        source,
+        capturedAtUtc: sync.lastSuccessfulSyncUtc ?? undefined,
+        coverage: `${overview.includedScans} included scans · latest synchronization incomplete`,
+      };
+    }
     return {
       ...errorTile(source, sync.error ?? 'The last Nessus sync failed'),
       capturedAtUtc: sync.lastSuccessfulSyncUtc ?? undefined,
