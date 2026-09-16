@@ -279,13 +279,15 @@ describe('PrintManagementPage', () => {
 
   it('does not mark printers outside a filtered DHCP request as missing', async () => {
     mockBridge();
+    const user = userEvent.setup();
 
     render(<PrintManagementPage />);
     await screen.findByText('Denkingen-EG');
 
     const search = screen.getByLabelText('Search printers');
-    await userEvent.type(search, 'Denkingen-EG');
-    await userEvent.click(screen.getByRole('button', { name: /Check DHCP reservations/ }));
+    await user.click(search);
+    await user.paste('Denkingen-EG');
+    await user.click(screen.getByRole('button', { name: /Check DHCP reservations/ }));
 
     expect(await screen.findByText(
       '1 of 2 printer IPs checked; all checked printers have reservations.',
@@ -293,14 +295,14 @@ describe('PrintManagementPage', () => {
     const dhcpCall = invokeMock.mock.calls.find((call) => call[1] === 'checkDhcp');
     expect((dhcpCall?.[2] as { ips: string[] }).ips).toEqual(['10.1.1.20']);
 
-    await userEvent.clear(search);
+    await user.clear(search);
     const checkedRow = (await screen.findByText('Denkingen-EG')).closest('tr')!;
     const uncheckedRow = screen.getByText('Denkingen-OG').closest('tr')!;
     expect(within(checkedRow).getByText('Available')).toBeDefined();
     expect(within(uncheckedRow).queryByText('Missing')).toBeNull();
     expect(within(uncheckedRow).queryByText('No reservation')).toBeNull();
 
-    await userEvent.clear(screen.getByLabelText('DHCP server'));
+    await user.clear(screen.getByLabelText('DHCP server'));
     expect(within(checkedRow).queryByText('Available')).toBeNull();
     expect(screen.queryByText(/Checked on dc01/)).toBeNull();
   });
