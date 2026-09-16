@@ -1,17 +1,29 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `LIVE_FIXES_VERIFIED_WITH_ACCEPTED_LIMITS`
+Status: `UI_UX_REMEDIATION_IN_PROGRESS`
 
 Current phase: Object-centered consolidation (ADR 0022), phases 0–7 and 9.
 Phase 8 Windows identity collection remains excluded.
 
-Current slice: F-01 AD sorting and F-02 orphaned Nessus sync status are corrected
-and live-verified following the user's explicit fix instruction on 2026-09-16.
-Partial Nessus coverage is accepted when its cause and retained evidence are
-visible. Five AD group members, stable group/user pages and all ten user sort
-combinations passed live. Nessus imported 12 current scans without scan errors
-and published 669 assets/50,219 findings at 12:28:36; optional history continued.
-See ADR 0023 and `docs/consolidation-live-acceptance.md` for bounds and evidence.
+Current slice: UI/UX audit remediation packages S1-S8 and findings F01-F16 from
+`docs/audits/2026-09-16-ui-ux/`. The user explicitly authorized implementation
+on 2026-09-16. Work runs in the isolated
+`codex/ui-ux-audit-improvements` worktree created from the latest consolidation
+head `664bbe4604801a19b88724ac3beaf0ac48cc0ecc`; the user's existing checkout
+and its untracked audit documents remain unchanged. The selected product
+direction keeps Devices, Users and Groups with source-scoped identity while
+restoring operational summaries, working modes and bounded explicit source
+discovery. No new provider, permission, implicit scan, persistent identity
+registry, directory write or competing top-level device workspace is in scope.
+
+The immediately preceding slice corrected F-01 AD sorting and F-02 orphaned
+Nessus sync status and live-verified them following the user's explicit fix
+instruction on 2026-09-16. Partial Nessus coverage is accepted when its cause
+and retained evidence are visible. Five AD group members, stable group/user
+pages and all ten user sort combinations passed live. Nessus imported 12
+current scans without scan errors and published 669 assets/50,219 findings at
+12:28:36; optional history continued. See ADR 0023 and
+`docs/consolidation-live-acceptance.md` for bounds and evidence.
 
 Earlier acceptance passed remote Inventory/Health/Event Log/connectivity,
 cloud identity/relationship/license journeys, narrow-window navigation and
