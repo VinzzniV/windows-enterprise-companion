@@ -115,7 +115,7 @@ describe('object working-set list', () => {
   it('retains the originating result through a real profile relationship hop', async () => {
     view(`/users/workspace?q=Account&source=ENTRA&tenant=${tenant}&sort=desc&page=2&size=25`);
     fireEvent.click(within(screen.getByRole('table')).getAllByRole('link')[0]);
-    fireEvent.click(await screen.findByRole('button', { name: 'Groups' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Groups' }));
     fireEvent.click(screen.getByRole('link', { name: 'Operations' }));
     expect(screen.getByTestId('route-state').textContent).toContain('fromWorkingSet');
     fireEvent.click(await screen.findByRole('link', { name: /Back to results/ }));
