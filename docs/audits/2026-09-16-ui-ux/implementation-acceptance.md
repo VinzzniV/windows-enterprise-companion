@@ -21,6 +21,16 @@ native app selection failed with `cua.getApp is not a function`, consistent
 with its `Native computer APIs are disabled` capability declaration. This was
 not replaced with PowerShell UI automation or a browser/CSS approximation.
 
+A follow-up started the compiled Release executable with isolated `APPDATA` and
+`LOCALAPPDATA`. The host applied the new database migrations in 1,106 ms,
+loaded the frontend from packaged local assets and initialized WebView2 runtime
+153.0.4234.32. Its startup bridge reads completed successfully and the log had
+no Error or Fatal entry. The pre-existing EF multiple-collection query warning
+appeared on the cached Security overview read. While that process was running,
+Computer Use still returned `apps: []`, so no target window, screenshot,
+dimension or input action could be obtained. The test process and its isolated
+data directory were then removed.
+
 ## Package evidence
 
 | Package | Findings | Result | Reviewable commits |
@@ -54,6 +64,8 @@ not replaced with PowerShell UI automation or a browser/CSS approximation.
 | `npm run build` | Pass; initial JS 311.65 kB, 98.64 kB gzip |
 | `npm audit --audit-level=high` | Pass; no High/Critical issue. Two existing Moderate Vitest/@vitest-mocker advisories remain; available remediation is a breaking major update. |
 | G2 preservation | Pass at automated level through the full route, specialist, export, settings, operation and compatibility suites. No G2 route/function was removed. |
+| Isolated Release-host startup | Pass; migrations, local assets and WebView2 initialized, startup bridge reads succeeded, no Error/Fatal log entry |
+| Native viewport/input acceptance | Blocked by unavailable native Computer Use; no visual or input pass claimed |
 
 The first full Release build exposed two culture-sensitive timestamp parses in
 the new Microsoft 365 object-list test. Commit `a7f0c44` made both comparisons

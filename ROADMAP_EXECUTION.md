@@ -28,8 +28,11 @@ fix is a breaking major upgrade.
 The required new native viewport/keyboard acceptance at 1602×1040, 1280×800
 and approximately 800×650 is not claimed. The session's Computer Use provider
 exposed browser control only and returned `cua.getApp is not a function`; its
-tool contract explicitly disabled native computer APIs. No substitute Windows
-automation or remote provider read was used. See
+tool contract explicitly disabled native computer APIs. A second check against
+a real running Release host still returned `apps: []`. The isolated host did
+start successfully, apply migrations, load local assets and initialize WebView2
+153.0.4234.32 without Error/Fatal log entries; the known EF multiple-collection
+warning remained. No substitute Windows automation was used. See
 `docs/audits/2026-09-16-ui-ux/implementation-acceptance.md`. The user's original
 `master` checkout remains at `e89395f` with its pre-existing untracked audit
 documents unchanged. No push, PR update, merge, tag or release was performed.
