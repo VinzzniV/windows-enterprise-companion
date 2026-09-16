@@ -22,7 +22,8 @@ const read: WorkingSetRead = { key: 'users', title: 'Entra users', family: 'clou
   availability: 'available', coverage: 'partial', error: null, sourceTotal: 5000, cachedRecordCount: 60, limited: false,
   rows: Array.from({ length: 60 }, (_, index) => ({ kind: 'USER', source: 'ENTRA', label: index === 0 ? 'Needle account' : `Account ${String(index).padStart(2, '0')}`, aliases: [],
     reference: { kind: 'USER', source: 'ENTRA', scope: tenant, id: `22222222-2222-2222-2222-${String(index + 1).padStart(12, '0')}` },
-    accountEnabled: index % 2 === 0 ? true : null, operatingSystem: null, sid: null, registrationDeviceId: null, assignedSkuIds: null })) };
+    accountEnabled: index % 2 === 0 ? true : null, operatingSystem: null, sid: null, registrationDeviceId: null, assignedSkuIds: null,
+    userPrincipalName: index === 0 ? 'needle@example.test' : `account${index}@example.test` })) };
 function Location() { const location = useLocation(); return <><output data-testid="url">{location.pathname + location.search}</output>
   <output data-testid="route-state">{JSON.stringify(location.state)}</output></>; }
 function view(initial = '/users/workspace?page=2') { return render(<MemoryRouter initialEntries={[initial]}>
@@ -68,7 +69,10 @@ describe('object working-set list', () => {
     fireEvent.change(screen.getByLabelText('Search loaded users'), { target: { value: 'Needle' } });
     expect(screen.getByTestId('url').textContent).toBe('/users/workspace?q=Needle');
     expect(within(table).getAllByText('Needle account').length).toBeGreaterThan(0);
-    expect(screen.getByText(/1 matches in this displayed working set/)).toBeDefined();
+    expect(screen.getByText(/Showing 1 of 1 matching users from 60 loaded/)).toBeDefined();
+    expect(within(table).getByRole('link', { name: 'Needle account' })).toBeTruthy();
+    expect(within(table).getAllByText('needle@example.test').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Source exceptions: Entra users \(partial\)/)).toBeTruthy();
     expect(invokeMock).not.toHaveBeenCalled();
   });
 
@@ -86,8 +90,8 @@ describe('object working-set list', () => {
     expect(within(screen.getByRole('table')).getAllByRole('link')[0].getAttribute('href')).toBe(original);
     expect(scrollContainer.scrollTop).toBe(180);
     expect(document.activeElement?.getAttribute('data-object-focus')).toBe(original);
-    fireEvent.click(screen.getByRole('button', { name: /Object \/ address/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Object \/ address/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Account' }));
     expect(screen.getByTestId('url').textContent).toContain('sort=asc');
     expect(screen.getByTestId('url').textContent).not.toContain('page=2');
     expect(within(screen.getByRole('table')).getAllByText('Account 01').length).toBeGreaterThan(0);

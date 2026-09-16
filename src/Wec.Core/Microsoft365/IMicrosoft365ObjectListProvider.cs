@@ -7,7 +7,9 @@ public sealed record Microsoft365ObjectListRow(ObjectKind Kind, ObjectSource Sou
     string? DisplayName, string? UserPrincipalName, bool? AccountEnabled, string? OperatingSystem,
     string? SecurityIdentifier, string? RegistrationDeviceId, string? AssociatedUserId,
     IReadOnlyList<string>? AssignedSkuIds, string? ComplianceState = null, string? ManagementState = null,
-    string? Department = null, bool? SecurityEnabled = null, bool? MailEnabled = null, string? GroupTypes = null);
+    string? Department = null, bool? SecurityEnabled = null, bool? MailEnabled = null, string? GroupTypes = null,
+    string? OperatingSystemVersion = null, string? TrustType = null, DateTimeOffset? LastSignInAtUtc = null,
+    DateTimeOffset? LastSyncAtUtc = null);
 
 public sealed record Microsoft365ObjectListRead(Microsoft365ReadState State, IReadOnlyList<Microsoft365ObjectListRow> Rows);
 

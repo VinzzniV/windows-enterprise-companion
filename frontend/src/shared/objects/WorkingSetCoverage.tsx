@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import type { ObjectKind } from '../api-types.generated';
 import { useWorkingSet } from './WorkingSetContext';
 import { Button } from '../ui/Button';
 
 function time(value: string | null) { return value ? new Date(value).toLocaleString() : 'Unknown'; }
 
-export function WorkingSetCoverage() {
+const kindLabels: Record<ObjectKind, string> = { DEVICE: 'devices', USER: 'users', GROUP: 'groups' };
+
+export function WorkingSetCoverage({ kind, kindTotal, matchTotal }: { kind: ObjectKind; kindTotal: number; matchTotal: number }) {
   const workspace = useWorkingSet();
   const { displayed: snapshot } = workspace;
   const [now, setNow] = useState(Date.now);
@@ -18,8 +21,13 @@ export function WorkingSetCoverage() {
     </div>
     {workspace.error && <p role="alert" className="text-fail-400">{workspace.error}</p>}
     {snapshot ? <>
-      <p>{snapshot.loadedSourceRecords} source records · {snapshot.objects.length} displayed objects/addresses · {snapshot.confirmedObjectCount} objects with scoped identity · {snapshot.unresolvedCandidateCount} unresolved or candidate entries</p>
+      <p>{kindTotal} loaded {kindLabels[kind]} · {matchTotal} current matches · {snapshot.loadedSourceRecords} source records across all object kinds</p>
       <p className="text-xs text-muted">Counts cover this working set only. Source pages are not added into a company total. Filters, sorting and search use the same displayed revision.</p>
+      {snapshot.reads.some(read => read.error || read.coverage !== 'complete' || read.availability !== 'available' || read.limited
+        || read.freshUntilUtc !== null && Date.parse(read.freshUntilUtc) <= now) && <p className="text-warn-400">
+        Source exceptions: {snapshot.reads.filter(read => read.error || read.coverage !== 'complete' || read.availability !== 'available' || read.limited
+          || read.freshUntilUtc !== null && Date.parse(read.freshUntilUtc) <= now).map(read => `${read.title} (${read.error ? 'failed' : read.availability !== 'available' ? read.availability : read.limited ? 'limited' : read.coverage !== 'complete' ? read.coverage : 'stale'})`).join(' · ')}
+      </p>}
       {snapshot.limited && <p className="text-warn-400">Working set limited to {workspace.policy?.maximumRecords} records and {workspace.policy?.maximumSourceReads} source reads. Some available records are omitted; incomplete evidence cannot confirm a cross-source identity.</p>}
       {snapshot.omittedSourceReads > 0 && <p className="text-warn-400">{snapshot.omittedSourceReads} source reads were omitted.</p>}
       <details><summary className="cursor-pointer text-accent-400">Source coverage, timestamps and errors ({snapshot.reads.length})</summary>

@@ -42,6 +42,9 @@ export function cloudWorkingSetReads(lists: Microsoft365ObjectLists): WorkingSet
       registrationDeviceId: row.registrationDeviceId, assignedSkuIds: row.assignedSkuIds,
       complianceState: row.complianceState, managementState: row.managementState,
       department: row.department, securityEnabled: row.securityEnabled, mailEnabled: row.mailEnabled, groupTypes: row.groupTypes,
+      userPrincipalName: row.userPrincipalName, associatedUserId: row.associatedUserId,
+      operatingSystemVersion: row.operatingSystemVersion, trustType: row.trustType,
+      lastSignInAtUtc: row.lastSignInAtUtc, lastSyncAtUtc: row.lastSyncAtUtc,
       nativeRecordId: row.objectId ?? undefined,
     })),
   }));
@@ -91,7 +94,7 @@ export function directoryUserWorkingSetRead(read: CachedDirectoryUserList, selec
       reference: objectReference('USER', 'ad', user.directoryScope, user.objectId), kind: 'USER', source: 'ACTIVE_DIRECTORY',
       label: user.displayName, aliases: [user.samAccountName, user.userPrincipalName, user.department, user.objectId].filter((value): value is string => Boolean(value)),
       accountEnabled: user.enabled, operatingSystem: null, sid: user.securityIdentifier, registrationDeviceId: null, assignedSkuIds: null,
-      nativeRecordId: user.objectId, department: user.department,
+      nativeRecordId: user.objectId, department: user.department, userPrincipalName: user.userPrincipalName,
     })) ?? [],
   };
 }

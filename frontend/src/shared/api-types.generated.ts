@@ -563,6 +563,10 @@ export interface Microsoft365ObjectListRow {
   securityEnabled: boolean | null;
   mailEnabled: boolean | null;
   groupTypes: string | null;
+  operatingSystemVersion: string | null;
+  trustType: string | null;
+  lastSignInAtUtc: string | null;
+  lastSyncAtUtc: string | null;
 }
 
 export interface Microsoft365ObjectLists {

@@ -120,8 +120,8 @@ public sealed class Microsoft365ServiceTests
         Microsoft365Query managed = new(Microsoft365Resource.ManagedDevices);
         _reader.ReadAsync(managed, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
         {
-            ManagedDevices = [new("managed", "Device", "associated-user", "candidate@example.test", "Windows", null, "noncompliant", "managed",
-                null, null, null, null, null, "registration"), new(null, "Limited record", null, null, null, null, null, null, null, null, null, null, null, null)],
+            ManagedDevices = [new("managed", "Device", "associated-user", "candidate@example.test", "Windows", "11", "noncompliant", "managed",
+                null, DateTimeOffset.Parse("2026-09-16T10:00:00Z"), null, null, null, "registration"), new(null, "Limited record", null, null, null, null, null, null, null, null, null, null, null, null)],
         }));
         await service.ReadAsync(managed, true, TestContext());
         var rows = Assert.Single((await service.ReadObjectListsCachedAsync(null, TestContext())).Value.Reads,
@@ -132,6 +132,8 @@ public sealed class Microsoft365ServiceTests
         Assert.Equal("associated-user", rows[0].AssociatedUserId);
         Assert.Equal("noncompliant", rows[0].ComplianceState);
         Assert.Equal("managed", rows[0].ManagementState);
+        Assert.Equal("11", rows[0].OperatingSystemVersion);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-16T10:00:00Z"), rows[0].LastSyncAtUtc);
         Assert.Null(rows[1].ComplianceState);
         Assert.Null(rows[1].ObjectId);
         _reader.Connection.Returns(_reader.Connection with { Configuration = _reader.Connection.Configuration with { EnableIntune = false } });

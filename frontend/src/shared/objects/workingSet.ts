@@ -24,6 +24,12 @@ export interface WorkingSetObservation {
   securityEnabled?: boolean | null;
   mailEnabled?: boolean | null;
   groupTypes?: string | null;
+  userPrincipalName?: string | null;
+  associatedUserId?: string | null;
+  operatingSystemVersion?: string | null;
+  trustType?: string | null;
+  lastSignInAtUtc?: string | null;
+  lastSyncAtUtc?: string | null;
   storedEvidence?: 'INVENTORY' | 'SECURITY' | 'SAVED_TARGET';
 }
 

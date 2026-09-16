@@ -424,14 +424,17 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
                 foreach (Microsoft365Device device in data.Devices)
                 {
                     yield return new(ObjectKind.Device, ObjectSource.Entra, device.Id, device.DisplayName, null, device.AccountEnabled,
-                        device.OperatingSystem, null, device.DeviceId, null, null);
+                        device.OperatingSystem, null, device.DeviceId, null, null,
+                        OperatingSystemVersion: device.OperatingSystemVersion, TrustType: device.TrustType,
+                        LastSignInAtUtc: device.ApproximateLastSignInAtUtc);
                 }
                 break;
             case Microsoft365Resource.ManagedDevices or Microsoft365Resource.ManagedDevice:
                 foreach (Microsoft365ManagedDevice device in data.ManagedDevices)
                 {
                     yield return new(ObjectKind.Device, ObjectSource.Intune, device.Id, device.DeviceName, device.UserPrincipalName, null,
-                        device.OperatingSystem, null, device.EntraDeviceId, device.UserId, null, device.ComplianceState, device.ManagementState);
+                        device.OperatingSystem, null, device.EntraDeviceId, device.UserId, null, device.ComplianceState, device.ManagementState,
+                        OperatingSystemVersion: device.OperatingSystemVersion, LastSyncAtUtc: device.LastSyncAtUtc);
                 }
                 break;
         }

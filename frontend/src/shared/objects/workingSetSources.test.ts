@@ -17,7 +17,8 @@ describe('working-set source projection', () => {
       loadedSourceRecords: 1, truncated: true, reads: [{ state, rows: [{ kind: 'USER', source: 'ENTRA', objectId: null,
         displayName: 'Limited record', userPrincipalName: null, accountEnabled: null, operatingSystem: null,
         securityIdentifier: null, registrationDeviceId: null, associatedUserId: null, assignedSkuIds: null, complianceState: null, managementState: null,
-        department: null, securityEnabled: null, mailEnabled: null, groupTypes: null }] }] });
+        department: null, securityEnabled: null, mailEnabled: null, groupTypes: null, operatingSystemVersion: null, trustType: null,
+        lastSignInAtUtc: null, lastSyncAtUtc: null }] }] });
     expect(reads[0].coverage).toBe('partial');
     expect(reads[0].error).toBe('Denied');
     expect(reads[0].sourceTotal).toBe(200);
@@ -40,6 +41,7 @@ describe('working-set source projection', () => {
     expect(source.rows[0].reference).toEqual({ kind: 'USER', source: 'ACTIVE_DIRECTORY', scope: 'example.test', id });
     expect(source.rows[0].accountEnabled).toBeNull();
     expect(source.rows[0].nativeRecordId).toBe(id);
+    expect(source.rows[0].userPrincipalName).toBe('account@example.test');
   });
 
   it('does not infer device identity or freshness from a stored address and preserves source record IDs', () => {
