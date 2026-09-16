@@ -124,6 +124,11 @@ internal sealed class DeviceCleanupWorkbookExporter(
             },
             async (index, token) =>
             {
+                if (!candidates[index].CanTargetWindows)
+                {
+                    statuses[index] = "Not checked: unresolved target identity";
+                    return;
+                }
                 Result<PingProbeReply> result = await pingProbe.SendAsync(
                     candidates[index].Host,
                     TimeSpan.FromMilliseconds(options.Value.ExportPingTimeoutMilliseconds),

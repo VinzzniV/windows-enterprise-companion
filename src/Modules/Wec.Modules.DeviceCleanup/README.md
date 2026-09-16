@@ -34,3 +34,9 @@ explicitly. Starting this export sends one bounded ICMP echo to each exported
 device. It does not test WinRM, retry, start a scan or treat a missing response
 as proof that the device is offline or retired. The export reports when the
 configured subject limit made the workbook incomplete.
+
+Ambiguous source observations have individual evidence keys and remain review
+rows. An old host-only link that matches several rows asks for an individual
+selection; it never takes the first match. Such rows do not load another
+subject's stored Inventory and cannot start connectivity probes. Workbook export
+retains them and explicitly skips Ping when no unambiguous target exists.

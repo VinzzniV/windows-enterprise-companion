@@ -53,9 +53,14 @@ internal sealed class DeviceCleanupService(
         if (!string.IsNullOrWhiteSpace(request.SelectedHost))
         {
             string selectedKey = Key(request.SelectedHost);
-            DeviceCleanupCandidate? candidate = candidateSet.All.FirstOrDefault(item =>
-                string.Equals(item.SubjectKey, selectedKey, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(item.Host, request.SelectedHost.Trim(), StringComparison.OrdinalIgnoreCase));
+            DeviceCleanupCandidate[] exact = candidateSet.All.Where(item => string.Equals(item.SubjectKey, selectedKey, StringComparison.OrdinalIgnoreCase)).ToArray();
+            DeviceCleanupCandidate[] matches = exact.Length > 0 ? exact : candidateSet.All.Where(item =>
+                string.Equals(item.Host, request.SelectedHost.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (matches.Length > 1)
+            {
+                return Result.Failure<DeviceCleanupPage>(new(ErrorCode.InvalidRequest, "Multiple source observations use this address. Select an individual cleanup evidence row."));
+            }
+            DeviceCleanupCandidate? candidate = matches.SingleOrDefault();
             if (candidate is null)
             {
                 return Result.Failure<DeviceCleanupPage>(Error.NotFound(
@@ -63,7 +68,7 @@ internal sealed class DeviceCleanupService(
             }
 
             DeviceCleanupInventoryEvidence? selectedInventory =
-                await inventoryEvidenceProvider.GetLatestAsync(candidate.SubjectKey, cancellationToken);
+                candidate.CanTargetWindows ? await inventoryEvidenceProvider.GetLatestAsync(candidate.Host, cancellationToken) : null;
             selected = ComposeAssessment(
                 candidate,
                 candidateSet.Subjects.GetValueOrDefault(candidate.SubjectKey),
@@ -137,17 +142,27 @@ internal sealed class DeviceCleanupService(
 
         DeviceCleanupEvidenceSnapshot sourceSnapshot = sourceResult.Value;
         IReadOnlyList<InventoryClientSnapshotHost> inventory = await inventoryTask;
-        Dictionary<string, DeviceCleanupSubjectEvidence> subjects = sourceSnapshot.Subjects
-            .GroupBy(subject => Key(subject.SubjectKey), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, DeviceCleanupSubjectEvidence> subjects = new(StringComparer.OrdinalIgnoreCase);
+        foreach (IGrouping<string, DeviceCleanupSubjectEvidence> group in sourceSnapshot.Subjects.GroupBy(subject => Key(subject.SubjectKey), StringComparer.OrdinalIgnoreCase))
+        {
+            DeviceCleanupSubjectEvidence[] observations = group.ToArray();
+            for (int index = 0; index < observations.Length; ++index)
+            {
+                DeviceCleanupSubjectEvidence observation = observations[index];
+                string key = observations.Length == 1 ? group.Key : $"{group.Key}:observation:{index}";
+                subjects.Add(key, observation with { SubjectKey = key, CanTargetWindows = observation.CanTargetWindows && observations.Length == 1 });
+            }
+        }
         Dictionary<string, InventoryClientSnapshotHost> storedInventory = inventory
             .GroupBy(item => Key(item.Host), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,
                 group => group.OrderByDescending(item => item.CapturedAtUtc).First(),
                 StringComparer.OrdinalIgnoreCase);
+        var matchedInventory = subjects.Where(pair => pair.Value.CanTargetWindows)
+            .Select(pair => Key(pair.Value.Host)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         IEnumerable<string> distinctKeys = subjects.Keys
-            .Concat(storedInventory.Keys)
+            .Concat(storedInventory.Keys.Where(key => !matchedInventory.Contains(key)))
             .Distinct(StringComparer.OrdinalIgnoreCase);
         List<string> subjectKeys = distinctKeys
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
@@ -158,7 +173,8 @@ internal sealed class DeviceCleanupService(
         List<DeviceCleanupCandidate> all = subjectKeys
             .Select(key => Classify(
                 subjects.GetValueOrDefault(key),
-                storedInventory.GetValueOrDefault(key),
+                subjects.TryGetValue(key, out DeviceCleanupSubjectEvidence? subject)
+                    ? subject.CanTargetWindows ? storedInventory.GetValueOrDefault(Key(subject.Host)) : null : storedInventory.GetValueOrDefault(key),
                 sourceSnapshot,
                 options.Value))
             .ToList();
@@ -236,7 +252,12 @@ internal sealed class DeviceCleanupService(
 
         DeviceCleanupClassification classification;
         string explanation;
-        if (criticalStale)
+        if (subject?.CanTargetWindows == false)
+        {
+            classification = DeviceCleanupClassification.Review;
+            explanation = "The source observation has no unambiguous Windows target. Review its identity before drawing a cleanup conclusion; connectivity checks are unavailable.";
+        }
+        else if (criticalStale)
         {
             classification = DeviceCleanupClassification.PotentialCleanup;
             explanation = "At least one source activity timestamp exceeds its existing cleanup threshold; manual review is still required.";
@@ -273,6 +294,7 @@ internal sealed class DeviceCleanupService(
             explanation = "No stale, orphan or disabled-device signal was found in the evaluated sources.";
         }
 
+        if (subject?.IdentityExplanation is { } identityExplanation) { explanation += " " + identityExplanation; }
         string host = subject?.Host ?? inventory?.Host ?? subject?.SubjectKey ?? string.Empty;
         string? description = FirstDescription(subject?.ActiveDirectory.Description, subject?.Opsi.Description);
         string? descriptionSource = description is null
@@ -287,18 +309,21 @@ internal sealed class DeviceCleanupService(
             descriptionSource,
             classification,
             explanation,
-            ExistsWhenAvailable(subject?.ActiveDirectory.Exists, snapshot, "Active Directory"),
+            Presence(subject?.ActiveDirectory.Exists, "Active Directory"),
             subject?.ActiveDirectory.Enabled,
             subject?.ActiveDirectory.LastLogonAtUtc,
-            ExistsWhenAvailable(subject?.Kaspersky.Exists, snapshot, "Kaspersky"),
+            Presence(subject?.Kaspersky.Exists, "Kaspersky"),
             subject?.Kaspersky.LastSeenAtUtc,
-            ExistsWhenAvailable(subject?.Opsi.Exists, snapshot, "opsi"),
+            Presence(subject?.Opsi.Exists, "opsi"),
             subject?.Opsi.LastSeenAtUtc,
-            ExistsWhenAvailable(subject?.Nessus.Exists, snapshot, "Nessus"),
+            Presence(subject?.Nessus.Exists, "Nessus"),
             subject?.Nessus.LastCompletedScanAtUtc,
             inventory is not null,
             inventory?.CapturedAtUtc,
-            relevantFindings.Count);
+            relevantFindings.Count) { CanTargetWindows = subject?.CanTargetWindows ?? true };
+
+        bool? Presence(bool? exists, string source) => subject?.CanTargetWindows == false && exists != true
+            ? null : ExistsWhenAvailable(exists, snapshot, source);
     }
 
     private static DeviceCleanupAssessment ComposeAssessment(
@@ -310,6 +335,19 @@ internal sealed class DeviceCleanupService(
         var states = sourceStates.ToDictionary(
             source => source.Source,
             StringComparer.OrdinalIgnoreCase);
+        if (subject?.CanTargetWindows == false)
+        {
+            foreach (string source in states.Keys.ToArray())
+            {
+                bool exists = source switch
+                {
+                    "Active Directory" => subject.ActiveDirectory.Exists, "Kaspersky" => subject.Kaspersky.Exists,
+                    "opsi" => subject.Opsi.Exists, "Nessus" => subject.Nessus.Exists, _ => false,
+                };
+                if (!exists) { states[source] = states[source] with { Availability = ActionEvidenceAvailability.Partial,
+                    Explanation = "Unresolved source identity; absence in another source is not established." }; }
+            }
+        }
         IReadOnlyList<DeviceCleanupSourceFact> facts =
         [
             Fact(

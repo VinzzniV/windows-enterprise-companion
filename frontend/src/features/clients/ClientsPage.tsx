@@ -69,6 +69,7 @@ function SourceBadge({ client, state, source }: { client: ClientWorkspaceListIte
       : source === 'opsi'
         ? device.opsi.exists
         : device.nessus.exists;
+  if (device.correlation === 'AMBIGUOUS' && !sourceExists) return <ClientSemanticStatus status={{ dimension: 'availability', value: 'unknown' }} context="Identity unresolved" />;
   const sourceResultIncomplete = state.availability === 'PARTIAL' || state.availability === 'TRUNCATED';
   if (state.availability !== 'AVAILABLE' && (!sourceResultIncomplete || !sourceExists)) {
     const presentation = inventorySourceStatus(state.availability);
@@ -205,6 +206,8 @@ export function ClientsPage() {
     void invocation.promise.then((value) => {
       if (requestId.current === currentRequest) {
         setWorkspace(value);
+        const blocked = new Set(value.items.filter(client => client.environment?.canTargetWindows === false).map(client => client.host.toUpperCase()));
+        setSelectedHosts(current => current.filter(host => !blocked.has(host.toUpperCase())));
         if (restoredScrollY) {
           requestAnimationFrame(() => window.scrollTo({ top: restoredScrollY }));
         }
@@ -225,7 +228,7 @@ export function ClientsPage() {
   }, [groupMode, page, pageSize, postureFilter, refreshRevision, request, restoredScrollY, search, sort, sourceFilter, hygieneOperation.begin, hygieneOperation.end]);
 
   const probeOnline = () => {
-    const hosts = workspace?.items.map((client) => client.host) ?? [];
+    const hosts = [...new Set(workspace?.items.filter(client => client.environment?.canTargetWindows !== false).map(client => client.host) ?? [])];
     if (!hosts.length) return;
     const currentRequest = ++probeRequestId.current;
     const hostKeys = hosts.map((host) => host.toUpperCase());
@@ -283,7 +286,7 @@ export function ClientsPage() {
           type="checkbox"
           aria-label={`Select ${client.name} for bulk scan`}
           checked={checked}
-          disabled={batchRunning || maxBatchHosts === null || (!checked && limitReached)}
+          disabled={client.environment?.canTargetWindows === false || batchRunning || maxBatchHosts === null || (!checked && limitReached)}
           onClick={(event) => event.stopPropagation()}
           onChange={() => setSelectedHosts((current) => {
             const existing = current.some((host) => host.toUpperCase() === key);
@@ -295,6 +298,7 @@ export function ClientsPage() {
         />;
       } },
       { id: 'device', header: 'Device', sortable: true, cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
+        {client.environment?.correlationExplanation && <details className="text-xs text-warn-300"><summary>{client.environment.correlation === 'AMBIGUOUS' ? 'Ambiguous source identity' : 'Name/address candidate comparison'}</summary>{client.environment.correlationExplanation}</details>}
         {client.os && <span className="text-xs text-muted">{client.os}</span>}
         {client.description && <span className="text-xs text-slate-400">{client.description}</span>}
         <div className="flex flex-col items-start gap-1">
@@ -338,7 +342,7 @@ export function ClientsPage() {
       search, groupMode, sourceFilter, page, pageSize, sort, probeStates, selectedHosts, scrollY: window.scrollY,
     };
     navigate(`${location.pathname}${location.search}`, { replace: true, state: viewState });
-    navigate(`/clients/${encodeURIComponent(client.host)}`, { state: viewState });
+    navigate(client.environment?.canTargetWindows === false ? `/devices?q=${encodeURIComponent(client.host || client.name)}` : `/clients/${encodeURIComponent(client.host)}`, { state: viewState });
   };
   const retry = () => { setCancelled(false); setPage(1); setRefreshRevision((current) => current + 1); };
   const selectVisibleHosts = () => {
@@ -347,6 +351,7 @@ export function ClientsPage() {
       const next = [...current];
       const selectedKeys = new Set(current.map((host) => host.toUpperCase()));
       for (const client of rows) {
+        if (client.environment?.canTargetWindows === false) continue;
         const key = client.host.toUpperCase();
         if (!selectedKeys.has(key) && next.length < maxBatchHosts) {
           next.push(client.host);

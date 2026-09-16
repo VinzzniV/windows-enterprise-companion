@@ -26,6 +26,7 @@ vi.mock('../../shared/bridge/bridgeClient', () => ({
 }));
 
 const candidate = {
+  canTargetWindows: true,
   subjectKey: 'PC-OLD',
   host: 'pc-old.corp.example',
   description: 'Accounting workstation',
@@ -115,6 +116,7 @@ function renderPage() {
 
 describe('DeviceCleanupPage', () => {
   beforeEach(() => {
+    candidate.canTargetWindows = true;
     localStorage.clear();
     invokeMock.mockReset();
     cancelMock.mockReset();
@@ -177,6 +179,18 @@ describe('DeviceCleanupPage', () => {
       'listCandidates',
       expect.objectContaining({ search: 'PC-OLD', page: 1, pageSize: 25 }),
     ));
+  });
+
+  it('selects the evidence key and disables connectivity for an unresolved source identity', async () => {
+    candidate.canTargetWindows = false;
+    renderPage();
+    await screen.findByRole('button', { name: 'Review evidence' });
+    await userEvent.click(screen.getByRole('button', { name: 'Review evidence' }));
+    await screen.findByRole('heading', { name: `Review ${candidate.host}` });
+    expect((screen.getByRole('button', { name: 'Check Ping and WinRM' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith('devicecleanup', 'listCandidates', expect.objectContaining({ selectedHost: candidate.subjectKey }));
+    expect(invokeMock.mock.calls.filter(([module]) => module === 'connectivity')).toHaveLength(0);
+    expect(screen.getByText(/including Excel Ping, are skipped/)).toBeTruthy();
   });
 
   it('exports every current-filter result and explicitly requests the bounded Ping workbook', async () => {

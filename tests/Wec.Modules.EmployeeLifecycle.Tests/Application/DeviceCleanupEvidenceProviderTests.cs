@@ -25,7 +25,7 @@ public sealed class DeviceCleanupEvidenceProviderTests
         DeviceCleanupEvidenceSnapshot snapshot = DeviceCleanupEvidenceProvider.Project(result);
 
         Assert.Equal(AssessedAt, snapshot.AssessedAtUtc);
-        Assert.Equal(["PC-A", "PC-B"], snapshot.Subjects.Select(subject => subject.SubjectKey));
+        Assert.Equal(["PC-A.corp.example", "PC-B.corp.example"], snapshot.Subjects.Select(subject => subject.SubjectKey));
         Assert.Equal(ActionEvidenceAvailability.Partial,
             snapshot.Sources.Single(source => source.Source == "Kaspersky").Availability);
         Assert.Equal("opsi is not configured.",

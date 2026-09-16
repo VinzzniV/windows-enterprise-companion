@@ -6,13 +6,20 @@ Current phase: Object-centered consolidation (ADR 0022)
 
 Current slice: Phase 6 bounded working-set index and unified lists/search.
 Source-only management records and their exact snapshot destinations are integrated.
-Targeted AD computer discovery is available. Phase 1 legacy candidate/route fixes and G2
-compatibility remain explicit follow-ups before the navigation milestone.
+Targeted AD computer discovery is available. Legacy hygiene and Cleanup now
+preserve ambiguous observations and prevent automatic target selection. Remaining
+session/route compatibility and G2 parity precede the navigation milestone.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
 
 ## Current consolidation verification (2026-09-14)
+
+- Legacy hygiene/Cleanup identity preservation: 97 EmployeeLifecycle, 12
+  DeviceCleanup and 73 affected frontend tests pass, as do the warning-free
+  Release build, 494-contract check and frontend production build. Duplicate
+  records, DNS namespace conflicts and unknown names remain separate; unresolved
+  targets cannot start connectivity probes, including from workbook export.
 
 - Explicit AD computer discovery validates RootDSE scope and returns at most
   100 matches. Native profile reads reuse the same bounded connection cache;

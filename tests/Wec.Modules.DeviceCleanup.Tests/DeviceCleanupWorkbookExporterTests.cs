@@ -36,6 +36,17 @@ public sealed class DeviceCleanupWorkbookExporterTests
     }
 
     [Fact]
+    public async Task UnresolvedRowsAreExportedWithoutPingAndExplainTheOmittedCheck()
+    {
+        var snapshot = Snapshot();
+        snapshot = snapshot with { Candidates = snapshot.Candidates.Select(candidate => candidate with { CanTargetWindows = false }).ToArray() };
+        using XLWorkbook workbook = await CreateExporter().CreateAsync(snapshot, CancellationToken.None);
+        Assert.Equal(snapshot.Candidates.Count, workbook.Worksheet("Device Cleanup").Cell("H3").GetValue<int>());
+        Assert.Equal("Not checked: unresolved target identity", workbook.Worksheet("Device Cleanup").Cell("P8").GetString());
+        await _pingProbe.DidNotReceiveWithAnyArgs().SendAsync(default!, default, default);
+    }
+
+    [Fact]
     public async Task CreateAsync_WritesTypedFilterableEvidenceAndPingResults()
     {
         using XLWorkbook workbook = await CreateExporter().CreateAsync(Snapshot(), CancellationToken.None);

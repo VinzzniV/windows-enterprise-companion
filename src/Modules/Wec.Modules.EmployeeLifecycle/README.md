@@ -196,6 +196,12 @@ them, and deleting them requires a separately approved destructive migration.
 
 ## Tests
 
+Hygiene rows preserve source observations and full addresses. Name agreement is
+candidate evidence only; duplicate records and conflicting DNS namespaces remain
+separate rows with disposable evidence keys. Ambiguous rows cannot select a
+Windows scan/probe target or turn absent cross-source data into a missing-agent
+claim. Stored Inventory and saved targets stay independently addressable.
+
 - AD inventory mapping and LDAP contract tests
 - KSC OpenAPI login, chunk parsing, limit and authentication-error tests
 - name correlation, independent stale rules and version comparison tests

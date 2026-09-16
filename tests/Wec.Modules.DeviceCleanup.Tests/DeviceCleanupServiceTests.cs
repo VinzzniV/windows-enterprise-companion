@@ -31,8 +31,8 @@ public sealed class DeviceCleanupServiceTests
         _inventorySnapshots.ListHostsAsync(Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<InventoryClientSnapshotHost>>(
             [
-                new("PC-OLD", AssessedAt.AddDays(-100)),
-                new("PC-ACTIVE", AssessedAt.AddDays(-1)),
+                new("PC-OLD.corp.example", AssessedAt.AddDays(-100)),
+                new("PC-ACTIVE.corp.example", AssessedAt.AddDays(-1)),
                 new("PC-INVENTORY-ONLY", AssessedAt.AddDays(-45)),
             ]);
         _inventoryEvidence.GetLatestAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -49,6 +49,23 @@ public sealed class DeviceCleanupServiceTests
                     null,
                     "High",
                     "Observed; not ownership.")]));
+    }
+
+    [Fact]
+    public async Task DuplicateSubjectsRemainSelectableButNeverReadWindowsEvidenceByAlias()
+    {
+        var subject = Subject("PC", false, AssessedAt.AddYears(-1));
+        _sourceEvidence.LoadAsync(Arg.Any<DeviceCleanupEvidenceQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(Snapshot(subject, subject with { ActiveDirectory = subject.ActiveDirectory with { Enabled = true } })));
+        _inventorySnapshots.ListHostsAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<InventoryClientSnapshotHost>());
+        var result = (await CreateService().GetPageAsync(new(), CancellationToken.None)).Value;
+        Assert.Equal(2, result.Candidates.Count);
+        Assert.All(result.Candidates, candidate => { Assert.False(candidate.CanTargetWindows); Assert.Equal(DeviceCleanupClassification.Review, candidate.Classification); });
+        Assert.True((await CreateService().GetPageAsync(new(SelectedHost: subject.Host), CancellationToken.None)).IsFailure);
+        var selected = await CreateService().GetPageAsync(new(SelectedHost: result.Candidates[1].SubjectKey), CancellationToken.None);
+        Assert.True(selected.IsSuccess);
+        Assert.NotNull(selected.Value.SelectedAssessment);
+        await _inventoryEvidence.DidNotReceiveWithAnyArgs().GetLatestAsync(default!, default);
     }
 
     [Fact]
@@ -77,7 +94,7 @@ public sealed class DeviceCleanupServiceTests
     {
         _inventorySnapshots.ListHostsAsync(Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<InventoryClientSnapshotHost>>
-            ([new("PC-OLD", AssessedAt)]);
+            ([new("PC-OLD.corp.example", AssessedAt)]);
 
         Result<DeviceCleanupPage> result = await CreateService().GetPageAsync(
             new ListDeviceCleanupCandidatesRequest(),
@@ -100,7 +117,7 @@ public sealed class DeviceCleanupServiceTests
         Assert.Equal("Disabled", assessment.Sources.Single(source => source.Source == "Active Directory").State);
         Assert.Equal("CORP\\alex", Assert.Single(assessment.UserObservations).AccountDisplay);
         await _inventoryEvidence.Received(1).GetLatestAsync(
-            "PC-OLD",
+            "PC-OLD.corp.example",
             Arg.Any<CancellationToken>());
     }
 

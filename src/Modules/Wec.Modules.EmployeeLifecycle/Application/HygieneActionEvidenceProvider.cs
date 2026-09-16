@@ -51,7 +51,7 @@ internal sealed class HygieneActionEvidenceProvider(
             .ThenBy(finding => finding.FindingCode, StringComparer.Ordinal)
             .ToList();
         IReadOnlyList<HygieneActionSubject> subjects = result.Devices
-            .Select(device => new HygieneActionSubject(device.ComputerName, device.HostName))
+            .Select(device => new HygieneActionSubject(device.EvidenceKey ?? device.HostName, device.HostName))
             .OrderBy(subject => subject.SubjectKey, StringComparer.OrdinalIgnoreCase)
             .ToList();
         return new HygieneActionEvidenceSnapshot(result.AssessedAtUtc, sources, subjects, findings);
@@ -73,7 +73,7 @@ internal sealed class HygieneActionEvidenceProvider(
             _ => ("Kaspersky", device.Kaspersky.LastSeen, result.Sources.Kaspersky),
         };
         return new HygieneActionEvidence(
-            device.ComputerName,
+            device.EvidenceKey ?? device.HostName,
             device.HostName,
             finding.Code.ToString(),
             finding.Severity.ToString(),
@@ -81,7 +81,7 @@ internal sealed class HygieneActionEvidenceProvider(
             source,
             evidenceAtUtc,
             Availability(state.Availability),
-            CoverageExplanation(source, state));
+            CoverageExplanation(source, state) + " " + device.CorrelationExplanation);
     }
 
     private static ActionEvidenceSourceState Source(string source, InventorySourceState state) =>

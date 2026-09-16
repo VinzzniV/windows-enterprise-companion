@@ -28,7 +28,10 @@ public sealed record DeviceCleanupCandidate(
     DateTimeOffset? NessusLastScanAtUtc,
     bool InventoryExists,
     DateTimeOffset? InventoryCapturedAtUtc,
-    int RelevantFindingCount);
+    int RelevantFindingCount)
+{
+    public bool CanTargetWindows { get; init; } = true;
+}
 
 internal sealed record DeviceCleanupExportSnapshot(
     IReadOnlyList<DeviceCleanupCandidate> Candidates,

@@ -35,6 +35,16 @@ describe('siteOf', () => {
 });
 
 describe('buildClientList', () => {
+  it('retains duplicate AD records and keeps stored target evidence independent', () => {
+    const list = buildClientList([ad({ name: 'Same', dnsHostName: 'pc.example.test', operatingSystem: 'Windows 10' }),
+      ad({ name: 'Same', dnsHostName: 'pc.example.test', operatingSystem: 'Windows 11' })],
+      [{ host: 'pc.example.test', capturedAtUtc: '2026-09-14T08:00:00Z' }], []);
+    expect(list).toHaveLength(3);
+    expect(new Set(list.map(item => item.key)).size).toBe(3);
+    expect(list.filter(item => item.inAd).every(item => !item.scanned)).toBe(true);
+    expect(list.filter(item => item.scanned)[0].os).toBeNull();
+  });
+
   it('preserves domain, short-name and IP targets independently', () => {
     const list = buildClientList([
       ad({ name: 'PC01', dnsHostName: 'pc01.a.example' }),

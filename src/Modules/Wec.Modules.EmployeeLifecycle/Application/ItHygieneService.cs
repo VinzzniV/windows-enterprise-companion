@@ -2,7 +2,9 @@ using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
 using Wec.Core.Messaging;
+using Wec.Core.Objects;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
@@ -118,7 +120,13 @@ public sealed record HygieneDevice(
     KasperskyDeviceData Kaspersky,
     OpsiDeviceData Opsi,
     NessusDeviceData Nessus,
-    HygieneAssessment Assessment);
+    HygieneAssessment Assessment)
+{
+    public string? EvidenceKey { get; init; }
+    public IdentityEvidence Correlation { get; init; } = IdentityEvidence.Unresolved;
+    public string CorrelationExplanation { get; init; } = "Legacy name-based assessment; source identity is not confirmed.";
+    public bool CanTargetWindows { get; init; } = true;
+}
 
 public sealed record HygieneSummary(
     int Total,
@@ -287,45 +295,28 @@ internal sealed class ItHygieneService
         ItLifecycleOptions options,
         bool assessNessus = true)
     {
-        Dictionary<string, AdComputerInventoryItem> adByName = adComputers
-            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Key.Length > 0)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-        Dictionary<string, KasperskyComputer> kscByName = kasperskyComputers
-            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Key.Length > 0)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderByDescending(computer => computer.LastSeen).First(),
-                StringComparer.OrdinalIgnoreCase);
-        Dictionary<string, NessusComputerInventoryItem> nessusByName = nessusInventory.Computers
-            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Key.Length > 0)
-            .ToDictionary(group => group.Key, group => group.OrderByDescending(computer => computer.LastCompletedScanUtc).First(), StringComparer.OrdinalIgnoreCase);
-        Dictionary<string, OpsiComputerInventoryItem> opsiByName = opsiComputers
-            .GroupBy(computer => NormalizeComputerName(computer.ComputerName), StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Key.Length > 0)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderByDescending(computer => computer.LastSeen).First(),
-                StringComparer.OrdinalIgnoreCase);
-
-        return adByName.Keys
-            .Union(kscByName.Keys, StringComparer.OrdinalIgnoreCase)
-            .Union(opsiByName.Keys, StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .Select(name =>
+        return HygieneSourceCandidates.Collect(adComputers, kasperskyComputers, opsiComputers, nessusInventory.Computers)
+            .Select(candidate =>
             {
-                adByName.TryGetValue(name, out AdComputerInventoryItem? ad);
-                kscByName.TryGetValue(name, out KasperskyComputer? ksc);
-                opsiByName.TryGetValue(name, out OpsiComputerInventoryItem? opsi);
-                nessusByName.TryGetValue(name, out NessusComputerInventoryItem? nessus);
+                AdComputerInventoryItem? ad = candidate.Ad;
+                KasperskyComputer? ksc = candidate.Kaspersky;
+                OpsiComputerInventoryItem? opsi = candidate.Opsi;
+                NessusComputerInventoryItem? nessus = candidate.Nessus;
+                string name = ad?.ComputerName ?? opsi?.ComputerName ?? ksc?.ComputerName ?? nessus?.ComputerName ?? string.Empty;
+                var unknown = new InventorySourceState(InventorySourceAvailability.Partial, "Name collision; source absence is not established.");
+                EnvironmentSourceStates assessmentSources = candidate.Ambiguous
+                    ? new(unknown, unknown, unknown, nessus is null ? unknown : sources.Nessus) : sources;
                 HygieneAssessment assessment = HygieneAssessmentPolicy.Assess(
-                    ad, ksc, opsi, nessus, nessusInventory, sources, now, options, assessNessus);
+                    ad, ksc, opsi, nessus, nessusInventory, assessmentSources, now, options, assessNessus);
 
                 string hostName = ad?.DnsHostName
+                    ?? ad?.ComputerName
                     ?? opsi?.ComputerName
+                    ?? ksc?.Fqdn
+                    ?? ksc?.DnsName
                     ?? ksc?.ComputerName
+                    ?? nessus?.Fqdn
+                    ?? nessus?.IpAddress
                     ?? name;
 
                 return new HygieneDevice(
@@ -365,22 +356,22 @@ internal sealed class ItHygieneService
                         nessus?.Info ?? 0,
                         nessus?.Ports ?? [],
                         nessus?.ScanSources ?? []),
-                    assessment);
+                    assessment)
+                {
+                    EvidenceKey = candidate.EvidenceKey,
+                    Correlation = candidate.Ambiguous ? IdentityEvidence.Ambiguous : IdentityEvidence.AliasCandidate,
+                    CorrelationExplanation = candidate.Ambiguous
+                        ? "Names, namespaces or duplicate source records conflict. This row preserves one source observation; no shared identity or execution target is selected."
+                        : "Legacy posture comparison by name/address only. Source presence is candidate evidence, not a confirmed shared identity. Windows actions use only the displayed source address.",
+                    CanTargetWindows = !candidate.Ambiguous && (ad is not null || opsi is not null || ksc is not null)
+                        && hostName.Length <= 253 && Uri.CheckHostName(hostName) != UriHostNameType.Unknown,
+                };
             })
             .ToList();
     }
 
     internal static string NormalizeComputerName(string? computerName)
-    {
-        string value = computerName?.Trim().TrimEnd('.') ?? string.Empty;
-        int dot = value.IndexOf('.', StringComparison.Ordinal);
-        if (dot > 0)
-        {
-            value = value[..dot];
-        }
-
-        return value.ToUpperInvariant();
-    }
+        => HostAddress.ShortNameAlias(computerName) ?? HostAddress.ComparisonKey(computerName);
 
     internal static bool IsVersionOlder(string? installed, string? target) =>
         HygieneAssessmentPolicy.IsVersionOlder(installed, target);

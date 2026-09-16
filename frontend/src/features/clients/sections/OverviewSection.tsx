@@ -302,6 +302,7 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
       managementObservedAtUtc={environment.result!.assessedAtUtc}
     />
     <Card title="Environment assessment">
+      <p className="mb-3 text-xs text-warn-300">{device.correlationExplanation ?? 'Name/address candidate comparison. Source identity is not confirmed.'}</p>
       <div className="mb-3"><ClientSemanticStatus {...hygieneAssessmentStatus(device.assessment.status)} /></div>
       {device.assessment.findings.length ? <ul className="space-y-2">{device.assessment.findings.map((finding) => <li key={finding.code} className="rounded border border-slate-800 px-3 py-2 text-sm text-slate-300">
         <span className={finding.severity === 'CRITICAL' ? 'text-fail-300' : 'text-warn-300'}>{finding.code.replaceAll('_', ' ')}</span> — {finding.message}
@@ -337,7 +338,9 @@ function ManagementContext({ host, overview }: { host: string; overview: ClientO
       <Button onClick={() => { void environment.ensureLoaded(); }}>Load management sources</Button>
     </div>
   </Card>;
-  const device = environment.result.devices.find((entry) => clientKey(entry.hostName) === clientKey(host) || clientKey(entry.computerName) === clientKey(host));
+  const matches = environment.result.devices.filter((entry) => clientKey(entry.hostName) === clientKey(host));
+  const device = matches.length === 1 && matches[0].canTargetWindows !== false ? matches[0] : undefined;
+  if (matches.length > 1 || matches[0]?.canTargetWindows === false) return <Card title="Management identity needs review"><p className="text-sm text-warn-300">Several or unresolved source observations use this address. Inspect them separately in the Devices working set.</p><a className="text-sm text-accent-400 underline" href={`#/devices?q=${encodeURIComponent(host)}`}>Inspect source records</a></Card>;
   return device ? <DeviceOverview device={device} overview={overview} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
 }
 

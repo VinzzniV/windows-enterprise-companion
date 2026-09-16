@@ -30,6 +30,7 @@ const environmentResult: ItHygieneResult = {
   summary: { total: 1, adComputers: 1, kasperskyComputers: 1, opsiComputers: 1, nessusComputers: 1, healthy: 0, problems: 1, incomplete: 0, stale: 1, missingKaspersky: 0, orphanKaspersky: 0, missingOpsi: 0, orphanOpsi: 0, outdated: 0, missingNessus: 0, staleNessus: 0, nessusCritical: 0, nessusHigh: 0 },
   devices: [{
     computerName: 'PC-42', hostName: 'PC-42.corp.local',
+    evidenceKey: null, correlation: 'ALIAS_CANDIDATE', correlationExplanation: 'Name candidate only.', canTargetWindows: true,
     activeDirectory: { exists: true, enabled: true, dnsHostName: 'PC-42.corp.local', operatingSystem: 'Windows 11', description: null, distinguishedName: null, organizationalUnit: null, lastLogonDate: '2026-08-20T07:00:00Z' },
     kaspersky: { exists: true, lastSeen: '2026-08-20T07:00:00Z', agentVersion: '16.0', kesVersion: '21.25', administrationGroup: 'Clients' },
     opsi: { exists: true, clientId: 'pc-42.corp.local', description: null, depotId: 'depot-1', lastSeen: '2026-05-01T07:00:00Z', clientAgentVersion: '4.3' },

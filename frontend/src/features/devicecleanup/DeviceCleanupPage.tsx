@@ -157,7 +157,7 @@ export function DeviceCleanupPage() {
 
   const chooseCandidate = (candidate: DeviceCleanupCandidate) => {
     const next = new URLSearchParams(searchParams);
-    next.set('host', candidate.host);
+    next.set('host', candidate.subjectKey);
     setSearchParams(next);
   };
   const closeAssessment = () => {
@@ -177,7 +177,7 @@ export function DeviceCleanupPage() {
     {
       header: 'Device',
       cell: (candidate) => <div className="flex min-w-52 flex-col gap-0.5">
-        <Link className="font-medium text-accent-300 hover:text-accent-200" to={`/clients/${encodeURIComponent(candidate.host)}`}>
+        <Link className="font-medium text-accent-300 hover:text-accent-200" to={candidate.canTargetWindows === false ? `/devices?q=${encodeURIComponent(candidate.host)}` : `/clients/${encodeURIComponent(candidate.host)}`}>
           {candidate.host}
         </Link>
         {candidate.description && <span className="text-xs text-slate-300">{candidate.description}</span>}
@@ -222,7 +222,7 @@ export function DeviceCleanupPage() {
 
   const checkConnectivity = () => {
     const assessment = result?.selectedAssessment;
-    if (!assessment) return;
+    if (!assessment || assessment.candidate.canTargetWindows === false) return;
     const current = ++connectivityRequest.current;
     setConnectivity({ kind: 'loading' });
     void invoke<ProbeHostsResult>('connectivity', 'probeHosts', { hosts: [assessment.candidate.host] })
@@ -230,7 +230,7 @@ export function DeviceCleanupPage() {
         if (connectivityRequest.current !== current) return;
         const probe = response.results.find((item) =>
           item.host.localeCompare(assessment.candidate.host, undefined, { sensitivity: 'accent' }) === 0)
-          ?? response.results[0];
+          ;
         setConnectivity(probe ? { kind: 'loaded', probe } : { kind: 'unavailable' });
       })
       .catch(() => {
@@ -330,6 +330,7 @@ export function DeviceCleanupPage() {
       elapsedSeconds={hygieneOperation.elapsedSeconds}
       onCancel={() => activeLoad.current?.cancel()}
     />}
+    {error && selectedHost && <Button variant="secondary" onClick={closeAssessment}>Choose an individual source row</Button>}
     {error && result === null && <ErrorState
       title="Device cleanup unavailable"
       {...error}
@@ -457,7 +458,7 @@ export function DeviceCleanupPage() {
             <h3 id="cleanup-connectivity-heading" className="font-medium text-slate-100">Current connectivity</h3>
             <p className="mt-1 text-xs text-slate-400">No probe runs when the workspace or device review opens.</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Button variant="secondary" disabled={connectivity?.kind === 'loading'} onClick={checkConnectivity}>
+              <Button variant="secondary" disabled={assessment.candidate.canTargetWindows === false || connectivity?.kind === 'loading'} onClick={checkConnectivity}>
                 {connectivity?.kind === 'loading' ? 'Checking…' : 'Check Ping and WinRM'}
               </Button>
               {connectivityPresentation
@@ -465,6 +466,7 @@ export function DeviceCleanupPage() {
                 : <Badge tone="neutral">Not checked</Badge>}
             </div>
             <p className="mt-3 text-xs text-muted">A missing response is evidence only; it never becomes an automatic cleanup decision.</p>
+            {assessment.candidate.canTargetWindows === false && <p className="mt-2 text-xs text-warn-300">This evidence has no unambiguous Windows target. Connectivity checks, including Excel Ping, are skipped.</p>}
           </section>
         </div>
 

@@ -59,14 +59,22 @@ export function buildClientList(
   securityHosts: readonly StoredSecurityScanHost[] = [],
 ): ClientEntry[] {
   const byKey = new Map<string, ClientEntry>();
-
+  const sourceHostCounts = new Map<string, number>();
   for (const item of environmentDevices) {
+    const host = 'computerName' in item ? item.hostName : item.dnsHostName ?? item.name;
+    const key = clientKey(host);
+    sourceHostCounts.set(key, (sourceHostCounts.get(key) ?? 0) + 1);
+  }
+
+  for (const [index, item] of environmentDevices.entries()) {
     const device = 'computerName' in item ? item : null;
     const legacy = device ? null : item as AdComputer;
     const host = device ? device.hostName : legacy!.dnsHostName ?? legacy!.name;
-    byKey.set(clientKey(host), {
+    const key = (sourceHostCounts.get(clientKey(host)) ?? 0) > 1 || device?.canTargetWindows === false
+      ? device?.evidenceKey ?? `source:${index}:${clientKey(host)}` : clientKey(host);
+    byKey.set(key, {
       host,
-      key: clientKey(host),
+      key,
       name: device ? device.computerName : legacy!.name,
       os: device ? device.activeDirectory.operatingSystem : legacy!.operatingSystem,
       description: device ? device.activeDirectory.description ?? device.opsi.description : legacy!.description,

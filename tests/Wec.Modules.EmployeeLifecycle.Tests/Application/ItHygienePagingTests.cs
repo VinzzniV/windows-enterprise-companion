@@ -144,6 +144,21 @@ public sealed class ItHygienePagingTests
     }
 
     [Fact]
+    public void ClientWorkspaceRetainsAmbiguousSourceRowsAndSeparateExactStoredTarget()
+    {
+        var first = Device("PC", HygieneStatus.Incomplete) with { EvidenceKey = "source-one", CanTargetWindows = false };
+        var second = first with { EvidenceKey = "source-two" };
+        var page = ClientWorkspacePaging.Page(ResultAt(DateTimeOffset.UnixEpoch, first, second),
+            [new(first.HostName, DateTimeOffset.UnixEpoch)], [new("Saved exact target", first.HostName)], new());
+        Assert.Equal(3, page.Total);
+        Assert.Equal(3, page.Items.Select(item => item.Key).Distinct().Count());
+        var stored = Assert.Single(page.Items, item => item.Environment is null);
+        Assert.True(stored.Scanned);
+        Assert.True(stored.Saved);
+        Assert.All(page.Items.Where(item => item.Environment is not null), item => Assert.False(item.Scanned));
+    }
+
+    [Fact]
     public void ClientWorkspaceMergeDeduplicatesAndKeepsScanOnlyAndSavedOnlyClients()
     {
         ItHygieneResult result = ResultAt(DateTimeOffset.UnixEpoch,

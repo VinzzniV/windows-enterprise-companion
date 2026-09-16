@@ -56,6 +56,7 @@ function device(name: string, options: { enabled?: boolean; opsi?: boolean } = {
   return {
     computerName: name,
     hostName: host,
+    evidenceKey: null, correlation: 'ALIAS_CANDIDATE', correlationExplanation: 'Name candidate only.', canTargetWindows: true,
     activeDirectory: { exists: true, enabled: options.enabled ?? true, dnsHostName: host, operatingSystem: 'Windows 11 Pro', description: null, distinguishedName: `CN=${name},DC=corp,DC=local`, organizationalUnit: 'DC=corp,DC=local', lastLogonDate: '2026-08-19T08:30:00Z' },
     kaspersky: { exists: name === 'PC01', lastSeen: name === 'PC01' ? '2026-08-18T07:15:00Z' : null, agentVersion: name === 'PC01' ? '16.0' : null, kesVersion: name === 'PC01' ? '21.25' : null, administrationGroup: name === 'PC01' ? 'Clients' : null },
     opsi: { exists: options.opsi ?? false, clientId: options.opsi ? host : null, description: null, depotId: options.opsi ? 'depot01' : null, lastSeen: options.opsi ? '2026-08-17T06:45:00Z' : null, clientAgentVersion: options.opsi ? '4.3.8' : null },
@@ -190,6 +191,23 @@ describe('ClientsPage', () => {
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Unmanaged').length).toBeGreaterThan(0);
     expect(screen.getByText('1–3 of 3')).toBeTruthy();
+  });
+
+  it('keeps ambiguous source rows visible but excludes them from bulk selection and probes', async () => {
+    const ambiguous = { ...device('PC01'), canTargetWindows: false, correlation: 'AMBIGUOUS' as const, evidenceKey: 'one' };
+    const normal = device('PC02');
+    const original = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) =>
+      action === 'listClientWorkspace' ? Promise.resolve(pageFor(payload, [item(ambiguous, 'PC01'), item(normal, 'PC02')])) : original(module, action, payload));
+    renderPage();
+    await screen.findByText('PC01');
+    expect((screen.getByRole('checkbox', { name: 'Select PC01 for bulk scan' }) as HTMLInputElement).disabled).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Select page' }));
+    expect((screen.getByRole('checkbox', { name: 'Select PC02 for bulk scan' }) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Check page connectivity' }));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('connectivity', 'probeHosts', { hosts: [normal.hostName] }));
+    await userEvent.click(screen.getByText('PC01'));
+    expect(screen.getByTestId('location').textContent).toBe(`/devices?q=${ambiguous.hostName}`);
   });
 
   it('runs a batch only after explicit client selection and shows typed per-host failures', async () => {

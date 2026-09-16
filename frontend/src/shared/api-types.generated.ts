@@ -1402,6 +1402,7 @@ export interface DeviceCleanupCandidate {
   inventoryExists: boolean;
   inventoryCapturedAtUtc: string | null;
   relevantFindingCount: number;
+  canTargetWindows: boolean;
 }
 
 export type DeviceCleanupClassification = 'POTENTIAL_CLEANUP' | 'REVIEW' | 'INSUFFICIENT_EVIDENCE' | 'NO_CLEANUP_SIGNAL';
@@ -1705,6 +1706,10 @@ export interface HygieneDevice {
   opsi: OpsiDeviceData;
   nessus: NessusDeviceData;
   assessment: HygieneAssessment;
+  evidenceKey: string | null;
+  correlation: IdentityEvidence;
+  correlationExplanation: string;
+  canTargetWindows: boolean;
 }
 
 export interface HygieneDevicePage {

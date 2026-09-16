@@ -4,6 +4,7 @@ import { toDeviceCleanupMarkdown } from './deviceCleanupExport';
 
 const assessment: DeviceCleanupAssessment = {
   candidate: {
+    canTargetWindows: true,
     subjectKey: 'PC-OLD',
     host: 'pc-old.corp.example',
     description: 'Accounting workstation',
