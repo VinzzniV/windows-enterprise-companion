@@ -382,12 +382,19 @@ public sealed class Microsoft365ServiceTests
         Assert.True((await service.ReadAsync(Users, false, TestContext())).IsFailure);
     }
 
-    [Fact]
-    public async Task TenantSwitchDiscardsLateFailureFromPreviousSession()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TenantSwitchDiscardsLateResultFromPreviousSession(bool success)
     {
         using var service = Create();
         var completion = new TaskCompletionSource<Result<Microsoft365Data>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _reader.ReadAsync(Users, Arg.Any<CancellationToken>()).Returns(completion.Task);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _reader.ReadAsync(Users, Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            using var registration = call.Arg<CancellationToken>().Register(() => cancelled.TrySetResult());
+            return await completion.Task;
+        });
         var reading = service.ReadAsync(Users, true, TestContext());
         var newConfiguration = new Microsoft365Configuration("33333333-3333-3333-3333-333333333333", "22222222-2222-2222-2222-222222222222");
         _reader.ConnectAsync(newConfiguration, Arg.Any<CancellationToken>()).Returns(call =>
@@ -400,7 +407,10 @@ public sealed class Microsoft365ServiceTests
         var changing = await service.StatusAsync(TestContext());
         Assert.False(changing.Connection.Connected);
         Assert.Empty(changing.Queries);
-        completion.SetResult(Result.Failure<Microsoft365Data>(new(ErrorCode.Microsoft365AccessDenied, "Old session failure")));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext());
+        completion.SetResult(success ? Result.Success(new Microsoft365Data
+            { Users = [new("44444444-4444-4444-4444-444444444444", "Old account", null, null, null, null, null, null, null, null, null, null, null)] })
+            : Result.Failure<Microsoft365Data>(new(ErrorCode.Microsoft365AccessDenied, "Old session failure")));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading);
         await connecting;
         var connected = await service.StatusAsync(TestContext());

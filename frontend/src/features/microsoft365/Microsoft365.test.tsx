@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,8 +41,9 @@ describe('Microsoft 365 UI', () => {
     const actor = userEvent.setup();
     render(<MemoryRouter><Microsoft365Page /></MemoryRouter>);
     await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
-    await actor.type(screen.getByLabelText('Tenant ID'), '11111111-1111-1111-1111-111111111111');
-    await actor.type(screen.getByLabelText('Client ID'), '22222222-2222-2222-2222-222222222222');
+    fireEvent.change(screen.getByLabelText('Tenant ID'), { target: { value: '11111111-1111-1111-1111-111111111111' } });
+    fireEvent.change(screen.getByLabelText('Client ID'), { target: { value: '22222222-2222-2222-2222-222222222222' } });
+    expect(requestMock).toHaveBeenCalledTimes(1);
     await actor.click(screen.getByLabelText('Include Intune read access'));
     await actor.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(requestMock).toHaveBeenCalledWith('microsoft365', 'connect', {
@@ -91,13 +92,12 @@ describe('Microsoft 365 UI', () => {
   });
 
   it('paginates and filters the whole loaded collection', async () => {
-    const actor = userEvent.setup();
     renderView(snapshot({ users: Array.from({ length: 60 }, (_, index) => ({ ...user, id: String(index), displayName: `User ${String(index).padStart(2, '0')}` })) }));
     expect(screen.getByText('Page 1 of 2')).toBeTruthy();
     expect(screen.queryByText('User 59')).toBeNull();
-    await actor.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(screen.getByText('Next', { selector: 'button' }));
     expect(screen.getByText('User 59')).toBeTruthy();
-    await actor.type(screen.getByLabelText('Search loaded data'), 'User 01');
+    fireEvent.change(screen.getByLabelText('Search loaded data'), { target: { value: 'User 01' } });
     expect(screen.getByText('User 01')).toBeTruthy();
     expect(screen.getByText('Page 1 of 1')).toBeTruthy();
   });

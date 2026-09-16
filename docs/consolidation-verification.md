@@ -43,7 +43,7 @@ No export schema is expanded with cloud evidence, and no write action is added.
 
 - Release build on 2026-09-16: no warnings or errors; 494 generated contract
   types. The additive request fields preserve existing caller defaults.
-- Full backend regression after closure fixes: 1,024 tests pass.
+- Full backend regression after closure fixes: 1,025 tests pass.
 - Full frontend regression: 559 tests in 97 files pass with two workers. The
   first unbounded run hit five load-related timeouts and a group test that
   asserted before the restored cached page rendered. The assertion now waits
@@ -55,6 +55,16 @@ No export schema is expanded with cloud evidence, and no write action is added.
   repeated whole-table accessible-name computation. All original data/page/save
   assertions remain, with extra assertions that editing an AD query performs no
   source read before submission. The timeout thresholds remain unchanged.
+- The next CI run exposed the same unnecessary per-character work in Microsoft
+  365 sign-in and Patch client filtering. Those query-contract tests now submit
+  one field change while keeping explicit-action and exact-payload assertions.
+  A timed-out GUID typing operation had also continued into the following test;
+  removing it eliminates that cross-test input contamination.
+- The tenant-switch regression now waits for cancellation to reach the mocked
+  reader before delivering its late result. Asynchronous cancellation and the
+  generation guard already discard old-session responses; the former test
+  incorrectly required cancellation to beat the generation guard. Both late
+  success and late failure are now covered without relying on callback timing.
 - A locked `npm ci`, production build and High-severity NPM audit pass. Two
   pre-existing Moderate findings affect Vitest/@vitest/mocker development tools
   (GHSA-82fw-gwwq-j7x9); the proposed fix is a separate major test-tool upgrade.
