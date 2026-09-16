@@ -1,13 +1,22 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `IMPLEMENTED_AND_LOCALLY_VERIFIED`
+Status: `LIVE_ACCEPTANCE_FINDINGS_OPEN`
 
 Current phase: Object-centered consolidation (ADR 0022), phases 0–7 and 9.
 Phase 8 Windows identity collection remains excluded.
 
-Current slice: Verified GitHub milestone and Draft PR. Implementation, G2
-preservation review and local regression are complete. CI/packaging results
-belong to the associated Draft PR; no release or tag is authorized.
+Current slice: Live acceptance completed with an unresolved AD sorting defect
+(F-01). The implementation milestone, G2 review, automated regression and
+CI/packaging evidence belong to build `17f53ef`; they do not establish live
+acceptance. No release or tag is authorized.
+Follow-up on 2026-09-16: bounded checks ran against the single user-designated
+workstation under D-003, existing configured sources and the available
+Microsoft 365 tenant. The user entered the admin credential directly in WEC.
+Remote Inventory/Health/Event Log/connectivity, cloud identity/relationship/
+license journeys, narrow-window navigation and sign-out/cache clearing passed.
+AD direct-member reads failed because the DC rejected the two-key server-sort
+control. Full Nessus coverage and a real cross-tenant switch remain unverified.
+Evidence and required correction: `docs/consolidation-live-acceptance.md`.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Binding scope: `docs/consolidation-analysis-and-plan.md`; preservation and
 verification details: `docs/consolidation-verification.md`.
@@ -37,12 +46,14 @@ verification details: `docs/consolidation-verification.md`.
 - An isolated local Release host initialized WebView2 and the migrated database.
   Normal-width navigation, empty Devices state, filters and keyboard search
   were inspected. No WEC-owned TCP listener or Error/Fatal log entry appeared.
-  The user stopped Computer Use with physical Escape before the narrow-window
-  check completed. No further desktop input was issued.
+  The original desktop check ended on the user's physical Escape. The later
+  explicitly authorized live follow-up passed the narrow-window journeys.
 - The existing Dashboard performed its bounded read-only opsi status/product
   reads using the configured connection. This is not full opsi acceptance.
-  Company AD/KSC/Nessus, Graph/Intune tenant and designated remote-client
-  acceptance remain unperformed. No remote write or release was performed.
+  The later live follow-up exercised AD/KSC/opsi/Nessus, Graph/Intune and the
+  designated remote client. AD identity succeeded but direct members failed
+  (F-01); Nessus coverage remained Partial. See the live acceptance report for
+  per-journey evidence and limits. No remote write or release was performed.
 
 ## Previous program history
 

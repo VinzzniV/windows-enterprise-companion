@@ -82,14 +82,21 @@ No export schema is expanded with cloud evidence, and no write action is added.
 
 ## Desktop evidence and acceptance journeys
 
+The first desktop smoke below is historical evidence from the implementation
+milestone. The explicitly authorized follow-up is recorded in
+[the live acceptance report](consolidation-live-acceptance.md). It passed the
+narrow-window and designated-client journeys but found the unresolved AD
+server-sort defect F-01; automated green results are not full live acceptance.
+
 The Release executable ran with an isolated database/log/WebView profile.
 WebView2 and real migrations initialized successfully; no WEC-owned TCP listener
 or Error/Fatal log entry was observed. At a 1280×800 client size the four sidebar
 groups, empty Devices workspace, independent filters and contextual tools were
 usable. Ctrl+K, Tab/Shift+Tab, typing and arrow selection worked in global search.
 The user stopped Computer Use with physical Escape before narrow-window testing
-completed. Narrow-window desktop acceptance is therefore **unverified**, despite
-automated responsive-navigation coverage. No further UI input was issued.
+completed. Narrow-window desktop acceptance was unverified at that point.
+No further UI input was issued until the user authorized the later live tests.
+The follow-up passed narrow-window navigation, search and profile checks.
 
 The existing Dashboard used its configured bounded read-only opsi connection
 and returned status/product data. This is limited source evidence, not complete
@@ -116,7 +123,10 @@ Lists cannot prove company-wide absence. Legacy wrappers and frozen tables remai
 to preserve specialist behavior and bookmarks. The Moderate test-tool advisories,
 existing EF Dashboard query warning and unsigned packaging remain separate debt.
 
-Live company AD/KSC/opsi/Nessus, Graph/Intune tenant
-acceptance and a designated remote client have not been tested in this run.
-They remain explicit release-acceptance gates under D-003/D-008, not claimed
-passes. No tag, installer publication or GitHub Release is authorized.
+The later [live acceptance follow-up](consolidation-live-acceptance.md) covers
+bounded company-source, Graph/Intune and designated remote-client checks.
+F-01 (AD group/member server sorting) remains an acceptance blocker and needs
+a correction, regression and live retest. Nessus returned Partial coverage;
+full source coverage and a real switch between two tenants remain unverified.
+These limits remain explicit release-acceptance gates under D-003/D-008.
+No tag, installer publication or GitHub Release is authorized.

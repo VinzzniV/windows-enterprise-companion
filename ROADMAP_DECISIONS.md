@@ -80,6 +80,13 @@ Until a concrete remote test client is explicitly designated:
 
 No write endpoint or mutation is authorized by this decision.
 
+Live acceptance scope confirmed on 2026-09-16: the user designated one
+workstation in the current acceptance task and entered the admin credential
+directly in WEC. That single target is authorized for bounded
+read-only Inventory, Health, Event Log, Ping and WinRM smoke tests. Its hostname
+is retained in the task context, not this committed register, consistent with
+D-008. No other remote workstation or remote mutation is authorized.
+
 ## D-004 — GitHub Actions artifacts may be cleaned up
 
 Decision: confirmed recommendation.
