@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { DeviceProfileResult, Microsoft365ReadState, ObjectReference, ObjectRelationship } from '../../shared/api-types.generated';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
 import { SourceReadState, sourceRetained } from '../../shared/objects/SourceReadState';
@@ -59,8 +59,14 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
   const environment = useEnvironment();
   const location = useLocation();
   const profile = view.data;
+  const [parameters] = useSearchParams();
+  const legacySection = parameters.get('section');
   const directory = profile?.directory;
   const cloud = profile?.cloud;
+  if (profile?.operationalHost && legacySection && ['inventory', 'security', 'diagnostics', 'events', 'printers', 'reporting'].includes(legacySection)) {
+    return <Navigate replace to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=${legacySection}&target=exact`}
+      state={{ returnObject: objectPath(reference) }} />;
+  }
   return <div className="flex flex-col gap-4">
     <PageHeader title={profile?.title ?? reference.id} subtitle={`${objectSourceLabel[reference.source]} · ${reference.scope}`}>
       <Link className="text-sm text-accent-400 underline" to="/devices">Devices</Link>
@@ -76,9 +82,9 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
         {profile.sourceErrors.map((error, index) => <p key={index} role="alert" className="mt-2 text-fail-400">{error.message}</p>)}
       </Card>
       {profile.operationalHost && <Card title="Windows tools for this exact target">
-        <div className="flex flex-wrap gap-3">{[['inventory', 'Inventory'], ['security', 'Security'], ['diagnostics', 'Health'], ['events', 'Event logs'], ['printers', 'Printers'], ['reporting', 'Report export']].map(([section, label]) =>
+        <div className="flex flex-wrap gap-3">{[['overview', 'Windows overview, saved target and PowerShell'], ['inventory', 'Inventory'], ['security', 'Security'], ['diagnostics', 'Health'], ['events', 'Event logs'], ['printers', 'Printers'], ['reporting', 'Report export']].map(([section, label]) =>
           <Link key={section} state={{ returnObject: location.pathname }} className="text-sm text-accent-400 underline"
-            to={`/clients/${encodeURIComponent(profile.operationalHost!)}?section=${section}`}>{label}</Link>)}</div>
+            to={`/clients/${encodeURIComponent(profile.operationalHost!)}?section=${section}&target=exact`}>{label}</Link>)}</div>
         <Link className="text-sm text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(profile.operationalHost)}`}>Device Cleanup</Link>
       </Card>}
       {!profile.operationalHost && <p className="text-sm text-muted">Windows scans and exports are not applicable until an exact Windows target is selected. Candidate links open separate source records.</p>}

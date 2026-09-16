@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { Microsoft365Configuration, Microsoft365Connection, Microsoft365Resource, Microsoft365Snapshot, Microsoft365Status } from '../../shared/api-types.generated';
 import { Button } from '../../shared/ui/Button';
 import { Badge } from '../../shared/ui/Badge';
@@ -12,6 +12,7 @@ import { Microsoft365DataView } from './Microsoft365DataView';
 import { Microsoft365ContextPanel } from './Microsoft365ContextPanel';
 import { useMicrosoft365Action } from './useMicrosoft365Action';
 import { useOptionalWorkingSet } from '../../shared/objects/WorkingSetContext';
+import { cloudObjectDestination } from './cloudObjectDestination';
 
 export const resourceLabels: Record<Microsoft365Resource, string> = {
   TENANT: 'Overview', USERS: 'Users', USER: 'User details', GROUPS: 'Groups', GROUP: 'Group details',
@@ -29,7 +30,7 @@ function QueryPanel({ resource, objectId, securityIdentifier, onRead }: { resour
   useEffect(() => { void run('read', { resource, objectId, securityIdentifier }); }, [run, resource, objectId, securityIdentifier]);
   useEffect(() => { if (query.data || query.error) onRead(); }, [query.data, query.error, onRead]);
   const parent: Microsoft365Resource | null = resource.startsWith('USER_') ? 'USER' : resource === 'GROUP_MEMBERS' ? 'GROUP' : resource === 'DEVICE_OWNERS' ? 'DEVICE' : null;
-  const device = query.data?.data?.devices[0];
+  const device = query.data?.data?.devices.length === 1 ? query.data.data.devices[0] : null;
   return <Card title={resourceLabels[resource]}>
     <div className="mb-3 flex flex-wrap items-center gap-3">
       {parent && objectId && <Link className="text-sm text-accent-400 underline" to={cloudPath(parent, objectId)}>Back to {parent.toLowerCase()}</Link>}
@@ -45,7 +46,8 @@ function QueryPanel({ resource, objectId, securityIdentifier, onRead }: { resour
 export function Microsoft365Page() {
   const workspace = useOptionalWorkingSet();
   const refreshCached = workspace?.refreshCached;
-  const [parameters, setParameters] = useSearchParams();
+  const [parameters] = useSearchParams();
+  const location = useLocation();
   const requested = parameters.get('resource') ?? 'TENANT';
   const resource: Microsoft365Resource = Object.hasOwn(resourceLabels, requested) ? requested as Microsoft365Resource : 'TENANT';
   const objectId = parameters.get('objectId');
@@ -85,6 +87,11 @@ export function Microsoft365Page() {
     }
   };
 
+  const destination = cloudObjectDestination(resource, objectId, connection?.configuration.tenantId);
+  if (location.pathname === '/microsoft365' && destination && (!objectId || connection?.connected)) {
+    return <Navigate replace to={destination} />;
+  }
+
   return <div className="flex flex-col gap-4">
     <PageHeader title="Microsoft 365" subtitle="Microsoft Graph · read-only administrative evidence">
       <Badge tone={connection?.connected ? 'accent' : 'neutral'}>{connection?.connected ? 'Signed in' : 'Not connected'}</Badge>
@@ -121,8 +128,8 @@ export function Microsoft365Page() {
       </details>
     </Card>
     <nav aria-label="Microsoft 365 sections" className="flex flex-wrap gap-2">
-      {topResources.map(item => <Button key={item} variant={resource === item ? 'primary' : 'ghost'}
-        aria-current={resource === item ? 'page' : undefined} onClick={() => setParameters({ resource: item })}>{resourceLabels[item]}</Button>)}
+      {topResources.map(item => <Link key={item} className="text-sm text-accent-400 underline"
+        aria-current={resource === item ? 'page' : undefined} to={cloudObjectDestination(item, null, connection?.configuration.tenantId) ?? cloudPath(item)}>{resourceLabels[item]}</Link>)}
     </nav>
     {resource === 'TENANT' && connection?.connected && <Card title="Source status">
       <Button disabled={status.busy} onClick={() => void readStatus('getStatus')}>Update displayed cache status</Button>

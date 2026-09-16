@@ -4,16 +4,23 @@ Status: `IN_PROGRESS`
 
 Current phase: Object-centered consolidation (ADR 0022)
 
-Current slice: Phase 6 bounded working-set index and unified lists/search.
-Source-only management records and their exact snapshot destinations are integrated.
-Targeted AD computer discovery is available. Legacy hygiene and Cleanup now
-preserve ambiguous observations and prevent automatic target selection. Remaining
-session/route compatibility and G2 parity precede the navigation milestone.
+Current slice: Phase 7 navigation switch after automated G2 preservation checks.
+New Data sources and Software & licenses entries reuse the existing workflows.
+Legacy client/user/cloud routes preserve scoped identities and sections; source
+connection and cached read boundaries are checked. The sidebar switch and final
+verification remain pending. See `docs/consolidation-verification.md`.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
 
 ## Current consolidation verification (2026-09-16)
+
+- Pre-navigation regression passes: 1,022 backend tests and 555 frontend tests
+  in 97 files, Release build without warnings/errors, 494 generated types and
+  production assets. Frontend concurrency is bounded to two workers after
+  observed load-related timeouts. No assertion or timeout threshold was relaxed.
+  New cache-only Graph reads and opsi status reads do not fetch source data or
+  connect stored credentials; explicit actions retain existing boundaries.
 
 - Resume verification: the worktree retained the prior changes. Opsi session
   invalidation now covers legacy assessments and late responses (98 module and

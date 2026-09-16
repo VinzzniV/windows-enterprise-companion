@@ -110,7 +110,7 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
     }
 
     internal async Task<Result<Microsoft365Snapshot>> ReadAsync(Microsoft365Query query, bool refresh, CancellationToken cancellationToken,
-        string? expectedTenantId = null)
+        string? expectedTenantId = null, bool cacheOnly = false)
     {
         Result<Microsoft365Query> normalized = Microsoft365QueryValidation.Normalize(query);
         if (normalized.IsFailure) { return Result.Failure<Microsoft365Snapshot>(normalized.Error!); }
@@ -120,13 +120,20 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
         long requestedRevision;
         lock (_gate)
         {
-            if (_sessionChanging || !_sessionReady) { return SessionChanged<Microsoft365Snapshot>(); }
             if (expectedTenantId is not null && (!ValidId(expectedTenantId) || !ValidId(Connection.Configuration.TenantId)
                 || Guid.Parse(expectedTenantId) != Guid.Parse(Connection.Configuration.TenantId)))
             {
                 return SessionChanged<Microsoft365Snapshot>();
             }
             Expire();
+            if (cacheOnly)
+            {
+                Microsoft365Snapshot? snapshot = _sessionChanging || !_sessionReady ? null : _cache.GetValueOrDefault(query)?.Snapshot;
+                return Result.Success(snapshot is null
+                    ? new Microsoft365Snapshot(query, null, null, false, null, []) { State = State(query) }
+                    : snapshot with { Stale = IsStale(snapshot), State = State(query) });
+            }
+            if (_sessionChanging || !_sessionReady) { return SessionChanged<Microsoft365Snapshot>(); }
             generation = _generation;
             requestedRevision = _revision;
             if (!refresh && _cache.GetValueOrDefault(query)?.Snapshot is not null) { return CachedResult(query); }

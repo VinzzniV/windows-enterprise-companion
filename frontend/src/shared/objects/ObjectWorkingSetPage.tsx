@@ -28,11 +28,13 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
   const accountState = ['enabled', 'disabled', 'unknown'].find(value => value === parameters.get('account')) as 'enabled' | 'disabled' | 'unknown' | undefined;
   const operatingSystem = parameters.get('os') ?? '';
   const skuId = parameters.get('sku') ?? '';
+  const requestedTenant = parameters.get('tenant');
+  const tenantMismatch = Boolean(requestedTenant && requestedTenant.toLowerCase() !== workspace.policy?.tenantId?.toLowerCase());
   const descending = parameters.get('sort') === 'desc';
   const pageSize = [25, 50, 100].find(value => value === Number(parameters.get('size'))) ?? 25;
-  const result = useMemo(() => workspace.displayed ? queryWorkingSet(workspace.displayed, { kind, query, source, accountState,
+  const result = useMemo(() => workspace.displayed && !tenantMismatch ? queryWorkingSet(workspace.displayed, { kind, query, source, accountState,
     operatingSystem, skuId, descending, page: Number(parameters.get('page')) || 1, pageSize }) : null,
-  [workspace.displayed, kind, query, source, accountState, operatingSystem, skuId, descending, parameters, pageSize]);
+  [workspace.displayed, tenantMismatch, kind, query, source, accountState, operatingSystem, skuId, descending, parameters, pageSize]);
   const change = (name: string, value: string) => setParameters(previous => {
     const next = new URLSearchParams(previous); if (value) next.set(name, value); else next.delete(name);
     if (name !== 'page') next.delete('page'); return next;
@@ -90,6 +92,7 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
       {kind === 'USER' && <Link to="/users">AD query workspace</Link>}
     </nav>
     <WorkingSetCoverage /><WorkingSetSourceControls kind={kind} />
+    {tenantMismatch && <p role="alert" className="text-warn-400">This link belongs to tenant {requestedTenant}. Select that tenant in Data sources before reviewing its loaded assignments.</p>}
     <div className="flex flex-wrap items-end gap-3">
       <label className="text-xs text-muted">Search loaded {titles[kind].toLowerCase()}<Input value={query} onChange={event => change('q', event.target.value)} /></label>
       <label className="text-xs text-muted">Source<Select value={source ?? ''} onChange={event => change('source', event.target.value)}><option value="">All loaded sources</option>

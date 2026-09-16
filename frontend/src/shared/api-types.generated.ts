@@ -2255,6 +2255,7 @@ export interface Microsoft365ReadRequest {
   refresh?: boolean;
   tenantId?: string | null;
   securityIdentifier?: string | null;
+  cacheOnly?: boolean;
 }
 
 export type DeviceKind = 'UNKNOWN' | 'PRINTER' | 'COMPUTER' | 'NETWORK_DEVICE';
@@ -2500,6 +2501,7 @@ export interface OpsiConnectRequest {
 }
 
 export interface OpsiConnectionStatusRequest {
+  connectStoredCredential?: boolean;
 }
 
 export interface OpsiConnectionStatusResult {

@@ -1,5 +1,12 @@
 # Wec.Modules.Microsoft365
 
+`read` supports `cacheOnly`, which never enters source I/O even when `refresh`
+is also supplied. It returns independent query state for missing/expired data.
+Software & licenses uses this for opening the tenant catalogue. Explicit refresh
+retains the existing Graph boundary; reverse SKU navigation filters only loaded
+assignments in the specified tenant. Resource aliases now preserve native IDs
+and focused sections when opening canonical account/device/group profiles.
+
 User contexts retain conflicting userId observations for the same Intune
 enrollment, including the original query and retrieval state. Device profiles
 require complete unique Entra registration evidence in both directions;

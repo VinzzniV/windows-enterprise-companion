@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { CachedMicrosoft365Licenses, Microsoft365ReadState, ObjectReference, ScopedUserProfile } from '../../shared/api-types.generated';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
 import { ObjectRelationships } from '../../shared/objects/ObjectRelationships';
@@ -60,6 +60,8 @@ function Licenses({ read, title, view }: { read: CachedMicrosoft365Licenses; tit
 }
 
 function UserProfileContent({ reference }: { reference: ObjectReference }) {
+  const location = useLocation();
+  const directoryEndpoint = (location.state as { directoryEndpoint?: unknown } | null)?.directoryEndpoint;
   const [scopeInput, setScopeInput] = useState('');
   const [directoryScope, setDirectoryScope] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState('');
@@ -113,7 +115,7 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
           <p className="mb-3 text-xs text-muted">{ad.access.privilegedCoverageExplanation} Privileged allowlist coverage: {ad.access.privilegedCoverage}. Nested and primary-group membership are not included in memberOf.</p>
           <Input type="search" aria-label="Filter AD direct groups" value={groupFilter} onChange={event => setGroupFilter(event.target.value)} />
           <ul className="mt-3 max-h-96 space-y-2 overflow-y-auto">{filteredGroups.map((group, index) => <li key={index} className="text-sm">
-            {directory?.data?.directoryScope ? <Link className="text-accent-400 underline" to={`/groups/resolve?scope=${encodeURIComponent(directory.data.directoryScope)}&dn=${encodeURIComponent(group.distinguishedName)}`}>{group.name}</Link> : group.name}
+            {directory?.data?.directoryScope ? <Link className="text-accent-400 underline" state={{ directoryEndpoint }} to={`/groups/resolve?scope=${encodeURIComponent(directory.data.directoryScope)}&dn=${encodeURIComponent(group.distinguishedName)}`}>{group.name}</Link> : group.name}
             {ad.access.directPrivilegedGroups.some(privileged => privileged.distinguishedName === group.distinguishedName) && <span className="ml-2 text-warn-400">Privileged allowlist</span>}
             <p className="break-all text-xs text-muted">{group.distinguishedName}</p></li>)}</ul>
           {filteredGroups.length === 0 && <p className="mt-3 text-sm text-muted">No direct group matches the current filter in this source evidence.</p>}

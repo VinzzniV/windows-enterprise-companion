@@ -16,7 +16,7 @@ export function useGroupDirectoryConnection() {
   return useMemo(() => toUserDirectoryConnection(endpoint, adminCredentials), [endpoint, adminCredentials]);
 }
 
-export function useGroupProfile(reference: ObjectReference) {
+export function useGroupProfile(reference: ObjectReference, initialMemberPage = 1) {
   const directoryConnection = useGroupDirectoryConnection();
   const connection = reference.source === 'ACTIVE_DIRECTORY' ? directoryConnection : null;
   const sessions = useWorkingSetSessions();
@@ -24,7 +24,7 @@ export function useGroupProfile(reference: ObjectReference) {
   const refreshCached = useOptionalWorkingSet()?.refreshCached;
   const generation = useRef(0);
   const active = useRef<CancellableBridgeInvocation<unknown> | null>(null);
-  const memberPage = useRef(1);
+  const memberPage = useRef(initialMemberPage);
   const [state, setState] = useState<{ sessionKey: string; reference: ObjectReference; connection: typeof connection; data: GroupProfileResult | null; busy: boolean; error: string | null } | null>(null);
   const [now, setNow] = useState(Date.now);
   const current = state?.reference === reference && state.connection === connection && state.sessionKey === sessionKey ? state : null;
@@ -39,18 +39,21 @@ export function useGroupProfile(reference: ObjectReference) {
         const request = invokeCancellable('microsoft365', 'read', { ...source, refresh: true }); active.current = request; await request.promise;
       } catch (caught) { error = presentError(caught).message; }
     }
-    if (own !== generation.current) return;
+    if (own !== generation.current) return false;
     try {
       const request = invokeCancellable<GroupProfileResult>('groups', 'getProfile', { reference, connection,
         read: typeof source === 'string' ? source : 'CACHED', memberPage: memberPage.current });
       active.current = request;
       const data = await request.promise;
-      if (own === generation.current) setState({ reference, connection, sessionKey, data, busy: false, error });
+      if (own !== generation.current) return false;
+      setState({ reference, connection, sessionKey, data, busy: false, error });
+      return true;
     } catch (caught) {
       if (own === generation.current) setState({ reference, connection, sessionKey, data: null, busy: false, error: presentError(caught).message });
+      return false;
     } finally { if (own === generation.current) { active.current = null; if (source) void refreshCached?.(); } }
   }, [reference, connection, sessionKey, refreshCached]);
-  useEffect(() => { memberPage.current = 1; void load(); return () => { generation.current++; active.current?.cancel(); }; }, [load]);
+  useEffect(() => { memberPage.current = initialMemberPage; void load(); return () => { generation.current++; active.current?.cancel(); }; }, [load, initialMemberPage]);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {
     const data = current?.data;

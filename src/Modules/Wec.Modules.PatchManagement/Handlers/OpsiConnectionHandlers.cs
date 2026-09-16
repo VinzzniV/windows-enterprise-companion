@@ -148,7 +148,7 @@ internal sealed class DisconnectOpsiHandler : IActionHandler<OpsiDisconnectReque
     }
 }
 
-public sealed record OpsiConnectionStatusRequest;
+public sealed record OpsiConnectionStatusRequest(bool ConnectStoredCredential = true);
 
 internal sealed class GetOpsiConnectionStatusHandler
     : IActionHandler<OpsiConnectionStatusRequest, OpsiConnectionStatusResult>
@@ -174,6 +174,8 @@ internal sealed class GetOpsiConnectionStatusHandler
     public async Task<Result<OpsiConnectionStatusResult>> HandleAsync(
         OpsiConnectionStatusRequest payload, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!payload.ConnectStoredCredential) { return Result.Success(ConnectOpsiHandler.StatusOf(_sessionState, _options)); }
         Result<OpsiSession?> connected = await _connector.EnsureConnectedAsync(cancellationToken);
         return connected.IsFailure
             ? Result.Success(ConnectOpsiHandler.StatusOf(_sessionState, _options) with

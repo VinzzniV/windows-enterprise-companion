@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { GroupProfileResult, Microsoft365ReadState } from '../../shared/api-types.generated';
 import { objectPath } from '../../shared/objects/objectRoutes';
@@ -28,7 +28,7 @@ function profile(): GroupProfileResult {
         { id: other, displayName: null, objectType: 'user', userPrincipalName: null }, { id: null, displayName: null, objectType: null, userPrincipalName: null },
       ] } } };
 }
-function Navigation() { const navigate = useNavigate(); return <button onClick={() => navigate(`/groups/entra/${tenant}/${other}`)}>Other group</button>; }
+function Navigation() { const navigate = useNavigate(); const location = useLocation(); return <><button onClick={() => navigate(`/groups/entra/${tenant}/${other}`)}>Other group</button><button onClick={() => navigate(-1)}>Back</button><output data-testid="route">{location.search}</output></>; }
 function page(value = profile(), initial?: string) {
   render(<MemoryRouter initialEntries={[initial ?? objectPath(value.reference)]}><Navigation /><Routes>
     <Route path="/groups/:source/:scope/:objectId" element={<GroupProfilePage />} />
@@ -66,9 +66,12 @@ it('loads the requested AD member page explicitly and labels its source count', 
   mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
   page(value);
   fireEvent.click(await screen.findByRole('button', { name: 'Next member page' }));
-  await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.getByTestId('route').textContent).toBe('?page=2'));
   expect(mocks.invoke.mock.calls[1][2]).toEqual(expect.objectContaining({ read: 'DIRECTORY_MEMBERS', memberPage: 2 }));
-  expect(screen.getByText(/60 visible source matches/)).toBeTruthy();
+  expect(await screen.findByText(/60 visible source matches/)).toBeTruthy();
+  await waitFor(() => expect(mocks.invoke).toHaveBeenLastCalledWith('groups', 'getProfile', expect.objectContaining({ read: 'CACHED', memberPage: 2 })));
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  await waitFor(() => expect(mocks.invoke).toHaveBeenLastCalledWith('groups', 'getProfile', expect.objectContaining({ read: 'CACHED', memberPage: 1 })));
 });
 
 it('ignores an old group response after navigation', async () => {

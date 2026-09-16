@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { Microsoft365Snapshot, Microsoft365Resource, Microsoft365ServicePlan } from '../../shared/api-types.generated';
 import { DataTable, type DataColumn } from '../../shared/ui/DataTable';
 import { Input } from '../../shared/ui/Input';
 import { Badge } from '../../shared/ui/Badge';
 import { Select } from '../../shared/ui/Select';
-import { available, timestamp, CloudFields, CloudLink, CloudUserFields, CloudDeviceFields, CloudManagedFields } from './Microsoft365Fields';
+import { sourceRetained } from '../../shared/objects/SourceReadState';
+import { available, timestamp, CloudFields, CloudLink, CloudUserFields, CloudDeviceFields, CloudManagedFields, CloudTenantScope } from './Microsoft365Fields';
 
 export function CloudTable<T>({ rows, columns, searchText }: { rows: readonly T[]; columns: DataColumn<T>[]; searchText(row: T): string }) {
   const [search, setSearch] = useState('');
@@ -41,6 +43,14 @@ function Plans({ plans }: { plans: Microsoft365ServicePlan[] | null }) {
 }
 
 export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snapshot }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const expires = snapshot.state?.retainedUntilUtc ? Date.parse(snapshot.state.retainedUntilUtc) : NaN;
+    if (!Number.isFinite(expires)) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.min(2_147_483_647, Math.max(0, expires - Date.now()) + 1));
+    return () => window.clearTimeout(timer);
+  }, [snapshot]);
+  if (snapshot.state && !sourceRetained(snapshot.state, now)) return <p className="text-sm text-muted">No retained source data. Load this source explicitly in the current session.</p>;
   const data = snapshot.data;
   const resource = snapshot.query.resource;
   if (!data) return <p>No source data is available.</p>;
@@ -57,7 +67,7 @@ export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snaps
       ['Registered method categories', data.activity?.methodsRegistered?.join(', ')],
     ]} /><p className="mt-3 text-xs text-muted">Reports can lag and require tenant roles and licensing. Registration is not MFA enforcement. Missing timestamps do not mean the account never signed in. Registration reports are unavailable for disabled users.</p></>;
   } else if (resource === 'USERS' || resource === 'USER' || resource === 'USERS_BY_SID') {
-    content = resource === 'USER' && data.users[0] ? <>
+    content = resource === 'USER' && data.users.length === 1 ? <>
       <CloudUserFields user={data.users[0]} />
       <div className="my-3 flex flex-wrap gap-4">{([
         ['USER_LICENSES', 'Licenses and service plans'], ['USER_GROUPS', 'Direct groups'], ['USER_DEVICES', 'Registered devices'],
@@ -80,7 +90,7 @@ export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snaps
       ]} />;
   } else if (resource === 'GROUPS' || resource === 'GROUP' || resource === 'USER_GROUPS') {
     content = <>
-      {resource === 'GROUP' && data.groups[0] ? <><CloudFields fields={[
+      {resource === 'GROUP' && data.groups.length === 1 ? <><CloudFields fields={[
         ['Name', data.groups[0].displayName], ['Object ID', data.groups[0].id],
         ['Security enabled', data.groups[0].securityEnabled], ['Mail enabled', data.groups[0].mailEnabled],
         ['Group types', data.groups[0].groupTypes?.join(', ') || (data.groups[0].groupTypes ? 'Assigned membership' : null)],
@@ -98,7 +108,7 @@ export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snaps
       <p className="mt-3 text-xs text-muted">Direct memberships only. Hidden memberships require additional permissions and are outside this read profile. Exchange dynamic distribution groups are not returned by Graph.</p>
     </>;
   } else if (resource === 'DEVICES' || resource === 'DEVICE' || resource === 'USER_DEVICES') {
-    content = resource === 'DEVICE' && data.devices[0] ? <><CloudDeviceFields device={data.devices[0]} />
+    content = resource === 'DEVICE' && data.devices.length === 1 ? <><CloudDeviceFields device={data.devices[0]} />
       <div className="my-3"><CloudLink resource="DEVICE_OWNERS" id={data.devices[0].id}>Registered owners</CloudLink></div>
       <p className="text-xs text-muted">A registered owner is registration evidence, not an Intune primary-user assignment.</p>
     </> : <CloudTable rows={data.devices} searchText={row => `${row.displayName ?? ''} ${row.deviceId ?? ''} ${row.operatingSystem ?? ''}`}
@@ -113,7 +123,7 @@ export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snaps
   } else if (resource === 'MANAGED_DEVICES' || resource === 'MANAGED_DEVICE') {
     content = <CloudTable rows={data.managedDevices} searchText={row => `${row.deviceName ?? ''} ${row.userPrincipalName ?? ''} ${row.serialNumber ?? ''} ${row.complianceState ?? ''}`}
       columns={[
-        { header: 'Device', cell: row => <details><summary className="cursor-pointer text-accent-400">{available(row.deviceName)}</summary><CloudManagedFields device={row} /></details> },
+        { header: 'Device', cell: row => <><CloudLink resource="MANAGED_DEVICE" id={row.id}>{available(row.deviceName)}</CloudLink><details><summary className="cursor-pointer text-accent-400">Source fields</summary><CloudManagedFields device={row} /></details></> },
         { header: 'Associated user', cell: row => <CloudLink resource="USER" id={row.userId}>{available(row.userPrincipalName)}</CloudLink> },
         { header: 'OS / version', cell: row => `${available(row.operatingSystem)} / ${available(row.operatingSystemVersion)}` },
         { header: 'Compliance', cell: row => available(row.complianceState) },
@@ -123,7 +133,8 @@ export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snaps
     content = <><p className="mb-3 text-xs text-muted">Graph supplies SKU part numbers and service-plan names, not a complete marketing product-name catalog. Enabled seats are usable purchased units; suspended/warning units are excluded. Remaining seats apply to user-based SKUs only.</p>
       <CloudTable rows={data.licenses} searchText={row => `${row.skuPartNumber ?? ''} ${row.skuId ?? ''}`}
         columns={[
-          { header: 'SKU / product identifier', cell: row => <><div>{available(row.skuPartNumber)}</div><div className="font-mono text-xs text-muted">{available(row.skuId)}</div></> },
+          { header: 'SKU / product identifier', cell: row => <><div>{row.skuId && snapshot.state?.tenantId ? <Link className="text-accent-400 underline"
+            to={`/software?section=licenses&sku=${encodeURIComponent(row.skuId)}&tenant=${encodeURIComponent(snapshot.state.tenantId)}`}>{available(row.skuPartNumber)}</Link> : available(row.skuPartNumber)}</div><div className="font-mono text-xs text-muted">{available(row.skuId)}</div></> },
           ...(resource === 'LICENSES' ? [
             { header: 'State', cell: (row: typeof data.licenses[number]) => available(row.capabilityStatus) },
             { header: 'Enabled seats', cell: (row: typeof data.licenses[number]) => available(row.enabledSeats) },
@@ -151,6 +162,6 @@ export function Microsoft365DataView({ snapshot }: { snapshot: Microsoft365Snaps
       {data.totalCount !== null && <> · Graph reported total: {data.totalCount} (eventual)</>}</p>
     {data.truncated && <div role="status" className="rounded border border-warn-600 p-3 text-sm text-warn-300">Partial inventory: the configured page/item limit was reached. Search and displayed rows cover the loaded subset only.</div>}
     {snapshot.refreshError && <p role="alert" className="text-sm text-fail-400">Refresh failed; the previous snapshot remains visible. {snapshot.refreshError.message}</p>}
-    {content}
+    <CloudTenantScope.Provider value={snapshot.state?.tenantId ?? null}>{content}</CloudTenantScope.Provider>
   </div>;
 }

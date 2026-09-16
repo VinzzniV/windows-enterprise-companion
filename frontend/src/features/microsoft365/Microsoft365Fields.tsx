@@ -1,6 +1,9 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { Microsoft365Resource, Microsoft365User, Microsoft365Device, Microsoft365ManagedDevice } from '../../shared/api-types.generated';
+import { cloudObjectDestination } from './cloudObjectDestination';
+
+export const CloudTenantScope = createContext<string | null>(null);
 
 export const available = (value: string | number | boolean | null | undefined): string =>
   value === null || value === undefined || value === '' ? 'Not available' : typeof value === 'boolean' ? value ? 'Yes' : 'No' : String(value);
@@ -9,7 +12,8 @@ export const cloudPath = (resource: Microsoft365Resource, objectId?: string | nu
   `/microsoft365?resource=${resource}${objectId ? `&objectId=${encodeURIComponent(objectId)}` : ''}`;
 
 export function CloudLink({ resource, id, children }: { resource: Microsoft365Resource; id?: string | null; children: ReactNode }) {
-  return id ? <Link className="text-accent-400 underline" to={cloudPath(resource, id)}>{children}</Link> : <span>{children}</span>;
+  const tenantId = useContext(CloudTenantScope);
+  return id ? <Link className="text-accent-400 underline" to={cloudObjectDestination(resource, id, tenantId) ?? cloudPath(resource, id)}>{children}</Link> : <span>{children}</span>;
 }
 export function CloudFields({ fields }: { fields: [string, string | number | boolean | null | undefined][] }) {
   return <dl className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">{fields.map(([label, value]) =>

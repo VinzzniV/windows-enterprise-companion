@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { OpsiConnectionStatusResult } from '../../shared/api-types';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
@@ -44,7 +45,9 @@ function formatTimestamp(value: string): string {
 
 export function PatchManagementPage() {
   const workspace = usePatchManagementWorkspace();
-  const [section, setSection] = useState<PatchSection>('overview');
+  const [parameters, setParameters] = useSearchParams();
+  const section = (['overview', 'clients', 'winget', 'history'] as const).find(value => value === parameters.get('section')) ?? 'overview';
+  const setSection = (next: PatchSection) => setParameters(previous => { const value = new URLSearchParams(previous); value.set('section', next); return value; });
 
   return (
     <div className="flex flex-col gap-4">

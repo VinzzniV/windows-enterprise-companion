@@ -2,6 +2,8 @@ import { lazy, type ComponentType, type ReactNode } from 'react';
 import { navIcons } from './navIcons';
 
 const DevicesWorkingSetPage = lazy(() => import('../shared/objects/ObjectWorkingSetPage').then(module => ({ default: module.DevicesWorkingSetPage })));
+const DataSourcesPage = lazy(() => import('../features/verwaltung/DataSourcesPage').then(module => ({ default: module.DataSourcesPage })));
+const SoftwareLicensesPage = lazy(() => import('../features/patchmanagement/SoftwareLicensesPage').then(module => ({ default: module.SoftwareLicensesPage })));
 const UsersWorkingSetPage = lazy(() => import('../shared/objects/ObjectWorkingSetPage').then(module => ({ default: module.UsersWorkingSetPage })));
 const GroupsWorkingSetPage = lazy(() => import('../shared/objects/ObjectWorkingSetPage').then(module => ({ default: module.GroupsWorkingSetPage })));
 
@@ -15,8 +17,8 @@ const ClientsPage = lazy(() => import('../features/clients/ClientsPage')
   .then((module) => ({ default: module.ClientsPage })));
 const ComparePage = lazy(() => import('../features/clients/ComparePage')
   .then((module) => ({ default: module.ComparePage })));
-const ClientDetailPage = lazy(() => import('../features/clients/ClientDetailPage')
-  .then((module) => ({ default: module.ClientDetailPage })));
+const ClientDetailPage = lazy(() => import('../features/clients/ClientEntryPage')
+  .then((module) => ({ default: module.ClientEntryPage })));
 const DeviceProfilePage = lazy(() => import('../features/clients/DeviceProfilePage')
   .then((module) => ({ default: module.DeviceProfilePage })));
 const ManagementRecordPage = lazy(() => import('../features/clients/ManagementRecordPage').then(module => ({ default: module.ManagementRecordPage })));
@@ -84,6 +86,8 @@ export interface NavigationGroup {
 }
 
 export const appRoutes: readonly AppRouteDefinition[] = [
+  { id: 'data-sources', path: '/sources', sectionLabel: 'Data sources', Component: DataSourcesPage },
+  { id: 'software-licenses', path: '/software', sectionLabel: 'Software & licenses', Component: SoftwareLicensesPage },
   { id: 'dashboard', path: '/', sectionLabel: 'Dashboard', Component: DashboardPage, navigation: { group: 'fleet', label: 'Dashboard', icon: navIcons.dashboard, searchTerms: ['overview', 'status'] } },
   { id: 'action-center', path: '/actions', sectionLabel: 'Action Center', Component: ActionCenterPage, navigation: { group: 'fleet', label: 'Action Center', icon: navIcons.actioncenter, searchTerms: ['work list', 'findings', 'attention', 'issues'] } },
   { id: 'device-cleanup', path: '/cleanup', sectionLabel: 'Device Cleanup', Component: DeviceCleanupPage, navigation: { group: 'fleet', label: 'Device Cleanup', icon: navIcons.devicecleanup, searchTerms: ['stale devices', 'old computers', 'retirement', 'cleanup assistant'] } },

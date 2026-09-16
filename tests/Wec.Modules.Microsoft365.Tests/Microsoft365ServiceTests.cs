@@ -26,6 +26,24 @@ public sealed class Microsoft365ServiceTests
         Options.Create(new Microsoft365CacheOptions { MaximumEntries = maximumEntries, MaximumObjectListRecords = maximumObjectListRecords }));
 
     [Fact]
+    public async Task CacheOnlyReadNeverFetchesMissingOrExpiredDataEvenWhenRefreshIsRequested()
+    {
+        using var service = Create();
+        var query = new Microsoft365Query(Microsoft365Resource.Licenses);
+        var empty = await service.ReadAsync(query, true, TestContext(), cacheOnly: true);
+        Assert.Null(empty.Value.Data);
+        Assert.Equal(Microsoft365Availability.NotCached, empty.Value.State!.Availability);
+        await _reader.DidNotReceiveWithAnyArgs().ReadAsync(default!, default);
+        await service.ReadAsync(query, true, TestContext());
+        var cached = await service.ReadAsync(query, false, TestContext(), cacheOnly: true);
+        Assert.NotNull(cached.Value.Data);
+        _clock.UtcNow.Returns(_clock.UtcNow.AddDays(1));
+        var expired = await service.ReadAsync(query, false, TestContext(), cacheOnly: true);
+        Assert.Null(expired.Value.Data);
+        await _reader.Received(1).ReadAsync(query, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task UserContextIncludesConflictingObservationsForSameIntuneEnrollmentOnly()
     {
         const string account = "33333333-3333-3333-3333-333333333333";

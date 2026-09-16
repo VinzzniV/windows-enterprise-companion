@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Microsoft365ReadState, ObjectReference } from '../../shared/api-types.generated';
 import { ObjectRelationships } from '../../shared/objects/ObjectRelationships';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
@@ -8,12 +8,20 @@ import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Spinner } from '../../shared/ui/Spinner';
+import { Input } from '../../shared/ui/Input';
 import { CloudFields } from '../microsoft365/Microsoft365Fields';
 import { DirectoryGroupState } from './DirectoryGroupState';
 import { useGroupProfile } from './useGroupProfile';
 
-function GroupProfileContent({ reference }: { reference: ObjectReference }) {
-  const view = useGroupProfile(reference);
+function GroupProfileContent({ reference, memberPage }: { reference: ObjectReference; memberPage: number }) {
+  const [parameters, setParameters] = useSearchParams();
+  const memberQuery = parameters.get('memberq') ?? '';
+  const view = useGroupProfile(reference, memberPage);
+  const goToPage = async (page: number) => {
+    if (await view.load('DIRECTORY_MEMBERS', page)) {
+      setParameters(previous => { const next = new URLSearchParams(previous); next.set('page', String(page)); return next; });
+    }
+  };
   const profile = view.data;
   const members = profile?.directoryMembers?.data;
   const refresh = (state: Microsoft365ReadState) => <Button disabled={view.busy || state.availability === 'NOT_CONNECTED' || state.availability === 'NOT_ENABLED'}
@@ -46,11 +54,14 @@ function GroupProfileContent({ reference }: { reference: ObjectReference }) {
         {members && <>
           <p className="mb-3 text-xs text-muted">{members.coverageExplanation}</p>
           <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
-            <Button disabled={view.busy || members.page <= 1} onClick={() => void view.load('DIRECTORY_MEMBERS', members.page - 1)}>Previous member page</Button>
+            <Button disabled={view.busy || members.page <= 1} onClick={() => void goToPage(members.page - 1)}>Previous member page</Button>
             <span>Page {members.page} · {members.members.length} displayed · {members.totalCount} visible source matches</span>
-            <Button disabled={view.busy || members.page * members.pageSize >= members.totalCount} onClick={() => void view.load('DIRECTORY_MEMBERS', members.page + 1)}>Next member page</Button>
+            <Button disabled={view.busy || members.page * members.pageSize >= members.totalCount} onClick={() => void goToPage(members.page + 1)}>Next member page</Button>
           </div>
-          <ul className="space-y-2">{members.members.map((member, index) => <li key={index} className="rounded border border-slate-800 p-3 text-sm">
+          <label className="mb-3 block text-xs text-muted">Filter this loaded member page<Input value={memberQuery} onChange={event => setParameters(previous => {
+            const next = new URLSearchParams(previous); if (event.target.value) next.set('memberq', event.target.value); else next.delete('memberq'); return next;
+          })} /></label>
+          <ul className="space-y-2">{members.members.filter(member => `${member.displayName} ${member.objectId ?? ''} ${member.distinguishedName}`.toLowerCase().includes(memberQuery.toLowerCase())).map((member, index) => <li key={index} className="rounded border border-slate-800 p-3 text-sm">
             {member.displayName} · {member.objectClass ?? 'Type unavailable'}
             <p className="break-all text-xs text-muted">{member.objectId ?? 'GUID unavailable'} · {member.securityIdentifier ?? 'SID unavailable'} · {member.distinguishedName}</p>
             {(!member.objectId || !member.kind) && <p className="text-xs text-muted">No supported native profile link can be established.</p>}
@@ -79,6 +90,9 @@ function GroupProfileContent({ reference }: { reference: ObjectReference }) {
 }
 export function GroupProfilePage() {
   const { source, scope, objectId } = useParams();
+  const [parameters] = useSearchParams();
+  const requestedPage = Number(parameters.get('page'));
+  const memberPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const reference = useMemo(() => objectReference('GROUP', source, scope, objectId), [source, scope, objectId]);
-  return reference ? <GroupProfileContent key={objectPath(reference)} reference={reference} /> : <p role="alert">Invalid scoped group reference.</p>;
+  return reference ? <GroupProfileContent key={`${objectPath(reference)}:${memberPage}`} reference={reference} memberPage={memberPage} /> : <p role="alert">Invalid scoped group reference.</p>;
 }
