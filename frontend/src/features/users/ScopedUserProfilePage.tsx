@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { CachedMicrosoft365Licenses, Microsoft365ReadState, ObjectReference, ScopedUserProfile } from '../../shared/api-types.generated';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
@@ -83,6 +83,14 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
   const ad = profile?.adProfile;
   const directory = profile?.directory;
   const selectSection = (key: string) => { const next = new URLSearchParams(params); next.set('section', key); setParams(next, { state: location.state }); };
+  const onSectionKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    event.preventDefault();
+    const delta = event.key === 'ArrowRight' ? 1 : -1;
+    const next = sections[(index + delta + sections.length) % sections.length];
+    selectSection(next[0]);
+    document.getElementById(`user-profile-tab-${next[0]}`)?.focus();
+  };
   const filteredGroups = ad?.access.directGroups.filter(group => `${group.name} ${group.distinguishedName}`.toLocaleLowerCase().includes(groupFilter.trim().toLocaleLowerCase())) ?? [];
   return <div className="flex flex-col gap-4">
     <PageHeader title={profile?.title ?? reference.id} subtitle={`${objectSourceLabel[reference.source]} account · ${reference.scope}`}>
@@ -98,9 +106,11 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
     {profile && <>
       <p className="text-sm text-muted">{profile.identity.replaceAll('_', ' ')} · {profile.explanation}</p>
       {profile.sourceErrors.map((error, index) => <p role="alert" className="text-fail-400" key={index}>{error.message}</p>)}
-      <nav aria-label="User profile sections" className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
-        {sections.map(([key, label]) => <Button key={key} variant={section === key ? 'primary' : 'ghost'} aria-current={section === key ? 'page' : undefined} onClick={() => selectSection(key)}>{label}</Button>)}
-      </nav>
+      <div role="tablist" aria-label="User profile sections" className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+        {sections.map(([key, label], index) => <Button key={key} id={`user-profile-tab-${key}`} role="tab"
+          variant={section === key ? 'primary' : 'ghost'} aria-selected={section === key} tabIndex={section === key ? 0 : -1}
+          onKeyDown={(event) => onSectionKeyDown(event, index)} onClick={() => selectSection(key)}>{label}</Button>)}
+      </div>
       <div hidden={section !== 'overview'} className="space-y-4">
         <Card title="Account source references"><CloudFields fields={[["Source", objectSourceLabel[reference.source]], ['Scope', reference.scope], ['Native object ID', reference.id]]} /></Card>
         <Card title="AD source evidence">

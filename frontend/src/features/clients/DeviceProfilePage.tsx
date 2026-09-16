@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type KeyboardEvent } from 'react';
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { DeviceProfileResult, Microsoft365ReadState, ObjectReference, ObjectRelationship } from '../../shared/api-types.generated';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
@@ -68,6 +68,14 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
   const legacySection = parameters.get('section');
   const section = sections.some(([key]) => key === legacySection) ? legacySection : legacySection === 'microsoft365' ? 'identity' : 'overview';
   const selectSection = (key: string) => { const next = new URLSearchParams(parameters); next.set('section', key); setParameters(next, { state: location.state }); };
+  const onSectionKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    event.preventDefault();
+    const delta = event.key === 'ArrowRight' ? 1 : -1;
+    const next = sections[(index + delta + sections.length) % sections.length];
+    selectSection(next[0]);
+    document.getElementById(`device-profile-tab-${next[0]}`)?.focus();
+  };
   const directory = profile?.directory;
   const cloud = profile?.cloud;
   const overviewEntraDevices = cloud?.entraReads.flatMap(read => sourceRetained(read.state, view.now) ? read.devices : [])
@@ -88,10 +96,11 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
     {view.error && <p role="alert" className="text-fail-400">{view.error}</p>}
     {view.busy && <Spinner label="Reading available device evidence…" />}
     {profile && <>
-      <nav aria-label="Device profile sections" className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
-        {sections.map(([key, label]) => <Button key={key} variant={section === key ? 'primary' : 'ghost'} aria-current={section === key ? 'page' : undefined}
-          onClick={() => selectSection(key)}>{label}</Button>)}
-      </nav>
+      <div role="tablist" aria-label="Device profile sections" className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+        {sections.map(([key, label], index) => <Button key={key} id={`device-profile-tab-${key}`} role="tab"
+          variant={section === key ? 'primary' : 'ghost'} aria-selected={section === key} tabIndex={section === key ? 0 : -1}
+          onKeyDown={(event) => onSectionKeyDown(event, index)} onClick={() => selectSection(key)}>{label}</Button>)}
+      </div>
       <Card title="Device identity">
         <p className={profile.identity === 'CONFLICT' || profile.identity === 'AMBIGUOUS' ? 'text-warn-400' : 'text-slate-200'}>{profile.explanation}</p>
         <CloudFields fields={[["Source", objectSourceLabel[reference.source]], ['Scope', reference.scope], ['Source object / target', reference.id]]} />

@@ -73,12 +73,22 @@ describe('device profiles', () => {
     await screen.findByRole('heading', { name: 'Cloud device' });
     expect(screen.getByRole('heading', { name: 'Available evidence' })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'Entra object read' })).toBeNull();
-    expect(screen.getByRole('navigation', { name: 'Device profile sections' }).querySelectorAll('button')).toHaveLength(7);
-    fireEvent.click(screen.getByRole('button', { name: 'Relationships' }));
+    expect(screen.getByRole('tablist', { name: 'Device profile sections' }).querySelectorAll('button')).toHaveLength(7);
+    fireEvent.click(screen.getByRole('tab', { name: 'Relationships' }));
     expect(screen.getByRole('heading', { name: 'Registered owners (Entra)' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Inventory' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Inventory' }));
     expect(screen.getByRole('heading', { name: 'Windows target required' })).toBeTruthy();
     expect(mocks.invoke).toHaveBeenCalledTimes(1);
+  });
+  it('uses the same roving arrow-key section behavior as the Windows profile', async () => {
+    renderPage(profile(), 'overview');
+    const overview = await screen.findByRole('tab', { name: 'Overview' });
+    overview.focus();
+    fireEvent.keyDown(overview, { key: 'ArrowRight' });
+
+    const identity = screen.getByRole('tab', { name: 'Identity & management' });
+    expect(identity.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(identity);
   });
   it('shows stored operating state and direct Windows tools in the canonical overview', async () => {
     const value = profile('WEC');
@@ -114,7 +124,7 @@ describe('device profiles', () => {
     expect(screen.queryByRole('link', { name: 'Inventory' })).toBeNull();
     expect(screen.getByText('No')).toBeTruthy();
     expect(screen.getAllByText('Not available').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Identity & management' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Identity & management' }));
     expect((screen.getByRole('button', { name: 'Load bounded Intune inventory' }) as HTMLButtonElement).disabled).toBe(true);
     expect(mocks.invoke).toHaveBeenCalledTimes(1);
   });
@@ -146,7 +156,7 @@ describe('device profiles', () => {
     mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
     renderPage(value);
     expect(await screen.findByText('Second returned record')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Relationships' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Relationships' }));
     expect(screen.getByRole('link', { name: 'Associated account' }).getAttribute('href')).toBe(`/users/entra/${tenant}/${secondId}`);
   });
 

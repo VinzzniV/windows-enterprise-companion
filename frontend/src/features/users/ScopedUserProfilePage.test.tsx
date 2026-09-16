@@ -57,7 +57,7 @@ it('shows conflicting enrollment observations with original user IDs in the Devi
   mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
   page();
   await screen.findByRole('heading', { name: 'Cloud account' });
-  fireEvent.click(screen.getByRole('button', { name: 'Devices' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Devices' }));
   expect(screen.getByText(`Enrollment · Reported user: ${id}`)).toBeTruthy();
   expect(screen.getByText(`Enrollment · Reported user: ${other}`)).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Inspect conflicting enrollment' }).getAttribute('href')).toBe(`/devices/intune/${tenant}/${other}`);
@@ -68,7 +68,7 @@ it('links an assigned SKU to tenant capacity without inferring a product name', 
   mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
   page();
   await screen.findByRole('heading', { name: 'Cloud account' });
-  fireEvent.click(screen.getByRole('button', { name: 'Licenses' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Licenses' }));
   expect(screen.getByRole('link', { name: 'View tenant SKU' }).getAttribute('href')).toBe(`/software?section=licenses&sku=${other}&tenant=${tenant}`);
   expect(screen.getByText(/Product name not resolved/)).toBeTruthy();
   expect(mocks.invoke).toHaveBeenCalledTimes(1);
@@ -98,6 +98,17 @@ it('offers a visible safe return to the retained AD user result page', async () 
   expect((await screen.findByRole('link', { name: '← Back to AD user results' })).getAttribute('href')).toBe(returnTo);
 });
 
+it('uses roving arrow keys for account profile sections', async () => {
+  page();
+  const identity = await screen.findByRole('tab', { name: 'Identity' });
+  identity.focus();
+  fireEvent.keyDown(identity, { key: 'ArrowRight' });
+
+  const groups = screen.getByRole('tab', { name: 'Groups' });
+  expect(groups.getAttribute('aria-selected')).toBe('true');
+  expect(document.activeElement).toBe(groups);
+});
+
 it('loads one explicit user source with its tenant then recomposes without loading adjacent sources', async () => {
   page();
   fireEvent.click(await screen.findByRole('button', { name: 'Load Entra user object' }));
@@ -112,10 +123,10 @@ it('keeps unavailable licenses and partial group evidence independent and naviga
   value.relationships.push({ target: { kind: 'GROUP', source: 'ENTRA', scope: tenant, id: other }, label: 'Operations', relation: 'Direct group (Entra)', evidence: 'SCOPED_ID', explanation: 'Direct membership only' });
   mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
   page();
-  fireEvent.click(await screen.findByRole('button', { name: 'Groups' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'Groups' }));
   expect(screen.getByRole('link', { name: 'Operations' }).getAttribute('href')).toBe(`/groups/entra/${tenant}/${other}`);
   expect(screen.getByText(/Partial source query/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Licenses' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Licenses' }));
   expect(screen.getByText('Assigned-license evidence is unavailable.')).toBeTruthy();
   expect(screen.queryByText(/No license rows returned/)).toBeNull();
   expect(mocks.invoke).toHaveBeenCalledTimes(1);
@@ -151,11 +162,11 @@ it('keeps Leaver marks across tabs and excludes all cloud facts from its export'
   mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
   mocks.export.mockResolvedValue({ cancelled: true, filePath: null });
   page();
-  fireEvent.click(await screen.findByRole('button', { name: 'Leaver review' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'Leaver review' }));
   const first = screen.getAllByRole('checkbox')[0];
   fireEvent.click(first);
-  fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Leaver review' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Groups' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'Leaver review' }));
   expect((first as HTMLInputElement).checked).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: 'Export Markdown checklist' }));
   await waitFor(() => expect(mocks.export).toHaveBeenCalledTimes(1));
