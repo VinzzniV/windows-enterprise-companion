@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -469,11 +469,11 @@ describe('ClientsPage', () => {
     renderPage();
     expect(await screen.findByText('PC-001')).toBeTruthy();
     expect(screen.queryByText('PC-051')).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByText('Next', { selector: 'button' }));
     expect(await screen.findByText('PC-051')).toBeTruthy();
     expect(screen.getByText('51–100 of 101')).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Check page connectivity' }));
+    fireEvent.click(screen.getByText('Check page connectivity', { selector: 'button' }));
     await waitFor(() => {
       const call = lastInvoke('probeHosts');
       const payload = call?.[2] as { hosts: string[] } | undefined;

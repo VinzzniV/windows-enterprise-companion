@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { SettingsPage } from './SettingsPage';
@@ -193,11 +193,9 @@ describe('SettingsPage', () => {
     const navigation = await screen.findByRole('navigation', { name: 'Settings sections' });
     expect(within(navigation).queryByText('Unsaved changes')).toBeNull();
 
-    await userEvent.type(screen.getByLabelText('Kaspersky Administration Server'), 'ksc.local');
-    await userEvent.clear(screen.getByLabelText('Nessus HTTPS URL'));
-    await userEvent.type(screen.getByLabelText('Nessus HTTPS URL'), 'https://nessus-new.example.test:8834');
-    await userEvent.clear(screen.getByLabelText('opsi server'));
-    await userEvent.type(screen.getByLabelText('opsi server'), 'opsi-new.example.test');
+    fireEvent.change(screen.getByLabelText('Kaspersky Administration Server'), { target: { value: 'ksc.local' } });
+    fireEvent.change(screen.getByLabelText('Nessus HTTPS URL'), { target: { value: 'https://nessus-new.example.test:8834' } });
+    fireEvent.change(screen.getByLabelText('opsi server'), { target: { value: 'opsi-new.example.test' } });
 
     expect(within(navigation).getByRole('link', { name: /Environment Health.*Unsaved changes/ })).toBeTruthy();
     expect(within(navigation).getByRole('link', { name: /Vulnerability Management.*Unsaved changes/ })).toBeTruthy();
@@ -220,12 +218,9 @@ describe('SettingsPage', () => {
     renderSettings();
 
     const navigation = await screen.findByRole('navigation', { name: 'Settings sections' });
-    await userEvent.clear(screen.getByLabelText('Stale cleanup candidate (days)'));
-    await userEvent.type(screen.getByLabelText('Stale cleanup candidate (days)'), '60');
-    await userEvent.clear(screen.getByLabelText('Nessus HTTPS URL'));
-    await userEvent.type(screen.getByLabelText('Nessus HTTPS URL'), 'http://nessus.example.test:8834');
-    await userEvent.clear(screen.getByLabelText('opsi port'));
-    await userEvent.type(screen.getByLabelText('opsi port'), '0');
+    fireEvent.change(screen.getByLabelText('Stale cleanup candidate (days)'), { target: { value: '60' } });
+    fireEvent.change(screen.getByLabelText('Nessus HTTPS URL'), { target: { value: 'http://nessus.example.test:8834' } });
+    fireEvent.change(screen.getByLabelText('opsi port'), { target: { value: '0' } });
 
     const summary = screen.getByRole('alert', { name: 'Settings validation' });
     expect(within(summary).getByText('3 settings problems must be fixed before saving.')).toBeTruthy();
@@ -244,12 +239,9 @@ describe('SettingsPage', () => {
     for (const button of saveButtons) expect((button as HTMLButtonElement).disabled).toBe(true);
     expect(invokeMock.mock.calls.filter((call) => String(call[1]).startsWith('save')).length).toBe(0);
 
-    await userEvent.clear(screen.getByLabelText('Stale cleanup candidate (days)'));
-    await userEvent.type(screen.getByLabelText('Stale cleanup candidate (days)'), '90');
-    await userEvent.clear(screen.getByLabelText('Nessus HTTPS URL'));
-    await userEvent.type(screen.getByLabelText('Nessus HTTPS URL'), 'https://nessus.example.test:8834');
-    await userEvent.clear(screen.getByLabelText('opsi port'));
-    await userEvent.type(screen.getByLabelText('opsi port'), '4447');
+    fireEvent.change(screen.getByLabelText('Stale cleanup candidate (days)'), { target: { value: '90' } });
+    fireEvent.change(screen.getByLabelText('Nessus HTTPS URL'), { target: { value: 'https://nessus.example.test:8834' } });
+    fireEvent.change(screen.getByLabelText('opsi port'), { target: { value: '4447' } });
 
     await waitFor(() => expect(screen.queryByRole('alert', { name: 'Settings validation' })).toBeNull());
     for (const button of saveButtons) expect((button as HTMLButtonElement).disabled).toBe(false);

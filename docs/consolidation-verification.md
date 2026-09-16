@@ -1,7 +1,8 @@
 # Object-centered consolidation — verification and preservation
 
 Status: phases 0–7 and 9 implemented and locally verified on 2026-09-16.
-GitHub build/packaging evidence is tracked on the associated Draft PR.
+GitHub build/packaging evidence is tracked on
+[Draft PR #37](https://github.com/VinzzniV/windows-enterprise-companion/pull/37).
 Authority: ADR 0022 and `consolidation-analysis-and-plan.md`, especially G2.
 
 ## Preservation evidence before the sidebar switch
@@ -48,6 +49,12 @@ No export schema is expanded with cloud evidence, and no write action is added.
   asserted before the restored cached page rendered. The assertion now waits
   for the page; the test runner bounds workers without relaxing assertions or
   timeouts. Production build passes.
+- Initial GitHub runs exposed 5-second timeouts in existing AD pagination,
+  client pagination/probe and Settings dirty-state tests. Those tests now submit
+  field changes as single input events and target the relevant controls without
+  repeated whole-table accessible-name computation. All original data/page/save
+  assertions remain, with extra assertions that editing an AD query performs no
+  source read before submission. The timeout thresholds remain unchanged.
 - A locked `npm ci`, production build and High-severity NPM audit pass. Two
   pre-existing Moderate findings affect Vitest/@vitest/mocker development tools
   (GHSA-82fw-gwwq-j7x9); the proposed fix is a separate major test-tool upgrade.

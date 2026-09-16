@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { AdHygieneResult, AdOverviewResult } from '../../shared/api-types';
 import { BridgeInvokeError } from '../../shared/bridge/bridgeClient';
@@ -314,18 +314,16 @@ describe('ActiveDirectoryPage', () => {
       pageSize: 50,
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByText('Next', { selector: 'button' }));
     expect(await screen.findByText('51–100 of 250 matches')).toBeDefined();
     expect(invokeMock).toHaveBeenCalledWith('activedirectory', 'getHygieneRulePage', expect.objectContaining({
       page: 2,
       evaluatedAtUtc: hygiene.capturedAtUtc,
     }));
 
-    await userEvent.type(
-      screen.getByRole('searchbox', { name: 'Search all matches for Inactive users' }),
-      'ops*(admin)',
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Search directory' }));
+    fireEvent.change(screen.getByLabelText('Search all matches for Inactive users'), { target: { value: 'ops*(admin)' } });
+    expect(invokeMock.mock.calls.filter(call => call[1] === 'getHygieneRulePage')).toHaveLength(2);
+    fireEvent.click(screen.getByText('Search directory', { selector: 'button' }));
     expect(invokeMock).toHaveBeenCalledWith('activedirectory', 'getHygieneRulePage', expect.objectContaining({
       page: 1,
       query: 'ops*(admin)',
@@ -382,14 +380,12 @@ describe('ActiveDirectoryPage', () => {
       pageSize: 50,
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByText('Next', { selector: 'button' }));
     expect(await screen.findByText('51–75 of 75 direct members')).toBeDefined();
 
-    await userEvent.type(
-      screen.getByRole('searchbox', { name: 'Search all direct members of Domain Admins' }),
-      'ops*(admin)',
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Search group' }));
+    fireEvent.change(screen.getByLabelText('Search all direct members of Domain Admins'), { target: { value: 'ops*(admin)' } });
+    expect(invokeMock.mock.calls.filter(call => call[1] === 'getPrivilegedGroupMemberPage')).toHaveLength(2);
+    fireEvent.click(screen.getByText('Search group', { selector: 'button' }));
     expect(invokeMock).toHaveBeenCalledWith('activedirectory', 'getPrivilegedGroupMemberPage', expect.objectContaining({
       page: 1,
       query: 'ops*(admin)',
