@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { GroupProfileResult, Microsoft365ReadState } from '../../shared/api-types.generated';
@@ -43,9 +43,59 @@ it('opens a cloud-only group from cached evidence and preserves limited member o
   expect(mocks.invoke).toHaveBeenCalledTimes(1);
   expect(mocks.invoke).toHaveBeenCalledWith('groups', 'getProfile', expect.objectContaining({ read: 'CACHED', connection: null }));
   expect(screen.getAllByText(/Limited-information object/)).toHaveLength(2);
-  expect(screen.getByRole('link', { name: other }).getAttribute('href')).toBe(`/users/entra/${tenant}/${other}`);
+  expect(screen.getByRole('link', { name: 'Limited-information object' }).getAttribute('href')).toBe(`/users/entra/${tenant}/${other}`);
   expect(screen.getAllByText(/Partial source query/)).toHaveLength(2);
   expect(screen.queryByRole('button', { name: 'Load this AD group by GUID' })).toBeNull();
+});
+
+it('searches, sorts and pages a returned 120-member cloud set without another source read', async () => {
+  const value = profile();
+  value.cloud!.directMembers!.state = { ...state('GROUP_MEMBERS'), loadedCount: 120, declaredTotal: 120, coverage: 'RETURNED_SET' };
+  value.cloud!.directMembers!.members = Array.from({ length: 120 }, (_, index) => ({
+    id: `44444444-4444-4444-4444-${String(index + 1).padStart(12, '0')}`,
+    displayName: `Member ${String(index).padStart(3, '0')}`,
+    objectType: index === 60 ? 'servicePrincipal' : index === 61 ? 'group' : 'user',
+    userPrincipalName: `member${index}@example.test`,
+  }));
+  mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+  page(value);
+  await screen.findByRole('heading', { name: 'Cloud group' });
+  const table = screen.getByRole('table');
+  expect(within(table).getByRole('link', { name: 'Member 000' })).toBeTruthy();
+  expect(within(table).queryByText('Member 030')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Ascending' }));
+  expect(within(table).getByRole('link', { name: 'Member 119' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Descending' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  expect(within(table).getByRole('link', { name: 'Member 025' })).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Search loaded members'), { target: { value: 'Member 119' } });
+  expect(within(table).getByRole('link', { name: 'Member 119' })).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Search loaded members'), { target: { value: 'Member 060' } });
+  expect(within(table).getByText('No supported native profile link')).toBeTruthy();
+  expect(within(table).queryByRole('link', { name: 'Member 060' })).toBeNull();
+  expect(mocks.invoke).toHaveBeenCalledTimes(1);
+});
+
+it('filters an AD member page into the same navigable rows without a duplicate link list', async () => {
+  const value = profile(); value.reference = { ...value.reference, source: 'ACTIVE_DIRECTORY', scope: 'example.test' }; value.cloud = null;
+  const sourceState = { retrievedAtUtc: new Date().toISOString(), lastAttemptAtUtc: new Date().toISOString(), lastAttemptError: null,
+    sessionRevision: 1, revision: 1, retainedUntilUtc: null, freshUntilUtc: null, stale: false };
+  value.directory = { state: sourceState, data: null };
+  value.directoryMembers = { state: sourceState, data: { directoryScope: 'example.test', groupObjectId: id, retrievedAtUtc: new Date().toISOString(), page: 1, pageSize: 50,
+    totalCount: 2, coverageExplanation: 'Direct members only.', members: [
+      { objectId: other, securityIdentifier: null, kind: 'USER', objectClass: 'user', displayName: 'Alpha account', samAccountName: 'alpha', userPrincipalName: 'alpha@example.test', distinguishedName: 'CN=Alpha,DC=example,DC=test' },
+      { objectId: null, securityIdentifier: null, kind: null, objectClass: 'foreignSecurityPrincipal', displayName: 'Unknown principal', samAccountName: null, userPrincipalName: null, distinguishedName: 'CN=S-1-5-21,DC=example,DC=test' },
+    ] } };
+  mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+  page(value);
+  await screen.findByRole('heading', { name: 'Cloud group' });
+  expect(screen.getByText('Unknown principal')).toBeTruthy();
+  expect(screen.queryByRole('link', { name: 'Unknown principal' })).toBeNull();
+  fireEvent.change(screen.getByLabelText('Search loaded members'), { target: { value: 'alpha@example.test' } });
+  const table = screen.getByRole('table');
+  expect(within(table).getByRole('link', { name: 'Alpha account' }).getAttribute('href')).toBe(`/users/ad/example.test/${other}`);
+  expect(within(table).queryByText('Unknown principal')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Direct member profiles' })).toBeNull();
 });
 
 it('refreshes only the selected scoped Graph membership query', async () => {
