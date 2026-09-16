@@ -12,7 +12,7 @@ public sealed class ManagementDeviceSnapshotProviderTests
     {
         IServiceCredentialStore store = ManagementCacheTestStore.Empty();
         store.Read(ServiceCredentialKind.Kaspersky).Returns(Result.Success<StoredServiceCredential?>(new("reader", "domain", "test-one")));
-        using var cache = new ItHygieneSnapshotCache(store);
+        using var cache = ManagementCacheTestStore.CreateCache(store);
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __) => Task.FromResult(Result.Success(SourceResult()));
         await cache.GetAsync(new(), false, Load, CancellationToken.None);
         Assert.NotNull(await cache.ReadCachedAsync(new(), CancellationToken.None));
@@ -27,7 +27,7 @@ public sealed class ManagementDeviceSnapshotProviderTests
     public async Task StoredCredentialChangesDuringSourceIoRejectTheCompletionWhileExplicitOverridesStayIndependent()
     {
         IServiceCredentialStore store = ManagementCacheTestStore.Empty();
-        using var cache = new ItHygieneSnapshotCache(store);
+        using var cache = ManagementCacheTestStore.CreateCache(store);
         var completion = new TaskCompletionSource<Result<ItHygieneResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var loading = cache.GetAsync(new(), true, (_, _) => completion.Task, CancellationToken.None);
         store.Read(ServiceCredentialKind.Kaspersky).Returns(Result.Success<StoredServiceCredential?>(new("reader", null, "test")));
@@ -80,8 +80,8 @@ public sealed class ManagementDeviceSnapshotProviderTests
     [Fact]
     public async Task CachedReadsAreIsolatedByCredentialsAndNeverLoadMissingSources()
     {
-        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
-        var provider = new ManagementDeviceSnapshotProvider(cache, Substitute.For<IOpsiComputerInventoryProvider>());
+        using var cache = ManagementCacheTestStore.CreateCache();
+        var provider = new ManagementDeviceSnapshotProvider(cache);
         var connection = new DirectoryInventoryConnection(Domain: "a.example", UserName: "reader", Password: "test-a");
         var snapshot = new ManagementDeviceSnapshot(DateTimeOffset.UnixEpoch, [], [], [], [], []);
         int calls = 0;
@@ -115,8 +115,8 @@ public sealed class ManagementDeviceSnapshotProviderTests
     [Fact]
     public async Task SourceRecordLinksCannotReuseSnapshotIdsAfterRefreshOrProcessCacheReplacement()
     {
-        using var firstCache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
-        using var secondCache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
+        using var firstCache = ManagementCacheTestStore.CreateCache();
+        using var secondCache = ManagementCacheTestStore.CreateCache();
         var request = new ItHygieneRequest();
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __) => Task.FromResult(Result.Success(SourceResult()));
         await firstCache.GetAsync(request, false, Load, CancellationToken.None);
@@ -130,7 +130,7 @@ public sealed class ManagementDeviceSnapshotProviderTests
     [Fact]
     public async Task CachedProjectionDoesNotWaitForSourceIoAndContextChangeRejectsLateCompletion()
     {
-        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
+        using var cache = ManagementCacheTestStore.CreateCache();
         var completion = new TaskCompletionSource<Result<ItHygieneResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var request = new ItHygieneRequest(new DirectoryInventoryConnection(Domain: "a.example"));
         var loading = cache.GetAsync(request, true, (_, _) => completion.Task, CancellationToken.None);
@@ -145,7 +145,7 @@ public sealed class ManagementDeviceSnapshotProviderTests
     [Fact]
     public async Task FailedKasperskySourceDoesNotHideOtherRawSourceEvidenceOrBecomeALegacyCacheHit()
     {
-        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
+        using var cache = ManagementCacheTestStore.CreateCache();
         int calls = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
         {
@@ -175,19 +175,19 @@ public sealed class ManagementDeviceSnapshotProviderTests
     [Fact]
     public async Task CachedReadHonorsCancellation()
     {
-        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
+        using var cache = ManagementCacheTestStore.CreateCache();
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new ManagementDeviceSnapshotProvider(cache, Substitute.For<IOpsiComputerInventoryProvider>()).ReadCachedAsync(null, null, cancellation.Token));
+            new ManagementDeviceSnapshotProvider(cache).ReadCachedAsync(null, null, cancellation.Token));
     }
 
     [Fact]
     public async Task OpsiSessionSwitchDropsOnlyItsCachedRecordsWithoutConnectingOrReadingSources()
     {
-        using var cache = new ItHygieneSnapshotCache(ManagementCacheTestStore.Empty());
         IOpsiComputerInventoryProvider opsi = Substitute.For<IOpsiComputerInventoryProvider>();
-        var provider = new ManagementDeviceSnapshotProvider(cache, opsi);
+        using var cache = ManagementCacheTestStore.CreateCache(opsi: opsi);
+        var provider = new ManagementDeviceSnapshotProvider(cache);
         Guid original = Guid.NewGuid();
         opsi.CurrentSessionId.Returns(original);
         ItHygieneResult data = SourceResult();
@@ -206,6 +206,34 @@ public sealed class ManagementDeviceSnapshotProviderTests
         ManagementDeviceSnapshot switched = (await provider.ReadCachedAsync(null, null, CancellationToken.None))!;
         Assert.Empty(switched.Opsi);
         Assert.Equal("NotLoaded", switched.Sources[0].Availability);
+        Result<ItHygieneResult> legacy = await cache.GetAsync(new(), false,
+            (_, _) => throw new InvalidOperationException("A cached read must not load sources."), CancellationToken.None);
+        Assert.Equal(InventorySourceAvailability.Partial, legacy.Value.Sources.Opsi.Availability);
+        Assert.All(legacy.Value.Devices, device => Assert.False(device.Opsi.Exists));
+        Assert.Single(legacy.Value.Devices);
+        Assert.Equal("pc01.a.example", legacy.Value.Devices[0].HostName);
+        Assert.DoesNotContain(legacy.Value.Devices.SelectMany(device => device.Assessment.Findings),
+            finding => finding.Code is HygieneFindingCode.MissingOpsi or HygieneFindingCode.OrphanOpsi or HygieneFindingCode.StaleOpsi);
         await opsi.DidNotReceiveWithAnyArgs().LoadAsync(default, default);
+    }
+
+    [Fact]
+    public async Task OpsiSessionChangesDuringIoCannotRestoreExpiredEvidence()
+    {
+        IOpsiComputerInventoryProvider opsi = Substitute.For<IOpsiComputerInventoryProvider>();
+        Guid original = Guid.NewGuid();
+        opsi.CurrentSessionId.Returns(original);
+        using var cache = ManagementCacheTestStore.CreateCache(opsi: opsi);
+        var completion = new TaskCompletionSource<Result<ItHygieneResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<Result<ItHygieneResult>> loading = cache.GetAsync(new(), true, (_, _) => completion.Task, CancellationToken.None);
+        opsi.CurrentSessionId.Returns(Guid.NewGuid());
+        ItHygieneResult data = SourceResult();
+        completion.SetResult(Result.Success(data with { SourceRecords = data.SourceRecords! with
+        { OpsiSessionId = original, Opsi = [new("old.example", null, null, null, null)] } }));
+        Result<ItHygieneResult> result = await loading;
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.SourceRecords!.Opsi);
+        Assert.All(result.Value.Devices, device => Assert.False(device.Opsi.Exists));
+        Assert.Single(result.Value.SourceRecords.ActiveDirectory);
     }
 }

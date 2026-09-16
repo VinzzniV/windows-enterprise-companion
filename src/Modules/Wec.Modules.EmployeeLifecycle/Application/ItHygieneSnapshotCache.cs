@@ -1,11 +1,13 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using Wec.Core.Results;
 using Wec.Core.Contracts;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
-internal sealed class ItHygieneSnapshotCache(IServiceCredentialStore credentials) : IDisposable
+internal sealed class ItHygieneSnapshotCache(IServiceCredentialStore credentials,
+    IOpsiComputerInventoryProvider opsi, IOptions<ItLifecycleOptions> options) : IDisposable
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _readGate = new(1, 1);
@@ -23,6 +25,7 @@ internal sealed class ItHygieneSnapshotCache(IServiceCredentialStore credentials
         lock (_gate)
         {
             Activate(fingerprint);
+            SynchronizeOpsiSession();
             return Task.FromResult(_sourceSnapshot);
         }
     }
@@ -37,6 +40,7 @@ internal sealed class ItHygieneSnapshotCache(IServiceCredentialStore credentials
         lock (_gate)
         {
             Activate(fingerprint);
+            SynchronizeOpsiSession();
             session = _session;
             revision = _revision;
             if (!force && _snapshot is not null) { return Result.Success(_snapshot); }
@@ -47,6 +51,7 @@ internal sealed class ItHygieneSnapshotCache(IServiceCredentialStore credentials
             lock (_gate)
             {
                 if (session != _session) { return Changed(); }
+                SynchronizeOpsiSession();
                 if (_revision > revision && _lastResult is not null) { return _lastResult; }
                 if (!force && _snapshot is not null) { return Result.Success(_snapshot); }
             }
@@ -66,10 +71,41 @@ internal sealed class ItHygieneSnapshotCache(IServiceCredentialStore credentials
                     if (Cacheable(loaded.Value)) { _snapshot = loaded.Value; }
                 }
                 _lastResult = loaded;
-                return loaded;
+                SynchronizeOpsiSession();
+                return _lastResult ?? loaded;
             }
         }
         finally { _readGate.Release(); }
+    }
+
+    private void SynchronizeOpsiSession()
+    {
+        Guid? currentSession = opsi.CurrentSessionId;
+        if (_sourceSnapshot is null || _sourceSnapshot.OpsiSessionId == currentSession) { return; }
+        const string explanation = "The opsi session changed. Read its inventory again in the selected session.";
+        _sourceSnapshot = _sourceSnapshot with
+        {
+            Opsi = [], OpsiSessionId = currentSession, Revision = ++_revision,
+            Sources = _sourceSnapshot.Sources.Select(state => state.Source != "Opsi" ? state
+                : state with { Scope = null, Availability = currentSession is null ? "NotConnected" : "NotLoaded",
+                    LoadedRecords = 0, Error = explanation }).ToArray(),
+        };
+        ItHygieneResult? previous = _snapshot ?? (_lastResult is { IsSuccess: true } ? _lastResult.Value : null);
+        if (previous is null) { return; }
+        EnvironmentSourceStates states = previous.Sources with
+        {
+            Opsi = new(currentSession is null ? InventorySourceAvailability.NotConnected : InventorySourceAvailability.Partial, explanation),
+        };
+        IReadOnlyList<HygieneDevice> devices = ItHygieneService.CorrelateAndAssess(
+            _sourceSnapshot.ActiveDirectory,
+            _sourceSnapshot.Kaspersky.Select(item => new KasperskyComputer(item.ComputerName, item.LastSeen,
+                item.AgentVersion, item.KesVersion, item.AdministrationGroup, item.Fqdn, item.DnsName, item.RecordName)).ToArray(),
+            [], previous.NessusInventory ?? new(_sourceSnapshot.Nessus, NessusInventoryAvailability.Partial, null),
+            states, previous.AssessedAtUtc, options.Value);
+        ItHygieneResult sanitized = previous with { Sources = states, Devices = devices,
+            Summary = ItHygieneService.Summarize(devices), SourceRecords = _sourceSnapshot };
+        if (_snapshot is not null) { _snapshot = sanitized; }
+        _lastResult = Result.Success(sanitized);
     }
 
     private void Activate(string fingerprint)

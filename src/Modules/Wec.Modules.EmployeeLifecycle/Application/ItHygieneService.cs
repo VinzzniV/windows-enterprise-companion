@@ -156,6 +156,7 @@ public sealed record ItHygieneResult(
     IReadOnlyList<HygieneDevice> Devices)
 {
     internal ManagementDeviceSnapshot? SourceRecords { get; init; }
+    internal NessusComputerInventory? NessusInventory { get; init; }
 }
 
 public sealed record ItHygieneRequest(
@@ -272,6 +273,7 @@ internal sealed class ItHygieneService
             devices)
         {
             SourceRecords = ManagementDeviceSnapshotProvider.Project(sourceLoad, now, request, _options),
+            NessusInventory = sourceLoad.Nessus.IsSuccess ? sourceLoad.Nessus.Value : null,
         });
     }
 

@@ -2,23 +2,14 @@ using Wec.Core.Contracts;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
-internal sealed class ManagementDeviceSnapshotProvider(ItHygieneSnapshotCache cache, IOpsiComputerInventoryProvider opsi) : IManagementDeviceSnapshotProvider
+internal sealed class ManagementDeviceSnapshotProvider(ItHygieneSnapshotCache cache) : IManagementDeviceSnapshotProvider
 {
     public async Task<ManagementDeviceSnapshot?> ReadCachedAsync(
         DirectoryInventoryConnection? activeDirectory,
         KasperskyInventoryConnection? kaspersky,
         CancellationToken cancellationToken)
     {
-        ManagementDeviceSnapshot? snapshot = await cache.ReadCachedAsync(new ItHygieneRequest(activeDirectory, kaspersky), cancellationToken);
-        Guid? currentSession = opsi.CurrentSessionId;
-        if (snapshot is null || snapshot.OpsiSessionId == currentSession) { return snapshot; }
-        return snapshot with
-        {
-            Opsi = [], OpsiSessionId = currentSession,
-            Sources = snapshot.Sources.Select(state => state.Source != "Opsi" ? state
-                : state with { Availability = currentSession is null ? "NotConnected" : "NotLoaded", LoadedRecords = 0,
-                    Error = "The opsi session changed. Read its inventory again in the selected session." }).ToArray(),
-        };
+        return await cache.ReadCachedAsync(new ItHygieneRequest(activeDirectory, kaspersky), cancellationToken);
     }
 
     internal static ManagementDeviceSnapshot Project(

@@ -202,6 +202,11 @@ separate rows with disposable evidence keys. Ambiguous rows cannot select a
 Windows scan/probe target or turn absent cross-source data into a missing-agent
 claim. Stored Inventory and saved targets stay independently addressable.
 
+The shared management cache removes opsi evidence after disconnect or session
+replacement, including late completions and legacy Hygiene/Action Center/Cleanup
+projections. Other source observations and their original assessment time remain
+available without source I/O. Reassessment retains the original Nessus policy.
+
 - AD inventory mapping and LDAP contract tests
 - KSC OpenAPI login, chunk parsing, limit and authentication-error tests
 - name correlation, independent stale rules and version comparison tests
