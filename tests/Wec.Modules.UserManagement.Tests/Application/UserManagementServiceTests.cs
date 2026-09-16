@@ -62,8 +62,10 @@ public sealed class UserManagementServiceTests
         await _directoryUsers.Received(1).GetPageAsync(query, Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task GetProfile_SeparatesIdentityLifecycleAndSidValidatedAccessEvidence()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetProfile_SeparatesIdentityLifecycleAndSidValidatedAccessEvidence(bool conflictingNessus)
     {
         _directoryUsers.GetByIdAsync(Arg.Any<DirectoryUserIdentityQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success<DirectoryUserRecord?>(User()));
@@ -139,6 +141,13 @@ public sealed class UserManagementServiceTests
                 NessusInventoryAvailability.Available,
                 capturedAt)));
 
+        if (conflictingNessus)
+        {
+            _nessus.LoadStoredAsync(Arg.Any<CancellationToken>()).Returns(Result.Success(new NessusComputerInventory(
+                [new("PC-42", "one", null, capturedAt, 1, 2, 3, 4, 0, [], []),
+                    new("PC-42", "two", null, capturedAt.AddDays(1), 9, 9, 9, 9, 0, [], [])],
+                NessusInventoryAvailability.Available, capturedAt)));
+        }
         Result<UserProfileResult> result = await CreateService()
             .GetProfileAsync(
                 new DirectoryUserIdentityQuery(CurrentConnection(), ObjectId),
@@ -162,8 +171,9 @@ public sealed class UserManagementServiceTests
         Assert.Equal(1, device.Health.HealthyCount);
         Assert.Equal(1, device.Security.CriticalCount);
         Assert.Equal(1, device.Security.HighCount);
-        Assert.True(device.Vulnerabilities.DeviceMatched);
-        Assert.Equal(2, device.Vulnerabilities.HighCount);
+        Assert.Equal(!conflictingNessus, device.Vulnerabilities.DeviceMatched);
+        Assert.Equal(conflictingNessus ? 0 : 2, device.Vulnerabilities.HighCount);
+        if (conflictingNessus) { Assert.Contains("candidates conflict", device.Vulnerabilities.Explanation, StringComparison.Ordinal); }
     }
 
     [Fact]

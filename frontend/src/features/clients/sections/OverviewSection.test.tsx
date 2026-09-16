@@ -34,7 +34,7 @@ const environmentResult: ItHygieneResult = {
     activeDirectory: { exists: true, enabled: true, dnsHostName: 'PC-42.corp.local', operatingSystem: 'Windows 11', description: null, distinguishedName: null, organizationalUnit: null, lastLogonDate: '2026-08-20T07:00:00Z' },
     kaspersky: { exists: true, lastSeen: '2026-08-20T07:00:00Z', agentVersion: '16.0', kesVersion: '21.25', administrationGroup: 'Clients' },
     opsi: { exists: true, clientId: 'pc-42.corp.local', description: null, depotId: 'depot-1', lastSeen: '2026-05-01T07:00:00Z', clientAgentVersion: '4.3' },
-    nessus: { exists: true, assetId: 'asset-1', ipAddress: '10.0.0.42', lastCompletedScanUtc: '2026-08-20T07:00:00Z', critical: 0, high: 0, medium: 0, low: 0, info: 0, ports: [], scanSources: ['Clients'] },
+    nessus: { sourceKey: null, exists: true, assetId: 'asset-1', ipAddress: '10.0.0.42', lastCompletedScanUtc: '2026-08-20T07:00:00Z', critical: 0, high: 0, medium: 0, low: 0, info: 0, ports: [], scanSources: ['Clients'] },
     assessment: { status: 'WARNING', findings: [{ code: 'STALE_OPSI', severity: 'WARNING', message: 'opsi last seen is stale.' }] },
   }],
 };

@@ -317,7 +317,7 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
         <Rows entries={[["Client ID", value(device.opsi.clientId)], ["Description", value(device.opsi.description)], ["Depot", value(device.opsi.depotId)], ["Last seen", date(device.opsi.lastSeen)], ["Client Agent", value(device.opsi.clientAgentVersion)]]} /></Card>
       <Card title="Nessus"><SourceHeader name="Nessus" state={nessusSource} present={nessus.exists && nessus.lastCompletedScanUtc !== null} missingApplies={hasFinding('MISSING_NESSUS')} stale={hasFinding('STALE_NESSUS')} /><SourceError state={nessusSource} />
         <Rows entries={[["Last completed scan", date(nessus.lastCompletedScanUtc)], ["Critical", String(nessus.critical)], ["High", String(nessus.high)], ["Medium", String(nessus.medium)], ["Low", String(nessus.low)], ["Ports", nessus.ports.join(', ') || '—'], ["Scans", nessus.scanSources.join(', ') || '—']]} />
-        {nessus.exists && <a className="mt-3 inline-block text-sm text-accent-400 hover:text-accent-300" href={`#/vulnerabilities?tab=findings&asset=${encodeURIComponent(device.computerName)}`}>Open findings in Vulnerabilities</a>}</Card>
+        {nessus.exists && <a className="mt-3 inline-block text-sm text-accent-400 hover:text-accent-300" href={`#/vulnerabilities?tab=findings&asset=${encodeURIComponent(nessus.sourceKey ?? device.hostName)}`}>Open findings in Vulnerabilities</a>}</Card>
     </div>
   </div>;
 }

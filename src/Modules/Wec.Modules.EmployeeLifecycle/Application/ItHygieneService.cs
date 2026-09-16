@@ -83,7 +83,10 @@ public sealed record NessusDeviceData(
     int Low,
     int Info,
     IReadOnlyList<int> Ports,
-    IReadOnlyList<string> ScanSources);
+    IReadOnlyList<string> ScanSources)
+{
+    public string? SourceKey { get; init; }
+}
 
 public enum InventorySourceAvailability
 {
@@ -357,7 +360,7 @@ internal sealed class ItHygieneService
                         nessus?.Low ?? 0,
                         nessus?.Info ?? 0,
                         nessus?.Ports ?? [],
-                        nessus?.ScanSources ?? []),
+                        nessus?.ScanSources ?? []) { SourceKey = nessus?.SourceKey },
                     assessment)
                 {
                     EvidenceKey = candidate.EvidenceKey,

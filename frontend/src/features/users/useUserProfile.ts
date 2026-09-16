@@ -54,7 +54,8 @@ export function useUserProfile(reference: ObjectReference, directoryScope: strin
       if (generation.current === own) setState({ reference, context, sessionKey, data: null, busy: false, error: presentError(caught).message });
     } finally { if (generation.current === own) { active.current = null; if (source) void refreshCached?.(); } }
   }, [reference, context, sessionKey, refreshCached]);
-  useEffect(() => { void load(); return () => { generation.current++; active.current?.cancel(); }; }, [load]);
+  const resolveLegacyUser = (location.state as { resolveLegacyUser?: boolean } | null)?.resolveLegacyUser === true;
+  useEffect(() => { void load(resolveLegacyUser ? 'directory' : undefined); return () => { generation.current++; active.current?.cancel(); }; }, [load, resolveLegacyUser]);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => {
     if (!current?.data) return;

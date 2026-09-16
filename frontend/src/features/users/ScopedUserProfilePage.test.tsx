@@ -34,7 +34,7 @@ function profile(): ScopedUserProfile {
     } };
 }
 function adProfile(): UserProfileResult {
-  return { identity: { objectId: other, sid, displayName: 'AD account', samAccountName: 'ad', userPrincipalName: 'ad@example.test', mail: null,
+  return { identity: { directoryScope: null, objectId: other, sid, displayName: 'AD account', samAccountName: 'ad', userPrincipalName: 'ad@example.test', mail: null,
     employeeId: null, department: null, title: null, managerDistinguishedName: null, distinguishedName: 'CN=ad,DC=example,DC=test', organizationalUnitPath: 'DC=example,DC=test' },
     lifecycle: { enabled: true, createdAtUtc: null, accountExpiresAtUtc: null, replicatedLastLogonAtUtc: null, passwordLastSetAtUtc: null, passwordExpiresAtUtc: null, passwordNeverExpires: null },
     access: { directGroups: [], privilegedCoverage: 'NOT_EVALUATED', privilegedCoverageExplanation: 'Not evaluated', directPrivilegedGroups: [] },

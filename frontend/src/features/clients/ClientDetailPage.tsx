@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
@@ -62,7 +62,7 @@ export function ClientDetailPage() {
   const location = useLocation();
   const { host: rawHost } = useParams<{ host: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const host = decodeURIComponent(rawHost ?? '');
+  const host = rawHost ?? '';
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
   // undefined = getAppInfo not resolved yet; string|null once known. Sections
@@ -89,8 +89,8 @@ export function ClientDetailPage() {
   );
   const refreshReport = useCallback(() => setReportRevision((revision) => revision + 1), []);
 
-  const savedEntry = useMemo(
-    () => savedTargets.find((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
+  const savedEntries = useMemo(
+    () => savedTargets.filter((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
     [savedTargets, host],
   );
 
@@ -140,10 +140,10 @@ export function ClientDetailPage() {
               PowerShell
             </Button>
           )}
-          {savedEntry ? (
-            <Button variant="secondary" onClick={() => void deleteTarget(savedEntry.id)}>
-              Unsave client
-            </Button>
+          {savedEntries.length > 0 ? (
+            savedEntries.map(entry => <Button key={entry.id} variant="secondary" onClick={() => void deleteTarget(entry.id)}>
+              {savedEntries.length === 1 ? 'Unsave client' : `Unsave ${entry.label} (${entry.id})`}
+            </Button>)
           ) : (
             <Button
               variant="secondary"
@@ -156,6 +156,10 @@ export function ClientDetailPage() {
           )}
         </div>
       </PageHeader>
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link className="text-accent-400 underline" to={(location.state as { returnObject?: string } | null)?.returnObject ?? `/devices?q=${encodeURIComponent(host)}`} state={location.state}>Device identities and source records</Link>
+        <Link className="text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(host)}`}>Device Cleanup</Link>
+      </div>
       {powerShellError && (
         <ErrorState title="PowerShell session unavailable" {...powerShellError} />
       )}

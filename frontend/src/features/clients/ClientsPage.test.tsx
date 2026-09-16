@@ -60,7 +60,7 @@ function device(name: string, options: { enabled?: boolean; opsi?: boolean } = {
     activeDirectory: { exists: true, enabled: options.enabled ?? true, dnsHostName: host, operatingSystem: 'Windows 11 Pro', description: null, distinguishedName: `CN=${name},DC=corp,DC=local`, organizationalUnit: 'DC=corp,DC=local', lastLogonDate: '2026-08-19T08:30:00Z' },
     kaspersky: { exists: name === 'PC01', lastSeen: name === 'PC01' ? '2026-08-18T07:15:00Z' : null, agentVersion: name === 'PC01' ? '16.0' : null, kesVersion: name === 'PC01' ? '21.25' : null, administrationGroup: name === 'PC01' ? 'Clients' : null },
     opsi: { exists: options.opsi ?? false, clientId: options.opsi ? host : null, description: null, depotId: options.opsi ? 'depot01' : null, lastSeen: options.opsi ? '2026-08-17T06:45:00Z' : null, clientAgentVersion: options.opsi ? '4.3.8' : null },
-    nessus: { exists: name === 'PC01', assetId: name === 'PC01' ? 'asset-1' : null, ipAddress: name === 'PC01' ? '10.0.0.1' : null, lastCompletedScanUtc: name === 'PC01' ? '2026-08-18T05:00:00Z' : null, critical: 0, high: 0, medium: name === 'PC01' ? 1 : 0, low: name === 'PC01' ? 2 : 0, info: 0, ports: name === 'PC01' ? [443] : [], scanSources: name === 'PC01' ? ['Clients'] : [] },
+    nessus: { sourceKey: null, exists: name === 'PC01', assetId: name === 'PC01' ? 'asset-1' : null, ipAddress: name === 'PC01' ? '10.0.0.1' : null, lastCompletedScanUtc: name === 'PC01' ? '2026-08-18T05:00:00Z' : null, critical: 0, high: 0, medium: name === 'PC01' ? 1 : 0, low: name === 'PC01' ? 2 : 0, info: 0, ports: name === 'PC01' ? [443] : [], scanSources: name === 'PC01' ? ['Clients'] : [] },
     assessment: { status: 'HEALTHY', findings: [] },
   };
 }

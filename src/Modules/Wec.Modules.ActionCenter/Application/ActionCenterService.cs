@@ -115,10 +115,11 @@ internal sealed class ActionCenterService(
         bool cleanupEvidence = IsCleanupEvidence(finding.FindingCode);
         bool nessus = finding.Source == "Nessus";
         string href = cleanupEvidence
-            ? $"/cleanup?host={Uri.EscapeDataString(finding.Host)}"
+            ? $"/cleanup?host={Uri.EscapeDataString(finding.SubjectKey)}"
             : nessus
-                ? $"/vulnerabilities?tab=findings&asset={Uri.EscapeDataString(finding.Host)}"
-                : $"/clients/{Uri.EscapeDataString(finding.Host)}";
+                ? $"/vulnerabilities?tab=findings&asset={Uri.EscapeDataString(finding.NessusSourceKey ?? finding.Host)}"
+                : finding.CanTargetWindows ? $"/clients/{Uri.EscapeDataString(finding.Host)}"
+                    : $"/devices?q={Uri.EscapeDataString(finding.Host)}";
         return new ActionCenterWorkItem(
             $"hygiene:{finding.SubjectKey}:{finding.FindingCode}",
             "Device",

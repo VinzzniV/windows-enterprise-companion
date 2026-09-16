@@ -81,7 +81,11 @@ internal sealed class HygieneActionEvidenceProvider(
             source,
             evidenceAtUtc,
             Availability(state.Availability),
-            CoverageExplanation(source, state) + " " + device.CorrelationExplanation);
+            CoverageExplanation(source, state) + " " + device.CorrelationExplanation)
+        {
+            CanTargetWindows = device.CanTargetWindows,
+            NessusSourceKey = device.Nessus.SourceKey,
+        };
     }
 
     private static ActionEvidenceSourceState Source(string source, InventorySourceState state) =>

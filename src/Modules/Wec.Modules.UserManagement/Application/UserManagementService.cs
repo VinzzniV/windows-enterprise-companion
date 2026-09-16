@@ -87,7 +87,7 @@ internal sealed class UserManagementService
                 user.Title,
                 user.ManagerDistinguishedName,
                 user.DistinguishedName,
-                user.OrganizationalUnitPath),
+                user.OrganizationalUnitPath) { DirectoryScope = user.DirectoryScope },
             new UserLifecycleProfile(
                 user.Enabled,
                 user.CreatedAtUtc,
@@ -254,11 +254,11 @@ internal sealed class UserManagementService
         }
 
         NessusComputerInventory inventory = nessusResult.Value;
-        NessusComputerInventoryItem? item = inventory.Computers
-            .Where(candidate => HostEquals(candidate.ComputerName, host))
-            .OrderByDescending(candidate => candidate.LastCompletedScanUtc)
-            .FirstOrDefault();
-        if (item is null)
+        NessusComputerInventoryItem[] candidates = inventory.Computers
+            .Where(candidate => HostEquals(candidate.ComputerName, host)
+                || candidate.Fqdn is not null && HostEquals(candidate.Fqdn, host)
+                || candidate.IpAddress is not null && HostEquals(candidate.IpAddress, host)).ToArray();
+        if (candidates.Length != 1)
         {
             return new UserDeviceVulnerabilityProfile(
                 inventory.Availability,
@@ -268,9 +268,11 @@ internal sealed class UserManagementService
                 0,
                 0,
                 0,
-                "No stored Nessus asset matched this device.");
+                candidates.Length == 0 ? "No stored Nessus address candidate matched this device."
+                    : $"{candidates.Length} stored Nessus address candidates conflict. No counts were assigned; inspect their individual source records.");
         }
 
+        NessusComputerInventoryItem item = candidates[0];
         return new UserDeviceVulnerabilityProfile(
             inventory.Availability,
             true,
@@ -279,7 +281,7 @@ internal sealed class UserManagementService
             item.High,
             item.Medium,
             item.Low,
-            "Counts come from the latest stored Nessus inventory for this device.");
+            "Counts come from one stored Nessus address candidate. Address agreement does not confirm a shared device identity.");
     }
 
     private static int CountHealth(DeviceHealthSnapshotData health, string status) =>

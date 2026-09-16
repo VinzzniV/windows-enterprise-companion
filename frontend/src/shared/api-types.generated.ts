@@ -1863,6 +1863,7 @@ export interface NessusDeviceData {
   info: number;
   ports: number[];
   scanSources: string[];
+  sourceKey: string | null;
 }
 
 export interface OpsiDeviceData {
@@ -3117,6 +3118,7 @@ export interface UserIdentityProfile {
   managerDistinguishedName: string | null;
   distinguishedName: string;
   organizationalUnitPath: string;
+  directoryScope: string | null;
 }
 
 export interface UserLifecycleProfile {

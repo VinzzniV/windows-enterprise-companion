@@ -13,7 +13,17 @@ Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
 
-## Current consolidation verification (2026-09-14)
+## Current consolidation verification (2026-09-16)
+
+- Resume verification: the worktree retained the prior changes. Opsi session
+  invalidation now covers legacy assessments and late responses (98 module and
+  89 Host tests). Action Center/Cleanup preserve individual evidence keys;
+  Nessus address aliases retain all candidates and exact source-key links.
+  User aliases resolve the verified AD scope; saved-target deletion selects an
+  individual record. The latest affected suites pass: 98 EmployeeLifecycle,
+  35 UserManagement, 7 ActionCenter, 9 VulnerabilityManagement and 53 frontend
+  tests. Release is warning-free, 494 contracts and production assets are current.
+  The full final regression and C2 navigation milestone remain pending.
 
 - Legacy hygiene/Cleanup identity preservation: 97 EmployeeLifecycle, 12
   DeviceCleanup and 73 affected frontend tests pass, as do the warning-free

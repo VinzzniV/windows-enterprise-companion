@@ -45,7 +45,11 @@ public sealed record HygieneActionEvidence(
     string Source,
     DateTimeOffset? EvidenceAtUtc,
     ActionEvidenceAvailability Coverage,
-    string CoverageExplanation);
+    string CoverageExplanation)
+{
+    public bool CanTargetWindows { get; init; } = true;
+    public string? NessusSourceKey { get; init; }
+}
 
 public sealed record HygieneActionSubject(
     string SubjectKey,

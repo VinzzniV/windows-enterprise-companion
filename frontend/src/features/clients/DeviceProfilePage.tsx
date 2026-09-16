@@ -15,9 +15,11 @@ import { useDeviceProfile } from './useDeviceProfile';
 const canRead = (state: Microsoft365ReadState) => state.availability !== 'NOT_CONNECTED' && state.availability !== 'NOT_ENABLED';
 
 function Relations({ title, links }: { title: string; links: ObjectRelationship[] }) {
+  const location = useLocation();
+  const directoryEndpoint = (location.state as { directoryEndpoint?: unknown } | null)?.directoryEndpoint;
   return <Card title={title}>{links.length === 0 ? <p className="text-sm text-muted">No relationships established in the loaded evidence.</p>
     : <ul className="space-y-3">{links.map((link, index) => <li key={`${objectPath(link.target)}:${index}`}>
-      <Link className="text-accent-400 underline" to={objectPath(link.target)}>{link.label}</Link>
+      <Link className="text-accent-400 underline" to={objectPath(link.target)} state={{ directoryEndpoint }}>{link.label}</Link>
       <p className="text-xs">{link.relation} · {objectSourceLabel[link.target.source]} · {link.target.scope}</p>
       <p className="text-xs text-muted">{link.explanation}</p>
     </li>)}</ul>}</Card>;
@@ -61,7 +63,7 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
   const cloud = profile?.cloud;
   return <div className="flex flex-col gap-4">
     <PageHeader title={profile?.title ?? reference.id} subtitle={`${objectSourceLabel[reference.source]} · ${reference.scope}`}>
-      <Link className="text-sm text-accent-400 underline" to="/clients">Devices</Link>
+      <Link className="text-sm text-accent-400 underline" to="/devices">Devices</Link>
       <Button disabled={view.busy} onClick={() => void view.load()}>Reload cached evidence</Button>
       {view.busy && <Button onClick={view.cancel}>Cancel read</Button>}
     </PageHeader>
@@ -77,6 +79,7 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
         <div className="flex flex-wrap gap-3">{[['inventory', 'Inventory'], ['security', 'Security'], ['diagnostics', 'Health'], ['events', 'Event logs'], ['printers', 'Printers'], ['reporting', 'Report export']].map(([section, label]) =>
           <Link key={section} state={{ returnObject: location.pathname }} className="text-sm text-accent-400 underline"
             to={`/clients/${encodeURIComponent(profile.operationalHost!)}?section=${section}`}>{label}</Link>)}</div>
+        <Link className="text-sm text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(profile.operationalHost)}`}>Device Cleanup</Link>
       </Card>}
       {!profile.operationalHost && <p className="text-sm text-muted">Windows scans and exports are not applicable until an exact Windows target is selected. Candidate links open separate source records.</p>}
       {profile.wec && profile.operationalHost && <StoredClientEvidence host={profile.operationalHost} result={profile.wec} />}

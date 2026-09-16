@@ -130,6 +130,25 @@ function reportOverview(inventoryAvailable: boolean, securityAvailable: boolean)
 }
 
 describe('ClientDetailPage', () => {
+  it('keeps an already decoded route address intact', async () => {
+    renderAt('fe80::1%12');
+    expect(await screen.findByRole('heading', { name: 'fe80::1%12' })).toBeDefined();
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('clients', 'getOverview', expect.objectContaining({ host: 'fe80::1%12' })));
+  });
+
+  it('lets the administrator select individual saved records when addresses repeat', async () => {
+    const fallback = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((module, action, payload) => module === 'targets' && action === 'list'
+      ? Promise.resolve({ targets: [
+        { id: 1, role: 'Client', host: 'PC1.corp.local', label: 'First saved target' },
+        { id: 2, role: 'Client', host: 'pc1.corp.local', label: 'Second saved target' },
+      ] }) : fallback(module, action, payload));
+    renderAt('PC1.corp.local');
+    expect(await screen.findByRole('button', { name: 'Unsave First saved target (1)' })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Unsave Second saved target (2)' }));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('targets', 'delete', { id: 2 }));
+  });
+
   beforeEach(() => {
     invokeMock.mockReset();
     invokeMock.mockImplementation((module: string, action: string) => {
