@@ -89,6 +89,15 @@ it('opens a guest with unknown values using only cached profile composition', as
   expect((screen.getByRole('button', { name: 'Resolve AD account by exact SID' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
+it('offers a visible safe return to the retained AD user result page', async () => {
+  const returnTo = '/users/directory?q=Cloud&department=IT&page=2&size=25&sort=LAST_LOGON&dir=DESCENDING';
+  render(<MemoryRouter initialEntries={[{ pathname: objectPath(profile().reference), state: { returnTo } }]}><Routes>
+    <Route path="/users/:source/:scope/:objectId" element={<ScopedUserProfilePage />} />
+  </Routes></MemoryRouter>);
+
+  expect((await screen.findByRole('link', { name: '← Back to AD user results' })).getAttribute('href')).toBe(returnTo);
+});
+
 it('loads one explicit user source with its tenant then recomposes without loading adjacent sources', async () => {
   page();
   fireEvent.click(await screen.findByRole('button', { name: 'Load Entra user object' }));

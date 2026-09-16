@@ -18,7 +18,7 @@ type State =
   | { kind: 'idle' }
   | { kind: 'loading'; scanning: boolean }
   | { kind: 'loaded'; scan: SecurityScanResult }
-  | { kind: 'error'; error: ErrorPresentation };
+  | { kind: 'error'; error: ErrorPresentation; storedRead: boolean };
 
 /** Security section of a client: last saved scan on open, run on demand. */
 export function SecuritySection({
@@ -30,15 +30,23 @@ export function SecuritySection({
 }) {
   const [state, setState] = useState<State>({ kind: 'loading', scanning: false });
 
-  // Load the latest stored scan on open (no network)
-  useEffect(() => {
+  const loadStored = useCallback(() => {
     setState({ kind: 'loading', scanning: false });
     invoke<LatestScanResult>('security', 'getLatestScan', { target })
       .then((result) =>
         result.scan ? setState({ kind: 'loaded', scan: result.scan }) : setState({ kind: 'idle' }),
       )
-      .catch(() => setState({ kind: 'idle' }));
+      .catch((error: unknown) => setState({
+        kind: 'error',
+        error: presentError(error, { message: 'The stored security scan could not be read.' }),
+        storedRead: true,
+      }));
   }, [target]);
+
+  // Load the latest stored scan on open (no network)
+  useEffect(() => {
+    loadStored();
+  }, [loadStored]);
 
   const runScan = useCallback(() => {
     setState({ kind: 'loading', scanning: true });
@@ -50,6 +58,7 @@ export function SecuritySection({
       .catch((error: unknown) => setState({
         kind: 'error',
         error: presentError(error, { message: 'Security checks could not be completed.' }),
+        storedRead: false,
       }));
   }, [target, onDataChanged]);
 
@@ -61,7 +70,9 @@ export function SecuritySection({
     return (
       <ErrorState
         {...state.error}
-        controls={<Button onClick={runScan}>Retry scan</Button>}
+        controls={state.storedRead
+          ? <Button onClick={loadStored}>Retry stored read</Button>
+          : <Button onClick={runScan}>Retry scan</Button>}
       />
     );
   }

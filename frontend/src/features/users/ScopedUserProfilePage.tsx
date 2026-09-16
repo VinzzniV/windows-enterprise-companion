@@ -66,6 +66,11 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
   const location = useLocation();
   const directoryEndpoint = (location.state as { directoryEndpoint?: unknown } | null)?.directoryEndpoint;
   const returnLink = workingSetReturn(location.state, '/users');
+  const requestedReturn = (location.state as { returnTo?: unknown } | null)?.returnTo;
+  const adResultsReturn = typeof requestedReturn === 'string'
+    && (requestedReturn === '/users/directory' || requestedReturn.startsWith('/users/directory?'))
+    ? requestedReturn
+    : null;
   const [scopeInput, setScopeInput] = useState('');
   const [directoryScope, setDirectoryScope] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState('');
@@ -81,7 +86,9 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
   const filteredGroups = ad?.access.directGroups.filter(group => `${group.name} ${group.distinguishedName}`.toLocaleLowerCase().includes(groupFilter.trim().toLocaleLowerCase())) ?? [];
   return <div className="flex flex-col gap-4">
     <PageHeader title={profile?.title ?? reference.id} subtitle={`${objectSourceLabel[reference.source]} account · ${reference.scope}`}>
-      <Link className="text-sm text-accent-400 underline" to={returnLink.to} state={returnLink.state}>← Back to results</Link>
+      <Link className="text-sm text-accent-400 underline" to={adResultsReturn ?? returnLink.to} state={adResultsReturn ? undefined : returnLink.state}>
+        ← Back to {adResultsReturn ? 'AD user results' : 'results'}
+      </Link>
       <Link className="text-sm text-accent-400 underline" to="/users">All users</Link>
       <Button disabled={view.busy} onClick={() => void view.load()}>Reload cached evidence</Button>
       {view.busy && <Button onClick={view.cancel}>Cancel read</Button>}

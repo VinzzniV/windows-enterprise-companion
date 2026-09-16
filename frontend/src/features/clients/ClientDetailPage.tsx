@@ -66,6 +66,11 @@ export function ClientDetailPage() {
   const host = rawHost ?? '';
   const navigationState = continueWorkingSetNavigation(location.state);
   const workingSetReturnLink = workingSetReturn(location.state, '/devices');
+  const requestedReturn = (location.state as { returnTo?: unknown } | null)?.returnTo;
+  const actionCenterReturn = typeof requestedReturn === 'string'
+    && (requestedReturn === '/actions' || requestedReturn.startsWith('/actions?'))
+    ? requestedReturn
+    : null;
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
   // undefined = getAppInfo not resolved yet; string|null once known. Sections
@@ -124,6 +129,9 @@ export function ClientDetailPage() {
     <div className="flex flex-col gap-4">
       <PageHeader title={host} subtitle={local ? 'This machine · scanned as the current user' : 'Remote client'}>
         <div className="flex items-center gap-2">
+          {actionCenterReturn && <Link className="text-sm text-accent-400 underline" to={actionCenterReturn}>
+            ← Back to Action Center
+          </Link>}
           <Button variant="ghost" onClick={() => navigate('/clients', { state: location.state })}>
             ← All clients
           </Button>
@@ -202,7 +210,7 @@ export function ClientDetailPage() {
         // in-progress scan keeps running and its result is never discarded.
         <>
           <div role="tabpanel" id="clientpanel-overview" aria-labelledby="clienttab-overview" hidden={section !== 'overview'}>
-            <OverviewSection host={host} />
+            <OverviewSection host={host} refreshKey={reportRevision} />
           </div>
           {section === 'microsoft365' && <div role="tabpanel" id="clientpanel-microsoft365" aria-labelledby="clienttab-microsoft365">
             <Microsoft365ContextPanel host={host} />
@@ -214,7 +222,7 @@ export function ClientDetailPage() {
             <SecuritySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-diagnostics" aria-labelledby="clienttab-diagnostics" hidden={section !== 'diagnostics'}>
-            <HealthSection key={host} target={target} />
+            <HealthSection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-events" aria-labelledby="clienttab-events" hidden={section !== 'events'}>
             <EventLogSection key={host} target={target} />

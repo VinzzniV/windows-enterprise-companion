@@ -16,30 +16,48 @@ type State =
   | { kind: 'idle' }
   | { kind: 'running' }
   | { kind: 'done'; run: DiagnosticRunResult }
-  | { kind: 'error'; error: ErrorPresentation };
+  | { kind: 'error'; error: ErrorPresentation; storedRead: boolean };
 
 /** Latest stored Health snapshot with an explicit on-demand refresh. */
-export function HealthSection({ target }: { target: TargetRequest | null }) {
+export function HealthSection({
+  target,
+  onDataChanged,
+}: {
+  target: TargetRequest | null;
+  onDataChanged?: () => void;
+}) {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
-  useEffect(() => {
+  const loadStored = useCallback(() => {
     setState({ kind: 'loading' });
     invoke<LatestDiagnosticRunResult>('diagnostics', 'getLatestDiagnostics', { target })
       .then((result) =>
         result.run ? setState({ kind: 'done', run: result.run }) : setState({ kind: 'idle' }),
       )
-      .catch(() => setState({ kind: 'idle' }));
+      .catch((error: unknown) => setState({
+        kind: 'error',
+        error: presentError(error, { message: 'The stored health snapshot could not be read.' }),
+        storedRead: true,
+      }));
   }, [target]);
+
+  useEffect(() => {
+    loadStored();
+  }, [loadStored]);
 
   const run = useCallback(() => {
     setState({ kind: 'running' });
     invoke<DiagnosticRunResult>('diagnostics', 'runDiagnostics', { target })
-      .then((result) => setState({ kind: 'done', run: result }))
+      .then((result) => {
+        setState({ kind: 'done', run: result });
+        onDataChanged?.();
+      })
       .catch((error: unknown) => setState({
         kind: 'error',
         error: presentError(error, { message: 'The health check could not be completed.' }),
+        storedRead: false,
       }));
-  }, [target]);
+  }, [target, onDataChanged]);
 
   if (state.kind === 'loading') {
     return <Spinner label="Loading latest health snapshot …" />;
@@ -53,7 +71,9 @@ export function HealthSection({ target }: { target: TargetRequest | null }) {
     return (
       <ErrorState
         {...state.error}
-        controls={<Button onClick={run}>Retry health check</Button>}
+        controls={state.storedRead
+          ? <Button onClick={loadStored}>Retry stored read</Button>
+          : <Button onClick={run}>Retry health check</Button>}
       />
     );
   }

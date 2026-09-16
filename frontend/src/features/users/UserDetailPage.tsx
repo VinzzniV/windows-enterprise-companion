@@ -139,7 +139,7 @@ export function UserDetailPage() {
   if (!profile) return <EmptyState title="User not found" message="The selected directory identity is no longer available." />;
   if (profile.identity.directoryScope && profile.identity.objectId.toLowerCase() === objectId.toLowerCase()) {
     return <Navigate replace to={objectPath({ kind: 'USER', source: 'ACTIVE_DIRECTORY', scope: profile.identity.directoryScope, id: profile.identity.objectId }) + location.search}
-      state={{ directoryEndpoint: endpoint, resolveLegacyUser: true }} />;
+      state={{ ...(location.state as object | null), directoryEndpoint: endpoint, resolveLegacyUser: true }} />;
   }
 
   const { identity, lifecycle, access } = profile;

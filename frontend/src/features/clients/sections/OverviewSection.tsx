@@ -347,7 +347,7 @@ function ManagementContext({ host, overview }: { host: string; overview: ClientO
   return device ? <DeviceOverview device={device} overview={overview} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
 }
 
-export function OverviewSection({ host }: { host: string }) {
+export function OverviewSection({ host, refreshKey = 0 }: { host: string; refreshKey?: number }) {
   const [state, setState] = useState<OverviewLoadState>({ kind: 'loading' });
   const requestGeneration = useRef(0);
 
@@ -372,7 +372,7 @@ export function OverviewSection({ host }: { host: string }) {
   useEffect(() => {
     loadOverview(false);
     return () => { requestGeneration.current += 1; };
-  }, [loadOverview]);
+  }, [loadOverview, refreshKey]);
 
   if (state.kind === 'loading') return <p className="py-6 text-sm text-slate-400" role="status">Loading stored client evidence …</p>;
   if (state.kind === 'error') return <ErrorState {...state.error} controls={<Button onClick={() => loadOverview(false)}>Retry overview</Button>} />;

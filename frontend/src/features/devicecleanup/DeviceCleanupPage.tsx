@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type {
   ActionEvidenceAvailability,
   DeviceCleanupCandidate,
@@ -79,6 +79,12 @@ function sourceTimestampSummary(candidate: DeviceCleanupCandidate): string {
 }
 
 export function DeviceCleanupPage() {
+  const location = useLocation();
+  const requestedReturn = (location.state as { returnTo?: unknown } | null)?.returnTo;
+  const actionCenterReturn = typeof requestedReturn === 'string'
+    && (requestedReturn === '/actions' || requestedReturn.startsWith('/actions?'))
+    ? requestedReturn
+    : null;
   const environmentRequest = useEnvironmentRequest();
   const hygieneOperation = useHygieneOperation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -302,6 +308,7 @@ export function DeviceCleanupPage() {
 
   return <div className="flex flex-col gap-4">
     <PageHeader title="Device Cleanup" subtitle="Guided read-only stale-device assessment">
+      {actionCenterReturn && <Link className="text-sm text-accent-400 underline" to={actionCenterReturn}>← Back to Action Center</Link>}
       <Badge tone="info">No AD writes</Badge>
       <Button variant="secondary" disabled={loading || workbookExporting} onClick={() => setRefreshRevision((value) => value + 1)}>
         {loading ? 'Refreshing…' : 'Refresh sources'}

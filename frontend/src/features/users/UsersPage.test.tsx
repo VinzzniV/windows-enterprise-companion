@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ListUsersRequest, UserPageResult, UserSummary } from '../../shared/api-types';
 import { TargetProvider } from '../../shared/targets/TargetContext';
@@ -41,13 +41,19 @@ function page(payload: ListUsersRequest, users: UserSummary[] = [alex]): UserPag
   };
 }
 
-function renderPage() {
+function UserDestination() {
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo;
+  return <div>User profile route{returnTo && <Link to={returnTo}>Back to AD user results</Link>}</div>;
+}
+
+function renderPage(initialEntry = '/users/directory') {
   return render(
-    <MemoryRouter initialEntries={['/users']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <TargetProvider>
         <Routes>
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/users/:objectId" element={<div>User profile route</div>} />
+          <Route path="/users/directory" element={<UsersPage />} />
+          <Route path="/users/:objectId" element={<UserDestination />} />
         </Routes>
       </TargetProvider>
     </MemoryRouter>,
@@ -125,6 +131,26 @@ describe('UsersPage', () => {
       'listUsers',
       expect.objectContaining({ page: 2 }),
     ));
+  });
+
+  it('restores the exact AD query, filters and page after a profile journey', async () => {
+    const user = userEvent.setup();
+    renderPage('/users/directory?q=Alex&department=IT&ou=OU%3DUsers%2CDC%3Dcorp%2CDC%3Dexample&account=ENABLED&page=2&size=25&sort=LAST_LOGON&dir=DESCENDING');
+
+    const row = (await screen.findByText('Alex Example')).closest('tr') as HTMLTableRowElement;
+    expect(invokeMock).toHaveBeenCalledWith('usermanagement', 'listUsers', expect.objectContaining({
+      search: 'Alex', department: 'IT', baseDistinguishedName: 'OU=Users,DC=corp,DC=example',
+      accountState: 'ENABLED', page: 2, pageSize: 25, sortField: 'LAST_LOGON', sortDirection: 'DESCENDING',
+    }));
+
+    await user.click(row);
+    expect(await screen.findByText('User profile route')).toBeDefined();
+    await user.click(screen.getByRole('link', { name: 'Back to AD user results' }));
+
+    expect(await screen.findByText('Alex Example')).toBeDefined();
+    expect((screen.getByRole('searchbox', { name: 'Search users' }) as HTMLInputElement).value).toBe('Alex');
+    expect((screen.getByRole('textbox', { name: 'Department' }) as HTMLInputElement).value).toBe('IT');
+    expect((screen.getByRole('combobox', { name: 'Account state' }) as HTMLSelectElement).value).toBe('ENABLED');
   });
 
   it('normalizes directory credentials without adding empty fields', () => {

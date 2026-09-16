@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActionCenterPage as ActionCenterPageResult } from '../../shared/api-types';
 import { TargetProvider } from '../../shared/targets/TargetContext';
@@ -60,13 +60,23 @@ const result: ActionCenterPageResult = {
   itemsTruncated: true,
 };
 
-function renderPage() {
+function ActionDestination() {
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo;
+  return <div>Action destination{returnTo && <Link to={returnTo}>Back to Action Center</Link>}</div>;
+}
+
+function renderPage(initialEntry = '/actions') {
   invokeMock.mockImplementation((module: string, action: string) => {
     if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
     if (module === 'actioncenter' && action === 'listItems') return Promise.resolve(result);
     return Promise.resolve({});
   });
-  return render(<MemoryRouter><TargetProvider><ActionCenterPage /></TargetProvider></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[initialEntry]}><TargetProvider><Routes>
+    <Route path="/actions" element={<ActionCenterPage />} />
+    <Route path="/clients/:host" element={<ActionDestination />} />
+    <Route path="/vulnerabilities" element={<ActionDestination />} />
+  </Routes></TargetProvider></MemoryRouter>);
 }
 
 describe('ActionCenterPage', () => {
@@ -127,5 +137,26 @@ describe('ActionCenterPage', () => {
       'listItems',
       expect.objectContaining({ force: true }),
     ));
+  });
+
+  it('restores the exact query, filters, page and sort after a detail journey', async () => {
+    const address = '/actions?q=PC-01&severity=CRITICAL&source=Nessus&page=3&size=50&sort=SOURCE&dir=DESCENDING';
+    renderPage(address);
+
+    await screen.findByText('Nessus reports critical vulnerabilities');
+    expect(invokeMock).toHaveBeenCalledWith('actioncenter', 'listItems', expect.objectContaining({
+      search: 'PC-01', severity: 'CRITICAL', source: 'Nessus', page: 3, pageSize: 50,
+      sortField: 'SOURCE', sortDirection: 'DESCENDING',
+    }));
+    expect((screen.getByRole('searchbox', { name: 'Search Action Center' }) as HTMLInputElement).value).toBe('PC-01');
+
+    await userEvent.click(screen.getByRole('link', { name: 'PC-01' }));
+    expect(await screen.findByText('Action destination')).toBeDefined();
+    await userEvent.click(screen.getByRole('link', { name: 'Back to Action Center' }));
+
+    expect(await screen.findByText('Nessus reports critical vulnerabilities')).toBeDefined();
+    expect((screen.getByRole('searchbox', { name: 'Search Action Center' }) as HTMLInputElement).value).toBe('PC-01');
+    expect((screen.getByRole('combobox', { name: 'Severity' }) as HTMLSelectElement).value).toBe('CRITICAL');
+    expect((screen.getByRole('combobox', { name: 'Source' }) as HTMLSelectElement).value).toBe('Nessus');
   });
 });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type { NessusScan, NessusSyncPhase, NessusSyncStatus, PageResult, VulnerabilityAssetRow, VulnerabilityFindingDetails, VulnerabilityFindingRow, VulnerabilityOverview, VulnerabilityTrend } from '../../shared/api-types';
 import { useEnvironment } from '../../shared/environment/EnvironmentContext';
 import { Badge } from '../../shared/ui/Badge';
@@ -116,6 +116,12 @@ function TrendCard({ trend, days, onDaysChange }: {
 }
 
 export function VulnerabilitiesPage() {
+  const location = useLocation();
+  const requestedReturn = (location.state as { returnTo?: unknown } | null)?.returnTo;
+  const actionCenterReturn = typeof requestedReturn === 'string'
+    && (requestedReturn === '/actions' || requestedReturn.startsWith('/actions?'))
+    ? requestedReturn
+    : null;
   const [searchParams] = useSearchParams();
   const assetFilter = searchParams.get('asset')?.trim() ?? '';
   const environment = useEnvironment();
@@ -325,6 +331,7 @@ export function VulnerabilitiesPage() {
       : tab === 'findings' ? 'Retry Nessus findings'
         : 'Retry Nessus scans';
   return <div className="flex flex-col gap-4"><PageHeader title="Vulnerabilities" subtitle="Read-only Nessus overview across all included scans">
+    {actionCenterReturn && <Link className="text-sm text-accent-400 underline" to={actionCenterReturn}>← Back to Action Center</Link>}
     <Button variant="primary" onClick={() => void startSync()} disabled={sync?.running || refreshing}>{sync?.running || refreshing ? 'Synchronizing…' : 'Refresh Nessus'}</Button>
   </PageHeader>{overviewError && <ErrorState title="Nessus data could not be loaded" {...overviewError} controls={<Button variant="secondary" onClick={() => void loadOverview()}>Retry Nessus overview</Button>} />}
     {refreshError && <ErrorState title="Nessus synchronization could not be started" {...refreshError} controls={<Button variant="secondary" onClick={() => void startSync()}>Retry Nessus synchronization</Button>} />}

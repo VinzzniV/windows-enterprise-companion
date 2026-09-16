@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import type { ClientOverviewResult, HardwareInfoResult, ReportOverview, SecurityScanResult } from '../../shared/api-types';
+import type { ClientOverviewResult, DiagnosticRunResult, HardwareInfoResult, ReportOverview, SecurityScanResult } from '../../shared/api-types';
+import { BridgeInvokeError } from '../../shared/bridge/bridgeClient';
 import { TargetProvider } from '../../shared/targets/TargetContext';
 import { EnvironmentProvider } from '../../shared/environment/EnvironmentContext';
 import { ClientDetailPage } from './ClientDetailPage';
@@ -11,7 +12,9 @@ const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('../../shared/bridge/bridgeClient', () => ({
   invoke: invokeMock,
   invokeCancellable: (module: string, action: string, payload: unknown) => ({ requestId: 'request-id', promise: invokeMock(module, action, payload), cancel: vi.fn() }),
-  BridgeInvokeError: class extends Error {},
+  BridgeInvokeError: class extends Error {
+    constructor(readonly error: { code: string; message: string }) { super(error.message); }
+  },
   BridgeCancelledError: class extends Error {},
   BridgeTimeoutError: class extends Error {},
   BridgeUnavailableError: class extends Error {},
@@ -23,10 +26,10 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-function renderAt(host: string, section?: string) {
+function renderAt(host: string, section?: string, state?: object) {
   const query = section === undefined ? '' : `?section=${encodeURIComponent(section)}`;
   return render(
-    <MemoryRouter initialEntries={[`/clients/${encodeURIComponent(host)}${query}`]}>
+    <MemoryRouter initialEntries={[{ pathname: `/clients/${encodeURIComponent(host)}`, search: query, state }]}>
       <TargetProvider>
         <EnvironmentProvider>
           <Routes>
@@ -76,6 +79,12 @@ const completedSecurityScan: SecurityScanResult = {
     applicableChecks: 13,
     isComplete: true,
   },
+};
+
+const completedHealthRun: DiagnosticRunResult = {
+  startedAtUtc: '2026-08-19T10:10:00Z',
+  completedAtUtc: '2026-08-19T10:10:05Z',
+  results: [],
 };
 
 const storedClientOverview: ClientOverviewResult = {
@@ -164,7 +173,7 @@ describe('ClientDetailPage', () => {
         });
       }
       if (module === 'inventory' && action === 'getHardwareInfo') {
-        return Promise.reject(new Error('no cached snapshot'));
+        return Promise.reject(new BridgeInvokeError({ code: 'NOT_FOUND', message: 'No cached snapshot.' }));
       }
       if (module === 'clients' && action === 'getOverview') {
         return Promise.resolve(storedClientOverview);
@@ -252,7 +261,7 @@ describe('ClientDetailPage', () => {
     expect(await screen.findByRole('button', { name: 'Export HTML' })).toBeDefined();
   });
 
-  it('refreshes the mounted report after successful inventory and security scans', async () => {
+  it('refreshes mounted stored summaries after successful inventory, security and health captures', async () => {
     let inventoryAvailable = false;
     let securityAvailable = false;
     const fallback = invokeMock.getMockImplementation() as (
@@ -264,7 +273,7 @@ describe('ClientDetailPage', () => {
     invokeMock.mockImplementation((module: string, action: string, payload?: unknown) => {
       if (module === 'inventory' && action === 'getHardwareInfo') {
         if ((payload as { cacheOnly?: boolean }).cacheOnly) {
-          return Promise.reject(new Error('no cached snapshot'));
+          return Promise.reject(new BridgeInvokeError({ code: 'NOT_FOUND', message: 'No cached snapshot.' }));
         }
         inventoryAvailable = true;
         return Promise.resolve(capturedInventory);
@@ -282,6 +291,12 @@ describe('ClientDetailPage', () => {
         securityAvailable = true;
         return Promise.resolve(completedSecurityScan);
       }
+      if (module === 'diagnostics' && action === 'getLatestDiagnostics') {
+        return Promise.resolve({ run: null });
+      }
+      if (module === 'diagnostics' && action === 'runDiagnostics') {
+        return Promise.resolve(completedHealthRun);
+      }
       if (module === 'reporting' && action === 'getOverview') {
         return Promise.resolve(reportOverview(inventoryAvailable, securityAvailable));
       }
@@ -297,10 +312,13 @@ describe('ClientDetailPage', () => {
         { host: 'PC1.corp.local' },
       );
     });
+    const initialOverviewReads = invokeMock.mock.calls.filter((call) => call[0] === 'clients' && call[1] === 'getOverview').length;
 
     fireEvent.click(await screen.findByRole('tab', { name: 'Inventory' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Run inventory scan' }));
     expect(await screen.findByText('Test CPU')).toBeDefined();
+    await waitFor(() => expect(invokeMock.mock.calls.filter((call) => call[0] === 'clients' && call[1] === 'getOverview').length)
+      .toBeGreaterThan(initialOverviewReads));
 
     fireEvent.click(screen.getByRole('tab', { name: 'Report export' }));
     expect(await screen.findByText(/Snapshot from/)).toBeDefined();
@@ -311,6 +329,22 @@ describe('ClientDetailPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Report export' }));
     expect(await screen.findByText(/COMPLETED, 0 findings/)).toBeDefined();
+
+    const overviewReadsBeforeHealth = invokeMock.mock.calls.filter((call) => call[0] === 'clients' && call[1] === 'getOverview').length;
+    fireEvent.click(screen.getByRole('tab', { name: 'Health' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Run health check' }));
+    expect(await screen.findByText(/Latest saved health check completed/)).toBeDefined();
+    await waitFor(() => expect(invokeMock.mock.calls.filter((call) => call[0] === 'clients' && call[1] === 'getOverview').length)
+      .toBeGreaterThan(overviewReadsBeforeHealth));
+  });
+
+  it('offers a visible safe return to the retained Action Center view', async () => {
+    renderAt('PC1.corp.local', undefined, {
+      returnTo: '/actions?q=PC1&page=3&size=50&sort=SOURCE&dir=DESCENDING',
+    });
+
+    expect((await screen.findByRole('link', { name: '← Back to Action Center' })).getAttribute('href'))
+      .toBe('/actions?q=PC1&page=3&size=50&sort=SOURCE&dir=DESCENDING');
   });
 
   it('opens an allowlisted client section from the URL and keeps tab navigation addressable', async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type {
   ActionCenterPage as ActionCenterPageResult,
   ActionCenterSeverity,
@@ -34,7 +34,6 @@ interface ActionCenterFilters {
   source: string;
 }
 
-const emptyFilters: ActionCenterFilters = { search: '', severity: 'ALL', source: '' };
 const sortFieldByColumn: Record<string, ActionCenterSortField> = {
   severity: 'SEVERITY',
   device: 'DEVICE',
@@ -67,6 +66,22 @@ const coveragePresentation: Record<ActionEvidenceAvailability, { label: string; 
 };
 const knownSources = ['Active Directory', 'Kaspersky', 'opsi', 'Nessus', 'WEC Inventory', 'WEC Security'];
 
+function positiveInteger(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function filtersFromParams(params: URLSearchParams): ActionCenterFilters {
+  const severity = params.get('severity');
+  return {
+    search: params.get('q') ?? '',
+    severity: severity === 'ALL' || severity && severity in severityPresentation
+      ? severity as ActionCenterFilters['severity']
+      : 'ALL',
+    source: params.get('source') ?? '',
+  };
+}
+
 function evidenceAge(item: ActionCenterWorkItem): string {
   if (item.evidenceAgeDays === null) return 'Unknown age';
   if (item.evidenceAgeDays === 0) return 'Today';
@@ -78,14 +93,22 @@ function formatTimestamp(value: string | null): string {
 }
 
 export function ActionCenterPage() {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const environmentRequest = useEnvironmentRequest();
   const hygieneOperation = useHygieneOperation();
-  const [draftFilters, setDraftFilters] = useState<ActionCenterFilters>(emptyFilters);
-  const [activeFilters, setActiveFilters] = useState<ActionCenterFilters>(emptyFilters);
-  const [sortField, setSortField] = useState<ActionCenterSortField>('SEVERITY');
-  const [sortDirection, setSortDirection] = useState<'ASCENDING' | 'DESCENDING'>('ASCENDING');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const initialFilters = useRef(filtersFromParams(searchParams));
+  const [draftFilters, setDraftFilters] = useState<ActionCenterFilters>(initialFilters.current);
+  const [activeFilters, setActiveFilters] = useState<ActionCenterFilters>(initialFilters.current);
+  const [sortField, setSortField] = useState<ActionCenterSortField>(() => {
+    const value = searchParams.get('sort');
+    return value && value in columnBySortField ? value as ActionCenterSortField : 'SEVERITY';
+  });
+  const [sortDirection, setSortDirection] = useState<'ASCENDING' | 'DESCENDING'>(
+    () => searchParams.get('dir') === 'DESCENDING' ? 'DESCENDING' : 'ASCENDING',
+  );
+  const [page, setPage] = useState(() => positiveInteger(searchParams.get('page'), 1));
+  const [pageSize, setPageSize] = useState(() => positiveInteger(searchParams.get('size'), 25));
   const [refreshRevision, setRefreshRevision] = useState(0);
   const lastForcedRevision = useRef(0);
   const requestId = useRef(0);
@@ -94,6 +117,25 @@ export function ActionCenterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorPresentation | null>(null);
   const [selectedItem, setSelectedItem] = useState<ActionCenterWorkItem | null>(null);
+  const returnTo = `${location.pathname}${location.search}`;
+
+  const persistView = (
+    filters: ActionCenterFilters,
+    nextPage: number,
+    nextPageSize: number,
+    nextSortField: ActionCenterSortField,
+    nextSortDirection: 'ASCENDING' | 'DESCENDING',
+  ) => {
+    const next = new URLSearchParams();
+    if (filters.search.trim()) next.set('q', filters.search.trim());
+    if (filters.severity !== 'ALL') next.set('severity', filters.severity);
+    if (filters.source) next.set('source', filters.source);
+    next.set('page', String(nextPage));
+    next.set('size', String(nextPageSize));
+    next.set('sort', nextSortField);
+    next.set('dir', nextSortDirection);
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     const currentRequest = ++requestId.current;
@@ -153,7 +195,8 @@ export function ActionCenterPage() {
       header: 'Affected device',
       sortable: true,
       cell: (item) => <div className="flex flex-col gap-0.5">
-        <Link className="font-medium text-accent-300 hover:text-accent-200" to={`/clients/${encodeURIComponent(item.device)}`}>
+        <Link className="font-medium text-accent-300 hover:text-accent-200" to={`/clients/${encodeURIComponent(item.device)}`}
+          state={{ returnTo, returnLabel: 'Action Center' }}>
           {item.device}
         </Link>
         {item.userDisplayName && <span className="text-xs text-muted">User: {item.userDisplayName}</span>}
@@ -191,7 +234,8 @@ export function ActionCenterPage() {
       cell: (item) => <div className="min-w-64 max-w-lg">
         <p className="text-xs text-slate-300">{item.recommendedAction}</p>
         <div className="mt-1 flex flex-wrap items-center gap-3">
-          <Link className="text-sm font-medium text-accent-300 hover:text-accent-200" to={item.href}>
+          <Link className="text-sm font-medium text-accent-300 hover:text-accent-200" to={item.href}
+            state={{ returnTo, returnLabel: 'Action Center' }}>
             Inspect evidence →
           </Link>
           <button type="button" className="text-xs text-slate-400 hover:text-slate-200" onClick={() => setSelectedItem(item)}>
@@ -200,11 +244,12 @@ export function ActionCenterPage() {
         </div>
       </div>,
     },
-  ], []);
+  ], [returnTo]);
 
   const applyFilters = () => {
     setPage(1);
     setActiveFilters({ ...draftFilters });
+    persistView(draftFilters, 1, pageSize, sortField, sortDirection);
   };
   const tableSort: DataTableSort = {
     column: columnBySortField[sortField],
@@ -216,6 +261,7 @@ export function ActionCenterPage() {
     setPage(1);
     setSortField(nextField);
     setSortDirection(next.direction === 'asc' ? 'ASCENDING' : 'DESCENDING');
+    persistView(activeFilters, 1, pageSize, nextField, next.direction === 'asc' ? 'ASCENDING' : 'DESCENDING');
   };
 
   return <div className="flex flex-col gap-4">
@@ -329,8 +375,8 @@ export function ActionCenterPage() {
           pageSize: result.pageSize,
           total: result.total,
           itemLabel: 'work items',
-          onPageChange: setPage,
-          onPageSizeChange: (value) => { setPage(1); setPageSize(value); },
+          onPageChange: (value) => { setPage(value); persistView(activeFilters, value, pageSize, sortField, sortDirection); },
+          onPageSizeChange: (value) => { setPage(1); setPageSize(value); persistView(activeFilters, 1, value, sortField, sortDirection); },
         }}
       />
       {selectedItem && <RelationshipMap

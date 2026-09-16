@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '../../../shared/bridge/bridgeClient';
+import { BridgeInvokeError, invoke } from '../../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../../shared/bridge/errorPresentation';
 import type { GetHardwareInfoRequest, HardwareInfoResult, TargetRequest } from '../../../shared/api-types';
 import { formatSnapshotAge, SnapshotGrid } from '../../inventory/InventorySnapshot';
@@ -11,7 +11,7 @@ type State =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'loaded'; result: HardwareInfoResult; refreshing: boolean; refreshError: ErrorPresentation | null }
-  | { kind: 'error'; error: ErrorPresentation };
+  | { kind: 'error'; error: ErrorPresentation; storedRead: boolean };
 
 /** Inventory section of a client: cached snapshot on open, scan on demand. */
 export function InventorySection({
@@ -36,13 +36,21 @@ export function InventorySection({
         if (!cacheOnly) onDataChanged?.();
       })
       .catch((error: unknown) => {
+        if (cacheOnly && error instanceof BridgeInvokeError && error.error.code === 'NOT_FOUND') {
+          setState({ kind: 'idle' });
+          return;
+        }
         const presentation = presentError(error, { message: 'Hardware inventory could not be captured.' });
         setState((current) => {
-          if (cacheOnly) return { kind: 'idle' };
+          if (cacheOnly) return {
+            kind: 'error',
+            error: presentError(error, { message: 'The stored hardware inventory could not be read.' }),
+            storedRead: true,
+          };
           if (current.kind === 'loaded') {
             return { ...current, refreshing: false, refreshError: presentation };
           }
-          return { kind: 'error', error: presentation };
+          return { kind: 'error', error: presentation, storedRead: false };
         });
       });
   }, [target, onDataChanged]);
@@ -60,7 +68,9 @@ export function InventorySection({
     return (
       <ErrorState
         {...state.error}
-        controls={<Button onClick={() => load(true, false)}>Retry scan</Button>}
+        controls={state.storedRead
+          ? <Button onClick={() => load(false, true)}>Retry stored read</Button>
+          : <Button onClick={() => load(true, false)}>Retry scan</Button>}
       />
     );
   }

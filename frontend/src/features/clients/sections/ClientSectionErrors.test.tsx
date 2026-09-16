@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BridgeInvokeError } from '../../../shared/bridge/bridgeClient';
 import { InventorySection } from './InventorySection';
 import { PrintersSection } from './PrintersSection';
+import { SecuritySection } from './SecuritySection';
+import { HealthSection } from './HealthSection';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
@@ -13,7 +15,9 @@ vi.mock('../../../shared/bridge/bridgeClient', async (importOriginal) => ({
 }));
 
 describe('client section error presentation', () => {
-  beforeEach(() => invokeMock.mockReset());
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
 
   it('keeps a WMI printer failure actionable and its mixed-language evidence collapsed', async () => {
     invokeMock.mockImplementation((_module: string, action: string) => {
@@ -43,7 +47,10 @@ describe('client section error presentation', () => {
 
   it('maps an inventory timeout and keeps retry inside the error state', async () => {
     invokeMock.mockImplementation((_module: string, action: string, payload?: { cacheOnly?: boolean }) => {
-      if (action === 'getHardwareInfo' && payload?.cacheOnly) return Promise.reject(new Error('No cache'));
+      if (action === 'getHardwareInfo' && payload?.cacheOnly) return Promise.reject(new BridgeInvokeError({
+        code: 'NOT_FOUND',
+        message: 'No stored inventory.',
+      }));
       if (action === 'getHardwareInfo') {
         return Promise.reject(new BridgeInvokeError({
           code: 'CONNECTION_TIMEOUT',
@@ -61,5 +68,45 @@ describe('client section error presentation', () => {
     expect(screen.getByRole('button', { name: 'Retry scan' })).toBeDefined();
     expect(screen.getByText('Technical details').closest('details')?.textContent)
       .toContain('Host PC-041 did not answer.');
+  });
+
+  it.each([
+    {
+      name: 'inventory',
+      storedAction: 'getHardwareInfo',
+      renderSection: () => render(<InventorySection target={{ host: 'PC-041' }} />),
+      errorText: 'The stored hardware inventory could not be read.',
+    },
+    {
+      name: 'security',
+      storedAction: 'getLatestScan',
+      renderSection: () => render(<SecuritySection target={{ host: 'PC-041' }} />),
+      errorText: 'The stored security scan could not be read.',
+    },
+    {
+      name: 'health',
+      storedAction: 'getLatestDiagnostics',
+      renderSection: () => render(<HealthSection target={{ host: 'PC-041' }} />),
+      errorText: 'The stored health snapshot could not be read.',
+    },
+  ])('keeps a failed $name stored read distinct from an empty state and retries only that read', async ({
+    storedAction,
+    renderSection,
+    errorText,
+  }) => {
+    invokeMock.mockImplementation((_module: string, action: string) => {
+      if (action === storedAction) return Promise.reject(new BridgeInvokeError({
+        code: 'STORAGE_UNAVAILABLE',
+        message: 'The local database is unavailable.',
+      }));
+      return Promise.reject(new Error(`Unexpected live action: ${action}`));
+    });
+
+    renderSection();
+
+    expect(await screen.findByText(errorText)).toBeDefined();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry stored read' }));
+    expect(invokeMock).toHaveBeenCalledTimes(2);
+    expect(invokeMock.mock.calls.every((call) => call[1] === storedAction)).toBe(true);
   });
 });
