@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { Microsoft365ReadState, ObjectReference } from '../../shared/api-types.generated';
 import { ObjectRelationships } from '../../shared/objects/ObjectRelationships';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
+import { workingSetReturn } from '../../shared/objects/workingSetNavigation';
 import { SourceReadState, sourceRetained } from '../../shared/objects/SourceReadState';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
@@ -14,12 +15,14 @@ import { DirectoryGroupState } from './DirectoryGroupState';
 import { useGroupProfile } from './useGroupProfile';
 
 function GroupProfileContent({ reference, memberPage }: { reference: ObjectReference; memberPage: number }) {
+  const location = useLocation();
+  const returnLink = workingSetReturn(location.state, '/groups');
   const [parameters, setParameters] = useSearchParams();
   const memberQuery = parameters.get('memberq') ?? '';
   const view = useGroupProfile(reference, memberPage);
   const goToPage = async (page: number) => {
     if (await view.load('DIRECTORY_MEMBERS', page)) {
-      setParameters(previous => { const next = new URLSearchParams(previous); next.set('page', String(page)); return next; });
+      setParameters(previous => { const next = new URLSearchParams(previous); next.set('page', String(page)); return next; }, { state: location.state });
     }
   };
   const profile = view.data;
@@ -28,7 +31,8 @@ function GroupProfileContent({ reference, memberPage }: { reference: ObjectRefer
     onClick={() => void view.load({ ...state.query, tenantId: state.tenantId ?? undefined })}>Load this source query</Button>;
   return <div className="flex flex-col gap-4">
     <PageHeader title={profile?.title ?? reference.id} subtitle={`${objectSourceLabel[reference.source]} group · ${reference.scope}`}>
-      <Link className="text-sm text-accent-400 underline" to="/groups">Groups</Link>
+      <Link className="text-sm text-accent-400 underline" to={returnLink.to} state={returnLink.state}>← Back to results</Link>
+      <Link className="text-sm text-accent-400 underline" to="/groups">All groups</Link>
       <Button disabled={view.busy} onClick={() => void view.load()}>Reload cached evidence</Button>
       {view.busy && <Button onClick={view.cancel}>Cancel read</Button>}
     </PageHeader>
@@ -60,7 +64,7 @@ function GroupProfileContent({ reference, memberPage }: { reference: ObjectRefer
           </div>
           <label className="mb-3 block text-xs text-muted">Filter this loaded member page<Input value={memberQuery} onChange={event => setParameters(previous => {
             const next = new URLSearchParams(previous); if (event.target.value) next.set('memberq', event.target.value); else next.delete('memberq'); return next;
-          })} /></label>
+          }, { state: location.state })} /></label>
           <ul className="space-y-2">{members.members.filter(member => `${member.displayName} ${member.objectId ?? ''} ${member.distinguishedName}`.toLowerCase().includes(memberQuery.toLowerCase())).map((member, index) => <li key={index} className="rounded border border-slate-800 p-3 text-sm">
             {member.displayName} · {member.objectClass ?? 'Type unavailable'}
             <p className="break-all text-xs text-muted">{member.objectId ?? 'GUID unavailable'} · {member.securityIdentifier ?? 'SID unavailable'} · {member.distinguishedName}</p>

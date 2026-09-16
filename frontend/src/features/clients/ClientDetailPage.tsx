@@ -20,6 +20,7 @@ import { OverviewSection } from './sections/OverviewSection';
 import { Microsoft365ContextPanel } from '../microsoft365/Microsoft365ContextPanel';
 import { openPsSession } from '../../shared/ps/openPsSession';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
+import { continueWorkingSetNavigation, workingSetReturn } from '../../shared/objects/workingSetNavigation';
 
 type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting' | 'microsoft365';
 
@@ -63,6 +64,8 @@ export function ClientDetailPage() {
   const { host: rawHost } = useParams<{ host: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const host = rawHost ?? '';
+  const navigationState = continueWorkingSetNavigation(location.state);
+  const workingSetReturnLink = workingSetReturn(location.state, '/devices');
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
   // undefined = getAppInfo not resolved yet; string|null once known. Sections
@@ -124,6 +127,9 @@ export function ClientDetailPage() {
           <Button variant="ghost" onClick={() => navigate('/clients', { state: location.state })}>
             ← All clients
           </Button>
+          <Link className="text-sm text-accent-400 underline" to={workingSetReturnLink.to} state={workingSetReturnLink.state}>
+            Back to device results
+          </Link>
           {!local && (
             <Button
               variant="secondary"
@@ -157,7 +163,7 @@ export function ClientDetailPage() {
         </div>
       </PageHeader>
       <div className="flex flex-wrap gap-3 text-sm">
-        <Link className="text-accent-400 underline" to={(location.state as { returnObject?: string } | null)?.returnObject ?? `/devices?q=${encodeURIComponent(host)}`} state={location.state}>Device identities and source records</Link>
+        <Link className="text-accent-400 underline" to={(location.state as { returnObject?: string } | null)?.returnObject ?? `/devices?q=${encodeURIComponent(host)}`} state={navigationState}>Device identities and source records</Link>
         <Link className="text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(host)}`}>Device Cleanup</Link>
       </div>
       {powerShellError && (

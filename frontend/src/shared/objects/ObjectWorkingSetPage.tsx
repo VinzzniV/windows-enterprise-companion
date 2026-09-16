@@ -12,6 +12,7 @@ import { DataTable, type DataColumn } from '../ui/DataTable';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { PageHeader } from '../ui/PageHeader';
+import { workingSetEntryState, workingSetRestoreKey } from './workingSetNavigation';
 
 const positions = new Map<string, { scroll: number; focus: string | null }>();
 const sources: WorkingSetSource[] = ['ACTIVE_DIRECTORY', 'ENTRA', 'INTUNE', 'WEC', 'KASPERSKY', 'OPSI', 'NESSUS'];
@@ -62,7 +63,7 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
   useLayoutEffect(() => {
     if (!result || restored.current) return;
     restored.current = true;
-    const saved = positions.get(location.key);
+    const saved = positions.get(workingSetRestoreKey(location.state) ?? location.key);
     const container = root.current?.closest('[data-testid="application-scroll-container"]');
     if (saved && container) {
       const target = [...root.current?.querySelectorAll<HTMLElement>('[data-object-focus]') ?? []]
@@ -74,11 +75,11 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
     { id: 'name', header: 'Object / address', sortable: true, cell: row => <div className="min-w-48 space-y-1"><strong>{row.label}</strong>
       <div className="flex flex-col gap-1">{row.references.map(reference => <Link key={objectPath(reference)} data-object-focus={objectPath(reference)}
         className="break-all text-xs text-accent-400 underline" to={objectPath(reference)}
-        state={{ directoryEndpoint: workspace.directoryEndpoint, fromWorkingSet: `${location.pathname}${location.search}` }}>
+        state={workingSetEntryState(location, workspace.directoryEndpoint)}>
         {objectSourceLabel[reference.source]} · {reference.id}</Link>)}
         {row.observations.filter(observation => observation.managementReference).map((observation, index) => <Link
           key={index} data-object-focus={managementRecordPath(observation.managementReference!)} className="text-xs text-accent-400 underline"
-          to={managementRecordPath(observation.managementReference!)} state={{ fromWorkingSet: `${location.pathname}${location.search}` }}>
+          to={managementRecordPath(observation.managementReference!)} state={workingSetEntryState(location, workspace.directoryEndpoint)}>
           Open {workingSetSourceLabel[observation.source]} source record {observation.managementReference!.recordIndex + 1}</Link>)}
         {row.references.length === 0 && <span className="text-warn-400">Stable scoped device identity unavailable</span>}</div></div> },
     { header: 'Source evidence', cell: row => <ul className="space-y-2 text-xs">{row.observations.map((observation, index) => <li key={index}>

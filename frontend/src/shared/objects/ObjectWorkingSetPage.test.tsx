@@ -1,24 +1,36 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { captureWorkingSet, type WorkingSetRead } from './workingSet';
 import { UsersWorkingSetPage } from './ObjectWorkingSetPage';
+import { ScopedUserProfilePage } from '../../features/users/ScopedUserProfilePage';
+import { GroupProfilePage } from '../../features/groups/GroupProfilePage';
 
-const { workspaceMock, invokeMock } = vi.hoisted(() => ({ workspaceMock: vi.fn(), invokeMock: vi.fn() }));
+const { workspaceMock, invokeMock, userProfileMock, groupProfileMock } = vi.hoisted(() => ({
+  workspaceMock: vi.fn(), invokeMock: vi.fn(), userProfileMock: vi.fn(), groupProfileMock: vi.fn(),
+}));
 vi.mock('./WorkingSetContext', () => ({ useWorkingSet: workspaceMock }));
 vi.mock('../targets/TargetContext', () => ({ useTargets: () => ({ adminCredentials: null }) }));
 vi.mock('../bridge/bridgeClient', async importOriginal => ({ ...await importOriginal<typeof import('../bridge/bridgeClient')>(), invokeCancellable: invokeMock }));
+vi.mock('../../features/users/useUserProfile', () => ({ useUserProfile: userProfileMock }));
+vi.mock('../../features/groups/useGroupProfile', () => ({ useGroupProfile: groupProfileMock }));
+vi.mock('../viewCache', () => ({ loadView: () => null }));
 const tenant = '11111111-1111-1111-1111-111111111111';
+const groupId = '33333333-3333-3333-3333-333333333333';
 const read: WorkingSetRead = { key: 'users', title: 'Entra users', family: 'cloud', scope: tenant, sessionRevision: 1, revision: 1,
   retrievedAtUtc: null, lastAttemptAtUtc: null, retainedUntilUtc: null, freshUntilUtc: null,
   availability: 'available', coverage: 'partial', error: null, sourceTotal: 5000, cachedRecordCount: 60, limited: false,
   rows: Array.from({ length: 60 }, (_, index) => ({ kind: 'USER', source: 'ENTRA', label: index === 0 ? 'Needle account' : `Account ${String(index).padStart(2, '0')}`, aliases: [],
     reference: { kind: 'USER', source: 'ENTRA', scope: tenant, id: `22222222-2222-2222-2222-${String(index + 1).padStart(12, '0')}` },
     accountEnabled: index % 2 === 0 ? true : null, operatingSystem: null, sid: null, registrationDeviceId: null, assignedSkuIds: null })) };
-function Location() { return <output data-testid="url">{useLocation().pathname + useLocation().search}</output>; }
-function Profile() { const navigate = useNavigate(); return <button onClick={() => navigate(-1)}>Back to results</button>; }
+function Location() { const location = useLocation(); return <><output data-testid="url">{location.pathname + location.search}</output>
+  <output data-testid="route-state">{JSON.stringify(location.state)}</output></>; }
 function view(initial = '/users/workspace?page=2') { return render(<MemoryRouter initialEntries={[initial]}>
-  <Routes><Route path="/users/workspace" element={<UsersWorkingSetPage />} /><Route path="/users/entra/:scope/:id" element={<Profile />} /></Routes><Location />
+  <div data-testid="application-scroll-container"><Routes>
+    <Route path="/users/workspace" element={<UsersWorkingSetPage />} />
+    <Route path="/users/:source/:scope/:objectId" element={<ScopedUserProfilePage />} />
+    <Route path="/groups/:source/:scope/:objectId" element={<GroupProfilePage />} />
+  </Routes><Location /></div>
 </MemoryRouter>); }
 beforeEach(() => {
   const policy = { maximumRecords: 100, maximumSourceReads: 128, directoryScope: null, tenantId: tenant };
@@ -26,6 +38,24 @@ beforeEach(() => {
   workspaceMock.mockReturnValue({ displayed: snapshot, available: snapshot, policy, directoryEndpoint: null, busy: false, error: null,
     hasUpdates: false, cloudGeneration: 0, directoryGeneration: 0, refreshCached: vi.fn(), applyUpdates: vi.fn(), publishDirectory: vi.fn(), clearFamily: vi.fn() });
   invokeMock.mockReset();
+  userProfileMock.mockReturnValue({
+    data: {
+      reference: read.rows[0].reference, title: 'Needle account', identity: 'SCOPED_ID', explanation: 'Tenant-scoped account.',
+      directory: null, adProfile: null, entraUser: null, relationships: [{
+        target: { kind: 'GROUP', source: 'ENTRA', scope: tenant, id: groupId }, label: 'Operations',
+        relation: 'Direct group (Entra)', evidence: 'SCOPED_ID', explanation: 'Direct membership only.',
+      }], candidates: [], sourceErrors: [], cloud: null,
+    },
+    busy: false, error: null, now: Date.now(), load: vi.fn(), cancel: vi.fn(),
+  });
+  groupProfileMock.mockReturnValue({
+    data: {
+      reference: { kind: 'GROUP', source: 'ENTRA', scope: tenant, id: groupId }, title: 'Operations',
+      identity: 'SCOPED_ID', explanation: 'Tenant-scoped group.', directory: null, directoryMembers: null,
+      cloud: null, relationships: [], sourceErrors: [],
+    },
+    busy: false, error: null, now: Date.now(), load: vi.fn(), cancel: vi.fn(),
+  });
 });
 
 describe('object working-set list', () => {
@@ -46,14 +76,31 @@ describe('object working-set list', () => {
     const table = screen.getByRole('table');
     const link = within(table).getAllByRole('link')[0];
     const original = link.getAttribute('href');
+    const scrollContainer = screen.getByTestId('application-scroll-container');
+    scrollContainer.scrollTop = 180;
+    (link as HTMLElement).focus();
     fireEvent.click(link);
-    fireEvent.click(screen.getByText('Back to results'));
+    fireEvent.click(await screen.findByRole('link', { name: /Back to results/ }));
     await waitFor(() => expect(screen.getByTestId('url').textContent).toBe('/users/workspace?account=unknown&page=2'));
     expect(within(screen.getByRole('table')).getAllByRole('link')[0].getAttribute('href')).toBe(original);
+    expect(scrollContainer.scrollTop).toBe(180);
+    expect(document.activeElement?.getAttribute('data-object-focus')).toBe(original);
     fireEvent.click(screen.getByRole('button', { name: /Object \/ address/ }));
     fireEvent.click(screen.getByRole('button', { name: /Object \/ address/ }));
     expect(screen.getByTestId('url').textContent).toContain('sort=asc');
     expect(screen.getByTestId('url').textContent).not.toContain('page=2');
     expect(within(screen.getByRole('table')).getAllByText('Account 01').length).toBeGreaterThan(0);
+  });
+
+  it('retains the originating result through a real profile relationship hop', async () => {
+    view(`/users/workspace?q=Account&source=ENTRA&tenant=${tenant}&sort=desc&page=2&size=25`);
+    fireEvent.click(within(screen.getByRole('table')).getAllByRole('link')[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Groups' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Operations' }));
+    expect(screen.getByTestId('route-state').textContent).toContain('fromWorkingSet');
+    fireEvent.click(await screen.findByRole('link', { name: /Back to results/ }));
+    await waitFor(() => expect(screen.getByTestId('url').textContent)
+      .toBe(`/users/workspace?q=Account&source=ENTRA&tenant=${tenant}&sort=desc&page=2&size=25`));
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 });

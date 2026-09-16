@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { CachedMicrosoft365Licenses, Microsoft365ReadState, ObjectReference, ScopedUserProfile } from '../../shared/api-types.generated';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
+import { workingSetReturn } from '../../shared/objects/workingSetNavigation';
 import { ObjectRelationships } from '../../shared/objects/ObjectRelationships';
 import { SourceReadState, sourceRetained } from '../../shared/objects/SourceReadState';
 import { Button } from '../../shared/ui/Button';
@@ -64,6 +65,7 @@ function Licenses({ read, title, view }: { read: CachedMicrosoft365Licenses; tit
 function UserProfileContent({ reference }: { reference: ObjectReference }) {
   const location = useLocation();
   const directoryEndpoint = (location.state as { directoryEndpoint?: unknown } | null)?.directoryEndpoint;
+  const returnLink = workingSetReturn(location.state, '/users');
   const [scopeInput, setScopeInput] = useState('');
   const [directoryScope, setDirectoryScope] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState('');
@@ -75,11 +77,12 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
   const cloud = profile?.cloud;
   const ad = profile?.adProfile;
   const directory = profile?.directory;
-  const selectSection = (key: string) => { const next = new URLSearchParams(params); next.set('section', key); setParams(next); };
+  const selectSection = (key: string) => { const next = new URLSearchParams(params); next.set('section', key); setParams(next, { state: location.state }); };
   const filteredGroups = ad?.access.directGroups.filter(group => `${group.name} ${group.distinguishedName}`.toLocaleLowerCase().includes(groupFilter.trim().toLocaleLowerCase())) ?? [];
   return <div className="flex flex-col gap-4">
     <PageHeader title={profile?.title ?? reference.id} subtitle={`${objectSourceLabel[reference.source]} account · ${reference.scope}`}>
-      <Link className="text-sm text-accent-400 underline" to="/users">Users</Link>
+      <Link className="text-sm text-accent-400 underline" to={returnLink.to} state={returnLink.state}>← Back to results</Link>
+      <Link className="text-sm text-accent-400 underline" to="/users">All users</Link>
       <Button disabled={view.busy} onClick={() => void view.load()}>Reload cached evidence</Button>
       {view.busy && <Button onClick={view.cancel}>Cancel read</Button>}
     </PageHeader>

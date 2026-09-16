@@ -8,6 +8,7 @@ import { managementRecordPath, managementRecordReference } from '../../shared/ob
 import { objectPath } from '../../shared/objects/objectRoutes';
 import { useOptionalWorkingSet, useWorkingSetSessions } from '../../shared/objects/WorkingSetContext';
 import { workingSetSourceLabel } from '../../shared/objects/workingSetSources';
+import { continueWorkingSetNavigation, workingSetReturn } from '../../shared/objects/workingSetNavigation';
 import { Card } from '../../shared/ui/Card';
 import { PageHeader } from '../../shared/ui/PageHeader';
 
@@ -47,14 +48,14 @@ export function ManagementRecordPage() {
       && !object.observations.some(row => row.managementReference && managementRecordPath(row.managementReference) === own)
       && object.observations.some(row => [row.label, ...row.aliases].some(value => names.has(value.trim().toLowerCase()))));
   }, [data, reference, workspace?.displayed]);
-  const from = (location.state as { fromWorkingSet?: string } | null)?.fromWorkingSet;
-  const returnTo = from && /^\/devices(?:\?|$)/.test(from) ? from : '/devices';
+  const navigationState = continueWorkingSetNavigation(location.state);
+  const returnLink = workingSetReturn(location.state, '/devices');
   const ad = data?.activeDirectory;
   const ksc = data?.kaspersky;
   const opsi = data?.opsi;
   const nessus = data?.nessus;
   return <div className="space-y-4">
-    <Link className="text-sm text-accent-400 underline" to={returnTo}>Back to device working set</Link>
+    <Link className="text-sm text-accent-400 underline" to={returnLink.to} state={returnLink.state}>Back to device results</Link>
     <PageHeader title={data?.record.label ?? 'Management source record'} subtitle={reference ? `${workingSetSourceLabel[reference.source]} · exact snapshot observation` : 'Invalid source reference'} />
     {!reference && <p role="alert">This source-record link is invalid. Select a record from the device working set.</p>}
     {reference && !data && !current?.error && <p role="status">Reading the selected cached record…</p>}
@@ -64,7 +65,7 @@ export function ManagementRecordPage() {
         <dl className="grid gap-3 sm:grid-cols-2"><Fact label="Source scope">{data.sourceState.scope}</Fact><Fact label="Source state">{data.sourceState.availability}</Fact>
           <Fact label="Snapshot read">{time(data.retrievedAtUtc)}</Fact><Fact label="Cached source records">{data.sourceState.loadedRecords}</Fact></dl>
         {data.sourceState.error && <p className="mt-3 text-fail-400">{data.sourceState.error}</p>}
-        {data.record.nativeReference && <Link className="mt-3 inline-block text-sm text-accent-400 underline" to={objectPath(data.record.nativeReference)}>Inspect native AD object</Link>}
+        {data.record.nativeReference && <Link className="mt-3 inline-block text-sm text-accent-400 underline" state={navigationState} to={objectPath(data.record.nativeReference)}>Inspect native AD object</Link>}
       </Card>
       <Card title="Original source fields"><dl className="grid gap-3 sm:grid-cols-2">
         {ad && <><Fact label="Computer name">{ad.computerName}</Fact><Fact label="DNS host name">{ad.dnsHostName}</Fact><Fact label="Directory scope">{ad.directoryScope}</Fact>
@@ -90,7 +91,7 @@ export function ManagementRecordPage() {
           const native = candidate.references[0];
           const record = candidate.observations.find(row => row.managementReference)?.managementReference;
           const to = native ? objectPath(native) : record ? managementRecordPath(record) : `/devices?q=${encodeURIComponent(candidate.label)}`;
-          return <li key={candidate.key}><Link className="text-accent-400 underline" to={to}>{candidate.label}</Link>
+          return <li key={candidate.key}><Link className="text-accent-400 underline" state={navigationState} to={to}>{candidate.label}</Link>
             <span className="text-xs text-muted"> · {[...new Set(candidate.observations.map(row => workingSetSourceLabel[row.source]))].join(' / ')}</span></li>;
         })}</ul>
         {candidates.length > 25 && <Link className="mt-3 inline-block text-accent-400 underline" to={`/devices?q=${encodeURIComponent(data.record.label)}`}>Inspect matching records in Devices</Link>}

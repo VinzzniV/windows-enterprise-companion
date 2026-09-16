@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { DeviceProfileResult, Microsoft365ReadState, ObjectReference, ObjectRelationship } from '../../shared/api-types.generated';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
+import { continueWorkingSetNavigation, workingSetReturn } from '../../shared/objects/workingSetNavigation';
 import { SourceReadState, sourceRetained } from '../../shared/objects/SourceReadState';
 import { useEnvironment } from '../../shared/environment/EnvironmentContext';
 import { Button } from '../../shared/ui/Button';
@@ -18,10 +19,10 @@ const sections = [['overview', 'Overview'], ['identity', 'Identity & management'
 
 function Relations({ title, links }: { title: string; links: ObjectRelationship[] }) {
   const location = useLocation();
-  const directoryEndpoint = (location.state as { directoryEndpoint?: unknown } | null)?.directoryEndpoint;
+  const navigationState = continueWorkingSetNavigation(location.state);
   return <Card title={title}>{links.length === 0 ? <p className="text-sm text-muted">No relationships established in the loaded evidence.</p>
     : <ul className="space-y-3">{links.map((link, index) => <li key={`${objectPath(link.target)}:${index}`}>
-      <Link className="text-accent-400 underline" to={objectPath(link.target)} state={{ directoryEndpoint }}>{link.label}</Link>
+      <Link className="text-accent-400 underline" to={objectPath(link.target)} state={navigationState}>{link.label}</Link>
       <p className="text-xs">{link.relation} · {objectSourceLabel[link.target.source]} · {link.target.scope}</p>
       <p className="text-xs text-muted">{link.explanation}</p>
     </li>)}</ul>}</Card>;
@@ -60,20 +61,23 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
   const view = useDeviceProfile(reference);
   const environment = useEnvironment();
   const location = useLocation();
+  const navigationState = continueWorkingSetNavigation(location.state);
+  const returnLink = workingSetReturn(location.state, '/devices');
   const profile = view.data;
   const [parameters, setParameters] = useSearchParams();
   const legacySection = parameters.get('section');
   const section = sections.some(([key]) => key === legacySection) ? legacySection : legacySection === 'microsoft365' ? 'identity' : 'overview';
-  const selectSection = (key: string) => { const next = new URLSearchParams(parameters); next.set('section', key); setParameters(next); };
+  const selectSection = (key: string) => { const next = new URLSearchParams(parameters); next.set('section', key); setParameters(next, { state: location.state }); };
   const directory = profile?.directory;
   const cloud = profile?.cloud;
   if (profile?.operationalHost && legacySection && ['inventory', 'security', 'diagnostics', 'events', 'printers', 'reporting'].includes(legacySection)) {
     return <Navigate replace to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=${legacySection}&target=exact`}
-      state={{ returnObject: objectPath(reference) }} />;
+      state={{ ...navigationState, returnObject: `${location.pathname}${location.search}` }} />;
   }
   return <div className="flex flex-col gap-4">
     <PageHeader title={profile?.title ?? reference.id} subtitle={`${objectSourceLabel[reference.source]} · ${reference.scope}`}>
-      <Link className="text-sm text-accent-400 underline" to="/devices">Devices</Link>
+      <Link className="text-sm text-accent-400 underline" to={returnLink.to} state={returnLink.state}>← Back to results</Link>
+      <Link className="text-sm text-accent-400 underline" to="/devices">All devices</Link>
       <Button disabled={view.busy} onClick={() => void view.load()}>Reload cached evidence</Button>
       {view.busy && <Button onClick={view.cancel}>Cancel read</Button>}
     </PageHeader>
@@ -91,7 +95,7 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
       </Card>
       {section === 'overview' && profile.operationalHost && <Card title="Windows tools for this exact target">
         <div className="flex flex-wrap gap-3">{[['overview', 'Windows overview, saved target and PowerShell'], ['inventory', 'Inventory'], ['security', 'Security'], ['diagnostics', 'Health'], ['events', 'Event logs'], ['printers', 'Printers'], ['reporting', 'Report export']].map(([section, label]) =>
-          <Link key={section} state={{ returnObject: location.pathname }} className="text-sm text-accent-400 underline"
+          <Link key={section} state={{ ...navigationState, returnObject: `${location.pathname}${location.search}` }} className="text-sm text-accent-400 underline"
             to={`/clients/${encodeURIComponent(profile.operationalHost!)}?section=${section}&target=exact`}>{label}</Link>)}</div>
         <Link className="text-sm text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(profile.operationalHost)}`}>Device Cleanup</Link>
       </Card>}
@@ -156,8 +160,8 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
       {section === 'health' && <div className="space-y-4">
         {profile.wec && profile.operationalHost && <StoredClientEvidence host={profile.operationalHost} result={profile.wec} area="health" />}
         {profile.operationalHost && <nav aria-label="Windows health tools" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
-          <Link state={{ returnObject: `${location.pathname}?section=health` }} to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=diagnostics&target=exact`}>Open Windows Health</Link>
-          <Link state={{ returnObject: `${location.pathname}?section=health` }} to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=security&target=exact`}>Open Security history and checks</Link>
+          <Link state={{ ...navigationState, returnObject: `${location.pathname}?section=health` }} to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=diagnostics&target=exact`}>Open Windows Health</Link>
+          <Link state={{ ...navigationState, returnObject: `${location.pathname}?section=health` }} to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=security&target=exact`}>Open Security history and checks</Link>
         </nav>}
         <Card title="Intune compliance evidence">
           <p className="text-xs text-muted">Source observations for each enrollment; candidate values do not establish this Windows device's compliance. Windows Security and Intune compliance are separate assessments.</p>
