@@ -43,7 +43,7 @@ function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString();
 }
 
-export function PatchManagementPage() {
+export function PatchManagementPage({ embedded = false }: { embedded?: boolean }) {
   const workspace = usePatchManagementWorkspace();
   const [parameters, setParameters] = useSearchParams();
   const section = (['overview', 'clients', 'winget', 'history'] as const).find(value => value === parameters.get('section')) ?? 'overview';
@@ -51,12 +51,12 @@ export function PatchManagementPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Patch Management"
+      {!embedded && <PageHeader
+        title="Software & licenses"
         subtitle="Build and update Winget-backed opsi packages. Client rollout remains entirely in opsi."
       >
         <OpsiConnectionBadge status={workspace.status} loading={workspace.statusLoading} failed={!!workspace.statusError} />
-      </PageHeader>
+      </PageHeader>}
 
       {workspace.statusError && <ErrorState title="opsi connection unavailable" {...workspace.statusError} controls={<Button onClick={workspace.loadConnectionStatus}>Check connection again</Button>} />}
 
@@ -89,12 +89,12 @@ export function PatchManagementPage() {
 
           {workspace.dashboard && (
             <>
-              <div role="tablist" aria-label="Patch Management sections" className="flex gap-1 overflow-x-auto border-b border-slate-800">
-                <SectionTab active={section === 'overview'} onClick={() => setSection('overview')}>Overview</SectionTab>
-                <SectionTab active={section === 'clients'} onClick={() => setSection('clients')}>Clients <span className="text-muted">({workspace.dashboard.summary.clientCount.toLocaleString('de-DE')})</span></SectionTab>
+              {!embedded && <div role="tablist" aria-label="Software and license sections" className="flex gap-1 overflow-x-auto border-b border-slate-800">
+                <SectionTab active={section === 'overview'} onClick={() => setSection('overview')}>Packages</SectionTab>
+                <SectionTab active={section === 'clients'} onClick={() => setSection('clients')}>Client versions <span className="text-muted">({workspace.dashboard.summary.clientCount.toLocaleString('de-DE')})</span></SectionTab>
                 <SectionTab active={section === 'winget'} onClick={() => setSection('winget')}>Winget packages</SectionTab>
                 <SectionTab active={section === 'history'} onClick={() => setSection('history')}>History</SectionTab>
-              </div>
+              </div>}
               {section === 'overview' && <PatchProductOverviewWorkspace dashboard={workspace.dashboard} />}
               {section === 'clients' && <PatchClientFleetCard connected={workspace.connected} dashboard={workspace.dashboard} />}
               {section === 'winget' && <WingetPackagesWorkspace connected={workspace.connected} depots={workspace.dashboard.depots} preferredDepot={workspace.depotFilter} onChanged={workspace.refreshDashboard} />}

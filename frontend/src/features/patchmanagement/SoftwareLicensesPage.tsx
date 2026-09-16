@@ -14,6 +14,6 @@ export function SoftwareLicensesPage() {
       {sections.map(([key, label]) => <Link key={key} className="text-accent-400 underline" aria-current={key === section ? 'page' : undefined}
         to={`/software?section=${key}`}>{label}</Link>)}
     </nav>
-    {section === 'licenses' ? <LicenseWorkspace /> : <PatchManagementPage />}
+    {section === 'licenses' ? <LicenseWorkspace /> : <PatchManagementPage embedded />}
   </div>;
 }
