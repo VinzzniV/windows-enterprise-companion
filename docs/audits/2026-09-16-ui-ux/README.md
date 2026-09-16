@@ -1,6 +1,6 @@
 # WEC UI and UX audit — 16 September 2026
 
-Status: audit complete; implementation not started. Documents describe the local consolidation branch at the commit below. They do not change the accepted architecture or supersede the existing acceptance reports.
+Status: audit complete; S1-S8 implementation and automated verification complete on `codex/ui-ux-audit-improvements`; new native viewport acceptance pending because native Computer Use was unavailable. These documents do not change the accepted architecture or supersede the existing acceptance reports. See [implementation acceptance](implementation-acceptance.md).
 
 ## Decision summary
 

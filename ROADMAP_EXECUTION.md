@@ -1,6 +1,6 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `UI_UX_REMEDIATION_IN_PROGRESS`
+Status: `UI_UX_REMEDIATION_IMPLEMENTED_NATIVE_RETEST_PENDING`
 
 Current phase: Object-centered consolidation (ADR 0022), phases 0–7 and 9.
 Phase 8 Windows identity collection remains excluded.
@@ -15,6 +15,24 @@ direction keeps Devices, Users and Groups with source-scoped identity while
 restoring operational summaries, working modes and bounded explicit source
 discovery. No new provider, permission, implicit scan, persistent identity
 registry, directory write or competing top-level device workspace is in scope.
+
+Implementation on `codex/ui-ux-audit-improvements` now covers S1-S8 and all
+F01-F16 code corrections. The final automated baseline is commit `4a970f2`:
+the warning-free Release build, all 1,043 backend tests, all 583 frontend tests
+in 101 files, 494 generated bridge contracts, the production frontend build,
+the High-severity NPM audit gate and `git diff --check` pass. The G2 specialist
+and compatibility routes remain covered by the full suites. Two existing
+Moderate Vitest development advisories remain deferred because the available
+fix is a breaking major upgrade.
+
+The required new native viewport/keyboard acceptance at 1602×1040, 1280×800
+and approximately 800×650 is not claimed. The session's Computer Use provider
+exposed browser control only and returned `cua.getApp is not a function`; its
+tool contract explicitly disabled native computer APIs. No substitute Windows
+automation or remote provider read was used. See
+`docs/audits/2026-09-16-ui-ux/implementation-acceptance.md`. The user's original
+`master` checkout remains at `e89395f` with its pre-existing untracked audit
+documents unchanged. No push, PR update, merge, tag or release was performed.
 
 The immediately preceding slice corrected F-01 AD sorting and F-02 orphaned
 Nessus sync status and live-verified them following the user's explicit fix
