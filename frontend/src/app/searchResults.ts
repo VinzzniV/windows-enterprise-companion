@@ -24,7 +24,10 @@ function matches(query: string, ...values: (string | null | undefined)[]): boole
 }
 
 export function navigationResults(query: string): GlobalSearchResult[] {
-  return navigationGroups.flatMap((group) => group.items)
+  return [...navigationGroups.flatMap((group) => group.items),
+    { to: '/cleanup', label: 'Device Cleanup', searchTerms: ['retirement', 'stale devices', 'cleanup assistant'] },
+    { to: '/clients/compare', label: 'Compare devices', searchTerms: ['compare', 'inventory diff', 'security diff'] },
+  ]
     .filter((item) => matches(query, item.label, ...item.searchTerms))
     .map((item) => ({
       id: `navigation:${item.to}`,

@@ -10,6 +10,11 @@ vi.mock('../features/dashboard/DashboardPage', () => ({
 vi.mock('../features/clients/ClientsPage', () => ({
   ClientsPage: () => <div>Clients content</div>,
 }));
+vi.mock('../shared/objects/ObjectWorkingSetPage', () => ({
+  DevicesWorkingSetPage: () => <div>Device objects content</div>,
+  UsersWorkingSetPage: () => <div>User objects content</div>,
+  GroupsWorkingSetPage: () => <div>Group objects content</div>,
+}));
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
@@ -145,10 +150,10 @@ describe('responsive application shell', () => {
     render(<App />);
 
     expect(await screen.findByText('Dashboard content')).toBeDefined();
-    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Clients' }));
+    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Devices' }));
 
-    expect(await screen.findByText('Clients content')).toBeDefined();
-    expect(window.location.hash).toBe('#/clients');
+    expect(await screen.findByText('Device objects content')).toBeDefined();
+    expect(window.location.hash).toBe('#/devices');
   });
 
   it('opens global search with Ctrl+K and restores focus after Escape', async () => {

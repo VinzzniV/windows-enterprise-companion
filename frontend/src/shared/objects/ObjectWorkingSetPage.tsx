@@ -87,9 +87,10 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
   ];
   return <div ref={root} className="space-y-4"><PageHeader title={titles[kind]} subtitle="Source-scoped objects in the current working set" />
     <nav aria-label="Object workspaces" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
-      <Link to="/devices">Devices</Link><Link to="/users/workspace">Users</Link><Link to="/groups/workspace">Groups</Link>
+      <Link to="/devices">Devices</Link><Link to="/users">Users</Link><Link to="/groups">Groups</Link>
       {kind === 'DEVICE' && <><Link to="/clients">Client posture, saved targets and batch scans</Link><Link to="/clients/compare">Compare</Link><Link to="/cleanup">Device Cleanup</Link></>}
-      {kind === 'USER' && <Link to="/users">AD query workspace</Link>}
+      {kind === 'USER' && <Link to="/users/directory">AD query workspace</Link>}
+      {kind === 'GROUP' && <Link to="/groups/directory">AD group query workspace</Link>}
     </nav>
     <WorkingSetCoverage /><WorkingSetSourceControls kind={kind} />
     {tenantMismatch && <p role="alert" className="text-warn-400">This link belongs to tenant {requestedTenant}. Select that tenant in Data sources before reviewing its loaded assignments.</p>}

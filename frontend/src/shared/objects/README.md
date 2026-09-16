@@ -34,9 +34,12 @@ does not move during investigation.
 `ObjectWorkingSetPage` and global search consume the same captured revision.
 Source, nullable account state, OS, SKU, text, ordering and page selection apply
 before paging. URL state restores filters and paging through profile navigation;
-bounded in-memory positions restore list scroll/focus. The initial routes are
-`/devices`, `/users/workspace` and `/groups/workspace`; existing specialist
-workspaces and navigation remain until the G2 parity migration.
+bounded in-memory positions restore list scroll/focus. Canonical routes are
+`/devices`, `/users` and `/groups`; the initial `/users/workspace` and
+`/groups/workspace` aliases remain valid. Devices links to posture/batch scans,
+Compare and Cleanup. AD query workspaces remain under `/users/directory` and
+`/groups/directory`. Software & licenses and Data sources reuse specialist
+workflows; old routes remain functional and highlighted in their parent section.
 
 Raw management cache reads contribute original AD/KSC/opsi/Nessus observations.
 `managementRecordRoutes.ts` uses a disposable workspace/snapshot/source/index

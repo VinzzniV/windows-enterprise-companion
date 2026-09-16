@@ -12,7 +12,7 @@ export function workingSetSearch(query: string, snapshot: WorkingSetSnapshot | n
   return (['USER', 'DEVICE', 'GROUP'] as const).flatMap(kind => queryWorkingSet(snapshot, { kind, query, page: 1, pageSize: 6 }).rows.map(row => {
     const reference = row.references[0];
     const management = row.observations.find(observation => observation.managementReference)?.managementReference;
-    const list = kind === 'DEVICE' ? '/devices' : kind === 'USER' ? '/users/workspace' : '/groups/workspace';
+    const list = kind === 'DEVICE' ? '/devices' : kind === 'USER' ? '/users' : '/groups';
     const ambiguous = row.duplicateSourceIdentity || row.conflictingIdentityEvidence;
     return { id: row.key, category: categories[kind], label: row.label,
       description: `${[...new Set(row.observations.map(observation => workingSetSourceLabel[observation.source]))].join(' / ')} · ${reference?.scope ?? 'Source snapshot record'}${row.hasCandidates || ambiguous ? ' · Candidate / conflicting evidence' : ''}`,

@@ -1,6 +1,6 @@
 # Object-centered consolidation — verification and preservation
 
-Status: navigation preparation; final completion is not yet claimed.
+Status: C2 navigation switched; final completion is not yet claimed.
 Authority: ADR 0022 and `consolidation-analysis-and-plan.md`, especially G2.
 
 ## Preservation evidence before the sidebar switch
@@ -34,6 +34,11 @@ No export schema is expanded with cloud evidence, and no write action is added.
 
 ## Current automated evidence
 
+- The sidebar now exposes the C2 Work, Objects, Operations and Administration
+  groups. All 81 affected navigation/object/source tests and the production
+  build pass after the switch. Hidden specialist routes keep their canonical
+  parent highlighted; Cleanup and comparison remain globally searchable.
+
 - Release build on 2026-09-16: no warnings or errors; 494 generated contract
   types. The additive request fields preserve existing caller defaults.
 - Full backend regression after source/navigation preparation: 1,022 tests pass.
@@ -45,7 +50,7 @@ No export schema is expanded with cloud evidence, and no write action is added.
 
 ## Remaining completion evidence
 
-The C2 sidebar switch, final full regression/build/audit/architecture checks,
+The final scope audit, full regression/build/audit/architecture checks,
 desktop normal/narrow/keyboard smoke, documentation reconciliation and verified
 Git milestone remain open. Live company AD/KSC/opsi/Nessus, Graph/Intune tenant
 acceptance and a designated remote client have not been tested in this run.

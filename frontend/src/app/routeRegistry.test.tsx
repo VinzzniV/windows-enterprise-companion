@@ -9,18 +9,17 @@ describe('routeRegistry', () => {
     const navigationItems = navigationGroups.flatMap((group) => group.items);
     expect(new Set(navigationItems.map((item) => item.to)).size).toBe(navigationItems.length);
     expect(navigationItems.map((item) => item.label)).toEqual([
-      'Dashboard',
+      'Overview',
       'Action Center',
-      'Device Cleanup',
-      'Clients',
+      'Devices',
       'Users',
-      'Microsoft 365',
-      'Active Directory',
+      'Groups',
+      'Software & licenses',
       'Vulnerabilities',
-      'Patch Management',
       'Print Management',
       'Network Scan',
-      'Report export',
+      'Reports',
+      'Data sources',
       'Settings',
       'Error log',
     ]);
@@ -32,8 +31,12 @@ describe('routeRegistry', () => {
     expect(navigationPaths).not.toContain('/clients/compare');
     expect(navigationPaths).not.toContain('/users/:objectId');
     expect(navigationPaths).not.toContain('/employeelifecycle');
-    expect(sectionLabelFor('/clients/PC-42')).toBe('Clients');
-    expect(sectionLabelFor('/clients/compare')).toBe('Clients');
+    expect(sectionLabelFor('/clients/PC-42')).toBe('Devices');
+    expect(sectionLabelFor('/clients/compare')).toBe('Devices');
+    expect(sectionLabelFor('/cleanup')).toBe('Devices');
+    expect(sectionLabelFor('/microsoft365')).toBe('Data sources');
+    expect(sectionLabelFor('/patchmanagement')).toBe('Software & licenses');
+    expect(navigationGroups.map(group => group.label)).toEqual(['Work', 'Objects', 'Operations', 'Administration']);
     expect(sectionLabelFor('/users/00112233-4455-6677-8899-aabbccddeeff')).toBe('Users');
     expect(sectionLabelFor('/unregistered')).toBe('Overview');
   });

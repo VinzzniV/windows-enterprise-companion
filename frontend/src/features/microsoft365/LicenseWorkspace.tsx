@@ -41,7 +41,7 @@ function LicenseSession() {
     {query.error && <p role="alert" className="text-fail-400">{query.error}</p>}
     {state && <SourceReadState state={state} now={now} />}
     {displayed ? <Microsoft365DataView snapshot={displayed} /> : <p className="text-sm text-muted">No retained license catalogue is available for this session. Load it explicitly.</p>}
-    {sku && state?.tenantId && <p className="text-sm"><Link className="text-accent-400 underline" to={`/users/workspace?source=ENTRA&sku=${encodeURIComponent(sku)}&tenant=${encodeURIComponent(state.tenantId)}`}>Review loaded user assignments for this SKU</Link>
+    {sku && state?.tenantId && <p className="text-sm"><Link className="text-accent-400 underline" to={`/users?source=ENTRA&sku=${encodeURIComponent(sku)}&tenant=${encodeURIComponent(state.tenantId)}`}>Review loaded user assignments for this SKU</Link>
       <span className="block text-xs text-muted">Only assignment evidence already in the bounded working set is filtered. This is not a complete tenant assignee list.</span></p>}
   </div>;
 }

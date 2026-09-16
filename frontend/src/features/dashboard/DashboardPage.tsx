@@ -216,7 +216,7 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Dashboard"
+        title="Overview"
         subtitle="At a glance across the modules — from the last stored scan of each. Open a module to run a fresh one."
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

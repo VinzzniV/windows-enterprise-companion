@@ -50,7 +50,7 @@ export function GroupsPage() {
   const cloudData = cloud?.state?.retainedUntilUtc && Date.parse(cloud.state.retainedUntilUtc) <= now ? null : cloud?.data;
   const tenant = cloud?.state?.tenantId;
   return <div className="space-y-4"><PageHeader title="Groups" subtitle="Source-scoped group discovery and direct membership" />
-    <Link className="text-sm text-accent-400 underline" to="/groups/workspace">Open the shared group working set</Link>
+    <Link className="text-sm text-accent-400 underline" to="/groups">Open the shared group working set</Link>
     <p className="text-sm text-muted">These source queries remain separate. Counts describe the selected AD query or loaded Entra set; they are not a combined directory total.</p>
     {error && <p role="alert" className="text-fail-400">{error}</p>}
     {busy && <Button onClick={() => { generation.current++; active.current?.cancel(); active.current = null; setBusy(false); }}>Cancel read</Button>}

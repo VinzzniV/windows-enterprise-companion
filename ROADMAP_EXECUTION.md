@@ -4,16 +4,20 @@ Status: `IN_PROGRESS`
 
 Current phase: Object-centered consolidation (ADR 0022)
 
-Current slice: Phase 7 navigation switch after automated G2 preservation checks.
-New Data sources and Software & licenses entries reuse the existing workflows.
+Current slice: Phase 9 closure audit after the Phase 7 navigation switch.
+Work, Objects, Operations and Administration expose the C2 destinations.
 Legacy client/user/cloud routes preserve scoped identities and sections; source
-connection and cached read boundaries are checked. The sidebar switch and final
+connection and cached read boundaries are checked. The final scope review and
 verification remain pending. See `docs/consolidation-verification.md`.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Implementation plan and required parity matrix:
 `docs/consolidation-analysis-and-plan.md`, sections G1/G2.
 
 ## Current consolidation verification (2026-09-16)
+
+- The C2 navigation switch passes 81 affected frontend tests and the production
+  build. Cleanup/comparison remain discoverable in Devices and global search;
+  source routes, directory query workspaces and old workspace aliases remain.
 
 - Pre-navigation regression passes: 1,022 backend tests and 555 frontend tests
   in 97 files, Release build without warnings/errors, 494 generated types and

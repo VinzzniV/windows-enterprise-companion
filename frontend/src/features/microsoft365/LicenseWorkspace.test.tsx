@@ -21,7 +21,7 @@ describe('license workspace', () => {
   it('opens cache-only and preserves the selected SKU and tenant in reverse navigation', async () => {
     render(<MemoryRouter initialEntries={[`/software?section=licenses&sku=sku-one&tenant=${tenant}`]}><LicenseWorkspace /></MemoryRouter>);
     await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('read', { resource: 'LICENSES', tenantId: tenant, refresh: false, cacheOnly: true }));
-    expect((await screen.findByRole('link', { name: 'Review loaded user assignments for this SKU' })).getAttribute('href')).toBe(`/users/workspace?source=ENTRA&sku=sku-one&tenant=${tenant}`);
+    expect((await screen.findByRole('link', { name: 'Review loaded user assignments for this SKU' })).getAttribute('href')).toBe(`/users?source=ENTRA&sku=sku-one&tenant=${tenant}`);
     fireEvent.click(screen.getByRole('button', { name: 'Load tenant licenses' }));
     await waitFor(() => expect(mocks.request).toHaveBeenLastCalledWith('read', { resource: 'LICENSES', tenantId: tenant, refresh: true, cacheOnly: false }));
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1));

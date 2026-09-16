@@ -97,7 +97,7 @@ export function Microsoft365Page() {
       <Badge tone={connection?.connected ? 'accent' : 'neutral'}>{connection?.connected ? 'Signed in' : 'Not connected'}</Badge>
     </PageHeader>
     <nav aria-label="Object workspaces" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
-      <Link to="/devices">Device working set</Link><Link to="/users/workspace">Account working set</Link><Link to="/groups/workspace">Group working set</Link>
+      <Link to="/devices">Device working set</Link><Link to="/users">Account working set</Link><Link to="/groups">Group working set</Link>
     </nav>
     <Card title="Connection">
       <div className="grid gap-3 md:grid-cols-2">

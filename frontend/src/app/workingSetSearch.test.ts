@@ -27,7 +27,7 @@ describe('working-set global search', () => {
     const read = makeRead(1);
     read.rows = [...read.rows, { ...read.rows[0], label: 'Searchable conflicting account' }];
     const result = workingSetSearch('searchable', capture(read)).find(row => row.category === 'Users');
-    expect(result?.to).toMatch(/^\/users\/workspace\?q=/);
+    expect(result?.to).toMatch(/^\/users\?q=/);
     expect(result?.description).toContain('conflicting');
   });
 });

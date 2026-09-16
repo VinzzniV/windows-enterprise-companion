@@ -3,8 +3,8 @@ import { objectPath, objectReference } from '../../shared/objects/objectRoutes';
 
 export function cloudObjectDestination(resource: Microsoft365Resource, objectId?: string | null, tenantId?: string | null): string | null {
   const tenantFilter = tenantId ? `&tenant=${encodeURIComponent(tenantId)}` : '';
-  if (resource === 'USERS') return '/users/workspace?source=ENTRA' + tenantFilter;
-  if (resource === 'GROUPS') return '/groups/workspace?source=ENTRA' + tenantFilter;
+  if (resource === 'USERS') return '/users?source=ENTRA' + tenantFilter;
+  if (resource === 'GROUPS') return '/groups?source=ENTRA' + tenantFilter;
   if (resource === 'DEVICES') return '/devices?source=ENTRA' + tenantFilter;
   if (resource === 'MANAGED_DEVICES') return '/devices?source=INTUNE' + tenantFilter;
   if (resource === 'LICENSES') return `/software?section=licenses${tenantId ? `&tenant=${encodeURIComponent(tenantId)}` : ''}`;
