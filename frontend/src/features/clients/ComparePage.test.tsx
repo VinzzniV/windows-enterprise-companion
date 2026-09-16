@@ -32,6 +32,9 @@ const directory: AdComputerSearchResult = {
       description: null,
       distinguishedName: 'CN=PC-A,DC=corp,DC=local',
       lastLogonDate: null,
+      objectId: null,
+      securityIdentifier: null,
+      directoryScope: 'corp.local',
     },
     {
       name: 'PC-B',
@@ -41,6 +44,9 @@ const directory: AdComputerSearchResult = {
       description: null,
       distinguishedName: 'CN=PC-B,DC=corp,DC=local',
       lastLogonDate: null,
+      objectId: null,
+      securityIdentifier: null,
+      directoryScope: 'corp.local',
     },
     {
       name: 'PC-C',
@@ -50,6 +56,9 @@ const directory: AdComputerSearchResult = {
       description: null,
       distinguishedName: 'CN=PC-C,DC=corp,DC=local',
       lastLogonDate: null,
+      objectId: null,
+      securityIdentifier: null,
+      directoryScope: 'corp.local',
     },
   ],
 };

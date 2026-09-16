@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { DirectoryUserGroup, UserProfileResult } from '../../shared/api-types';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
@@ -21,13 +21,16 @@ import {
 } from './users';
 import { UserDevicesSection } from './UserDevicesSection';
 import { LeaverReviewSection } from './LeaverReviewSection';
+import { Microsoft365ContextPanel } from '../microsoft365/Microsoft365ContextPanel';
+import { objectPath } from '../../shared/objects/objectRoutes';
 
-type UserSection = 'overview' | 'access' | 'devices' | 'leaver';
+type UserSection = 'overview' | 'access' | 'devices' | 'leaver' | 'microsoft365';
 const sections: { key: UserSection; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'access', label: 'Access' },
   { key: 'devices', label: 'Devices' },
   { key: 'leaver', label: 'Leaver review' },
+  { key: 'microsoft365', label: 'Microsoft 365' },
 ];
 
 function isUserSection(value: string | null): value is UserSection {
@@ -62,7 +65,7 @@ export function UserDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { objectId: rawObjectId } = useParams<{ objectId: string }>();
-  const objectId = decodeURIComponent(rawObjectId ?? '');
+  const objectId = rawObjectId ?? '';
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSection = searchParams.get('section');
   const section: UserSection = isUserSection(requestedSection) ? requestedSection : 'overview';
@@ -87,6 +90,7 @@ export function UserDetailPage() {
     let current = true;
     setLoading(true);
     setError(null);
+    setProfile(null);
     void invoke<UserProfileResult>('usermanagement', 'getUserProfile', {
       objectId,
       connection: toUserDirectoryConnection(endpoint, adminCredentials),
@@ -133,6 +137,10 @@ export function UserDetailPage() {
     </>}
   />;
   if (!profile) return <EmptyState title="User not found" message="The selected directory identity is no longer available." />;
+  if (profile.identity.directoryScope && profile.identity.objectId.toLowerCase() === objectId.toLowerCase()) {
+    return <Navigate replace to={objectPath({ kind: 'USER', source: 'ACTIVE_DIRECTORY', scope: profile.identity.directoryScope, id: profile.identity.objectId }) + location.search}
+      state={{ directoryEndpoint: endpoint, resolveLegacyUser: true }} />;
+  }
 
   const { identity, lifecycle, access } = profile;
   const stateLabel = lifecycle.enabled === true ? 'Enabled' : lifecycle.enabled === false ? 'Disabled' : 'Unknown state';
@@ -262,5 +270,8 @@ export function UserDetailPage() {
     <div role="tabpanel" id="userpanel-leaver" aria-labelledby="usertab-leaver" hidden={section !== 'leaver'}>
       <LeaverReviewSection profile={profile} />
     </div>
+    {section === 'microsoft365' && <div role="tabpanel" id="userpanel-microsoft365" aria-labelledby="usertab-microsoft365">
+      <Microsoft365ContextPanel sid={identity.sid} userPrincipalName={identity.userPrincipalName} />
+    </div>}
   </div>;
 }

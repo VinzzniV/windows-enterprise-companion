@@ -13,15 +13,38 @@ public enum DeviceCleanupClassification
 public sealed record DeviceCleanupCandidate(
     string SubjectKey,
     string Host,
+    string? Description,
+    string? DescriptionSource,
     DeviceCleanupClassification Classification,
     string ClassificationExplanation,
+    bool? ActiveDirectoryExists,
     bool? ActiveDirectoryEnabled,
     DateTimeOffset? ActiveDirectoryLastLogonAtUtc,
+    bool? KasperskyExists,
     DateTimeOffset? KasperskyLastSeenAtUtc,
+    bool? OpsiExists,
     DateTimeOffset? OpsiLastSeenAtUtc,
+    bool? NessusExists,
     DateTimeOffset? NessusLastScanAtUtc,
+    bool InventoryExists,
     DateTimeOffset? InventoryCapturedAtUtc,
-    int RelevantFindingCount);
+    int RelevantFindingCount)
+{
+    public bool CanTargetWindows { get; init; } = true;
+}
+
+internal sealed record DeviceCleanupExportSnapshot(
+    IReadOnlyList<DeviceCleanupCandidate> Candidates,
+    DateTimeOffset AssessedAtUtc,
+    IReadOnlyList<ActionEvidenceSourceState> Sources,
+    bool SubjectsTruncated);
+
+internal sealed record DeviceCleanupExportQuery(
+    HygieneActionDirectoryConnection? ActiveDirectory,
+    HygieneActionKasperskyConnection? Kaspersky,
+    string? OperationId,
+    string? Search,
+    bool IncludeWithoutSignals);
 
 public sealed record DeviceCleanupSourceFact(
     string Source,

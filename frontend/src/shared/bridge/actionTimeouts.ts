@@ -29,6 +29,7 @@ const standardOperations = new Set([
 ]);
 
 const batchOperations = new Set([
+  'devicecleanup/exportWorkbook',
   'diagnostics/runBatchDiagnostics',
   'inventory/runBatchScan',
   'networkscan/scan',
@@ -55,6 +56,8 @@ function packageCount(payload: unknown): number {
  */
 export function bridgeResponseTimeoutMs(module: string, action: string, payload?: unknown): number {
   const key = `${module}/${action}`;
+  if (key === 'microsoft365/connect') return 320_000;
+  if (module === 'microsoft365') return STANDARD_OPERATION_TIMEOUT_MS;
   if (key === 'patchmanagement/createOrAdoptWingetPackage') {
     return PACKAGE_TARGET_TIMEOUT_MS;
   }

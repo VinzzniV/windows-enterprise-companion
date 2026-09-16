@@ -1,11 +1,65 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `COMPLETE_PENDING_MERGE`
+Status: `LIVE_FIXES_VERIFIED_WITH_ACCEPTED_LIMITS`
 
-Current phase: Roadmap completion audit and release verification
+Current phase: Object-centered consolidation (ADR 0022), phases 0–7 and 9.
+Phase 8 Windows identity collection remains excluded.
 
-Current slice: Merge the fully verified roadmap branch through Draft PR #28
+Current slice: F-01 AD sorting and F-02 orphaned Nessus sync status are corrected
+and live-verified following the user's explicit fix instruction on 2026-09-16.
+Partial Nessus coverage is accepted when its cause and retained evidence are
+visible. Five AD group members, stable group/user pages and all ten user sort
+combinations passed live. Nessus imported 12 current scans without scan errors
+and published 669 assets/50,219 findings at 12:28:36; optional history continued.
+See ADR 0023 and `docs/consolidation-live-acceptance.md` for bounds and evidence.
 
+Earlier acceptance passed remote Inventory/Health/Event Log/connectivity,
+cloud identity/relationship/license journeys, narrow-window navigation and
+sign-out/cache clearing. Its AD/Nessus findings are resolved above. A real
+cross-tenant switch remains unperformed. The `17f53ef` CI/packaging evidence
+belongs to the previous implementation milestone. No release or tag is authorized.
+Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
+Binding scope: `docs/consolidation-analysis-and-plan.md`; preservation and
+verification details: `docs/consolidation-verification.md`.
+
+## Current consolidation verification (2026-09-16)
+
+- All 1,043 backend tests and 559 frontend tests in 97 files pass. The Release
+  build has zero warnings/errors, the 494 generated contracts are current, and
+  the frontend production build passes after a locked dependency install.
+- Dependency rules pass across all 20 production projects. The NPM High gate
+  passes; two pre-existing Moderate Vitest development-tool findings remain.
+- Devices, Users and Groups share a bounded memory-only working set and search.
+  Entra-only accounts, source-native groups, exact Windows targets and raw
+  management records remain separate unless scoped identity evidence proves
+  a relationship. Conflicts, unknown values, independent source states and
+  targeted explicit reads remain visible.
+- C2 navigation follows verified G2 preservation. Existing posture/batch,
+  comparison, Cleanup, Leaver, Windows tools, exports and gated Patch/Print
+  operations remain reachable; old routes preserve subject and section.
+- Closure fixes retain anonymous/duplicate Nessus report rows, source-specific
+  Intune states, group classification, separate AD/Entra filters, saved/scanned
+  filters and SKU navigation in both directions. Device profiles expose the
+  seven specified focused areas.
+- A 10,000-record fixture retains exactly 5,000 rows, preserves the source
+  total and marks partial coverage. Capture took 61 ms and filter/page 9 ms in
+  this local run; these observations are not performance guarantees.
+- An isolated local Release host initialized WebView2 and the migrated database.
+  Normal-width navigation, empty Devices state, filters and keyboard search
+  were inspected. No WEC-owned TCP listener or Error/Fatal log entry appeared.
+  The original desktop check ended on the user's physical Escape. The later
+  explicitly authorized live follow-up passed the narrow-window journeys.
+- The existing Dashboard performed its bounded read-only opsi status/product
+  reads using the configured connection. This is not full opsi acceptance.
+  The later live follow-up exercised AD/KSC/opsi/Nessus, Graph/Intune and the
+  designated remote client. The initial direct-member failure and orphaned
+  Nessus running state were corrected and retested. See the live report for
+  per-journey evidence and limits. No remote write or release was performed.
+
+## Previous program history
+
+The entries below concern the preceding roadmap and are historical context,
+not a competing current slice or the validation evidence for consolidation.
 ## Done
 
 - Roadmap, decisions, AGENTS rules and relevant accepted ADRs reviewed.
@@ -250,6 +304,20 @@ Current slice: Merge the fully verified roadmap branch through Draft PR #28
   (`daa29b247ce09bd8dd4f756a81e3676a7e1913e1c5839b9cc7eaf565687f78df`).
   The ZIP contains 619 entries including the host executable, frontend entry
   point and application settings. Release `v0.1.0` remains unchanged.
+- Device Cleanup now exports every candidate matching the active filter to one
+  filterable `.xlsx` workbook rather than exporting only the visible page. The
+  workbook carries device description with source provenance, classification,
+  separate AD, Kaspersky, opsi, Nessus and WEC Inventory states and timestamps,
+  relevant-finding counts, source coverage and explicit truncation metadata.
+- The export performs one explicit, cancellable ICMP echo per exported device
+  only after the save dialog is confirmed. Timeout and bounded parallelism are
+  configuration values. It performs no WinRM check, retry, source refresh,
+  persistence or directory write, and a missing reply is explicitly
+  inconclusive rather than an offline or deletion claim.
+- Device Cleanup list rows now expose the source-backed description. Generated
+  contracts, backend behavior and frontend integration tests cover the full
+  filtered export, description precedence, typed UTC spreadsheet dates,
+  unavailable evidence, workbook validation and cancellation behavior.
 
 ## Deferred release gates
 
@@ -356,12 +424,25 @@ Current slice: Merge the fully verified roadmap branch through Draft PR #28
   ZIP artifact `9663342701` is 91,969,707 bytes and installer artifact
   `9663344878` is 62,930,001 bytes. Both downloaded packages match their
   committed SHA-256 records; no tag or release was created.
+- Device Cleanup Excel export baseline is
+  `e89395fe874d64aa09ad185185df804390025e95`. Final local verification passes a
+  warning-free Release build, all 739 backend tests, all 461 frontend tests,
+  390 generated bridge contracts, the production frontend build and the High
+  severity NPM audit gate. Two existing Moderate Vitest advisories remain
+  deferred because the available remediation requires a breaking major update.
+- The workbook test saves with Open XML validation enabled and reopens the
+  resulting file. Device Cleanup export coverage includes complete current-
+  filter selection across server pages and explicit one-probe-per-device Ping
+  outcomes.
+- The host timeout policy now classifies `devicecleanup/exportWorkbook` as a
+  batch action as well as the frontend correlation policy. A regression test
+  prevents the export from falling back to the nine-second default lifetime.
 
 ## Next
 
-1. Require green pull-request CI on the exact final documentation head.
-2. Preserve a successful release-free packaging proof for that head or its
-   documentation-only predecessor.
-3. When both repository merge gates are green, mark Draft PR #28 ready and
-   merge it under D-006. Do not create a version tag, publish an installer or
-   create a GitHub Release without explicit user approval.
+1. Finish targeted AD computer discovery and remaining legacy candidate/route
+   fixes; complete the working-set and source-profile compatibility checks.
+2. Verify every G2 workflow before switching C2 navigation, then run full
+   regression/security/desktop checks and finish documentation (phase 9).
+3. Keep company/tenant/remote-client acceptance explicitly unverified until run.
+   No tag, release or installer publication without explicit approval.

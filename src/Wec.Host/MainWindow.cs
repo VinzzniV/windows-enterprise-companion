@@ -39,6 +39,7 @@ internal sealed partial class MainWindow : Form
         WebViewBridgeEventPublisher eventPublisher,
         IOptions<WebViewOptions> webViewOptions,
         IOptions<FrontendOptions> frontendOptions,
+        Microsoft365AuthenticationWindow authenticationWindow,
         ILogger<MainWindow> logger)
     {
         _bridge = bridge;
@@ -62,6 +63,8 @@ internal sealed partial class MainWindow : Form
         Controls.Add(_webView);
 
         Load += HandleLoad;
+        HandleCreated += (_, _) => authenticationWindow.Handle = Handle;
+        HandleDestroyed += (_, _) => authenticationWindow.Handle = nint.Zero;
     }
 
     private async void HandleLoad(object? sender, EventArgs e)
@@ -73,7 +76,11 @@ internal sealed partial class MainWindow : Form
                 await CoreWebView2Environment.CreateAsync(userDataFolder: userDataDirectory);
             await _webView.EnsureCoreWebView2Async(environment);
 
-            _bridge.Attach(_webView.CoreWebView2);
+            string trustedOrigin = _frontendOptions.UseDevServer ? _frontendOptions.DevServerUrl : $"https://{VirtualHostName}";
+            _bridge.Attach(_webView.CoreWebView2, trustedOrigin);
+            _webView.CoreWebView2.NavigationStarting += (_, args) =>
+                args.Cancel = args.Uri != "about:blank" && !WebViewBridge.HasTrustedOrigin(args.Uri, trustedOrigin);
+            _webView.CoreWebView2.NewWindowRequested += (_, args) => args.Handled = true;
             _eventPublisher.Attach(this, _webView.CoreWebView2);
             NavigateToFrontend();
             LogWebViewInitialized(environment.BrowserVersionString);

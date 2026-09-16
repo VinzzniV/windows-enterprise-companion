@@ -2,9 +2,9 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
-using Wec.Modules.EmployeeLifecycle.Application;
+using Wec.Modules.Clients.Application;
 
-namespace Wec.Modules.EmployeeLifecycle.Tests.Application;
+namespace Wec.Modules.Clients.Tests.Application;
 
 public sealed class ClientOverviewServiceTests
 {
@@ -69,13 +69,13 @@ public sealed class ClientOverviewServiceTests
     }
 
     [Fact]
-    public async Task LocalFqdn_UsesLocalProviderKeysAndFutureTimestampIsUnknown()
+    public async Task ExactLocalName_UsesLocalProviderKeysAndFutureTimestampIsUnknown()
     {
-        string localFqdn = $"{Environment.MachineName}.corp.example";
+        string localName = Environment.MachineName;
         _health.GetLatestAsync(host: null, Arg.Any<CancellationToken>())
             .Returns(Health(Now.AddMinutes(5)));
 
-        ClientOverviewResult result = await CreateService().GetAsync(localFqdn, CancellationToken.None);
+        ClientOverviewResult result = await CreateService().GetAsync(localName, CancellationToken.None);
 
         Assert.Equal(ClientOverviewFreshness.Unknown, result.Health!.Metadata.Freshness);
         Assert.Null(result.Health.Metadata.AgeSeconds);
@@ -84,6 +84,19 @@ public sealed class ClientOverviewServiceTests
         await _health.Received(1).GetLatestAsync(host: null, Arg.Any<CancellationToken>());
         await _security.Received(1).GetLatestScanAsync(host: null, Arg.Any<CancellationToken>());
         await _clientUsers.Received(1).GetLatestAsync(host: null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OtherDomainNamesake_DoesNotReadLocalEvidence()
+    {
+        string remote = $"{Environment.MachineName}.other.example";
+        ClientOverviewResult result = await CreateService().GetAsync(remote, CancellationToken.None);
+
+        Assert.Null(result.Inventory);
+        await _inventory.Received(1).GetLatestAsync(remote, Arg.Any<CancellationToken>());
+        await _security.Received(1).GetLatestScanAsync(remote, Arg.Any<CancellationToken>());
+        await _inventory.DidNotReceive().GetLatestAsync(null, Arg.Any<CancellationToken>());
+        await _security.DidNotReceive().GetLatestScanAsync(null, Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -16,6 +16,9 @@ const directoryComputer: AdComputer = {
   description: null,
   distinguishedName: 'CN=PC-42,OU=Clients,DC=corp,DC=example',
   lastLogonDate: null,
+  objectId: null,
+  securityIdentifier: null,
+  directoryScope: 'corp.example',
 };
 
 const savedClient: SavedTarget = {
@@ -40,7 +43,7 @@ describe('global search result builders', () => {
     ]));
   });
 
-  it('merges client evidence by short host name and keeps the result set bounded', () => {
+  it('keeps short-name candidates separate and the result set bounded', () => {
     const inventory: StoredInventoryHost[] = [
       { host: 'PC-42', capturedAtUtc: '2026-08-27T08:00:00Z' },
       ...Array.from({ length: 8 }, (_, index) => ({
@@ -56,13 +59,13 @@ describe('global search result builders', () => {
     const results = clientResults('PC-', [directoryComputer], inventory, security, [savedClient]);
 
     expect(results).toHaveLength(6);
-    expect(results.filter((result) => result.label === 'PC-42')).toHaveLength(1);
-    expect(results.find((result) => result.label === 'PC-42')).toEqual(expect.objectContaining({
+    expect(results.filter((result) => result.label === 'PC-42')).toHaveLength(2);
+    expect(results.find((result) => result.to === '/clients/pc-42.corp.example')).toEqual(expect.objectContaining({
       to: '/clients/pc-42.corp.example',
-      description: expect.stringContaining('Stored inventory'),
+      description: expect.stringContaining('Stored security'),
     }));
-    expect(results.find((result) => result.label === 'PC-42')?.description).toContain('Stored security');
-    expect(results.find((result) => result.label === 'PC-42')?.description).toContain('Saved client');
+    expect(results.find((result) => result.to === '/clients/PC-42')?.description).toContain('Stored inventory');
+    expect(results.find((result) => result.to === '/clients/PC-42')?.description).toContain('Saved client');
   });
 
   it('maps directory users and saved server roles to stable deep links', () => {

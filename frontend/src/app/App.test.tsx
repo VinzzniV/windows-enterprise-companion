@@ -10,6 +10,11 @@ vi.mock('../features/dashboard/DashboardPage', () => ({
 vi.mock('../features/clients/ClientsPage', () => ({
   ClientsPage: () => <div>Clients content</div>,
 }));
+vi.mock('../shared/objects/ObjectWorkingSetPage', () => ({
+  DevicesWorkingSetPage: () => <div>Device objects content</div>,
+  UsersWorkingSetPage: () => <div>User objects content</div>,
+  GroupsWorkingSetPage: () => <div>Group objects content</div>,
+}));
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
@@ -17,7 +22,12 @@ vi.mock('../shared/bridge/bridgeClient', () => ({
   invoke: invokeMock,
   invokeCancellable: (module: string, action: string, payload: unknown) => ({
     requestId: 'request-id',
-    promise: invokeMock(module, action, payload),
+    promise: action === 'getStoredObjectLists' ? Promise.resolve({ workspace: { scope: 'local', localComputerName: 'TESTHOST' },
+      maximumRecords: 5000, maximumSourceReads: 128, retrievedAtUtc: '2026-09-14T10:00:00Z', search: null, reads: [] })
+      : action === 'getCachedObjectLists' ? Promise.resolve({ tenantId: null, sessionRevision: 0, revision: 0,
+        recordLimit: 5000, cachedSourceRecords: 0, loadedSourceRecords: 0, truncated: false, reads: [] })
+        : action === 'getCachedManagementObjectLists' ? Promise.resolve({ workspace: { scope: 'local', localComputerName: 'TESTHOST' },
+          snapshotId: null, opsiSessionId: null, sessionRevision: 0, revision: 0, retrievedAtUtc: null, maximumRecords: 5000, search: null, reads: [] }) : invokeMock(module, action, payload),
     cancel: vi.fn(),
   }),
   subscribe: vi.fn(() => () => {}),
@@ -140,10 +150,10 @@ describe('responsive application shell', () => {
     render(<App />);
 
     expect(await screen.findByText('Dashboard content')).toBeDefined();
-    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Clients' }));
+    fireEvent.click(within(screen.getByTestId('desktop-navigation')).getByRole('link', { name: 'Devices' }));
 
-    expect(await screen.findByText('Clients content')).toBeDefined();
-    expect(window.location.hash).toBe('#/clients');
+    expect(await screen.findByText('Device objects content')).toBeDefined();
+    expect(window.location.hash).toBe('#/devices');
   });
 
   it('opens global search with Ctrl+K and restores focus after Escape', async () => {

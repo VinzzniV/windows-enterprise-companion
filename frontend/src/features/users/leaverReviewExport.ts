@@ -66,6 +66,7 @@ export function toLeaverReviewMarkdown(
     '## Evidence boundaries',
     '',
     '- AD lastLogonTimestamp is replicated and can be stale.',
+    '- This assessment contains AD and stored Windows evidence only. Microsoft 365 accounts, licenses, groups and device relationships are excluded.',
     '- Direct groups do not include all nested or external authorization.',
     '- Inventory user observations do not prove ownership, assignment or physical return.',
     '- Checked items represent only this review session; WEC persists no workflow state.',

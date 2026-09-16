@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Wec.Core.Targets;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.EmployeeLifecycle;
+using Wec.Modules.Clients;
 using Wec.Modules.NetworkScan;
 
 namespace Wec.Host.Tests.Options;

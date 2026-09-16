@@ -13,6 +13,66 @@ export interface ActionEvidenceSourceState {
   explanation: string | null;
 }
 
+export interface AdComputerInventoryItem {
+  computerName: string;
+  dnsHostName: string | null;
+  operatingSystem: string | null;
+  description: string | null;
+  enabled: boolean | null;
+  distinguishedName: string;
+  lastLogonDate: string | null;
+  objectId: string | null;
+  securityIdentifier: string | null;
+  directoryScope: string | null;
+}
+
+export interface CachedDirectoryComputer {
+  data: DirectoryComputerIdentityResult | null;
+  lastAttemptAtUtc: string;
+  lastAttemptError: Error | null;
+  sessionRevision: number;
+  revision: number;
+  retainedUntilUtc: string | null;
+  stale: boolean;
+}
+
+export interface CachedDirectoryGroupIdentity {
+  state: DirectoryGroupReadState;
+  data: DirectoryGroupIdentityResult | null;
+}
+
+export interface CachedDirectoryGroupMembers {
+  state: DirectoryGroupReadState;
+  data: DirectoryGroupMemberPage | null;
+}
+
+export interface CachedDirectoryGroupPage {
+  state: DirectoryGroupReadState;
+  data: DirectoryGroupPage | null;
+}
+
+export interface CachedDirectoryUser {
+  data: DirectoryUserIdentityResult | null;
+  lastAttemptAtUtc: string;
+  lastAttemptError: Error | null;
+  sessionRevision: number;
+  revision: number;
+  retainedUntilUtc: string | null;
+  stale: boolean;
+  freshUntilUtc: string | null;
+}
+
+export interface CachedDirectoryUserList {
+  data: DirectoryUserListPage | null;
+  lastAttemptAtUtc: string | null;
+  lastAttemptError: Error | null;
+  sessionRevision: number;
+  revision: number;
+  retainedUntilUtc: string | null;
+  freshUntilUtc: string | null;
+  stale: boolean;
+}
+
 export interface ClientObservedUserEvidence {
   directorySid: string;
   accountDisplay: string;
@@ -41,6 +101,82 @@ export interface DeviceCleanupUserObservation {
   explanation: string;
 }
 
+export interface DirectoryComputerIdentityResult {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  computers: AdComputerInventoryItem[];
+  truncated: boolean;
+}
+
+export interface DirectoryGroupIdentityResult {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  groups: DirectoryGroupRecord[];
+  truncated: boolean;
+}
+
+export interface DirectoryGroupMember {
+  objectId: string | null;
+  securityIdentifier: string | null;
+  kind: ObjectKind | null;
+  objectClass: string | null;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  distinguishedName: string;
+}
+
+export interface DirectoryGroupMemberPage {
+  directoryScope: string;
+  groupObjectId: string;
+  retrievedAtUtc: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  members: DirectoryGroupMember[];
+  coverageExplanation: string;
+}
+
+export interface DirectoryGroupPage {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  groups: DirectoryGroupRecord[];
+}
+
+export interface DirectoryGroupReadState {
+  retrievedAtUtc: string | null;
+  lastAttemptAtUtc: string | null;
+  lastAttemptError: Error | null;
+  sessionRevision: number;
+  revision: number;
+  retainedUntilUtc: string | null;
+  freshUntilUtc: string | null;
+  stale: boolean;
+}
+
+export interface DirectoryGroupRecord {
+  objectId: string | null;
+  securityIdentifier: string | null;
+  directoryScope: string;
+  name: string;
+  samAccountName: string | null;
+  distinguishedName: string;
+  description: string | null;
+  securityEnabled: boolean | null;
+  groupScope: string | null;
+}
+
+export interface DirectoryInventoryConnection {
+  domain?: string | null;
+  server?: string | null;
+  userName?: string | null;
+  userDomain?: string | null;
+  password?: string | null;
+}
+
 export type DirectoryUserAccessCoverage = 'NOT_EVALUATED' | 'AVAILABLE' | 'UNAVAILABLE';
 
 export type DirectoryUserAccountStateFilter = 'ALL' | 'ENABLED' | 'DISABLED';
@@ -48,6 +184,63 @@ export type DirectoryUserAccountStateFilter = 'ALL' | 'ENABLED' | 'DISABLED';
 export interface DirectoryUserGroup {
   distinguishedName: string;
   name: string;
+}
+
+export interface DirectoryUserIdentityResult {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  user: DirectoryUserRecord | null;
+}
+
+export interface DirectoryUserListEntry {
+  objectId: string;
+  securityIdentifier: string | null;
+  directoryScope: string;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  enabled: boolean | null;
+  department: string | null;
+}
+
+export interface DirectoryUserListPage {
+  directoryScope: string;
+  retrievedAtUtc: string;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  users: DirectoryUserListEntry[];
+}
+
+export interface DirectoryUserPrivilegedAccess {
+  coverage: DirectoryUserAccessCoverage;
+  explanation: string;
+  directMemberships: DirectoryUserGroup[];
+}
+
+export interface DirectoryUserRecord {
+  objectId: string;
+  sid: string | null;
+  displayName: string;
+  samAccountName: string | null;
+  userPrincipalName: string | null;
+  mail: string | null;
+  employeeId: string | null;
+  department: string | null;
+  title: string | null;
+  managerDistinguishedName: string | null;
+  distinguishedName: string;
+  organizationalUnitPath: string;
+  enabled: boolean | null;
+  createdAtUtc: string | null;
+  accountExpiresAtUtc: string | null;
+  replicatedLastLogonAtUtc: string | null;
+  passwordLastSetAtUtc: string | null;
+  passwordExpiresAtUtc: string | null;
+  passwordNeverExpires: boolean | null;
+  directGroups: DirectoryUserGroup[];
+  privilegedAccess: DirectoryUserPrivilegedAccess;
+  directoryScope: string | null;
 }
 
 export type DirectoryUserSortDirection = 'ASCENDING' | 'DESCENDING';
@@ -70,7 +263,73 @@ export interface HygieneActionKasperskyConnection {
   password?: string | null;
 }
 
+export interface KasperskyDeviceRecord {
+  computerName: string;
+  fqdn: string | null;
+  dnsName: string | null;
+  recordName: string | null;
+  lastSeen: string | null;
+  agentVersion: string | null;
+  kesVersion: string | null;
+  administrationGroup: string | null;
+}
+
+export interface KasperskyInventoryConnection {
+  server?: string | null;
+  port?: number | null;
+  userName?: string | null;
+  domain?: string | null;
+  password?: string | null;
+}
+
+export interface ManagementDeviceSnapshot {
+  retrievedAtUtc: string;
+  sources: ManagementDeviceSourceState[];
+  activeDirectory: AdComputerInventoryItem[];
+  kaspersky: KasperskyDeviceRecord[];
+  opsi: OpsiComputerInventoryItem[];
+  nessus: NessusComputerInventoryItem[];
+  snapshotId: string;
+  opsiSessionId: string | null;
+  sessionRevision: number;
+  revision: number;
+}
+
+export interface ManagementDeviceSourceState {
+  source: string;
+  scope: string | null;
+  availability: string;
+  error: string | null;
+  loadedRecords: number;
+}
+
+export interface NessusComputerInventoryItem {
+  computerName: string;
+  assetId: string | null;
+  ipAddress: string | null;
+  lastCompletedScanUtc: string | null;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+  ports: number[];
+  scanSources: string[];
+  sourceKey: string | null;
+  fqdn: string | null;
+  hostUuid: string | null;
+  biosUuid: string | null;
+}
+
 export type NessusInventoryAvailability = 'AVAILABLE' | 'PARTIAL' | 'NOT_CONNECTED' | 'UNAVAILABLE';
+
+export interface OpsiComputerInventoryItem {
+  computerName: string;
+  description: string | null;
+  depotId: string | null;
+  lastSeen: string | null;
+  clientAgentVersion: string | null;
+}
 
 export interface SecurityCoverageReportData {
   isKnown: boolean;
@@ -85,6 +344,15 @@ export interface SecurityCoverageReportData {
 
 export type ServiceCredentialKind = 'KASPERSKY' | 'OPSI' | 'NESSUS';
 
+export interface StoredDeviceAddressRow {
+  recordId: string;
+  host: string;
+  label: string;
+  observedAtUtc: string;
+}
+
+export type StoredDeviceListSource = 'INVENTORY' | 'SECURITY' | 'SAVED_CLIENTS';
+
 export type UserDeviceRelationshipConfidence = 'HIGH' | 'MEDIUM';
 
 export interface UserDeviceRelationshipCoverage {
@@ -93,6 +361,9 @@ export interface UserDeviceRelationshipCoverage {
   notCapturedDeviceCount: number;
   unavailableDeviceCount: number;
   truncatedDeviceCount: number;
+  evaluatedDeviceCount: number | null;
+  workingSetTruncated: boolean;
+  multipleLatestSnapshotDeviceCount: number;
 }
 
 export interface UserDeviceRelationshipObservation {
@@ -113,6 +384,296 @@ export interface TargetRequest {
   password?: string | null;
 }
 
+export interface CachedEntraDevices {
+  state: Microsoft365ReadState;
+  devices: Microsoft365Device[];
+}
+
+export interface CachedEntraUsers {
+  state: Microsoft365ReadState;
+  users: Microsoft365User[];
+}
+
+export interface CachedIntuneDevices {
+  state: Microsoft365ReadState;
+  devices: Microsoft365ManagedDevice[];
+}
+
+export interface CachedMicrosoft365Activity {
+  state: Microsoft365ReadState;
+  activity: Microsoft365Activity | null;
+}
+
+export interface CachedMicrosoft365Groups {
+  state: Microsoft365ReadState;
+  groups: Microsoft365Group[];
+}
+
+export interface CachedMicrosoft365Licenses {
+  state: Microsoft365ReadState;
+  licenses: Microsoft365License[];
+}
+
+export interface CachedMicrosoft365Members {
+  state: Microsoft365ReadState;
+  members: Microsoft365Member[];
+}
+
+export type EvidenceCoverage = 'UNKNOWN' | 'RETURNED_SET' | 'PARTIAL';
+
+export type EvidenceFreshness = 'UNKNOWN' | 'FRESH' | 'STALE';
+
+export interface Microsoft365Activity {
+  lastSignInAtUtc: string | null;
+  lastSuccessfulSignInAtUtc: string | null;
+  mfaRegistered: boolean | null;
+  mfaCapable: boolean | null;
+  methodsRegistered: string[] | null;
+}
+
+export interface Microsoft365AssignedLicense {
+  skuId: string | null;
+  disabledPlans: string[] | null;
+}
+
+export type Microsoft365Availability = 'NOT_CACHED' | 'AVAILABLE' | 'UNAVAILABLE' | 'NOT_ENABLED' | 'NOT_CONNECTED';
+
+export interface Microsoft365Configuration {
+  tenantId: string;
+  clientId: string;
+  enableIntune?: boolean;
+  enableAuthenticationReports?: boolean;
+}
+
+export interface Microsoft365Connection {
+  configuration: Microsoft365Configuration;
+  connected: boolean;
+  account: string | null;
+  permissions: Microsoft365ScopeGrant[];
+}
+
+export interface Microsoft365Data {
+  tenants: Microsoft365Tenant[];
+  users: Microsoft365User[];
+  groups: Microsoft365Group[];
+  devices: Microsoft365Device[];
+  managedDevices: Microsoft365ManagedDevice[];
+  licenses: Microsoft365License[];
+  members: Microsoft365Member[];
+  activity: Microsoft365Activity | null;
+  totalCount: number | null;
+  truncated: boolean;
+}
+
+export interface Microsoft365Device {
+  id: string | null;
+  deviceId: string | null;
+  displayName: string | null;
+  operatingSystem: string | null;
+  operatingSystemVersion: string | null;
+  trustType: string | null;
+  accountEnabled: boolean | null;
+  approximateLastSignInAtUtc: string | null;
+}
+
+export interface Microsoft365DeviceContext {
+  tenantId: string | null;
+  sessionRevision: number;
+  revision: number;
+  entraReads: CachedEntraDevices[];
+  intune: CachedIntuneDevices;
+  registeredOwners: CachedMicrosoft365Members | null;
+  managedDetails: CachedIntuneDevices[];
+}
+
+export interface Microsoft365Group {
+  id: string | null;
+  displayName: string | null;
+  securityEnabled: boolean | null;
+  mailEnabled: boolean | null;
+  groupTypes: string[] | null;
+  membershipRule: string | null;
+  membershipRuleProcessingState: string | null;
+  visibility: string | null;
+}
+
+export interface Microsoft365GroupContext {
+  tenantId: string | null;
+  sessionRevision: number;
+  revision: number;
+  groupReads: CachedMicrosoft365Groups[];
+  directMembers: CachedMicrosoft365Members | null;
+}
+
+export interface Microsoft365License {
+  id: string | null;
+  skuId: string | null;
+  skuPartNumber: string | null;
+  capabilityStatus: string | null;
+  appliesTo: string | null;
+  enabledSeats: number | null;
+  consumedSeats: number | null;
+  servicePlans: Microsoft365ServicePlan[] | null;
+}
+
+export interface Microsoft365ManagedDevice {
+  id: string | null;
+  deviceName: string | null;
+  userId: string | null;
+  userPrincipalName: string | null;
+  operatingSystem: string | null;
+  operatingSystemVersion: string | null;
+  complianceState: string | null;
+  managementState: string | null;
+  enrollmentType: string | null;
+  lastSyncAtUtc: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  entraDeviceId: string | null;
+}
+
+export interface Microsoft365Member {
+  id: string | null;
+  displayName: string | null;
+  objectType: string | null;
+  userPrincipalName: string | null;
+}
+
+export interface Microsoft365ObjectListRead {
+  state: Microsoft365ReadState;
+  rows: Microsoft365ObjectListRow[];
+}
+
+export interface Microsoft365ObjectListRow {
+  kind: ObjectKind;
+  source: ObjectSource;
+  objectId: string | null;
+  displayName: string | null;
+  userPrincipalName: string | null;
+  accountEnabled: boolean | null;
+  operatingSystem: string | null;
+  securityIdentifier: string | null;
+  registrationDeviceId: string | null;
+  associatedUserId: string | null;
+  assignedSkuIds: string[] | null;
+  complianceState: string | null;
+  managementState: string | null;
+  department: string | null;
+  securityEnabled: boolean | null;
+  mailEnabled: boolean | null;
+  groupTypes: string | null;
+}
+
+export interface Microsoft365ObjectLists {
+  tenantId: string | null;
+  sessionRevision: number;
+  revision: number;
+  recordLimit: number;
+  cachedSourceRecords: number;
+  loadedSourceRecords: number;
+  truncated: boolean;
+  reads: Microsoft365ObjectListRead[];
+}
+
+export interface Microsoft365Query {
+  resource: Microsoft365Resource;
+  objectId: string | null;
+  securityIdentifier: string | null;
+}
+
+export interface Microsoft365ReadState {
+  query: Microsoft365Query;
+  tenantId: string | null;
+  sessionRevision: number;
+  snapshotRevision: number;
+  availability: Microsoft365Availability;
+  loading: boolean;
+  retrievedAtUtc: string | null;
+  lastAttemptAtUtc: string | null;
+  lastAttemptError: Error | null;
+  retainedUntilUtc: string | null;
+  freshness: EvidenceFreshness;
+  coverage: EvidenceCoverage;
+  loadedCount: number | null;
+  declaredTotal: number | null;
+  freshUntilUtc: string | null;
+}
+
+export type Microsoft365Resource = 'TENANT' | 'USERS' | 'USER' | 'GROUPS' | 'GROUP' | 'DEVICES' | 'DEVICE' | 'MANAGED_DEVICES' | 'LICENSES' | 'USER_LICENSES' | 'USER_GROUPS' | 'USER_DEVICES' | 'GROUP_MEMBERS' | 'DEVICE_OWNERS' | 'USER_ACTIVITY' | 'USER_REGISTRATION' | 'MANAGED_DEVICE' | 'USERS_BY_SID';
+
+export interface Microsoft365ScopeGrant {
+  scope: string;
+  granted: boolean;
+}
+
+export interface Microsoft365ServicePlan {
+  id: string | null;
+  name: string | null;
+  status: string | null;
+}
+
+export interface Microsoft365Tenant {
+  id: string | null;
+  displayName: string | null;
+}
+
+export interface Microsoft365User {
+  id: string | null;
+  displayName: string | null;
+  userPrincipalName: string | null;
+  mail: string | null;
+  accountEnabled: boolean | null;
+  userType: string | null;
+  department: string | null;
+  jobTitle: string | null;
+  officeLocation: string | null;
+  createdAtUtc: string | null;
+  onPremisesSid: string | null;
+  onPremisesImmutableId: string | null;
+  assignedLicenses: Microsoft365AssignedLicense[] | null;
+}
+
+export interface Microsoft365UserContext {
+  tenantId: string | null;
+  sessionRevision: number;
+  revision: number;
+  userReads: CachedEntraUsers[];
+  tenantLicenses: CachedMicrosoft365Licenses;
+  userLicenses: CachedMicrosoft365Licenses | null;
+  directGroups: CachedMicrosoft365Groups | null;
+  registeredDevices: CachedEntraDevices | null;
+  associatedIntune: CachedIntuneDevices[];
+  signIn: CachedMicrosoft365Activity | null;
+  registration: CachedMicrosoft365Activity | null;
+}
+
+export type IdentityEvidence = 'SCOPED_ID' | 'ADDRESS_CANDIDATE' | 'ALIAS_CANDIDATE' | 'AMBIGUOUS' | 'CONFLICT' | 'UNRESOLVED';
+
+export type ObjectKind = 'DEVICE' | 'USER' | 'GROUP';
+
+export interface ObjectReference {
+  kind: ObjectKind;
+  source: ObjectSource;
+  scope: string;
+  id: string;
+}
+
+export interface ObjectRelationship {
+  target: ObjectReference;
+  label: string;
+  relation: string;
+  evidence: IdentityEvidence;
+  explanation: string;
+}
+
+export type ObjectSource = 'ACTIVE_DIRECTORY' | 'ENTRA' | 'INTUNE' | 'WEC';
+
+export interface WecWorkspaceIdentity {
+  scope: string;
+  localComputerName: string;
+}
+
 export interface PortRemovalResult {
   name: string;
   removed: boolean;
@@ -123,7 +684,14 @@ export type PrivilegeLevel = 'STANDARD_USER' | 'ADMINISTRATOR';
 
 export type CheckStatus = 'SUCCEEDED' | 'FAILED' | 'REQUIRES_ELEVATION' | 'NOT_APPLICABLE';
 
-export type ErrorCode = 'INTERNAL_ERROR' | 'ACCESS_DENIED' | 'NOT_FOUND' | 'WMI_UNAVAILABLE' | 'INVALID_REQUEST' | 'UNKNOWN_ACTION' | 'NETWORK_PROBE_FAILED' | 'EVENT_LOG_UNAVAILABLE' | 'FILE_WRITE_FAILED' | 'DIRECTORY_UNAVAILABLE' | 'DNS_RESOLUTION_FAILED' | 'CONNECTION_TIMEOUT' | 'AUTHENTICATION_FAILED' | 'WIN_RM_UNAVAILABLE' | 'UNSUPPORTED_REMOTE_OPERATION' | 'SERVICE_UNAVAILABLE' | 'REMOTE_COMMAND_FAILED';
+export interface Error {
+  code: ErrorCode;
+  message: string;
+  details: string | null;
+  requiredPrivilege: PrivilegeLevel | null;
+}
+
+export type ErrorCode = 'INTERNAL_ERROR' | 'ACCESS_DENIED' | 'NOT_FOUND' | 'WMI_UNAVAILABLE' | 'INVALID_REQUEST' | 'UNKNOWN_ACTION' | 'NETWORK_PROBE_FAILED' | 'EVENT_LOG_UNAVAILABLE' | 'FILE_WRITE_FAILED' | 'DIRECTORY_UNAVAILABLE' | 'DNS_RESOLUTION_FAILED' | 'CONNECTION_TIMEOUT' | 'AUTHENTICATION_FAILED' | 'WIN_RM_UNAVAILABLE' | 'UNSUPPORTED_REMOTE_OPERATION' | 'SERVICE_UNAVAILABLE' | 'REMOTE_COMMAND_FAILED' | 'MICROSOFT365_NOT_CONNECTED' | 'MICROSOFT365_AUTHENTICATION_REQUIRED' | 'MICROSOFT365_CONSENT_REQUIRED' | 'MICROSOFT365_PERMISSION_MISSING' | 'MICROSOFT365_ACCESS_DENIED' | 'MICROSOFT365_NOT_FOUND' | 'MICROSOFT365_THROTTLED' | 'MICROSOFT365_UNAVAILABLE' | 'MICROSOFT365_OFFLINE' | 'MICROSOFT365_UNSUPPORTED' | 'MICROSOFT365_CONFIGURATION_INVALID' | 'MICROSOFT365_TIMEOUT' | 'MICROSOFT365_INVALID_RESPONSE';
 
 export interface WingetPackageInfo {
   id: string;
@@ -176,6 +744,9 @@ export interface GetAppInfoRequest {
 export interface GetItLifecycleSettingsRequest {
 }
 
+export interface GetMicrosoft365SettingsRequest {
+}
+
 export interface GetNessusSettingsRequest {
 }
 
@@ -219,6 +790,11 @@ export interface LogEntry {
   source: string;
   summary: string;
   technicalDetails: string;
+}
+
+export interface Microsoft365SettingsResult {
+  settings: Microsoft365Configuration;
+  restartRequired: boolean;
 }
 
 export interface NessusSettingsResult {
@@ -306,6 +882,10 @@ export interface RestartElevatedResult {
 
 export interface SaveItLifecycleSettingsRequest {
   settings: ItLifecycleSettingsValue;
+}
+
+export interface SaveMicrosoft365SettingsRequest {
+  settings: Microsoft365Configuration;
 }
 
 export interface SaveNessusSettingsRequest {
@@ -399,10 +979,13 @@ export interface AdComputer {
   name: string;
   dnsHostName: string | null;
   operatingSystem: string | null;
-  enabled: boolean;
+  enabled: boolean | null;
   description: string | null;
   distinguishedName: string | null;
   lastLogonDate: string | null;
+  objectId: string | null;
+  securityIdentifier: string | null;
+  directoryScope: string | null;
 }
 
 export interface AdComputerSearchResult {
@@ -543,6 +1126,22 @@ export interface GetAdPrivilegedGroupMemberPageRequest {
   connection?: DirectoryConnectionRequest | null;
 }
 
+export interface ReadAdComputerListRequest {
+  directoryScope: string;
+  connection?: DirectoryConnectionRequest | null;
+  search?: string | null;
+  limit?: number;
+  refresh?: boolean;
+}
+
+export interface ReadAdComputerListResult {
+  directoryScope: string;
+  search: string | null;
+  limit: number;
+  read: CachedDirectoryComputer | null;
+  freshUntilUtc: string | null;
+}
+
 export interface SearchAdComputersRequest {
   nameFilter?: string | null;
   includeDisabled?: boolean;
@@ -566,6 +1165,221 @@ export interface TestDirectoryConnectionResult {
   defaultNamingContext: string | null;
 }
 
+export interface ClientHealthIssue {
+  diagnosticId: string;
+  title: string;
+  status: string;
+  affectedResource: string;
+}
+
+export interface ClientHealthOverview {
+  metadata: ClientOverviewSourceMetadata;
+  criticalCount: number;
+  warningCount: number;
+  unknownCount: number;
+  healthyCount: number;
+  issues: ClientHealthIssue[];
+}
+
+export interface ClientInventoryOverview {
+  metadata: ClientOverviewSourceMetadata;
+  cpuName: string;
+  physicalCores: number;
+  logicalProcessors: number;
+  totalMemoryBytes: number;
+  operatingSystem: string;
+  operatingSystemVersion: string;
+  operatingSystemBuild: string;
+  architecture: string | null;
+  disks: ClientOverviewDisk[];
+}
+
+export interface ClientOverviewDisk {
+  model: string;
+  sizeBytes: number;
+  interfaceType: string | null;
+}
+
+export type ClientOverviewFreshness = 'MISSING' | 'FRESH' | 'STALE' | 'UNKNOWN';
+
+export interface ClientOverviewResult {
+  host: string;
+  inventory: ClientInventoryOverview | null;
+  software: ClientSoftwareOverview | null;
+  health: ClientHealthOverview | null;
+  security: ClientSecurityOverview | null;
+  users: ClientUserOverview | null;
+  sources: ClientOverviewSourceMetadata[];
+}
+
+export interface ClientOverviewSourceMetadata {
+  source: string;
+  provenance: string;
+  freshness: ClientOverviewFreshness;
+  capturedAtUtc: string | null;
+  ageSeconds: number | null;
+  isComplete: boolean;
+  coverage: string;
+  detailSection: string;
+}
+
+export interface ClientSecurityFinding {
+  findingId: string;
+  title: string;
+  severity: string;
+  affectedResource: string;
+}
+
+export interface ClientSecurityOverview {
+  metadata: ClientOverviewSourceMetadata;
+  scanStatus: string | null;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  topFindings: ClientSecurityFinding[];
+}
+
+export interface ClientSoftwareOverview {
+  metadata: ClientOverviewSourceMetadata;
+  installedCount: number;
+  sample: ClientSoftwareOverviewItem[];
+}
+
+export interface ClientSoftwareOverviewItem {
+  name: string;
+  version: string | null;
+  publisher: string | null;
+}
+
+export interface ClientUserOverview {
+  metadata: ClientOverviewSourceMetadata;
+  unresolvedProfileCount: number;
+  observations: ClientObservedUserEvidence[];
+}
+
+export interface DeviceProfileRequest {
+  reference: ObjectReference;
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+  loadDirectoryIdentity?: boolean;
+}
+
+export interface DeviceProfileResult {
+  reference: ObjectReference;
+  title: string;
+  identity: IdentityEvidence;
+  explanation: string;
+  operationalHost: string | null;
+  wec: ClientOverviewResult | null;
+  directory: CachedDirectoryComputer | null;
+  directoryRecords: AdComputerInventoryItem[];
+  cloud: Microsoft365DeviceContext | null;
+  managementCandidates: ManagementDeviceSnapshot | null;
+  relationships: ObjectRelationship[];
+  candidates: ObjectRelationship[];
+  sourceErrors: Error[];
+  storedCandidateSources: StoredDeviceCandidateSource[];
+}
+
+export interface ManagementDeviceListRead {
+  source: ManagementDeviceSource;
+  state: ManagementDeviceSourceState;
+  matchingCachedRecords: number | null;
+  limited: boolean;
+  rows: ManagementDeviceListRow[];
+}
+
+export interface ManagementDeviceListRequest {
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+  search?: string | null;
+}
+
+export interface ManagementDeviceListRow {
+  reference: ManagementDeviceRecordReference;
+  nativeReference: ObjectReference | null;
+  label: string;
+  aliases: string[];
+  accountEnabled: boolean | null;
+  operatingSystem: string | null;
+  securityIdentifier: string | null;
+}
+
+export interface ManagementDeviceObjectLists {
+  workspace: WecWorkspaceIdentity;
+  snapshotId: string | null;
+  opsiSessionId: string | null;
+  sessionRevision: number;
+  revision: number;
+  retrievedAtUtc: string | null;
+  maximumRecords: number;
+  search: string | null;
+  reads: ManagementDeviceListRead[];
+}
+
+export interface ManagementDeviceRecordProfile {
+  record: ManagementDeviceListRow;
+  sourceState: ManagementDeviceSourceState;
+  retrievedAtUtc: string;
+  identityExplanation: string;
+  activeDirectory: AdComputerInventoryItem | null;
+  kaspersky: KasperskyDeviceRecord | null;
+  opsi: OpsiComputerInventoryItem | null;
+  nessus: NessusComputerInventoryItem | null;
+}
+
+export interface ManagementDeviceRecordReference {
+  workspace: string;
+  snapshotId: string;
+  source: ManagementDeviceSource;
+  recordIndex: number;
+}
+
+export interface ManagementDeviceRecordRequest {
+  reference: ManagementDeviceRecordReference;
+  activeDirectory?: DirectoryInventoryConnection | null;
+  kaspersky?: KasperskyInventoryConnection | null;
+}
+
+export type ManagementDeviceSource = 'ACTIVE_DIRECTORY' | 'KASPERSKY' | 'OPSI' | 'NESSUS';
+
+export interface StoredDeviceCandidateSource {
+  source: StoredDeviceListSource;
+  search: string | null;
+  loadedRecords: number;
+  totalRecords: number | null;
+  error: Error | null;
+}
+
+export interface DeviceWorkspaceRequest {
+}
+
+export interface GetClientOverviewRequest {
+  host: string;
+}
+
+export interface StoredObjectListRead {
+  source: StoredDeviceListSource;
+  revision: string;
+  totalRecords: number | null;
+  records: StoredDeviceAddressRow[];
+  error: Error | null;
+}
+
+export interface StoredObjectLists {
+  workspace: WecWorkspaceIdentity;
+  maximumRecords: number;
+  maximumSourceReads: number;
+  retrievedAtUtc: string;
+  search: string | null;
+  reads: StoredObjectListRead[];
+}
+
+export interface StoredObjectListsRequest {
+  search?: string | null;
+}
+
 export interface DeviceCleanupAssessment {
   candidate: DeviceCleanupCandidate;
   sources: DeviceCleanupSourceFact[];
@@ -578,15 +1392,23 @@ export interface DeviceCleanupAssessment {
 export interface DeviceCleanupCandidate {
   subjectKey: string;
   host: string;
+  description: string | null;
+  descriptionSource: string | null;
   classification: DeviceCleanupClassification;
   classificationExplanation: string;
+  activeDirectoryExists: boolean | null;
   activeDirectoryEnabled: boolean | null;
   activeDirectoryLastLogonAtUtc: string | null;
+  kasperskyExists: boolean | null;
   kasperskyLastSeenAtUtc: string | null;
+  opsiExists: boolean | null;
   opsiLastSeenAtUtc: string | null;
+  nessusExists: boolean | null;
   nessusLastScanAtUtc: string | null;
+  inventoryExists: boolean;
   inventoryCapturedAtUtc: string | null;
   relevantFindingCount: number;
+  canTargetWindows: boolean;
 }
 
 export type DeviceCleanupClassification = 'POTENTIAL_CLEANUP' | 'REVIEW' | 'INSUFFICIENT_EVIDENCE' | 'NO_CLEANUP_SIGNAL';
@@ -630,6 +1452,21 @@ export interface ExportDeviceCleanupAssessmentRequest {
 export interface ExportDeviceCleanupAssessmentResult {
   cancelled: boolean;
   filePath: string | null;
+}
+
+export interface ExportDeviceCleanupWorkbookRequest {
+  activeDirectory?: HygieneActionDirectoryConnection | null;
+  kaspersky?: HygieneActionKasperskyConnection | null;
+  operationId?: string | null;
+  search?: string | null;
+  includeWithoutSignals?: boolean;
+}
+
+export interface ExportDeviceCleanupWorkbookResult {
+  cancelled: boolean;
+  filePath: string | null;
+  exportedCount: number;
+  subjectsTruncated: boolean;
 }
 
 export interface DiagnosticBatchProgress {
@@ -746,106 +1583,13 @@ export interface CaseResult {
   employee: EmployeeDetails;
 }
 
-export interface ClientHealthIssue {
-  diagnosticId: string;
-  title: string;
-  status: string;
-  affectedResource: string;
-}
-
-export interface ClientHealthOverview {
-  metadata: ClientOverviewSourceMetadata;
-  criticalCount: number;
-  warningCount: number;
-  unknownCount: number;
-  healthyCount: number;
-  issues: ClientHealthIssue[];
-}
-
-export interface ClientInventoryOverview {
-  metadata: ClientOverviewSourceMetadata;
-  cpuName: string;
-  physicalCores: number;
-  logicalProcessors: number;
-  totalMemoryBytes: number;
-  operatingSystem: string;
-  operatingSystemVersion: string;
-  operatingSystemBuild: string;
-  architecture: string | null;
-  disks: ClientOverviewDisk[];
-}
-
-export interface ClientOverviewDisk {
-  model: string;
-  sizeBytes: number;
-  interfaceType: string | null;
-}
-
-export type ClientOverviewFreshness = 'MISSING' | 'FRESH' | 'STALE' | 'UNKNOWN';
-
-export interface ClientOverviewResult {
-  host: string;
-  inventory: ClientInventoryOverview | null;
-  software: ClientSoftwareOverview | null;
-  health: ClientHealthOverview | null;
-  security: ClientSecurityOverview | null;
-  users: ClientUserOverview | null;
-  sources: ClientOverviewSourceMetadata[];
-}
-
-export interface ClientOverviewSourceMetadata {
-  source: string;
-  provenance: string;
-  freshness: ClientOverviewFreshness;
-  capturedAtUtc: string | null;
-  ageSeconds: number | null;
-  isComplete: boolean;
-  coverage: string;
-  detailSection: string;
-}
-
-export interface ClientSecurityFinding {
-  findingId: string;
-  title: string;
-  severity: string;
-  affectedResource: string;
-}
-
-export interface ClientSecurityOverview {
-  metadata: ClientOverviewSourceMetadata;
-  scanStatus: string | null;
-  criticalCount: number;
-  highCount: number;
-  mediumCount: number;
-  lowCount: number;
-  topFindings: ClientSecurityFinding[];
-}
-
-export interface ClientSoftwareOverview {
-  metadata: ClientOverviewSourceMetadata;
-  installedCount: number;
-  sample: ClientSoftwareOverviewItem[];
-}
-
-export interface ClientSoftwareOverviewItem {
-  name: string;
-  version: string | null;
-  publisher: string | null;
-}
-
-export interface ClientUserOverview {
-  metadata: ClientOverviewSourceMetadata;
-  unresolvedProfileCount: number;
-  observations: ClientObservedUserEvidence[];
-}
-
 export interface ClientWorkspaceListItem {
   host: string;
   key: string;
   name: string;
   os: string | null;
   description: string | null;
-  enabled: boolean;
+  enabled: boolean | null;
   scanned: boolean;
   capturedAtUtc: string | null;
   saved: boolean;
@@ -878,14 +1622,6 @@ export interface DepartmentInfo {
 
 export interface DepartmentListResult {
   departments: DepartmentInfo[];
-}
-
-export interface DirectoryInventoryConnection {
-  domain?: string | null;
-  server?: string | null;
-  userName?: string | null;
-  userDomain?: string | null;
-  password?: string | null;
 }
 
 export interface EmployeeDetails {
@@ -976,6 +1712,10 @@ export interface HygieneDevice {
   opsi: OpsiDeviceData;
   nessus: NessusDeviceData;
   assessment: HygieneAssessment;
+  evidenceKey: string | null;
+  correlation: IdentityEvidence;
+  correlationExplanation: string;
+  canTargetWindows: boolean;
 }
 
 export interface HygieneDevicePage {
@@ -1077,14 +1817,6 @@ export interface KasperskyDeviceData {
   administrationGroup: string | null;
 }
 
-export interface KasperskyInventoryConnection {
-  server?: string | null;
-  port?: number | null;
-  userName?: string | null;
-  domain?: string | null;
-  password?: string | null;
-}
-
 export interface LifecycleAuditEntry {
   id: number;
   timestampUtc: string;
@@ -1137,6 +1869,7 @@ export interface NessusDeviceData {
   info: number;
   ports: number[];
   scanSources: string[];
+  sourceKey: string | null;
 }
 
 export interface OpsiDeviceData {
@@ -1197,10 +1930,6 @@ export interface GetCaseRequest {
   caseId?: number;
 }
 
-export interface GetClientOverviewRequest {
-  host: string;
-}
-
 export interface GetEmployeeRequest {
   employeeId?: number;
 }
@@ -1250,6 +1979,44 @@ export interface UpdateTaskRequest {
   status?: LifecycleTaskStatus;
   assignee?: string | null;
   dueDate?: string | null;
+}
+
+export interface DirectoryGroupPageRequest {
+  directoryScope: string;
+  connection?: DirectoryInventoryConnection | null;
+  search?: string | null;
+  page?: number;
+  pageSize?: number;
+  refresh?: boolean;
+}
+
+export type GroupProfileRead = 'CACHED' | 'DIRECTORY_IDENTITY' | 'DIRECTORY_MEMBERS';
+
+export interface GroupProfileRequest {
+  reference: ObjectReference;
+  connection?: DirectoryInventoryConnection | null;
+  read?: GroupProfileRead;
+  memberPage?: number;
+  memberPageSize?: number;
+}
+
+export interface GroupProfileResult {
+  reference: ObjectReference;
+  title: string;
+  identity: IdentityEvidence;
+  explanation: string;
+  directory: CachedDirectoryGroupIdentity | null;
+  directoryMembers: CachedDirectoryGroupMembers | null;
+  cloud: Microsoft365GroupContext | null;
+  relationships: ObjectRelationship[];
+  sourceErrors: Error[];
+}
+
+export interface ResolveGroupRequest {
+  directoryScope: string;
+  connection?: DirectoryInventoryConnection | null;
+  distinguishedName?: string | null;
+  securityIdentifier?: string | null;
 }
 
 export interface DiskEncryptionStatus {
@@ -1427,6 +2194,74 @@ export interface RunBatchInventoryRequest {
 export interface StoredInventoryHost {
   host: string;
   capturedAtUtc: string;
+}
+
+export interface Microsoft365Correlation {
+  state: string;
+  explanation: string;
+  user: Microsoft365User | null;
+  device: Microsoft365Device | null;
+  managedDevice: Microsoft365ManagedDevice | null;
+  observedAtUtc: string | null;
+  stale: boolean;
+}
+
+export interface Microsoft365LicenseCapacity {
+  skuId: string | null;
+  remainingSeats: number | null;
+  nearlyExhausted: boolean | null;
+  overAssigned: boolean | null;
+}
+
+export interface Microsoft365Snapshot {
+  query: Microsoft365Query;
+  data: Microsoft365Data | null;
+  updatedAtUtc: string | null;
+  stale: boolean;
+  refreshError: Error | null;
+  licenseCapacity: Microsoft365LicenseCapacity[];
+  state: Microsoft365ReadState | null;
+}
+
+export interface Microsoft365SourceStatus {
+  resource: Microsoft365Resource;
+  updatedAtUtc: string | null;
+  stale: boolean;
+  truncated: boolean;
+  totalCount: number | null;
+  loadedCount: number | null;
+  lastRefreshError: Error | null;
+}
+
+export interface Microsoft365Status {
+  connection: Microsoft365Connection;
+  sources: Microsoft365SourceStatus[];
+  sessionRevision: number;
+  revision: number;
+  queries: Microsoft365ReadState[];
+}
+
+export interface Microsoft365ContextRequest {
+  sid?: string | null;
+  userPrincipalName?: string | null;
+  host?: string | null;
+  entraDeviceId?: string | null;
+}
+
+export interface Microsoft365EmptyRequest {
+}
+
+export interface Microsoft365ObjectListsRequest {
+  tenantId?: string | null;
+}
+
+export interface Microsoft365ReadRequest {
+  resource: Microsoft365Resource;
+  objectId?: string | null;
+  refresh?: boolean;
+  tenantId?: string | null;
+  securityIdentifier?: string | null;
+  cacheOnly?: boolean;
 }
 
 export type DeviceKind = 'UNKNOWN' | 'PRINTER' | 'COMPUTER' | 'NETWORK_DEVICE';
@@ -1672,6 +2507,7 @@ export interface OpsiConnectRequest {
 }
 
 export interface OpsiConnectionStatusRequest {
+  connectStoredCredential?: boolean;
 }
 
 export interface OpsiConnectionStatusResult {
@@ -2181,6 +3017,27 @@ export interface SavedTarget {
   createdAtUtc: string;
 }
 
+export interface ScopedUserProfile {
+  reference: ObjectReference;
+  title: string;
+  identity: IdentityEvidence;
+  explanation: string;
+  directory: CachedDirectoryUser | null;
+  adProfile: UserProfileResult | null;
+  cloud: Microsoft365UserContext | null;
+  entraUser: Microsoft365User | null;
+  relationships: ObjectRelationship[];
+  candidates: ObjectRelationship[];
+  sourceErrors: Error[];
+}
+
+export interface ScopedUserProfileRequest {
+  reference: ObjectReference;
+  connection?: UserDirectoryConnectionRequest | null;
+  loadDirectoryIdentity?: boolean;
+  directoryScope?: string | null;
+}
+
 export interface UserDirectoryConnectionRequest {
   domain?: string | null;
   server?: string | null;
@@ -2269,6 +3126,7 @@ export interface UserIdentityProfile {
   managerDistinguishedName: string | null;
   distinguishedName: string;
   organizationalUnitPath: string;
+  directoryScope: string | null;
 }
 
 export interface UserLifecycleProfile {
@@ -2321,6 +3179,15 @@ export interface UserSummary {
   replicatedLastLogonAtUtc: string | null;
 }
 
+export interface DirectoryUserListRequest {
+  directoryScope: string;
+  connection?: UserDirectoryConnectionRequest | null;
+  search?: string | null;
+  page?: number;
+  pageSize?: number;
+  refresh?: boolean;
+}
+
 export interface ExportLeaverReviewRequest {
   markdown: string;
 }
@@ -2344,6 +3211,12 @@ export interface ListUsersRequest {
   pageSize?: number;
   sortField?: DirectoryUserSortField;
   sortDirection?: DirectoryUserSortDirection;
+  connection?: UserDirectoryConnectionRequest | null;
+}
+
+export interface ResolveUserSidRequest {
+  securityIdentifier: string;
+  directoryScope: string;
   connection?: UserDirectoryConnectionRequest | null;
 }
 
@@ -2425,6 +3298,8 @@ export interface NessusAsset {
   info: number;
   ports: number[];
   scanSources: string[];
+  hostUuid: string | null;
+  biosUuid: string | null;
 }
 
 export interface NessusFinding {

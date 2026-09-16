@@ -6,8 +6,9 @@ import type {
   UserSummary,
 } from '../shared/api-types';
 import { navigationGroups } from './routeRegistry';
+import { hostAddressKey as clientKey } from '../shared/targets/hostAddress';
 
-export type GlobalSearchCategory = 'Navigation' | 'Users' | 'Clients' | 'Saved targets';
+export type GlobalSearchCategory = 'Navigation' | 'Users' | 'Clients' | 'Devices' | 'Groups' | 'Saved targets';
 
 export interface GlobalSearchResult {
   id: string;
@@ -23,7 +24,10 @@ function matches(query: string, ...values: (string | null | undefined)[]): boole
 }
 
 export function navigationResults(query: string): GlobalSearchResult[] {
-  return navigationGroups.flatMap((group) => group.items)
+  return [...navigationGroups.flatMap((group) => group.items),
+    { to: '/cleanup', label: 'Device Cleanup', searchTerms: ['retirement', 'stale devices', 'cleanup assistant'] },
+    { to: '/clients/compare', label: 'Compare devices', searchTerms: ['compare', 'inventory diff', 'security diff'] },
+  ]
     .filter((item) => matches(query, item.label, ...item.searchTerms))
     .map((item) => ({
       id: `navigation:${item.to}`,
@@ -60,10 +64,6 @@ interface ClientCandidate {
   details: Set<string>;
 }
 
-function clientKey(host: string): string {
-  return host.trim().split('.')[0].toLocaleUpperCase();
-}
-
 export function clientResults(
   query: string,
   directory: readonly AdComputer[],
@@ -84,7 +84,8 @@ export function clientResults(
 
   for (const computer of directory) {
     const candidate = ensure(computer.dnsHostName ?? computer.name, computer.name);
-    candidate.details.add(computer.enabled ? 'Active Directory' : 'AD disabled');
+    candidate.details.add(computer.enabled === false ? 'AD disabled'
+      : computer.enabled === true ? 'Active Directory' : 'AD account state unknown');
     if (computer.operatingSystem) candidate.details.add(computer.operatingSystem);
   }
   for (const stored of inventory) ensure(stored.host, stored.host).details.add('Stored inventory');

@@ -31,29 +31,29 @@ public sealed class HygieneActionEvidenceProviderTests
             snapshot.Sources.Single(source => source.Source == "Kaspersky").Availability);
         Assert.Equal("Kaspersky result was truncated.",
             snapshot.Sources.Single(source => source.Source == "Kaspersky").Explanation);
-        Assert.Equal("PC-A", snapshot.Findings[0].SubjectKey);
-        Assert.Equal(["PC-A", "PC-B"], snapshot.Subjects.Select(subject => subject.SubjectKey));
+        Assert.Equal("PC-A.corp.example", snapshot.Findings[0].SubjectKey);
+        Assert.Equal(["PC-A.corp.example", "PC-B.corp.example"], snapshot.Subjects.Select(subject => subject.SubjectKey));
 
         HygieneActionEvidence ad = snapshot.Findings.Single(finding =>
-            finding.SubjectKey == "PC-A" && finding.FindingCode == "StaleAd");
+            finding.SubjectKey == "PC-A.corp.example" && finding.FindingCode == "StaleAd");
         Assert.Equal("Active Directory", ad.Source);
         Assert.Equal(AssessedAt.AddDays(-100), ad.EvidenceAtUtc);
         Assert.Equal(ActionEvidenceAvailability.Available, ad.Coverage);
 
         HygieneActionEvidence opsi = snapshot.Findings.Single(finding =>
-            finding.SubjectKey == "PC-A" && finding.FindingCode == "MissingOpsi");
+            finding.SubjectKey == "PC-A.corp.example" && finding.FindingCode == "MissingOpsi");
         Assert.Equal("opsi", opsi.Source);
 
         HygieneActionEvidence nessus = snapshot.Findings.Single(finding =>
-            finding.SubjectKey == "PC-A" && finding.FindingCode == "NessusCriticalVulnerabilities");
+            finding.SubjectKey == "PC-A.corp.example" && finding.FindingCode == "NessusCriticalVulnerabilities");
         Assert.Equal("Nessus", nessus.Source);
         Assert.Equal(AssessedAt.AddDays(-2), nessus.EvidenceAtUtc);
 
         HygieneActionEvidence kaspersky = snapshot.Findings.Single(finding =>
-            finding.SubjectKey == "PC-A" && finding.FindingCode == "OutdatedAgent");
+            finding.SubjectKey == "PC-A.corp.example" && finding.FindingCode == "OutdatedAgent");
         Assert.Equal("Kaspersky", kaspersky.Source);
         Assert.Equal(ActionEvidenceAvailability.Partial, kaspersky.Coverage);
-        Assert.Equal("Kaspersky result was truncated.", kaspersky.CoverageExplanation);
+        Assert.StartsWith("Kaspersky result was truncated.", kaspersky.CoverageExplanation, StringComparison.Ordinal);
     }
 
     private static HygieneDevice Device(string host) => new(

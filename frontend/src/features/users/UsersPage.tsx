@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type {
   DirectoryUserSortField,
   UserPageResult,
@@ -195,6 +195,7 @@ export function UsersPage() {
         {loading ? 'Refreshing…' : 'Refresh'}
       </Button>
     </PageHeader>
+    <Link className="text-sm text-accent-400 underline" to="/users">Open the shared account working set</Link>
 
     <details className="rounded-lg border border-slate-800 bg-slate-900/40" open={false}>
       <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-slate-300">

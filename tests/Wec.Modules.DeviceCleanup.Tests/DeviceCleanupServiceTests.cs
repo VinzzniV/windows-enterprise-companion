@@ -31,8 +31,8 @@ public sealed class DeviceCleanupServiceTests
         _inventorySnapshots.ListHostsAsync(Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<InventoryClientSnapshotHost>>(
             [
-                new("PC-OLD", AssessedAt.AddDays(-100)),
-                new("PC-ACTIVE", AssessedAt.AddDays(-1)),
+                new("PC-OLD.corp.example", AssessedAt.AddDays(-100)),
+                new("PC-ACTIVE.corp.example", AssessedAt.AddDays(-1)),
                 new("PC-INVENTORY-ONLY", AssessedAt.AddDays(-45)),
             ]);
         _inventoryEvidence.GetLatestAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -52,6 +52,23 @@ public sealed class DeviceCleanupServiceTests
     }
 
     [Fact]
+    public async Task DuplicateSubjectsRemainSelectableButNeverReadWindowsEvidenceByAlias()
+    {
+        var subject = Subject("PC", false, AssessedAt.AddYears(-1));
+        _sourceEvidence.LoadAsync(Arg.Any<DeviceCleanupEvidenceQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(Snapshot(subject, subject with { ActiveDirectory = subject.ActiveDirectory with { Enabled = true } })));
+        _inventorySnapshots.ListHostsAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<InventoryClientSnapshotHost>());
+        var result = (await CreateService().GetPageAsync(new(), CancellationToken.None)).Value;
+        Assert.Equal(2, result.Candidates.Count);
+        Assert.All(result.Candidates, candidate => { Assert.False(candidate.CanTargetWindows); Assert.Equal(DeviceCleanupClassification.Review, candidate.Classification); });
+        Assert.True((await CreateService().GetPageAsync(new(SelectedHost: subject.Host), CancellationToken.None)).IsFailure);
+        var selected = await CreateService().GetPageAsync(new(SelectedHost: result.Candidates[1].SubjectKey), CancellationToken.None);
+        Assert.True(selected.IsSuccess);
+        Assert.NotNull(selected.Value.SelectedAssessment);
+        await _inventoryEvidence.DidNotReceiveWithAnyArgs().GetLatestAsync(default!, default);
+    }
+
+    [Fact]
     public async Task GetPageAsync_DefaultsToReviewCandidatesAndExplainsClassification()
     {
         Result<DeviceCleanupPage> result = await CreateService().GetPageAsync(
@@ -61,6 +78,8 @@ public sealed class DeviceCleanupServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value.Total);
         Assert.Equal("PC-OLD", result.Value.Candidates[0].SubjectKey);
+        Assert.Equal("PC-OLD description", result.Value.Candidates[0].Description);
+        Assert.Equal("Active Directory", result.Value.Candidates[0].DescriptionSource);
         Assert.Equal(DeviceCleanupClassification.PotentialCleanup, result.Value.Candidates[0].Classification);
         Assert.Contains("cleanup threshold", result.Value.Candidates[0].ClassificationExplanation);
         Assert.Equal("PC-INVENTORY-ONLY", result.Value.Candidates[1].SubjectKey);
@@ -75,7 +94,7 @@ public sealed class DeviceCleanupServiceTests
     {
         _inventorySnapshots.ListHostsAsync(Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<InventoryClientSnapshotHost>>
-            ([new("PC-OLD", AssessedAt)]);
+            ([new("PC-OLD.corp.example", AssessedAt)]);
 
         Result<DeviceCleanupPage> result = await CreateService().GetPageAsync(
             new ListDeviceCleanupCandidatesRequest(),
@@ -98,7 +117,7 @@ public sealed class DeviceCleanupServiceTests
         Assert.Equal("Disabled", assessment.Sources.Single(source => source.Source == "Active Directory").State);
         Assert.Equal("CORP\\alex", Assert.Single(assessment.UserObservations).AccountDisplay);
         await _inventoryEvidence.Received(1).GetLatestAsync(
-            "PC-OLD",
+            "PC-OLD.corp.example",
             Arg.Any<CancellationToken>());
     }
 
@@ -113,6 +132,42 @@ public sealed class DeviceCleanupServiceTests
         Assert.Contains(result.Value.Candidates, candidate =>
             candidate.SubjectKey == "PC-ACTIVE"
             && candidate.Classification == DeviceCleanupClassification.NoCleanupSignal);
+    }
+
+    [Fact]
+    public async Task GetExportSnapshotAsync_ReturnsEveryFilteredCandidateAcrossPageBoundaries()
+    {
+        Result<DeviceCleanupExportSnapshot> result = await CreateService().GetExportSnapshotAsync(
+            new DeviceCleanupExportQuery(null, null, null, null, IncludeWithoutSignals: false),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(["PC-OLD", "PC-INVENTORY-ONLY"],
+            result.Value.Candidates.Select(candidate => candidate.SubjectKey));
+    }
+
+    [Fact]
+    public async Task GetPageAsync_UsesOpsiDescriptionWhenActiveDirectoryDescriptionIsMissing()
+    {
+        DeviceCleanupSubjectEvidence subject = Subject(
+            "PC-OLD",
+            enabled: false,
+            lastLogon: AssessedAt.AddDays(-120),
+            new DeviceCleanupFindingEvidence("StaleAd", "Critical", "AD exceeds the cleanup threshold."));
+        subject = subject with
+        {
+            ActiveDirectory = subject.ActiveDirectory with { Description = null },
+        };
+        _sourceEvidence.LoadAsync(Arg.Any<DeviceCleanupEvidenceQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(Snapshot(subject)));
+
+        Result<DeviceCleanupPage> result = await CreateService().GetPageAsync(
+            new ListDeviceCleanupCandidatesRequest(),
+            CancellationToken.None);
+
+        DeviceCleanupCandidate candidate = result.Value.Candidates.Single(item => item.SubjectKey == "PC-OLD");
+        Assert.Equal("PC-OLD opsi description", candidate.Description);
+        Assert.Equal("opsi", candidate.DescriptionSource);
     }
 
     [Fact]
@@ -157,9 +212,16 @@ public sealed class DeviceCleanupServiceTests
         host,
         $"{host}.corp.example",
         findings.Any(finding => finding.Severity == "Critical") ? "CleanupCandidate" : "Healthy",
-        new DeviceCleanupAdEvidence(true, enabled, "Windows 11", null, "Clients", lastLogon),
+        new DeviceCleanupAdEvidence(
+            true,
+            enabled,
+            "Windows 11",
+            $"{host} description",
+            null,
+            "Clients",
+            lastLogon),
         new DeviceCleanupKasperskyEvidence(true, AssessedAt.AddDays(-1), "Clients"),
-        new DeviceCleanupOpsiEvidence(true, AssessedAt.AddDays(-1), "Depot-A"),
+        new DeviceCleanupOpsiEvidence(true, $"{host} opsi description", AssessedAt.AddDays(-1), "Depot-A"),
         new DeviceCleanupNessusEvidence(true, AssessedAt.AddDays(-1)),
         findings);
 }

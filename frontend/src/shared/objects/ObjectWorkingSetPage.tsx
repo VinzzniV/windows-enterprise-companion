@@ -1,0 +1,152 @@
+import { useLayoutEffect, useMemo, useRef } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import type { ObjectKind } from '../api-types.generated';
+import { objectPath, objectSourceLabel } from './objectRoutes';
+import { useWorkingSet } from './WorkingSetContext';
+import { queryWorkingSet, type WorkingSetFilter, type WorkingSetObject, type WorkingSetSource } from './workingSet';
+import { workingSetSourceLabel } from './workingSetSources';
+import { managementRecordPath } from './managementRecordRoutes';
+import { WorkingSetCoverage } from './WorkingSetCoverage';
+import { WorkingSetSourceControls } from './WorkingSetSourceControls';
+import { DataTable, type DataColumn } from '../ui/DataTable';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { PageHeader } from '../ui/PageHeader';
+
+const positions = new Map<string, { scroll: number; focus: string | null }>();
+const sources: WorkingSetSource[] = ['ACTIVE_DIRECTORY', 'ENTRA', 'INTUNE', 'WEC', 'KASPERSKY', 'OPSI', 'NESSUS'];
+const titles: Record<ObjectKind, string> = { DEVICE: 'Devices', USER: 'Users', GROUP: 'Groups' };
+
+export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
+  const workspace = useWorkingSet();
+  const location = useLocation();
+  const [parameters, setParameters] = useSearchParams();
+  const root = useRef<HTMLDivElement>(null);
+  const restored = useRef(false);
+  const query = parameters.get('q') ?? '';
+  const source = sources.find(value => value === parameters.get('source'));
+  const accountState = ['enabled', 'disabled', 'unknown'].find(value => value === parameters.get('account')) as 'enabled' | 'disabled' | 'unknown' | undefined;
+  const operatingSystem = parameters.get('os') ?? '';
+  const skuId = parameters.get('sku') ?? '';
+  const adAccountState = ['enabled', 'disabled', 'unknown'].find(value => value === parameters.get('adAccount')) as WorkingSetFilter['accountState'];
+  const entraAccountState = ['enabled', 'disabled', 'unknown'].find(value => value === parameters.get('entraAccount')) as WorkingSetFilter['accountState'];
+  const intuneCompliance = parameters.get('compliance') ?? '';
+  const intuneManagement = parameters.get('management') ?? '';
+  const identityState = ['unresolved', 'candidates', 'conflict'].find(value => value === parameters.get('identity')) as WorkingSetFilter['identityState'];
+  const storedEvidence = ['saved', 'scanned'].find(value => value === parameters.get('stored')) as WorkingSetFilter['storedEvidence'];
+  const requestedTenant = parameters.get('tenant');
+  const tenantMismatch = Boolean(requestedTenant && requestedTenant.toLowerCase() !== workspace.policy?.tenantId?.toLowerCase());
+  const descending = parameters.get('sort') === 'desc';
+  const pageSize = [25, 50, 100].find(value => value === Number(parameters.get('size'))) ?? 25;
+  const result = useMemo(() => workspace.displayed && !tenantMismatch ? queryWorkingSet(workspace.displayed, { kind, query, source, accountState,
+    operatingSystem, skuId, adAccountState, entraAccountState, intuneCompliance, intuneManagement, identityState, storedEvidence,
+    descending, page: Number(parameters.get('page')) || 1, pageSize }) : null,
+  [workspace.displayed, tenantMismatch, kind, query, source, accountState, operatingSystem, skuId, adAccountState, entraAccountState,
+    intuneCompliance, intuneManagement, identityState, storedEvidence, descending, parameters, pageSize]);
+  const intuneValues = (field: 'complianceState' | 'managementState') => [...new Set(workspace.displayed?.objects
+    .flatMap(object => object.observations.filter(row => row.source === 'INTUNE').map(row => row[field]))
+    .filter((value): value is string => Boolean(value)) ?? [])].sort();
+  const change = (name: string, value: string) => setParameters(previous => {
+    const next = new URLSearchParams(previous); if (value) next.set(name, value); else next.delete(name);
+    if (name !== 'page') next.delete('page'); return next;
+  });
+  useLayoutEffect(() => {
+    const container = root.current?.closest('[data-testid="application-scroll-container"]');
+    return () => {
+      restored.current = false;
+      if (container) { positions.delete(location.key); positions.set(location.key, { scroll: container.scrollTop,
+        focus: document.activeElement?.getAttribute('data-object-focus') ?? null });
+        if (positions.size > 50) positions.delete(positions.keys().next().value!); }
+    };
+  }, [location.key]);
+  useLayoutEffect(() => {
+    if (!result || restored.current) return;
+    restored.current = true;
+    const saved = positions.get(location.key);
+    const container = root.current?.closest('[data-testid="application-scroll-container"]');
+    if (saved && container) {
+      const target = [...root.current?.querySelectorAll<HTMLElement>('[data-object-focus]') ?? []]
+        .find(element => element.dataset.objectFocus === saved.focus);
+      target?.focus({ preventScroll: true }); container.scrollTop = saved.scroll;
+    }
+  }, [result, location.key]);
+  const columns: DataColumn<WorkingSetObject>[] = [
+    { id: 'name', header: 'Object / address', sortable: true, cell: row => <div className="min-w-48 space-y-1"><strong>{row.label}</strong>
+      <div className="flex flex-col gap-1">{row.references.map(reference => <Link key={objectPath(reference)} data-object-focus={objectPath(reference)}
+        className="break-all text-xs text-accent-400 underline" to={objectPath(reference)}
+        state={{ directoryEndpoint: workspace.directoryEndpoint, fromWorkingSet: `${location.pathname}${location.search}` }}>
+        {objectSourceLabel[reference.source]} · {reference.id}</Link>)}
+        {row.observations.filter(observation => observation.managementReference).map((observation, index) => <Link
+          key={index} data-object-focus={managementRecordPath(observation.managementReference!)} className="text-xs text-accent-400 underline"
+          to={managementRecordPath(observation.managementReference!)} state={{ fromWorkingSet: `${location.pathname}${location.search}` }}>
+          Open {workingSetSourceLabel[observation.source]} source record {observation.managementReference!.recordIndex + 1}</Link>)}
+        {row.references.length === 0 && <span className="text-warn-400">Stable scoped device identity unavailable</span>}</div></div> },
+    { header: 'Source evidence', cell: row => <ul className="space-y-2 text-xs">{row.observations.map((observation, index) => <li key={index}>
+      <strong>{workingSetSourceLabel[observation.source]}</strong> · {observation.label}
+      <p className="break-all text-muted">{workspace.displayed?.reads.find(read => read.key === observation.readKey)?.scope ?? 'Scope unavailable'}{observation.operatingSystem ? ` · ${observation.operatingSystem}` : ''}</p>
+      {kind !== 'GROUP' && <p>Account: {observation.accountEnabled === null ? 'Unknown / not supplied' : observation.accountEnabled ? 'Enabled' : 'Disabled'}</p>}
+      {observation.source === 'INTUNE' && <p>Intune compliance: {observation.complianceState ?? 'Unknown / not supplied'} · Management: {observation.managementState ?? 'Unknown / not supplied'}</p>}
+      {kind === 'USER' && observation.source === 'ENTRA' && <p>Assigned SKUs: {observation.assignedSkuIds?.length ?? 'Not supplied'}</p>}
+      {kind === 'USER' && <p>Department: {observation.department ?? 'Not supplied'}</p>}
+      {kind === 'GROUP' && <><p>Type / scope: {observation.groupTypes ?? 'Not supplied'}{observation.groupTypes === '' ? 'No group types returned' : ''}</p>
+        <p>Security: {observation.securityEnabled == null ? 'Unknown' : observation.securityEnabled ? 'Yes' : 'No'} · Mail: {observation.mailEnabled == null ? 'Unknown / not evaluated' : observation.mailEnabled ? 'Yes' : 'No'}</p>
+        <p>Member counts and privileged context are not evaluated by this list. Open the profile for direct-member coverage.</p></>}
+      {observation.storedEvidence && <p>{observation.storedEvidence === 'SAVED_TARGET' ? 'Saved target' : `Stored ${observation.storedEvidence.toLowerCase()} scan`}</p>}
+      {observation.observedAtUtc && <p>Observed: {new Date(observation.observedAtUtc).toLocaleString()}</p>}
+    </li>)}</ul> },
+    { header: 'Identity assessment', cell: row => <div className="max-w-64 space-y-1 text-xs">
+      {row.hasCandidates && <p className="text-warn-400">Similar source records exist; candidate evidence does not confirm identity.</p>}
+      {row.duplicateSourceIdentity && <p className="text-warn-400">Duplicate native ID in a source result. Inspect source records.</p>}
+      {row.conflictingIdentityEvidence && <p className="text-warn-400">Conflicting identity values are retained.</p>}
+      {row.references.length > 0 && row.references.every(reference => reference.source === 'WEC') && <p>Stored execution address; physical device identity unconfirmed.</p>}
+      {row.references.length > 1 && <p>Related by verified scoped IDs and sufficient cached query coverage.</p>}
+      {kind === 'USER' && row.references.some(reference => reference.source === 'ENTRA') && !row.references.some(reference => reference.source === 'ACTIVE_DIRECTORY') && <p>No confirmed AD relation in the loaded evidence.</p>}
+      {!row.hasCandidates && !row.duplicateSourceIdentity && !row.conflictingIdentityEvidence && row.references.length === 1 && row.references[0].source !== 'WEC' && <p>Scoped source object.</p>}
+    </div> },
+  ];
+  return <div ref={root} className="space-y-4"><PageHeader title={titles[kind]} subtitle="Source-scoped objects in the current working set" />
+    <nav aria-label="Object workspaces" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
+      <Link to="/devices">Devices</Link><Link to="/users">Users</Link><Link to="/groups">Groups</Link>
+      {kind === 'DEVICE' && <><Link to="/clients">Client posture, saved targets and batch scans</Link><Link to="/clients/compare">Compare</Link><Link to="/cleanup">Device Cleanup</Link></>}
+      {kind === 'USER' && <Link to="/users/directory">AD query workspace</Link>}
+      {kind === 'GROUP' && <Link to="/groups/directory">AD group query workspace</Link>}
+    </nav>
+    <WorkingSetCoverage /><WorkingSetSourceControls kind={kind} />
+    {tenantMismatch && <p role="alert" className="text-warn-400">This link belongs to tenant {requestedTenant}. Select that tenant in Data sources before reviewing its loaded assignments.</p>}
+    <div className="flex flex-wrap items-end gap-3">
+      <label className="text-xs text-muted">Search loaded {titles[kind].toLowerCase()}<Input value={query} onChange={event => change('q', event.target.value)} /></label>
+      <label className="text-xs text-muted">Source<Select value={source ?? ''} onChange={event => change('source', event.target.value)}><option value="">All loaded sources</option>
+        {sources.filter(value => kind === 'DEVICE' || value === 'ACTIVE_DIRECTORY' || value === 'ENTRA').map(value => <option key={value} value={value}>{workingSetSourceLabel[value]}</option>)}</Select></label>
+      {kind === 'USER' && <label className="text-xs text-muted">Account state<Select value={accountState ?? ''} onChange={event => change('account', event.target.value)}>
+        <option value="">Any / conflicting</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option><option value="unknown">Unknown / not supplied</option></Select></label>}
+      {kind === 'DEVICE' && <label className="text-xs text-muted">Operating system (exact)<Input value={operatingSystem} onChange={event => change('os', event.target.value)} /></label>}
+      {kind === 'DEVICE' && <>
+        {([['adAccount', 'AD account state', adAccountState], ['entraAccount', 'Entra account state', entraAccountState]] as const).map(([key, label, value]) =>
+          <label key={key} className="text-xs text-muted">{label}<Select value={value ?? ''} onChange={event => change(key, event.target.value)}>
+            <option value="">Any loaded state</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option><option value="unknown">Unknown in source record</option>
+          </Select></label>)}
+        {([['compliance', 'Intune compliance', 'complianceState', intuneCompliance], ['management', 'Intune management', 'managementState', intuneManagement]] as const).map(([key, label, field, value]) =>
+          <label key={key} className="text-xs text-muted">{label}<Select value={value} onChange={event => change(key, event.target.value)}>
+            <option value="">Any loaded state</option><option value="__unknown">Unknown in Intune record</option>
+            {[...new Set([...intuneValues(field), ...(value && value !== '__unknown' ? [value] : [])])].map(state => <option key={state} value={state}>{state}</option>)}
+          </Select></label>)}
+        <label className="text-xs text-muted">Stored evidence<Select value={storedEvidence ?? ''} onChange={event => change('stored', event.target.value)}>
+          <option value="">Any</option><option value="saved">Saved target</option><option value="scanned">Stored Inventory or Security scan</option>
+        </Select></label>
+      </>}
+      <label className="text-xs text-muted">Identity assessment<Select value={identityState ?? ''} onChange={event => change('identity', event.target.value)}>
+        <option value="">Any</option><option value="unresolved">No scoped identity</option><option value="candidates">Candidates / ambiguous association</option><option value="conflict">Conflicting or duplicate identity</option>
+      </Select></label>
+      {kind === 'USER' && <label className="text-xs text-muted">Assigned SKU ID<Input value={skuId} onChange={event => change('sku', event.target.value)} /></label>}
+    </div>
+    <p className="text-xs text-muted">{result?.total ?? 0} matches in this displayed working set. A missing match does not prove absence from an unloaded source.</p>
+    <DataTable columns={columns} rows={result?.rows ?? []} getRowKey={row => row.key} emptyMessage="No matching loaded objects. Check source coverage or explicitly load another source page."
+      sort={{ column: 'name', direction: descending ? 'desc' : 'asc' }} onSortChange={sort => change('sort', sort.direction)}
+      pagination={{ page: result?.page ?? 1, pageSize, total: result?.total ?? 0, itemLabel: 'working-set objects',
+        onPageChange: page => change('page', String(page)), onPageSizeChange: size => change('size', String(size)) }} />
+  </div>;
+}
+
+export function DevicesWorkingSetPage() { return <ObjectWorkingSetPage kind="DEVICE" />; }
+export function UsersWorkingSetPage() { return <ObjectWorkingSetPage kind="USER" />; }
+export function GroupsWorkingSetPage() { return <ObjectWorkingSetPage kind="GROUP" />; }

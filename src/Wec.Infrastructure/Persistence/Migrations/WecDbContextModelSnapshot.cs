@@ -759,6 +759,10 @@ namespace Wec.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("asset_id");
 
+                    b.Property<string>("BiosUuid")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("bios_uuid");
+
                     b.Property<int>("Critical")
                         .HasColumnType("INTEGER")
                         .HasColumnName("critical");
@@ -779,6 +783,10 @@ namespace Wec.Infrastructure.Persistence.Migrations
                     b.Property<string>("HostName")
                         .HasColumnType("TEXT")
                         .HasColumnName("host_name");
+
+                    b.Property<string>("HostUuid")
+                        .HasColumnType("TEXT")
+                        .HasColumnName("host_uuid");
 
                     b.Property<int>("Info")
                         .HasColumnType("INTEGER")

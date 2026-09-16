@@ -11,7 +11,9 @@ public sealed class DeviceCleanupModule : IModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddScoped<DeviceCleanupService>();
+        services.AddScoped<DeviceCleanupWorkbookExporter>();
         services.AddScoped<IActionHandler, ListDeviceCleanupCandidatesHandler>();
+        services.AddScoped<IActionHandler, ExportDeviceCleanupWorkbookHandler>();
         services.AddScoped<IActionHandler, ExportDeviceCleanupAssessmentHandler>();
     }
 }

@@ -18,7 +18,7 @@ const statePresentation: Record<LeaverEvidenceState, { label: string; tone: Badg
   information: { label: 'Information', tone: 'info' },
 };
 
-export function LeaverReviewSection({ profile }: { profile: UserProfileResult }) {
+export function LeaverReviewSection({ profile, subjectKey = profile.identity.objectId }: { profile: UserProfileResult; subjectKey?: string }) {
   const assessment = useMemo(() => buildLeaverAssessment(profile), [profile]);
   const [reviewedItemIds, setReviewedItemIds] = useState<ReadonlySet<string>>(new Set());
   const [exporting, setExporting] = useState(false);
@@ -27,7 +27,7 @@ export function LeaverReviewSection({ profile }: { profile: UserProfileResult })
   useEffect(() => {
     setReviewedItemIds(new Set());
     setExportMessage(null);
-  }, [profile.identity.objectId]);
+  }, [profile.identity.objectId, subjectKey]);
 
   const toggleReviewed = (itemId: string) => {
     setReviewedItemIds((current) => {
@@ -64,6 +64,7 @@ export function LeaverReviewSection({ profile }: { profile: UserProfileResult })
       <p className="mt-2 text-sm text-slate-300">
         This view organizes current evidence for the deliberately selected directory user. It does not disable the account, remove groups, change devices or persist a workflow case.
       </p>
+      <p className="mt-2 text-xs text-muted">This assessment and its export include AD and stored Windows evidence only. Microsoft 365 accounts, licenses, groups and device relationships are excluded from the assessment and export.</p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button variant="primary" disabled={exporting} onClick={exportChecklist}>
           {exporting ? 'Exporting…' : 'Export Markdown checklist'}

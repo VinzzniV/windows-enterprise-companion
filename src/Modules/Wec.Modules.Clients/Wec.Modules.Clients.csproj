@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Wec.Core\Wec.Core.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <InternalsVisibleTo Include="Wec.Modules.Clients.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,5 +1,41 @@
 # Wec.Modules.ActiveDirectory
 
+`activedirectory/readComputerList` explicitly discovers up to 100 computers in
+a verified directory DNS scope. The default call is cache-only; `refresh` uses
+the existing allowlisted LDAP search. Narrower queries reach beyond a truncated
+result. GUID/SID profile reads reuse these observations in the same credential
+context and bounded cache, preserving conflicts, query coverage and original age.
+
+Computer inventory preserves directory scope, optional objectGUID/objectSid and
+nullable account state (ADR 0022). Missing/malformed IDs are unknown, never name
+replacements; same-name records stay distinct. Reads use the existing bounded
+search-only LDAP seam with an explicit attribute allowlist.
+
+`IDirectoryGroupReadProvider` adds exact GUID/SID/DN group reads, paged group
+search and direct-member pages (ADR 0022). Every read verifies the actual
+RootDSE naming context. Identity reads retain at most two records; pages retain
+at most 100. Existing LDAP time limits apply; source counts cover the matches
+visible to this connection, not other naming contexts. Group types and IDs may
+be unknown. Member rows preserve non-user and limited-information objects.
+Direct membership uses the `memberOf` backlink, with no recursion or effective
+permission calculation; primary groups and external-directory completeness
+are not covered. The four privileged-group allowlist remains independent.
+Group identity, member and list queries have independent in-memory read state.
+Their shared connection context invalidates all entries on a context change.
+Failures retain earlier facts only until the original retention deadline;
+failure-only reads count toward `IdentityCacheMaximumEntries`. No cache read
+performs LDAP I/O, and late results from a former context are discarded.
+
+`IDirectoryUserListProvider` supplies a minimal source-owned user list for the
+working set: scoped GUID/SID, names, nullable account state and department.
+It reuses the bounded AD page reader (maximum 100 rows per page) without
+composing profiles or making per-account membership queries. RootDSE scope is
+checked before searching. Pages retain source totals, duplicates and their own
+read/error/expiry metadata, bounded by `IdentityCacheMaximumEntries`. Cache
+reads do not wait for LDAP; context changes discard old pages and late results.
+`usermanagement/readDirectoryPage` exposes this projection with cache-only
+behavior by default; `refresh: true` explicitly reads the selected page.
+
 Read-only Active Directory analysis (M4). Access strategy: ADR 0006 (revised
 2026-07-03) — LDAP via the search-only `IDirectoryReader` Core seam,
 authenticated as the current Windows identity or with optional explicit
@@ -87,6 +123,7 @@ rejected as `INVALID_REQUEST` naming the accepted forms.
 | Option | Default | Purpose |
 |---|---|---|
 | `PageSize` | 500 | LDAP paged-search page size |
+| `MaximumSortedPageEntries` | 10,000 | Maximum offset plus page size retained for deterministic secondary sorting; deeper pages require narrower filters (ADR 0023) |
 | `SearchTimeout` | 30 s | Per-request client/server time limit |
 | `InactivityThreshold` | 90 days | lastLogonTimestamp age that counts as inactive |
 | `ExampleLimit` | 20 | Maximum example accounts/members per rule or group |
@@ -100,3 +137,23 @@ mocked; no automated test touches a real domain. The infrastructure suite
 contains a 25,000-entry paged fixture that verifies exact counts, offsets and
 bounded materialization. Use the optional [Active Directory lab runbook](../../../docs/active-directory-lab.md)
 for workgroup, domain, credentials, paging, and large-directory smoke checks.
+# Scoped computer identity reads
+
+User GUID and SID reads also validate the returned identity and, when supplied,
+the expected directory scope. The SID path resolves a user GUID through a
+bounded exact account-SID filter; duplicate matches are an explicit failure.
+It does not fall back to display names or UPN and preserves the existing
+SID-validated privileged-group allowlist.
+
+ADR 0022 adds `IDirectoryComputerReadProvider` for explicit GUID/SID reads.
+It verifies the requested directory against RootDSE's default naming context,
+uses an allowlisted bounded computer query, and preserves duplicate results.
+Returned identity evidence must match the requested ID. Names never select an
+identity and these reads expose no directory write capability.
+
+Computer identity results use a bounded process cache (64 entries, ten minutes
+fresh, one hour retained by default). Credentials only contribute to an opaque
+in-memory context fingerprint; they are not retained in snapshots. Changing the
+connection/context discards cached evidence and rejects late results. Explicit
+refresh failures keep prior facts until their original expiry. Cache-only reads
+never invoke LDAP and remain available during source reads.

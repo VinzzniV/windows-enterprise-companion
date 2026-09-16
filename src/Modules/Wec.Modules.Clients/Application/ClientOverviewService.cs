@@ -1,8 +1,9 @@
 using Microsoft.Extensions.Options;
 using Wec.Core.Abstractions;
 using Wec.Core.Contracts;
+using Wec.Core.Targets;
 
-namespace Wec.Modules.EmployeeLifecycle.Application;
+namespace Wec.Modules.Clients.Application;
 
 public enum ClientOverviewFreshness
 {
@@ -317,7 +318,6 @@ internal sealed class ClientOverviewService
 
     private static bool IsLocalHost(string host)
     {
-        string candidate = host.Trim().Split('.')[0];
-        return string.Equals(candidate, Environment.MachineName, StringComparison.OrdinalIgnoreCase);
+        return HostAddress.IsExactLocalName(host, Environment.MachineName);
     }
 }

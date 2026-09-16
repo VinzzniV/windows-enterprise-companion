@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
 import { invoke } from '../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../shared/api-types';
 import { StatusBadge } from '../shared/ui/StatusBadge';
@@ -14,6 +14,7 @@ import { presentError, type ErrorPresentation } from '../shared/bridge/errorPres
 import { appRoutes, navigationGroups, sectionLabelFor, type AppRouteDefinition } from './routeRegistry';
 import { Spinner } from '../shared/ui/Spinner';
 import { GlobalSearch } from './GlobalSearch';
+import { WorkingSetProvider } from '../shared/objects/WorkingSetContext';
 
 export type AppInfoState =
   | { kind: 'loading' }
@@ -192,6 +193,7 @@ interface NavigationContentProps {
 
 /** One navigation tree rendered in either the desktop rail or the mobile drawer. */
 function NavigationContent({ appInfoState, onNavigate, onClose }: NavigationContentProps) {
+  const location = useLocation();
   return (
     <>
       <div className="flex items-center gap-2.5 border-b border-slate-800 px-4 py-4">
@@ -220,10 +222,11 @@ function NavigationContent({ appInfoState, onNavigate, onClose }: NavigationCont
               {group.label}
             </span>
             {group.items.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.to === '/'} className={navLinkClass} onClick={onNavigate}>
+              <Link key={item.to} to={item.to} aria-current={sectionLabelFor(location.pathname) === item.label ? 'page' : undefined}
+                className={navLinkClass({ isActive: sectionLabelFor(location.pathname) === item.label })} onClick={onNavigate}>
                 {item.icon}
                 {item.label}
-              </NavLink>
+              </Link>
             ))}
           </div>
         ))}
@@ -361,7 +364,9 @@ export function App() {
     <HashRouter>
       <TargetProvider>
       <EnvironmentProvider>
+      <WorkingSetProvider>
       <ApplicationShell appInfoState={appInfoState} />
+      </WorkingSetProvider>
       </EnvironmentProvider>
       </TargetProvider>
     </HashRouter>

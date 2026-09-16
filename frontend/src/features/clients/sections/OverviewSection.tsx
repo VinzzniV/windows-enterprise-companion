@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type {
   ClientHealthOverview,
   ClientInventoryOverview,
@@ -244,6 +244,7 @@ function UserSummary({ host, users, metadata }: {
   users: ClientUserOverview | null;
   metadata: ClientOverviewSourceMetadata;
 }) {
+  const location = useLocation();
   return <Card title="Linked users">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -261,6 +262,8 @@ function UserSummary({ host, users, metadata }: {
           </div>
           <p className="mt-1 text-xs text-slate-400">{relationshipLabel(observation.relationshipType)} · observed {date(observation.observedAtUtc)} · {observation.source}</p>
           <p className="mt-1 text-xs text-slate-500">{observation.explanation}</p>
+          <Link className="mt-2 inline-block text-xs text-accent-400 underline" state={{ returnObject: location.pathname + location.search }}
+            to={`/users/resolve?sid=${encodeURIComponent(observation.directorySid)}`}>Resolve this SID to an AD account</Link>
         </li>)}
       </ul> : <p className="text-sm text-slate-400">The latest Inventory scan contains no named interactive-user observation.</p>}
       {users.unresolvedProfileCount > 0 && <p className="mt-3 text-xs text-slate-400">{users.unresolvedProfileCount} additional local profile{users.unresolvedProfileCount === 1 ? '' : 's'} cannot be linked to a displayed directory identity from stored evidence alone.</p>}
@@ -299,6 +302,7 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
       managementObservedAtUtc={environment.result!.assessedAtUtc}
     />
     <Card title="Environment assessment">
+      <p className="mb-3 text-xs text-warn-300">{device.correlationExplanation ?? 'Name/address candidate comparison. Source identity is not confirmed.'}</p>
       <div className="mb-3"><ClientSemanticStatus {...hygieneAssessmentStatus(device.assessment.status)} /></div>
       {device.assessment.findings.length ? <ul className="space-y-2">{device.assessment.findings.map((finding) => <li key={finding.code} className="rounded border border-slate-800 px-3 py-2 text-sm text-slate-300">
         <span className={finding.severity === 'CRITICAL' ? 'text-fail-300' : 'text-warn-300'}>{finding.code.replaceAll('_', ' ')}</span> — {finding.message}
@@ -313,7 +317,7 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
         <Rows entries={[["Client ID", value(device.opsi.clientId)], ["Description", value(device.opsi.description)], ["Depot", value(device.opsi.depotId)], ["Last seen", date(device.opsi.lastSeen)], ["Client Agent", value(device.opsi.clientAgentVersion)]]} /></Card>
       <Card title="Nessus"><SourceHeader name="Nessus" state={nessusSource} present={nessus.exists && nessus.lastCompletedScanUtc !== null} missingApplies={hasFinding('MISSING_NESSUS')} stale={hasFinding('STALE_NESSUS')} /><SourceError state={nessusSource} />
         <Rows entries={[["Last completed scan", date(nessus.lastCompletedScanUtc)], ["Critical", String(nessus.critical)], ["High", String(nessus.high)], ["Medium", String(nessus.medium)], ["Low", String(nessus.low)], ["Ports", nessus.ports.join(', ') || '—'], ["Scans", nessus.scanSources.join(', ') || '—']]} />
-        {nessus.exists && <a className="mt-3 inline-block text-sm text-accent-400 hover:text-accent-300" href={`#/vulnerabilities?tab=findings&asset=${encodeURIComponent(device.computerName)}`}>Open findings in Vulnerabilities</a>}</Card>
+        {nessus.exists && <a className="mt-3 inline-block text-sm text-accent-400 hover:text-accent-300" href={`#/vulnerabilities?tab=findings&asset=${encodeURIComponent(nessus.sourceKey ?? device.hostName)}`}>Open findings in Vulnerabilities</a>}</Card>
     </div>
   </div>;
 }
@@ -334,7 +338,9 @@ function ManagementContext({ host, overview }: { host: string; overview: ClientO
       <Button onClick={() => { void environment.ensureLoaded(); }}>Load management sources</Button>
     </div>
   </Card>;
-  const device = environment.result.devices.find((entry) => clientKey(entry.hostName) === clientKey(host) || clientKey(entry.computerName) === clientKey(host));
+  const matches = environment.result.devices.filter((entry) => clientKey(entry.hostName) === clientKey(host));
+  const device = matches.length === 1 && matches[0].canTargetWindows !== false ? matches[0] : undefined;
+  if (matches.length > 1 || matches[0]?.canTargetWindows === false) return <Card title="Management identity needs review"><p className="text-sm text-warn-300">Several or unresolved source observations use this address. Inspect them separately in the Devices working set.</p><a className="text-sm text-accent-400 underline" href={`#/devices?q=${encodeURIComponent(host)}`}>Inspect source records</a></Card>;
   return device ? <DeviceOverview device={device} overview={overview} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
 }
 
@@ -368,25 +374,31 @@ export function OverviewSection({ host }: { host: string }) {
   if (state.kind === 'loading') return <p className="py-6 text-sm text-slate-400" role="status">Loading stored client evidence …</p>;
   if (state.kind === 'error') return <ErrorState {...state.error} controls={<Button onClick={() => loadOverview(false)}>Retry overview</Button>} />;
 
-  const inventoryMetadata = state.result.sources.find((source) => source.source === 'Inventory')!;
-  const softwareMetadata = state.result.sources.find((source) => source.source === 'Installed software')!;
-  const healthMetadata = state.result.sources.find((source) => source.source === 'Health')!;
-  const securityMetadata = state.result.sources.find((source) => source.source === 'Security')!;
-  const usersMetadata = state.result.sources.find((source) => source.source === 'Linked users')!;
   return <div className="flex flex-col gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3">
       <div><p className="text-sm font-medium text-slate-200">Client 360 evidence snapshot</p><p className="mt-0.5 text-xs text-slate-400">Stored data is read-only and never refreshed remotely on open.</p></div>
       <Button disabled={state.refreshing} onClick={() => loadOverview(true)}>{state.refreshing ? 'Refreshing …' : 'Refresh stored summaries'}</Button>
     </div>
     {state.refreshError && <CompactErrorState {...state.refreshError} />}
-    <SourceLedger host={host} sources={state.result.sources} />
-    <div className="grid gap-4 xl:grid-cols-2">
-      <InventorySummary host={host} inventory={state.result.inventory} metadata={inventoryMetadata} />
-      <HealthSummary host={host} health={state.result.health} metadata={healthMetadata} />
-      <SoftwareSummary host={host} software={state.result.software} metadata={softwareMetadata} />
-      <SecuritySummary host={host} security={state.result.security} metadata={securityMetadata} />
-      <UserSummary host={host} users={state.result.users} metadata={usersMetadata} />
-    </div>
+    <StoredClientEvidence host={host} result={state.result} />
     <ManagementContext host={host} overview={state.result} />
+  </div>;
+}
+
+export function StoredClientEvidence({ host, result, area = 'all' }: { host: string; result: ClientOverviewResult; area?: 'all' | 'health' | 'relationships' }) {
+  const inventoryMetadata = result.sources.find((source) => source.source === 'Inventory')!;
+  const softwareMetadata = result.sources.find((source) => source.source === 'Installed software')!;
+  const healthMetadata = result.sources.find((source) => source.source === 'Health')!;
+  const securityMetadata = result.sources.find((source) => source.source === 'Security')!;
+  const usersMetadata = result.sources.find((source) => source.source === 'Linked users')!;
+  return <div className="flex flex-col gap-4">
+    {area === 'all' && <SourceLedger host={host} sources={result.sources} />}
+    <div className="grid gap-4 xl:grid-cols-2">
+      {area === 'all' && <InventorySummary host={host} inventory={result.inventory} metadata={inventoryMetadata} />}
+      {area !== 'relationships' && <HealthSummary host={host} health={result.health} metadata={healthMetadata} />}
+      {area === 'all' && <SoftwareSummary host={host} software={result.software} metadata={softwareMetadata} />}
+      {area !== 'relationships' && <SecuritySummary host={host} security={result.security} metadata={securityMetadata} />}
+      {area !== 'health' && <UserSummary host={host} users={result.users} metadata={usersMetadata} />}
+    </div>
   </div>;
 }

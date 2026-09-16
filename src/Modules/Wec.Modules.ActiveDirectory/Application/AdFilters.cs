@@ -39,7 +39,12 @@ internal static class AdFilters
             CultureInfo.InvariantCulture,
             $"(&(objectCategory=computer)(!({UacBitAnd}2))(lastLogonTimestamp<={lastLogonCutoffFileTime}))");
 
-    public static string GroupBySid(string sidSddl) => $"(&(objectCategory=group)(objectSid={sidSddl}))";
+    public static string GroupBySid(string sidSddl) => $"(&(objectCategory=group)(objectSid={EscapeFilterValue(sidSddl)}))";
+
+    public static string GroupByObjectGuid(Guid objectId) => $"(&(objectCategory=group)(objectGUID={EscapedGuid(objectId)}))";
+
+    public static string GroupByDistinguishedName(string distinguishedName) =>
+        $"(&(objectCategory=group)(distinguishedName={EscapeFilterValue(distinguishedName)}))";
 
     public static string DisabledDirectMembersOfGroups(IEnumerable<string> groupDistinguishedNames)
     {
@@ -73,6 +78,18 @@ internal static class AdFilters
     }
 
     public static string UserByObjectGuid(Guid objectId)
+        => $"(&(objectCategory=person)(objectClass=user)(objectGUID={EscapedGuid(objectId)}))";
+
+    public static string ComputerByObjectGuid(Guid objectId)
+        => $"(&(objectCategory=computer)(objectGUID={EscapedGuid(objectId)}))";
+
+    public static string ComputerBySid(string sid)
+        => $"(&(objectCategory=computer)(objectSid={EscapeFilterValue(sid)}))";
+
+    public static string UserBySid(string sid)
+        => $"(&(objectCategory=person)(objectClass=user)(objectSid={EscapeFilterValue(sid)}))";
+
+    private static string EscapedGuid(Guid objectId)
     {
         var escaped = new StringBuilder(16 * 3);
         foreach (byte value in objectId.ToByteArray())
@@ -80,7 +97,7 @@ internal static class AdFilters
             escaped.Append(CultureInfo.InvariantCulture, $@"\{value:x2}");
         }
 
-        return $"(&(objectCategory=person)(objectClass=user)(objectGUID={escaped}))";
+        return escaped.ToString();
     }
 
     public static string WithDirectoryIdentitySearch(string baseFilter, string? query) =>

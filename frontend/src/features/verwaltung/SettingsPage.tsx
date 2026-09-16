@@ -27,6 +27,7 @@ import { ConfirmDangerAction } from '../../shared/ui/ConfirmDangerAction';
 import { CredentialFields, type CredentialValues } from '../../shared/targets/Credentials';
 import { useTargetsOptional } from '../../shared/targets/TargetContext';
 import { useEnvironmentOptional } from '../../shared/environment/EnvironmentContext';
+import { useOptionalWorkingSet } from '../../shared/objects/WorkingSetContext';
 import {
   isSettingsSection,
   SettingsSectionNavigation,
@@ -34,6 +35,7 @@ import {
   type SettingsSectionId,
 } from './SettingsSectionNavigation';
 import { SettingsValidationSummary } from './SettingsValidationSummary';
+import { Microsoft365SettingsSection } from '../microsoft365/Microsoft365SettingsSection';
 import {
   validateItLifecycleSettings,
   validateNessusSettings,
@@ -53,6 +55,7 @@ export function SettingsPage() {
   const activeSection: SettingsSectionId = isSettingsSection(requestedSection) ? requestedSection : 'overview';
   const targets = useTargetsOptional();
   const environment = useEnvironmentOptional();
+  const workspace = useOptionalWorkingSet();
   const [appInfo, setAppInfo] = useState<AppInfoResponse | null>(null);
   const [itLifecycle, setItLifecycle] = useState<ItLifecycleSettingsValue | null>(null);
   const [savedItLifecycle, setSavedItLifecycle] = useState<ItLifecycleSettingsValue | null>(null);
@@ -81,6 +84,7 @@ export function SettingsPage() {
   const [editingNessusCredential, setEditingNessusCredential] = useState(false);
   const [nessusCertificate, setNessusCertificate] = useState<NessusCertificateResult | null>(null);
   const [openLogsError, setOpenLogsError] = useState<ErrorPresentation | null>(null);
+  const [microsoft365Dirty, setMicrosoft365Dirty] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -178,11 +182,12 @@ export function SettingsPage() {
       .catch((caught: unknown) => setOpsiError(presentError(caught, {
         message: 'The opsi settings or connection could not be updated.',
       })))
-      .finally(() => setOpsiBusy(false));
+      .finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const connectOpsi = () => {
     if (!opsi) return;
+    workspace?.clearFamily('management');
     setOpsiBusy(true); setOpsiError(null);
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'connect', {
       server: opsi.server, userName: opsiUserName, password: opsiPassword,
@@ -193,11 +198,12 @@ export function SettingsPage() {
       if (rememberOpsi) setCredentialStatuses((current) => current && ({ ...current, opsi: { saved: true, userName: status.userName, domain: null } }));
     }).catch((caught: unknown) => setOpsiError(presentError(caught, {
       message: 'The opsi settings or connection could not be updated.',
-    }))).finally(() => setOpsiBusy(false));
+    }))).finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const connectStoredOpsi = () => {
     if (!opsi) return;
+    workspace?.clearFamily('management');
     setOpsiBusy(true); setOpsiError(null);
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'connect', {
       server: opsi.server, userName: '', password: null,
@@ -206,11 +212,12 @@ export function SettingsPage() {
       setOpsiStatus(status); environment?.invalidate();
     }).catch((caught: unknown) => setOpsiError(presentError(caught, {
       message: 'The opsi settings or connection could not be updated.',
-    }))).finally(() => setOpsiBusy(false));
+    }))).finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const saveKasperskyCredential = () => {
     if (!targets) return;
+    workspace?.clearFamily('management');
     setSaving(true); setSaveError(null);
     invoke<ServiceCredentialStatus>('system', 'saveServiceCredential', {
       kind: 'KASPERSKY', userName: kasperskyDraft.userName,
@@ -222,10 +229,11 @@ export function SettingsPage() {
       environment?.invalidate();
     }).catch((caught: unknown) => setSaveError(presentError(caught, {
       message: 'The settings change could not be saved.',
-    }))).finally(() => setSaving(false));
+    }))).finally(() => { setSaving(false); void workspace?.refreshCached(); });
   };
 
   const deleteCredential = (kind: 'KASPERSKY' | 'OPSI') => {
+    workspace?.clearFamily('management');
     setSaving(true); setSaveError(null);
     invoke<ServiceCredentialStatus>('system', 'deleteServiceCredential', { kind })
       .then((status) => {
@@ -237,16 +245,17 @@ export function SettingsPage() {
         environment?.invalidate();
       }).catch((caught: unknown) => setSaveError(presentError(caught, {
         message: 'The settings change could not be saved.',
-      }))).finally(() => setSaving(false));
+      }))).finally(() => { setSaving(false); void workspace?.refreshCached(); });
   };
 
   const disconnectOpsi = () => {
+    workspace?.clearFamily('management');
     setOpsiBusy(true); setOpsiError(null);
     invoke<OpsiConnectionStatusResult>('patchmanagement', 'disconnect', {})
       .then((status) => { setOpsiStatus(status); environment?.invalidate(); })
       .catch((caught: unknown) => setOpsiError(presentError(caught, {
         message: 'The opsi settings or connection could not be updated.',
-      }))).finally(() => setOpsiBusy(false));
+      }))).finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const saveNessusSettings = () => {
@@ -307,6 +316,7 @@ export function SettingsPage() {
     ...(itLifecycleDirty ? ['environment-health' as const] : []),
     ...(nessusDirty ? ['vulnerability-management' as const] : []),
     ...(opsiDirty ? ['patch-management' as const] : []),
+    ...(microsoft365Dirty ? ['microsoft365' as const] : []),
   ]);
   const itLifecycleIssues = itLifecycle ? validateItLifecycleSettings(itLifecycle) : [];
   const nessusIssues = nessus ? validateNessusSettings(nessus) : [];
@@ -619,6 +629,9 @@ export function SettingsPage() {
         </div>
       )}
 
+      <div id={settingsSectionElementId('microsoft365')} className="scroll-mt-20">
+        <Microsoft365SettingsSection onDirtyChange={setMicrosoft365Dirty} />
+      </div>
       <div id={settingsSectionElementId('policy')} className="scroll-mt-20">
         <Card title="Configuration policy">
           <p className="text-sm text-slate-400">

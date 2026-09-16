@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
@@ -17,10 +17,11 @@ import { EventLogSection } from './sections/EventLogSection';
 import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
 import { OverviewSection } from './sections/OverviewSection';
+import { Microsoft365ContextPanel } from '../microsoft365/Microsoft365ContextPanel';
 import { openPsSession } from '../../shared/ps/openPsSession';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 
-type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
+type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting' | 'microsoft365';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -30,6 +31,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'events', label: 'Event logs' },
   { key: 'printers', label: 'Printers' },
   { key: 'reporting', label: 'Report export' },
+  { key: 'microsoft365', label: 'Microsoft 365' },
 ];
 
 function isSectionKey(value: string | null): value is SectionKey {
@@ -60,7 +62,7 @@ export function ClientDetailPage() {
   const location = useLocation();
   const { host: rawHost } = useParams<{ host: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const host = decodeURIComponent(rawHost ?? '');
+  const host = rawHost ?? '';
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
   // undefined = getAppInfo not resolved yet; string|null once known. Sections
@@ -87,10 +89,8 @@ export function ClientDetailPage() {
   );
   const refreshReport = useCallback(() => setReportRevision((revision) => revision + 1), []);
 
-  const savedEntry = useMemo(
-    // Match by the same short-name key the Clients list merges on, so a client
-    // saved under its short name is recognized when opened by FQDN.
-    () => savedTargets.find((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
+  const savedEntries = useMemo(
+    () => savedTargets.filter((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
     [savedTargets, host],
   );
 
@@ -140,10 +140,10 @@ export function ClientDetailPage() {
               PowerShell
             </Button>
           )}
-          {savedEntry ? (
-            <Button variant="secondary" onClick={() => void deleteTarget(savedEntry.id)}>
-              Unsave client
-            </Button>
+          {savedEntries.length > 0 ? (
+            savedEntries.map(entry => <Button key={entry.id} variant="secondary" onClick={() => void deleteTarget(entry.id)}>
+              {savedEntries.length === 1 ? 'Unsave client' : `Unsave ${entry.label} (${entry.id})`}
+            </Button>)
           ) : (
             <Button
               variant="secondary"
@@ -156,6 +156,10 @@ export function ClientDetailPage() {
           )}
         </div>
       </PageHeader>
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link className="text-accent-400 underline" to={(location.state as { returnObject?: string } | null)?.returnObject ?? `/devices?q=${encodeURIComponent(host)}`} state={location.state}>Device identities and source records</Link>
+        <Link className="text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(host)}`}>Device Cleanup</Link>
+      </div>
       {powerShellError && (
         <ErrorState title="PowerShell session unavailable" {...powerShellError} />
       )}
@@ -194,6 +198,9 @@ export function ClientDetailPage() {
           <div role="tabpanel" id="clientpanel-overview" aria-labelledby="clienttab-overview" hidden={section !== 'overview'}>
             <OverviewSection host={host} />
           </div>
+          {section === 'microsoft365' && <div role="tabpanel" id="clientpanel-microsoft365" aria-labelledby="clienttab-microsoft365">
+            <Microsoft365ContextPanel host={host} />
+          </div>}
           <div role="tabpanel" id="clientpanel-inventory" aria-labelledby="clienttab-inventory" hidden={section !== 'inventory'}>
             <InventorySection key={host} target={target} onDataChanged={refreshReport} />
           </div>

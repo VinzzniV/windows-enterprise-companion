@@ -12,6 +12,7 @@ public sealed class TargetsModule : IModule
 {
     public void RegisterServices(IServiceCollection services)
     {
+        services.AddScoped<IStoredDeviceListProvider, SavedClientListProvider>();
         services.AddScoped<ISavedTargetRepository, EfSavedTargetRepository>();
         services.AddScoped<ISavedClientTargetProvider, SavedClientTargetProvider>();
         services.AddScoped<IActionHandler, ListSavedTargetsHandler>();

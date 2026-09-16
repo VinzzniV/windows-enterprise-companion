@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserProfileResult } from '../../shared/api-types';
 import { TargetProvider } from '../../shared/targets/TargetContext';
@@ -17,6 +17,7 @@ vi.mock('../../shared/bridge/bridgeClient', () => ({
 
 const profile: UserProfileResult = {
   identity: {
+    directoryScope: null,
     objectId: '00112233-4455-6677-8899-aabbccddeeff',
     sid: 'S-1-5-21-100-200-300-1104',
     displayName: 'Alex Example',
@@ -55,6 +56,7 @@ const profile: UserProfileResult = {
     explanation: 'No stored Inventory devices are available for relationship evaluation.',
     sourceCoverage: {
       storedDeviceCount: 0,
+      evaluatedDeviceCount: 0, workingSetTruncated: false, multipleLatestSnapshotDeviceCount: 0,
       evidenceCapturedDeviceCount: 0,
       notCapturedDeviceCount: 0,
       unavailableDeviceCount: 0,
@@ -73,6 +75,7 @@ const profileWithDevice: UserProfileResult = {
     explanation: 'Some stored devices have missing Inventory user evidence.',
     sourceCoverage: {
       storedDeviceCount: 12,
+      evaluatedDeviceCount: 12, workingSetTruncated: false, multipleLatestSnapshotDeviceCount: 0,
       evidenceCapturedDeviceCount: 8,
       notCapturedDeviceCount: 3,
       unavailableDeviceCount: 1,
@@ -134,7 +137,12 @@ const profileWithDevice: UserProfileResult = {
   },
 };
 
-function renderProfile(value: UserProfileResult = profile) {
+function ResolvedRoute() {
+  const location = useLocation();
+  return <output data-testid="resolved-route">{location.pathname}{location.search} · {JSON.stringify(location.state)}</output>;
+}
+
+function renderProfile(value: UserProfileResult = profile, section = '') {
   invokeMock.mockImplementation((module: string, action: string) => {
     if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
     if (module === 'usermanagement' && action === 'getUserProfile') return Promise.resolve(value);
@@ -144,10 +152,11 @@ function renderProfile(value: UserProfileResult = profile) {
     return Promise.resolve({});
   });
   return render(
-    <MemoryRouter initialEntries={['/users/00112233-4455-6677-8899-aabbccddeeff']}>
+    <MemoryRouter initialEntries={['/users/00112233-4455-6677-8899-aabbccddeeff' + section]}>
       <TargetProvider>
         <Routes>
           <Route path="/users/:objectId" element={<UserDetailPage />} />
+          <Route path="/users/ad/:scope/:objectId" element={<ResolvedRoute />} />
         </Routes>
       </TargetProvider>
     </MemoryRouter>,
@@ -155,6 +164,14 @@ function renderProfile(value: UserProfileResult = profile) {
 }
 
 describe('UserDetailPage', () => {
+  it('resolves a legacy deep link through the verified directory scope and retains its section', async () => {
+    renderProfile({ ...profile, identity: { ...profile.identity, directoryScope: 'verified.example' } }, '?section=leaver');
+    const route = await screen.findByTestId('resolved-route');
+    expect(route.textContent).toContain('/users/ad/verified.example/00112233-4455-6677-8899-aabbccddeeff?section=leaver');
+    expect(route.textContent).toContain('resolveLegacyUser');
+    expect(route.textContent).not.toContain('corp.example');
+  });
+
   beforeEach(() => {
     localStorage.clear();
     invokeMock.mockReset();

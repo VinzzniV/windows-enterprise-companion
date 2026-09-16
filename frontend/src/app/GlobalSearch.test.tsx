@@ -5,10 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserSummary } from '../shared/api-types';
 import { TargetProvider } from '../shared/targets/TargetContext';
 import { GlobalSearch } from './GlobalSearch';
+import { WorkingSetProvider } from '../shared/objects/WorkingSetContext';
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('../shared/bridge/bridgeClient', () => ({
   invoke: invokeMock,
+  invokeCancellable: (module: string, action: string) => ({ requestId: action, cancel: vi.fn(), promise: invokeMock(module, action) }),
   BridgeInvokeError: class extends Error {},
   BridgeCancelledError: class extends Error {},
   BridgeTimeoutError: class extends Error {},
@@ -38,10 +40,12 @@ function renderSearch(onClose = vi.fn()) {
     ...render(
       <MemoryRouter initialEntries={['/']}>
         <TargetProvider>
+          <WorkingSetProvider>
           <GlobalSearch open onClose={onClose} />
           <Routes>
             <Route path="*" element={<CurrentLocation />} />
           </Routes>
+          </WorkingSetProvider>
         </TargetProvider>
       </MemoryRouter>,
     ),
@@ -54,6 +58,18 @@ describe('GlobalSearch', () => {
     invokeMock.mockReset();
     invokeMock.mockImplementation((module: string, action: string) => {
       if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
+      if (action === 'getStoredObjectLists') return Promise.resolve({ workspace: { scope: 'local', localComputerName: 'LOCAL' },
+        maximumRecords: 5000, maximumSourceReads: 128, retrievedAtUtc: new Date().toISOString(), search: null, reads: [] });
+      if (action === 'getCachedManagementObjectLists') return Promise.resolve({ workspace: { scope: 'local', localComputerName: 'LOCAL' },
+        snapshotId: null, opsiSessionId: null, sessionRevision: 0, revision: 0, retrievedAtUtc: null, maximumRecords: 5000, search: null, reads: [] });
+      if (action === 'getCachedObjectLists') return Promise.resolve({ tenantId: '11111111-1111-1111-1111-111111111111', sessionRevision: 1,
+        revision: 1, recordLimit: 5000, cachedSourceRecords: 1, loadedSourceRecords: 1, truncated: false, reads: [{
+          state: { query: { resource: 'USERS', objectId: null, securityIdentifier: null }, snapshotRevision: 1, availability: 'AVAILABLE',
+            retrievedAtUtc: new Date().toISOString(), lastAttemptAtUtc: new Date().toISOString(), retainedUntilUtc: new Date(Date.now() + 60000).toISOString(),
+            freshUntilUtc: null, lastAttemptError: null, loadedCount: 1, declaredTotal: 1, coverage: 'RETURNED_SET' },
+          rows: [{ kind: 'USER', source: 'ENTRA', objectId: alex.objectId, displayName: alex.displayName, userPrincipalName: alex.userPrincipalName,
+            accountEnabled: true, operatingSystem: null, securityIdentifier: null, registrationDeviceId: null, assignedSkuIds: null }],
+        }] });
       if (module === 'inventory' && action === 'listHosts') return Promise.resolve({ hosts: [] });
       if (module === 'security' && action === 'listHosts') return Promise.resolve({ hosts: [] });
       if (module === 'activedirectory' && action === 'searchComputers') return Promise.resolve({
@@ -81,7 +97,7 @@ describe('GlobalSearch', () => {
     });
   });
 
-  it('debounces bounded directory searches and opens a User 360 result by keyboard', async () => {
+  it('searches the shared cached set without per-keystroke source reads and opens a scoped user by keyboard', async () => {
     const user = userEvent.setup();
     const { onClose } = renderSearch();
     const input = screen.getByRole('combobox', { name: /Search navigation/ });
@@ -91,20 +107,12 @@ describe('GlobalSearch', () => {
     expect(invokeMock.mock.calls.filter((call) => call[0] === 'usermanagement')).toHaveLength(0);
 
     expect(await screen.findByText('Alex Example')).toBeDefined();
-    expect(invokeMock).toHaveBeenCalledWith('activedirectory', 'searchComputers', expect.objectContaining({
-      nameFilter: 'Alex',
-      resultLimit: 6,
-    }));
-    expect(invokeMock).toHaveBeenCalledWith('usermanagement', 'listUsers', expect.objectContaining({
-      search: 'Alex',
-      page: 1,
-      pageSize: 6,
-    }));
+    expect(invokeMock.mock.calls.some(call => call[0] === 'activedirectory' || call[0] === 'usermanagement' || call[1] === 'read')).toBe(false);
 
     await user.keyboard('{Enter}');
     expect(onClose).toHaveBeenCalledOnce();
     expect(screen.getByRole('status', { name: 'Current location' }).textContent)
-      .toBe('/users/00112233-4455-6677-8899-aabbccddeeff');
+      .toBe('/users/entra/11111111-1111-1111-1111-111111111111/00112233-4455-6677-8899-aabbccddeeff');
   });
 
   it('opens local navigation immediately and closes on Escape', async () => {

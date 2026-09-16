@@ -8,6 +8,23 @@ namespace Wec.Modules.ActionCenter.Tests;
 
 public sealed class ActionCenterServiceTests
 {
+    [Fact]
+    public async Task SourceEvidenceLinksKeepCleanupKeysAndNessusKeysAndNeverExecuteAmbiguousTargets()
+    {
+        ConfigureEvidence();
+        _hygiene.LoadAsync(Arg.Any<HygieneActionEvidenceQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new HygieneActionEvidenceSnapshot(AssessedAt, [], [],
+            [
+                new("evidence:one", "pc.example", "StaleAd", "Warning", "Old", "Active Directory", null, ActionEvidenceAvailability.Partial, "Ambiguous") { CanTargetWindows = false },
+                new("evidence:two", "pc.example", "OutdatedAgent", "Warning", "Old", "Kaspersky", null, ActionEvidenceAvailability.Partial, "Ambiguous") { CanTargetWindows = false },
+                new("evidence:three", "pc.example", "NessusHighVulnerabilities", "Warning", "High", "Nessus", null, ActionEvidenceAvailability.Partial, "Candidate") { NessusSourceKey = "PC.EXAMPLE|HOST:3" },
+            ])));
+        Result<ActionCenterPage> result = await CreateService().GetPageAsync(new(PageSize: 10), CancellationToken.None);
+        Assert.Contains(result.Value.Items, item => item.Href == "/cleanup?host=evidence%3Aone");
+        Assert.Contains(result.Value.Items, item => item.Href == "/devices?q=pc.example");
+        Assert.Contains(result.Value.Items, item => item.Href == "/vulnerabilities?tab=findings&asset=PC.EXAMPLE%7CHOST%3A3");
+    }
+
     private static readonly DateTimeOffset AssessedAt =
         new(2026, 8, 27, 12, 0, 0, TimeSpan.Zero);
     private readonly IHygieneActionEvidenceProvider _hygiene = Substitute.For<IHygieneActionEvidenceProvider>();

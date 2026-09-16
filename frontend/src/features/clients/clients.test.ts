@@ -17,6 +17,9 @@ const ad = (over: Partial<AdComputer>): AdComputer => ({
   description: null,
   distinguishedName: null,
   lastLogonDate: null,
+  objectId: null,
+  securityIdentifier: null,
+  directoryScope: null,
   ...over,
 });
 
@@ -32,16 +35,39 @@ describe('siteOf', () => {
 });
 
 describe('buildClientList', () => {
+  it('retains duplicate AD records and keeps stored target evidence independent', () => {
+    const list = buildClientList([ad({ name: 'Same', dnsHostName: 'pc.example.test', operatingSystem: 'Windows 10' }),
+      ad({ name: 'Same', dnsHostName: 'pc.example.test', operatingSystem: 'Windows 11' })],
+      [{ host: 'pc.example.test', capturedAtUtc: '2026-09-14T08:00:00Z' }], []);
+    expect(list).toHaveLength(3);
+    expect(new Set(list.map(item => item.key)).size).toBe(3);
+    expect(list.filter(item => item.inAd).every(item => !item.scanned)).toBe(true);
+    expect(list.filter(item => item.scanned)[0].os).toBeNull();
+  });
+
+  it('preserves domain, short-name and IP targets independently', () => {
+    const list = buildClientList([
+      ad({ name: 'PC01', dnsHostName: 'pc01.a.example' }),
+      ad({ name: 'PC01', dnsHostName: 'pc01.b.example' }),
+    ], [
+      { host: 'PC01', capturedAtUtc: '2026-09-14T08:00:00Z' },
+      { host: '10.1.2.3', capturedAtUtc: '2026-09-14T08:00:00Z' },
+      { host: '10.8.9.10', capturedAtUtc: '2026-09-14T08:00:00Z' },
+    ], []);
+    expect(list).toHaveLength(5);
+    expect(list.filter((client) => client.inAd).every((client) => !client.scanned)).toBe(true);
+    expect(new Set(list.map((client) => client.key)).size).toBe(5);
+  });
   it('merges AD, scan history and saved targets into one entry per host', () => {
     const adComputers = [ad({ name: 'KF-PC1', dnsHostName: 'kf-pc1.corp.local', operatingSystem: 'Windows 11' })];
-    const scanned: StoredInventoryHost[] = [{ host: 'KF-PC1', capturedAtUtc: '2026-07-06T08:00:00Z' }];
-    const security: StoredSecurityScanHost[] = [{ host: 'kf-pc1', completedAtUtc: '2026-07-06T09:00:00Z' }];
+    const scanned: StoredInventoryHost[] = [{ host: 'KF-PC1.corp.local', capturedAtUtc: '2026-07-06T08:00:00Z' }];
+    const security: StoredSecurityScanHost[] = [{ host: 'kf-pc1.corp.local', completedAtUtc: '2026-07-06T09:00:00Z' }];
     const saved: SavedTarget[] = [
-      { id: 1, label: 'KF-PC1', host: 'kf-pc1', role: 'Client', userName: null, createdAtUtc: 'x' },
+      { id: 1, label: 'KF-PC1', host: 'kf-pc1.corp.local', role: 'Client', userName: null, createdAtUtc: 'x' },
     ];
 
     const list = buildClientList(adComputers, scanned, saved, security);
-    expect(list).toHaveLength(1); // FQDN, short, saved all fold to one
+    expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({
       host: 'kf-pc1.corp.local', // FQDN kept for scanning
       name: 'KF-PC1',
@@ -88,7 +114,7 @@ describe('filterClients', () => {
 describe('isLocalClient / toClientTarget', () => {
   it('treats this machine (short name, any case) as local → null target', () => {
     expect(isLocalClient('DESKTOP-1', 'desktop-1')).toBe(true);
-    expect(isLocalClient('desktop-1.corp.local', 'DESKTOP-1')).toBe(true);
+    expect(isLocalClient('desktop-1.corp.local', 'DESKTOP-1')).toBe(false);
     expect(toClientTarget('DESKTOP-1', 'desktop-1', undefined)).toBeNull();
   });
 

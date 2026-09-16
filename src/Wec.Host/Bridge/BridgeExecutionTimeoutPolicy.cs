@@ -48,6 +48,7 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
 
     private static readonly HashSet<string> BatchOperations =
     [
+        "devicecleanup/exportWorkbook",
         "diagnostics/runBatchDiagnostics",
         "inventory/runBatchScan",
         "networkscan/scan",
@@ -65,6 +66,8 @@ internal sealed class BridgeExecutionTimeoutPolicy : IBridgeExecutionTimeoutPoli
     public TimeSpan Resolve(BridgeRequest request)
     {
         string key = $"{request.Module}/{request.Action}";
+        if (key == "microsoft365/connect") { return TimeSpan.FromSeconds(310); }
+        if (request.Module == "microsoft365") { return StandardOperationTimeout; }
         if (key == "patchmanagement/createOrAdoptWingetPackage")
         {
             return PackageTargetTimeout;

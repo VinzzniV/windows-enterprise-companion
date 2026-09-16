@@ -21,7 +21,11 @@ public sealed record NessusComputerInventoryItem(
     int Low,
     int Info,
     IReadOnlyList<int> Ports,
-    IReadOnlyList<string> ScanSources);
+    IReadOnlyList<string> ScanSources,
+    string? SourceKey = null,
+    string? Fqdn = null,
+    string? HostUuid = null,
+    string? BiosUuid = null);
 
 public sealed record NessusComputerInventory(
     IReadOnlyList<NessusComputerInventoryItem> Computers,

@@ -7,9 +7,22 @@ namespace Wec.Modules.EmployeeLifecycle.Tests.Application;
 public sealed class ItHygienePagingTests
 {
     [Fact]
+    public void ClientWorkspacePreservesIpTargetsAndShortNameCandidates()
+    {
+        ClientWorkspacePage page = ClientWorkspacePaging.Page(
+            ResultAt(DateTimeOffset.UnixEpoch, Device("PC01", HygieneStatus.Healthy)),
+            [new InventoryClientSnapshotHost("PC01", DateTimeOffset.UnixEpoch)],
+            [new SavedClientTarget("First", "10.1.2.3"), new SavedClientTarget("Second", "10.8.9.10")],
+            new ListClientWorkspaceRequest());
+
+        Assert.Equal(4, page.Total);
+        Assert.Equal(4, page.Items.Select(item => item.Key).Distinct().Count());
+        Assert.False(Assert.Single(page.Items, item => item.InAd).Scanned);
+    }
+    [Fact]
     public async Task SnapshotCacheReusesMatchingRequestAndForceRefreshesOnce()
     {
-        using var cache = new ItHygieneSnapshotCache();
+        using var cache = ManagementCacheTestStore.CreateCache();
         var request = new ItHygieneRequest(new DirectoryInventoryConnection(Server: "dc01"));
         int loads = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
@@ -30,7 +43,7 @@ public sealed class ItHygienePagingTests
     [Fact]
     public async Task SnapshotCacheDoesNotReuseAnotherConnectionRequest()
     {
-        using var cache = new ItHygieneSnapshotCache();
+        using var cache = ManagementCacheTestStore.CreateCache();
         int loads = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
         {
@@ -47,7 +60,7 @@ public sealed class ItHygienePagingTests
     [Fact]
     public async Task SnapshotCacheIgnoresUiOperationIdForTheSameConnection()
     {
-        using var cache = new ItHygieneSnapshotCache();
+        using var cache = ManagementCacheTestStore.CreateCache();
         int loads = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
         {
@@ -64,7 +77,7 @@ public sealed class ItHygienePagingTests
     [Fact]
     public async Task SnapshotCacheRetriesAfterAnUnavailableKasperskyResult()
     {
-        using var cache = new ItHygieneSnapshotCache();
+        using var cache = ManagementCacheTestStore.CreateCache();
         var request = new ItHygieneRequest();
         int loads = 0;
         Task<Result<ItHygieneResult>> Load(ItHygieneRequest _, CancellationToken __)
@@ -131,13 +144,28 @@ public sealed class ItHygienePagingTests
     }
 
     [Fact]
+    public void ClientWorkspaceRetainsAmbiguousSourceRowsAndSeparateExactStoredTarget()
+    {
+        var first = Device("PC", HygieneStatus.Incomplete) with { EvidenceKey = "source-one", CanTargetWindows = false };
+        var second = first with { EvidenceKey = "source-two" };
+        var page = ClientWorkspacePaging.Page(ResultAt(DateTimeOffset.UnixEpoch, first, second),
+            [new(first.HostName, DateTimeOffset.UnixEpoch)], [new("Saved exact target", first.HostName)], new());
+        Assert.Equal(3, page.Total);
+        Assert.Equal(3, page.Items.Select(item => item.Key).Distinct().Count());
+        var stored = Assert.Single(page.Items, item => item.Environment is null);
+        Assert.True(stored.Scanned);
+        Assert.True(stored.Saved);
+        Assert.All(page.Items.Where(item => item.Environment is not null), item => Assert.False(item.Scanned));
+    }
+
+    [Fact]
     public void ClientWorkspaceMergeDeduplicatesAndKeepsScanOnlyAndSavedOnlyClients()
     {
         ItHygieneResult result = ResultAt(DateTimeOffset.UnixEpoch,
             Device("ALPHA", HygieneStatus.Healthy));
         InventoryClientSnapshotHost[] scanned =
         [
-            new("alpha.other.test", DateTimeOffset.UnixEpoch.AddHours(1)),
+            new("alpha.example.test", DateTimeOffset.UnixEpoch.AddHours(1)),
             new("SCAN-ONLY", DateTimeOffset.UnixEpoch.AddHours(2)),
         ];
         SavedClientTarget[] saved =
@@ -250,7 +278,7 @@ public sealed class ItHygienePagingTests
     }
 
     [Fact]
-    public void ClientWorkspaceSummaryMatchesTheDeduplicatedCanonicalRows()
+    public void ClientWorkspacePreservesSameNamesInDifferentDomains()
     {
         HygieneDevice missing = Device("DUPLICATE", HygieneStatus.Warning, HygieneFindingCode.MissingKaspersky);
         HygieneDevice canonical = Device("DUPLICATE", HygieneStatus.Healthy) with
@@ -268,9 +296,9 @@ public sealed class ItHygienePagingTests
 
         Assert.Equal(2, result.Summary.Total);
         Assert.Equal(1, result.Summary.MissingKaspersky);
-        Assert.Equal(1, page.SnapshotTotal);
-        Assert.Equal(1, page.Summary.Total);
-        Assert.Equal(0, page.Summary.MissingKaspersky);
+        Assert.Equal(2, page.SnapshotTotal);
+        Assert.Equal(2, page.Summary.Total);
+        Assert.Equal(1, page.Summary.MissingKaspersky);
     }
 
     [Fact]

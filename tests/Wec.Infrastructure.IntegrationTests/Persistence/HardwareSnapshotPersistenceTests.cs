@@ -1,6 +1,8 @@
 using System.Text.Json;
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wec.Infrastructure.Persistence;
 using Wec.Modules.Inventory.Domain;
@@ -153,7 +155,7 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
     }
 
     [Fact]
-    public async Task ListHostsAsync_RemovesLegacySnapshotsWithoutAHost()
+    public async Task ListHostsAsync_HidesLegacySnapshotsWithoutDeletingThem()
     {
         using WecDbContext context = CreateContext();
         await context.Database.MigrateAsync();
@@ -177,7 +179,7 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         IReadOnlyList<StoredInventoryHost> hosts = await repository.ListHostsAsync(CancellationToken.None);
 
         Assert.Empty(hosts);
-        Assert.Equal(0, await context.Set<HardwareSnapshotRecord>().CountAsync());
+        Assert.Equal(2, await context.Set<HardwareSnapshotRecord>().CountAsync());
     }
 
     [Fact]
@@ -200,6 +202,64 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         if (File.Exists(_databasePath))
         {
             File.Delete(_databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task BoundedEvidenceBatchPreservesLatestTiesAddressesAndUnreadableRowsWithoutPerHostQueries()
+    {
+        var counter = new ReadCommandCounter();
+        using WecDbContext context = IntegrationDbContextFactory.Create(_databasePath, counter);
+        await context.Database.MigrateAsync();
+        DateTimeOffset now = new(2026, 9, 14, 10, 0, 0, TimeSpan.Zero);
+        string payload = JsonSerializer.Serialize(BuildSnapshot());
+        context.AddRange(
+            new HardwareSnapshotRecord { Host = "A.corp.example", CapturedAtUtc = now.AddDays(-1), PayloadJson = payload },
+            new HardwareSnapshotRecord { Host = "A.corp.example", CapturedAtUtc = now, PayloadJson = payload },
+            new HardwareSnapshotRecord { Host = "A.corp.example", CapturedAtUtc = now, PayloadJson = payload },
+            new HardwareSnapshotRecord { Host = "A.other.example", CapturedAtUtc = now, PayloadJson = payload },
+            new HardwareSnapshotRecord { Host = "192.0.2.10", CapturedAtUtc = now, PayloadJson = payload },
+            new HardwareSnapshotRecord { Host = "C.legacy", CapturedAtUtc = now, PayloadJson = "{}" },
+            new HardwareSnapshotRecord { Host = "D.bad", CapturedAtUtc = now, PayloadJson = "broken" },
+            new HardwareSnapshotRecord { Host = "E.null", CapturedAtUtc = now, PayloadJson = "null" },
+            new HardwareSnapshotRecord { Host = "   ", CapturedAtUtc = now, PayloadJson = payload });
+        await context.SaveChangesAsync();
+        var repository = new EfHardwareSnapshotRepository(context, NullLogger<EfHardwareSnapshotRepository>.Instance);
+        counter.Count = 0;
+        StoredInventoryUserEvidenceBatch bounded = await repository.GetLatestUserEvidenceBatchAsync(2, CancellationToken.None);
+        Assert.Equal(3, counter.Count);
+        Assert.Equal(6, bounded.StoredHostCount);
+        Assert.Equal(7, bounded.LatestRecordCount);
+        Assert.Equal(2, bounded.Records.Count);
+        Assert.Equal("192.0.2.10", bounded.Records[0].Host);
+        counter.Count = 0;
+        StoredInventoryUserEvidenceBatch all = await repository.GetLatestUserEvidenceBatchAsync(100, CancellationToken.None);
+        Assert.Equal(3, counter.Count);
+        Assert.Equal(7, all.Records.Count);
+        StoredInventoryUserEvidence[] tied = all.Records.Where(record => record.Host == "A.corp.example").ToArray();
+        Assert.Equal(2, tied.Length);
+        Assert.Equal(2, tied.Select(record => record.SnapshotId).Distinct().Count());
+        Assert.All(tied, record => Assert.Equal(now, record.CapturedAtUtc));
+        Assert.Equal(BuildSnapshot().UserEvidence!.InteractiveUser, tied[0].Evidence!.InteractiveUser);
+        StoredInventoryUserEvidence legacy = Assert.Single(all.Records, record => record.Host == "C.legacy");
+        Assert.True(legacy.Readable);
+        Assert.Null(legacy.Evidence);
+        Assert.False(Assert.Single(all.Records, record => record.Host == "D.bad").Readable);
+        Assert.False(Assert.Single(all.Records, record => record.Host == "E.null").Readable);
+        Assert.Equal(9, await context.Set<HardwareSnapshotRecord>().CountAsync());
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => repository.GetLatestUserEvidenceBatchAsync(0, CancellationToken.None));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.GetLatestUserEvidenceBatchAsync(10, new CancellationToken(true)));
+    }
+
+    private sealed class ReadCommandCounter : DbCommandInterceptor
+    {
+        public int Count { get; set; }
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            ++Count;
+            return ValueTask.FromResult(result);
         }
     }
 }

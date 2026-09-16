@@ -43,6 +43,7 @@ public sealed class OpsiComputerInventoryProviderTests
         Assert.Equal("Notebook", computer.Description);
         Assert.Equal("depot01.example.test", computer.DepotId);
         Assert.Equal("4.3.8.1", computer.ClientAgentVersion);
+        Assert.Equal(session.Current!.SessionId, result.Value.SessionId);
         await client.Received(1).GetProductStatesAsync(
             Connection,
             "opsi-client-agent",
@@ -50,6 +51,28 @@ public sealed class OpsiComputerInventoryProviderTests
         await client.DidNotReceive().GetProductStatesAsync(
             Connection,
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SessionChangeDiscardsLateInventoryAndCachedSessionIdentityNeverConnects()
+    {
+        IOpsiClient client = Substitute.For<IOpsiClient>();
+        OpsiSessionState session = ConnectedSession();
+        var completion = new TaskCompletionSource<Result<IReadOnlyList<OpsiClientHost>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.GetClientsAsync(Connection, Arg.Any<CancellationToken>()).Returns(completion.Task);
+        client.GetProductStatesAsync(Connection, "opsi-client-agent", Arg.Any<CancellationToken>())
+            .Returns(Result.Success<IReadOnlyList<OpsiProductOnClient>>([]));
+        using OpsiSessionConnector connector = Connector(client, session);
+        var provider = new OpsiComputerInventoryProvider(client, session, connector);
+        Guid? original = provider.CurrentSessionId;
+        Assert.Empty(client.ReceivedCalls());
+        Task<Result<OpsiComputerInventory>> loading = provider.LoadAsync(100, CancellationToken.None);
+        session.Clear();
+        Assert.Null(provider.CurrentSessionId);
+        session.Set(new OpsiSession(Connection, new OpsiServerInfo("4.3")));
+        Assert.NotEqual(original, provider.CurrentSessionId);
+        completion.SetResult(Result.Success<IReadOnlyList<OpsiClientHost>>([new("old.example", null, null, null)]));
+        Assert.Equal(ErrorCode.ServiceUnavailable, (await loading).Error!.Code);
     }
 
     [Fact]

@@ -26,15 +26,23 @@ vi.mock('../../shared/bridge/bridgeClient', () => ({
 }));
 
 const candidate = {
+  canTargetWindows: true,
   subjectKey: 'PC-OLD',
   host: 'pc-old.corp.example',
+  description: 'Accounting workstation',
+  descriptionSource: 'Active Directory',
   classification: 'POTENTIAL_CLEANUP' as const,
   classificationExplanation: 'AD activity exceeds its cleanup threshold; manual review is still required.',
+  activeDirectoryExists: true,
   activeDirectoryEnabled: false,
   activeDirectoryLastLogonAtUtc: '2026-01-01T00:00:00Z',
+  kasperskyExists: true,
   kasperskyLastSeenAtUtc: '2026-02-01T00:00:00Z',
+  opsiExists: true,
   opsiLastSeenAtUtc: '2026-02-02T00:00:00Z',
+  nessusExists: true,
   nessusLastScanAtUtc: '2026-02-03T00:00:00Z',
+  inventoryExists: true,
   inventoryCapturedAtUtc: '2026-02-04T00:00:00Z',
   relevantFindingCount: 4,
 };
@@ -93,6 +101,14 @@ function renderPage() {
     if (module === 'devicecleanup' && action === 'exportAssessment') {
       return Promise.resolve({ cancelled: false, filePath: 'C:\\Exports\\cleanup.md' });
     }
+    if (module === 'devicecleanup' && action === 'exportWorkbook') {
+      return Promise.resolve({
+        cancelled: false,
+        filePath: 'C:\\Exports\\device-cleanup.xlsx',
+        exportedCount: 1,
+        subjectsTruncated: false,
+      });
+    }
     return Promise.resolve({});
   });
   return render(<MemoryRouter initialEntries={['/cleanup']}><TargetProvider><DeviceCleanupPage /></TargetProvider></MemoryRouter>);
@@ -100,6 +116,7 @@ function renderPage() {
 
 describe('DeviceCleanupPage', () => {
   beforeEach(() => {
+    candidate.canTargetWindows = true;
     localStorage.clear();
     invokeMock.mockReset();
     cancelMock.mockReset();
@@ -162,5 +179,35 @@ describe('DeviceCleanupPage', () => {
       'listCandidates',
       expect.objectContaining({ search: 'PC-OLD', page: 1, pageSize: 25 }),
     ));
+  });
+
+  it('selects the evidence key and disables connectivity for an unresolved source identity', async () => {
+    candidate.canTargetWindows = false;
+    renderPage();
+    await screen.findByRole('button', { name: 'Review evidence' });
+    await userEvent.click(screen.getByRole('button', { name: 'Review evidence' }));
+    await screen.findByRole('heading', { name: `Review ${candidate.host}` });
+    expect((screen.getByRole('button', { name: 'Check Ping and WinRM' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith('devicecleanup', 'listCandidates', expect.objectContaining({ selectedHost: candidate.subjectKey }));
+    expect(invokeMock.mock.calls.filter(([module]) => module === 'connectivity')).toHaveLength(0);
+    expect(screen.getByText(/including Excel Ping, are skipped/)).toBeTruthy();
+  });
+
+  it('exports every current-filter result and explicitly requests the bounded Ping workbook', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText(candidate.host);
+
+    await user.click(screen.getByRole('button', { name: 'Export Excel with Ping' }));
+
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
+      'devicecleanup',
+      'exportWorkbook',
+      expect.objectContaining({
+        search: null,
+        includeWithoutSignals: false,
+      }),
+    ));
+    expect(await screen.findByText('Exported all 1 matching devices to C:\\Exports\\device-cleanup.xlsx.')).toBeDefined();
   });
 });

@@ -1,15 +1,24 @@
 # Windows Enterprise Companion — Consolidated Product and Implementation Roadmap
 
-Status: phases 0–11 and final GitHub artifact verification completed on
-`codex/ultimate-admin-roadmap`; merge remains pending
+Base program: phases 0–11 and GitHub artifact verification completed on
+`codex/ultimate-admin-roadmap`, subsequently merged into master through PR #28.
+The current object-centered extension and its acceptance limits are described below.
 
 Repository baseline: implementation branch created from `origin/master` at
 `aba4ccd57f724cb359e9ac643378bf6ada0ce559`
 
 Created: 2026-08-26
 
-Implementation status last verified: 2026-08-27. Detailed slice, test and
-external-gate evidence is maintained in `ROADMAP_EXECUTION.md`.
+Current extension (2026-09-16): object-centered consolidation under ADR 0022 and
+D-010 is implemented and locally verified. The C2 navigation and Entra-only
+account scope now supersede the historical placement/AD-only MVP text below.
+Phases 0–7 and 9 include G2 compatibility; Phase 8 collection remains excluded.
+See `consolidation-verification.md` for current evidence, the user-interrupted
+narrow-window smoke and outstanding company/tenant/remote release acceptance.
+
+The original program baseline was verified on 2026-08-27. Current slice, test
+and external-gate evidence is maintained in `ROADMAP_EXECUTION.md` and the
+[consolidation Draft PR #37](https://github.com/VinzzniV/windows-enterprise-companion/pull/37).
 
 ## 1. Purpose
 

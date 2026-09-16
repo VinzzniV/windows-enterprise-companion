@@ -1,3 +1,5 @@
+using Wec.Core.Contracts;
+
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
 public sealed record ItHygieneOverview(
@@ -37,7 +39,7 @@ internal static class ItHygienePaging
         result.DomainName,
         result.Sources,
         result.Summary,
-        result.Devices.Select(device => device.ComputerName).ToList());
+        result.Devices.Where(device => device.CanTargetWindows).Select(device => device.HostName).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
 
     public static HygieneDevicePage Page(ItHygieneResult result, ListHygieneDevicesRequest request)
     {

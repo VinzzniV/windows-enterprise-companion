@@ -12,7 +12,9 @@ public sealed record OpsiComputerInventoryItem(
 
 public sealed record OpsiComputerInventory(
     IReadOnlyList<OpsiComputerInventoryItem> Computers,
-    bool Truncated = false);
+    bool Truncated = false,
+    string? SourceScope = null,
+    Guid? SessionId = null);
 
 /// <summary>
 /// Cross-module read contract implemented by Patch Management. It uses the
@@ -20,6 +22,7 @@ public sealed record OpsiComputerInventory(
 /// </summary>
 public interface IOpsiComputerInventoryProvider
 {
+    Guid? CurrentSessionId { get; }
     Task<Result<OpsiComputerInventory>> LoadAsync(
         int limit,
         CancellationToken cancellationToken);

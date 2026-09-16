@@ -31,4 +31,5 @@ public sealed record DirectorySearchQuery(
     ScanCredentials? Credentials = null,
     string? SortAttribute = null,
     bool SortDescending = false,
-    string? SortTieBreakerAttribute = null);
+    string? SortTieBreakerAttribute = null,
+    int? MaximumSortedPageEntries = null);
