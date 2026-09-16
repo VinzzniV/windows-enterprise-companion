@@ -8,11 +8,12 @@ Repository baseline: implementation branch created from `origin/master` at
 
 Created: 2026-08-26
 
-Current extension (2026-09-14): object-centered consolidation is explicitly
-authorized by ADR 0022 and D-010. Follow
-`consolidation-analysis-and-plan.md` phases 0–7 and 9, including G2 preservation;
-Phase 8 collection is excluded. Its C2 navigation and Entra-only account scope
-supersede the historical placement/AD-only MVP text below after feature parity.
+Current extension (2026-09-16): object-centered consolidation under ADR 0022 and
+D-010 is implemented and locally verified. The C2 navigation and Entra-only
+account scope now supersede the historical placement/AD-only MVP text below.
+Phases 0–7 and 9 include G2 compatibility; Phase 8 collection remains excluded.
+See `consolidation-verification.md` for current evidence, the user-interrupted
+narrow-window smoke and outstanding company/tenant/remote release acceptance.
 
 Implementation status last verified: 2026-08-27. Detailed slice, test and
 external-gate evidence is maintained in `ROADMAP_EXECUTION.md`.

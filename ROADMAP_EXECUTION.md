@@ -1,168 +1,53 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `IN_PROGRESS`
+Status: `IMPLEMENTED_AND_LOCALLY_VERIFIED`
 
-Current phase: Object-centered consolidation (ADR 0022)
+Current phase: Object-centered consolidation (ADR 0022), phases 0–7 and 9.
+Phase 8 Windows identity collection remains excluded.
 
-Current slice: Phase 9 closure audit after the Phase 7 navigation switch.
-Work, Objects, Operations and Administration expose the C2 destinations.
-Legacy client/user/cloud routes preserve scoped identities and sections; source
-connection and cached read boundaries are checked. The final scope review and
-verification remain pending. See `docs/consolidation-verification.md`.
+Current slice: Verified GitHub milestone and Draft PR. Implementation, G2
+preservation review and local regression are complete. CI/packaging results
+belong to the associated Draft PR; no release or tag is authorized.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
-Implementation plan and required parity matrix:
-`docs/consolidation-analysis-and-plan.md`, sections G1/G2.
+Binding scope: `docs/consolidation-analysis-and-plan.md`; preservation and
+verification details: `docs/consolidation-verification.md`.
 
 ## Current consolidation verification (2026-09-16)
 
-- The C2 navigation switch passes 81 affected frontend tests and the production
-  build. Cleanup/comparison remain discoverable in Devices and global search;
-  source routes, directory query workspaces and old workspace aliases remain.
+- All 1,024 backend tests and 559 frontend tests in 97 files pass. The Release
+  build has zero warnings/errors, the 494 generated contracts are current, and
+  the frontend production build passes after a locked dependency install.
+- Dependency rules pass across all 20 production projects. The NPM High gate
+  passes; two pre-existing Moderate Vitest development-tool findings remain.
+- Devices, Users and Groups share a bounded memory-only working set and search.
+  Entra-only accounts, source-native groups, exact Windows targets and raw
+  management records remain separate unless scoped identity evidence proves
+  a relationship. Conflicts, unknown values, independent source states and
+  targeted explicit reads remain visible.
+- C2 navigation follows verified G2 preservation. Existing posture/batch,
+  comparison, Cleanup, Leaver, Windows tools, exports and gated Patch/Print
+  operations remain reachable; old routes preserve subject and section.
+- Closure fixes retain anonymous/duplicate Nessus report rows, source-specific
+  Intune states, group classification, separate AD/Entra filters, saved/scanned
+  filters and SKU navigation in both directions. Device profiles expose the
+  seven specified focused areas.
+- A 10,000-record fixture retains exactly 5,000 rows, preserves the source
+  total and marks partial coverage. Capture took 61 ms and filter/page 9 ms in
+  this local run; these observations are not performance guarantees.
+- An isolated local Release host initialized WebView2 and the migrated database.
+  Normal-width navigation, empty Devices state, filters and keyboard search
+  were inspected. No WEC-owned TCP listener or Error/Fatal log entry appeared.
+  The user stopped Computer Use with physical Escape before the narrow-window
+  check completed. No further desktop input was issued.
+- The existing Dashboard performed its bounded read-only opsi status/product
+  reads using the configured connection. This is not full opsi acceptance.
+  Company AD/KSC/Nessus, Graph/Intune tenant and designated remote-client
+  acceptance remain unperformed. No remote write or release was performed.
 
-- Pre-navigation regression passes: 1,022 backend tests and 555 frontend tests
-  in 97 files, Release build without warnings/errors, 494 generated types and
-  production assets. Frontend concurrency is bounded to two workers after
-  observed load-related timeouts. No assertion or timeout threshold was relaxed.
-  New cache-only Graph reads and opsi status reads do not fetch source data or
-  connect stored credentials; explicit actions retain existing boundaries.
+## Previous program history
 
-- Resume verification: the worktree retained the prior changes. Opsi session
-  invalidation now covers legacy assessments and late responses (98 module and
-  89 Host tests). Action Center/Cleanup preserve individual evidence keys;
-  Nessus address aliases retain all candidates and exact source-key links.
-  User aliases resolve the verified AD scope; saved-target deletion selects an
-  individual record. The latest affected suites pass: 98 EmployeeLifecycle,
-  35 UserManagement, 7 ActionCenter, 9 VulnerabilityManagement and 53 frontend
-  tests. Release is warning-free, 494 contracts and production assets are current.
-  The full final regression and C2 navigation milestone remain pending.
-
-- Legacy hygiene/Cleanup identity preservation: 97 EmployeeLifecycle, 12
-  DeviceCleanup and 73 affected frontend tests pass, as do the warning-free
-  Release build, 494-contract check and frontend production build. Duplicate
-  records, DNS namespace conflicts and unknown names remain separate; unresolved
-  targets cannot start connectivity probes, including from workbook export.
-
-- Explicit AD computer discovery validates RootDSE scope and returns at most
-  100 matches. Native profile reads reuse the same bounded connection cache;
-  conflicting observations and original retention remain visible. Device routes
-  retain the selected directory endpoint. All 131 AD tests and 14 affected UI
-  tests pass; Release has no warnings/errors, 493 contracts and production
-  assets are current. Legacy identity/parity fixes precede the C2 switch.
-
-- Raw AD/KSC/opsi/Nessus records now enter the shared index, including duplicate
-  names, missing native IDs and source-only records. Disposable snapshot locators
-  open all original fields without selecting a Windows target. Opsi session
-  replacement and stored KSC credential changes invalidate affected evidence;
-  late reads are rejected. The source/projection suites pass (24 Clients,
-  94 EmployeeLifecycle, 37 PatchManagement and 89 Host tests). Release is
-  warning-free; 491 contracts, 101 affected frontend tests and production build
-  pass. Company/tenant/remote acceptance remains unperformed.
-- The bounded React working set now feeds object lists and global search.
-  Scoped-ID deduplication precedes whole-set filters/sort/page; partial sources,
-  collisions, expired facts and unavailable counts stay explicit. Cached updates
-  require adoption; account/credential changes clear affected data immediately.
-  Lists expose explicit AD/Graph reads and targeted local address searches.
-  The 81 affected frontend tests, 19 Clients and 89 Host tests pass; Release
-  build is warning-free, 483 contracts and production assets are current.
-  Existing navigation/specialist routes remain. Raw management contributions,
-  source-record destinations and G2 migration are still pending.
-- Local address contributions now include Inventory, Security-only and saved
-  Client-role records through bounded source-owned projections. Two real SQLite
-  tests verify minimal SQL, exact addresses, native record IDs, latest ties,
-  literal search, source errors and cancellation; all 19 Clients tests pass.
-  Release build is warning-free and 483 generated bridge types are current.
-- AD user list projections now preserve scoped native IDs, unknown state,
-  duplicates, independent page totals and bounded session cache state without
-  building profiles per row. All 124 AD tests and warning-free Release build
-  pass. Cached M365 list projections retain minimal original observations and
-  source query state under an explicit record bound; all 58 M365 tests pass.
-  The bridge generator produces 478 types. Unified list consumption is the
-  next part of the current slice.
-- Stored Inventory SID relationships now use a configurable bounded batch and
-  three SQL queries regardless of host count. Exact addresses, latest timestamp
-  ties, legacy/unreadable rows and partial coverage are preserved. Eight real
-  SQLite persistence tests, 48 Inventory tests, 33 UserManagement tests, 13
-  affected UI tests, contract generation and frontend production build pass.
-- Source inspection confirms the M365 foundation and integrated UI at `8e3640d`;
-  the former current-slice header was stale. Historical results below remain
-  history, not evidence of this run.
-- Baseline Release build: 0 warnings/errors; 815 backend tests and 475 frontend
-  tests pass; 418 generated bridge contracts are current.
-- Explicit start decisions recorded in ADR 0022/D-010 before implementation.
-- Baseline frontend production build and High-severity dependency gate pass.
-  Two existing Moderate Vitest findings remain; no High/Critical finding.
-- No company/tenant/remote-client acceptance has been performed in this run.
-- Full client/search/compare addresses and exact local-name selection are fixed;
-  historical empty Inventory rows are hidden without deletion. Targeted tests
-  and the frontend production build pass. Two Settings tests hit load-related
-  timeouts during concurrent suites; all 14 pass in an isolated rerun.
-- AD computer reads retain GUID/SID/directory scope and unknown account state;
-  64 AD tests, affected frontend tests and warning-free Release build pass.
-- The new cached management projection retains original AD/KSC/opsi/Nessus
-  records and duplicates, including Nessus-only records. Cache-only reads check
-  connection context and cancellation. All 93 EmployeeLifecycle tests pass;
-  source adapters and frozen Lifecycle tables remain with their existing owner.
-- Nessus imports retain full addresses and new UUID provenance. The additive
-  migration preserves historical keys/ambiguous IDs; all 175 Infrastructure
-  tests and 8 import tests pass.
-- Client overview composition now belongs to the Clients module, with unchanged
-  bridge/options contracts. All 5 Clients and 89 Host tests pass.
-- M365 cache-only reads no longer wait for source I/O. Query state has separate
-  success/attempt/retention times, coverage and revisions; failures remain
-  bounded, and session changes discard late results. All 43 M365 tests pass.
-- Concrete cached M365 device/Intune/registered-owner reads preserve original
-  records and query provenance. Targeted AD GUID/SID reads validate the actual
-  naming context, retain ambiguity and reject missing returned ID evidence;
-  all 74 AD tests pass. These seams precede their device-profile consumer.
-- AD computer identity reads now have a bounded, context-isolated memory cache;
-  78 AD tests pass, including credentials/context changes and stale expiry.
-- Initial scoped device composition and route are implemented. Eighteen Clients
-  tests cover cloud-only operation, exact stored targets, ambiguous aliases,
-  duplicate/cloud-ID conflicts and explicit AD loads. Known Intune IDs use one
-  object read with the existing field/permission allowlist (36 Graph tests).
-  M365 has 45 passing tests including expected-tenant refresh validation.
-  Device UI/route tests cover source-only rendering, explicit refresh, limited
-  coverage, late responses and retention expiry; user/group destinations and
-  complete list/navigation integration remain in the following slices.
-- Remaining Phase 1 work: replace legacy first/latest name choices with visible
-  source candidates and route resolution, including legacy Nessus host links.
-  The original hygiene projection remains a heuristic during this migration.
-- Initial scoped user profiles now compose cache-only AD/Entra facts and expose
-  independent group, device, license and optional activity reads. The exact SID
-  Graph query uses existing fields/scopes and stops after two returned users;
-  partial inventories cannot establish uniqueness. Entra-only/guest accounts
-  remain usable without AD/Windows facts; UPN/SID conflicts remain candidates.
-  AD SID/GUID reads have a bounded connection-scoped cache (93 AD tests).
-  Twenty-six UserManagement tests and 51 M365 tests pass, including identity
-  collisions and session changes during composition. Release build has zero
-  warnings/errors; 454 generated contracts and 31 focused frontend tests pass.
-  Leaver marks survive tab changes; cloud facts remain outside its assessment
-  and export. General group destinations and legacy route parity are not yet
-  complete.
-- Stored Windows observations now link to an explicit bounded SID resolver.
-  Only a validated directory-scoped GUID opens an account; the destination
-  reuses the cached native identity. All 94 AD and 31 UserManagement tests,
-  9 focused user UI tests, 5 Client overview UI tests and the production build
-  pass. Contracts now contain 455 generated types. No additional Windows
-  identity capture was introduced.
-- Group source seams are available: exact AD GUID/SID/DN reads, bounded sorted
-  group/member pages and a connection-isolated memory cache; 112 AD tests pass.
-  Cached Entra groups/members expose independent query state and preserve
-  limited-information objects; all 54 M365 tests pass. The group profile/UI
-  consumer and links from AD direct groups follow in the same phase.
-- Initial GroupManagement composition/profile, DN/SID resolution and separate
-  bounded source discovery are implemented. Eight module tests cover native
-  member links, limited objects, duplicate group identities, scoped DN
-  resolution and session isolation; 11 focused group/user UI tests pass.
-  Group/member GUID routes work for AD and Entra without traversing source
-  home pages. Contracts now contain 470 types; the frontend build passes.
-  Source discovery is intentionally labelled per-source; the common bounded
-  index, list/search integration and full navigation parity remain Phase 6/7.
-- Management cache reads now remain immediate during source I/O and expose
-  session/snapshot revisions. Context changes reject late completions, and a
-  failed KSC source no longer hides the other raw source records. The legacy
-  hygiene retry policy is preserved; all 90 EmployeeLifecycle tests pass.
-
+The entries below concern the preceding roadmap and are historical context,
+not a competing current slice or the validation evidence for consolidation.
 ## Done
 
 - Roadmap, decisions, AGENTS rules and relevant accepted ADRs reviewed.

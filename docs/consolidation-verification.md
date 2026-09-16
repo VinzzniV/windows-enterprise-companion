@@ -1,6 +1,7 @@
 # Object-centered consolidation — verification and preservation
 
-Status: C2 navigation switched; final completion is not yet claimed.
+Status: phases 0–7 and 9 implemented and locally verified on 2026-09-16.
+GitHub build/packaging evidence is tracked on the associated Draft PR.
 Authority: ADR 0022 and `consolidation-analysis-and-plan.md`, especially G2.
 
 ## Preservation evidence before the sidebar switch
@@ -41,18 +42,64 @@ No export schema is expanded with cloud evidence, and no write action is added.
 
 - Release build on 2026-09-16: no warnings or errors; 494 generated contract
   types. The additive request fields preserve existing caller defaults.
-- Full backend regression after source/navigation preparation: 1,022 tests pass.
-- Full frontend regression: 555 tests in 97 files pass with two workers. The
+- Full backend regression after closure fixes: 1,024 tests pass.
+- Full frontend regression: 559 tests in 97 files pass with two workers. The
   first unbounded run hit five load-related timeouts and a group test that
   asserted before the restored cached page rendered. The assertion now waits
   for the page; the test runner bounds workers without relaxing assertions or
   timeouts. Production build passes.
+- A locked `npm ci`, production build and High-severity NPM audit pass. Two
+  pre-existing Moderate findings affect Vitest/@vitest/mocker development tools
+  (GHSA-82fw-gwwq-j7x9); the proposed fix is a separate major test-tool upgrade.
+- Project-reference/package checks pass for all 20 production projects: Core
+  keeps only DI abstractions, modules and Infrastructure reference only Core,
+  and Host remains the composition root. Profile consumers contain no direct
+  Graph/LDAP/SQL clients. New cloud/index/profile UI paths contain no browser
+  persistence or direct network reads. Bridge-origin, fixed Graph query/scope,
+  credential/session, cancellation, expiry and no-scan boundaries have automated
+  coverage. No directory write, export expansion or destructive migration was added.
+- A 10,000-device fixture retained exactly the configured 5,000 observations,
+  exposed partial coverage and the original source total, and filtered the last
+  retained native ID before paging. Local capture was 61 ms; filter/page 9 ms.
+  This is an observed bounded-data smoke, not a cross-machine latency guarantee.
 
-## Remaining completion evidence
+## Desktop evidence and acceptance journeys
 
-The final scope audit, full regression/build/audit/architecture checks,
-desktop normal/narrow/keyboard smoke, documentation reconciliation and verified
-Git milestone remain open. Live company AD/KSC/opsi/Nessus, Graph/Intune tenant
+The Release executable ran with an isolated database/log/WebView profile.
+WebView2 and real migrations initialized successfully; no WEC-owned TCP listener
+or Error/Fatal log entry was observed. At a 1280×800 client size the four sidebar
+groups, empty Devices workspace, independent filters and contextual tools were
+usable. Ctrl+K, Tab/Shift+Tab, typing and arrow selection worked in global search.
+The user stopped Computer Use with physical Escape before narrow-window testing
+completed. Narrow-window desktop acceptance is therefore **unverified**, despite
+automated responsive-navigation coverage. No further UI input was issued.
+
+The existing Dashboard used its configured bounded read-only opsi connection
+and returned status/product data. This is limited source evidence, not complete
+opsi acceptance. No AD/Graph discovery, new remote probe, write or export was
+executed as part of this desktop check. A pre-existing EF multiple-collection
+query warning appeared on the Dashboard Security read; it is documented as debt.
+
+| C7 journey | Automated evidence |
+| --- | --- |
+| User → device → account section | ScopedUserProfile, DeviceProfile, typed relationship and working-set history suites preserve source IDs, endpoint and section. |
+| Observed Windows SID → account | Exact SID resolver and scoped account tests preserve ambiguity and reject display-name resolution. |
+| Group → direct user/device/group | GroupManagement, directory range/page and group UI suites cover typed members, limited objects, history and no recursive expansion. |
+| Entra/Intune-only device | Device composition/UI tests retain unknown fields, all enrollments and source errors without selecting a local Windows target. |
+| Account → SKU → loaded assigned users | Scoped account, license workspace and working-set tests preserve tenant/SKU, cached-only opening, expiry and partial assignment coverage. |
+| Finding → source/device → return | Action Center mapping, exact Nessus key, compatibility route and list history tests preserve individual subjects and query parameters. |
+
+## Remaining acceptance limits and technical debt
+
+Phase 8 identity collection is excluded. Name/address/UPN correlations remain
+candidates; UUID-less Nessus report locators do not imply stable physical assets.
+General group lists do not fetch member totals or evaluate privileges per row;
+direct-member and existing privileged-allowlist views state their own coverage.
+Lists cannot prove company-wide absence. Legacy wrappers and frozen tables remain
+to preserve specialist behavior and bookmarks. The Moderate test-tool advisories,
+existing EF Dashboard query warning and unsigned packaging remain separate debt.
+
+Live company AD/KSC/opsi/Nessus, Graph/Intune tenant
 acceptance and a designated remote client have not been tested in this run.
 They remain explicit release-acceptance gates under D-003/D-008, not claimed
 passes. No tag, installer publication or GitHub Release is authorized.
