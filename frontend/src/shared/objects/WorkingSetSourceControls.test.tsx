@@ -33,7 +33,7 @@ describe('explicit working-set source reads', () => {
     fireEvent.change(screen.getByLabelText('Directory DNS scope'), { target: { value: 'example.test' } });
     fireEvent.change(screen.getByLabelText('Source query'), { target: { value: 'PC' } });
     expect(invokeMock).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText('Read AD computers (up to 100)'));
+    fireEvent.click(screen.getByText('Search selected AD source for computers (up to 100)'));
     await waitFor(() => expect(publishDirectory).toHaveBeenCalledOnce());
     expect(invokeMock).toHaveBeenCalledExactlyOnceWith('activedirectory', 'readComputerList', {
       connection: { domain: 'example.test' }, directoryScope: 'example.test', search: 'PC', limit: 100, refresh: true,
@@ -49,7 +49,7 @@ describe('explicit working-set source reads', () => {
     fireEvent.change(screen.getByLabelText('Source query'), { target: { value: 'alex' } });
     fireEvent.change(screen.getByLabelText('Source page'), { target: { value: '4' } });
     expect(invokeMock).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText('Read AD page (up to 100)'));
+    fireEvent.click(screen.getByText('Search selected AD source for users (page of 100)'));
     await waitFor(() => expect(publishDirectory).toHaveBeenCalledOnce());
     expect(invokeMock).toHaveBeenCalledExactlyOnceWith('usermanagement', 'readDirectoryPage', {
       connection: { domain: 'example.test' }, directoryScope: 'example.test', search: 'alex', page: 4, pageSize: 100, refresh: true,
@@ -63,7 +63,7 @@ describe('explicit working-set source reads', () => {
     invokeMock.mockReturnValue({ requestId: 'page', cancel, promise: new Promise(resolve => { complete = resolve; }) });
     const result = render(view());
     fireEvent.change(screen.getByLabelText('Directory DNS scope'), { target: { value: 'example.test' } });
-    fireEvent.click(screen.getByText('Read AD page (up to 100)'));
+    fireEvent.click(screen.getByText('Search selected AD source for users (page of 100)'));
     targetsMock.mockReturnValue({ adminCredentials: { userName: 'different-operator', domain: 'example.test', password: '' } });
     result.rerender(view());
     await act(async () => { complete(cached); });
@@ -106,7 +106,7 @@ describe('explicit working-set source reads', () => {
     invokeMock.mockReturnValueOnce({ cancel: cancelDirectory, promise: new Promise(resolve => { completeDirectory = resolve; }) });
     render(view());
     fireEvent.change(screen.getByLabelText('Directory DNS scope'), { target: { value: 'example.test' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Read AD page (up to 100)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Search selected AD source for users (page of 100)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel AD source read' }));
     await act(async () => completeDirectory(cached));
     expect(cancelDirectory).toHaveBeenCalledOnce();

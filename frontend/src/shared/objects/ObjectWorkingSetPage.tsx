@@ -25,6 +25,7 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
   const root = useRef<HTMLDivElement>(null);
   const restored = useRef(false);
   const query = parameters.get('q') ?? '';
+  const directoryDiscovery = parameters.get('discover') === 'ad';
   const source = sources.find(value => value === parameters.get('source'));
   const accountState = ['enabled', 'disabled', 'unknown'].find(value => value === parameters.get('account')) as 'enabled' | 'disabled' | 'unknown' | undefined;
   const operatingSystem = parameters.get('os') ?? '';
@@ -106,13 +107,20 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
     </div> },
   ];
   return <div ref={root} className="space-y-4"><PageHeader title={titles[kind]} subtitle="Source-scoped objects in the current working set" />
+    {kind === 'DEVICE' && <nav aria-label="Device work modes" className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3 text-sm">
+      <Link aria-current="page" className="rounded bg-accent-600 px-3 py-2 font-medium text-white" to="/devices">Source records</Link>
+      <Link className="rounded px-3 py-2 font-medium text-slate-200 hover:bg-slate-800" to="/clients">Operational view</Link>
+      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/clients/compare">Compare</Link>
+      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/cleanup">Device Cleanup</Link>
+      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/activedirectory">AD analysis</Link>
+    </nav>}
     <nav aria-label="Object workspaces" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
       <Link to="/devices">Devices</Link><Link to="/users">Users</Link><Link to="/groups">Groups</Link>
-      {kind === 'DEVICE' && <><Link to="/clients">Client posture, saved targets and batch scans</Link><Link to="/clients/compare">Compare</Link><Link to="/cleanup">Device Cleanup</Link></>}
       {kind === 'USER' && <Link to="/users/directory">AD query workspace</Link>}
       {kind === 'GROUP' && <Link to="/groups/directory">AD group query workspace</Link>}
     </nav>
-    <WorkingSetCoverage /><WorkingSetSourceControls kind={kind} />
+    <WorkingSetCoverage /><WorkingSetSourceControls key={`${kind}:${directoryDiscovery ? query : ''}`} kind={kind}
+      initialSearch={directoryDiscovery ? query : ''} initiallyExpanded={directoryDiscovery} />
     {tenantMismatch && <p role="alert" className="text-warn-400">This link belongs to tenant {requestedTenant}. Select that tenant in Data sources before reviewing its loaded assignments.</p>}
     <div className="flex flex-wrap items-end gap-3">
       <label className="text-xs text-muted">Search loaded {titles[kind].toLowerCase()}<Input value={query} onChange={event => change('q', event.target.value)} /></label>

@@ -11,14 +11,19 @@ import { toUserDirectoryConnection } from '../../features/users/users';
 import { useWorkingSet } from './WorkingSetContext';
 import { directoryComputerWorkingSetRead, directoryGroupWorkingSetRead, directoryUserWorkingSetRead } from './workingSetSources';
 
-export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
+export function WorkingSetSourceControls({ kind, initialSearch = '', initiallyExpanded = false }: {
+  kind: ObjectKind;
+  initialSearch?: string;
+  initiallyExpanded?: boolean;
+}) {
   const workspace = useWorkingSet();
   const environment = useEnvironmentOptional();
   const { adminCredentials } = useTargets();
   const [endpoint, setEndpoint] = useState(workspace.directoryEndpoint ?? { domain: '', server: '' });
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
   const [storedSearch, setStoredSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const [operation, setOperation] = useState<'directory' | 'cloud' | 'management' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const active = useRef<CancellableBridgeInvocation<unknown> | null>(null);
@@ -82,14 +87,17 @@ export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
       if (own === generation.current) { setError(presentError(caught).message); await workspace.refreshCached(true); }
     } finally { if (own === generation.current) finish(); }
   };
-  return <details className="rounded-lg border border-slate-800 p-3 text-sm"><summary className="cursor-pointer text-accent-400">Load a source into this working set</summary>
+  const directoryAction = kind === 'DEVICE' ? 'Search selected AD source for computers (up to 100)'
+    : kind === 'USER' ? 'Search selected AD source for users (page of 100)'
+      : 'Search selected AD source for groups (page of 100)';
+  return <details open={expanded} onToggle={event => setExpanded(event.currentTarget.open)} className="rounded-lg border border-slate-800 p-3 text-sm"><summary className="cursor-pointer text-accent-400">Load or search a source</summary>
     <p className="my-3 text-xs text-muted">Only these explicit actions query external sources. Search below filters loaded data. Each AD read is bounded; computer searches return up to 100 matches. Use a narrower query to find records outside that result.</p>
     <div className="mb-3 flex flex-wrap items-end gap-3">
       <label>Directory DNS scope<Input value={endpoint.domain} disabled={busy} onChange={event => changeEndpoint({ ...endpoint, domain: event.target.value })} placeholder="example.test" /></label>
       <label>Directory server (optional)<Input value={endpoint.server} disabled={busy} onChange={event => changeEndpoint({ ...endpoint, server: event.target.value })} /></label>
       <label>Source query<Input value={search} disabled={busy} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label>
       {kind !== 'DEVICE' && <label>Source page<Input type="number" min={1} value={page} disabled={busy} onChange={event => setPage(Math.max(1, Math.trunc(Number(event.target.value)) || 1))} className="w-24" /></label>}
-      <Button disabled={busy || !endpoint.domain.trim()} onClick={() => void readDirectory()}>{kind === 'DEVICE' ? 'Read AD computers (up to 100)' : 'Read AD page (up to 100)'}</Button>
+      <Button disabled={busy || !endpoint.domain.trim()} onClick={() => void readDirectory()}>{directoryAction}</Button>
     </div>
     {kind === 'DEVICE' && <div className="mb-3 flex flex-wrap items-end gap-3">
       <label>Stored address query<Input value={storedSearch} maxLength={100} onChange={event => setStoredSearch(event.target.value)} /></label>

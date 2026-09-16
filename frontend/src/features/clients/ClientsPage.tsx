@@ -368,7 +368,13 @@ export function ClientsPage() {
         <Button variant="secondary" onClick={probeOnline} disabled={probing || !rows.length}>{probing ? 'Checking…' : 'Check page connectivity'}</Button>
         <Button variant="secondary" onClick={() => { setPage(1); setRefreshRevision((current) => current + 1); }} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</Button></div>
     </PageHeader>
-    <Link className="text-sm text-accent-400 underline" to="/devices">Open the shared device working set</Link>
+    <nav aria-label="Device work modes" className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3 text-sm">
+      <Link className="rounded px-3 py-2 font-medium text-slate-200 hover:bg-slate-800" to="/devices">Source records</Link>
+      <Link aria-current="page" className="rounded bg-accent-600 px-3 py-2 font-medium text-white" to="/clients">Operational view</Link>
+      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/clients/compare">Compare</Link>
+      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/cleanup">Device Cleanup</Link>
+      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/activedirectory">AD analysis</Link>
+    </nav>
     {probeError && <ErrorState
       title="Client connectivity check failed"
       {...probeError}

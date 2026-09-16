@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { captureWorkingSet, type WorkingSetRead } from './workingSet';
-import { UsersWorkingSetPage } from './ObjectWorkingSetPage';
+import { DevicesWorkingSetPage, UsersWorkingSetPage } from './ObjectWorkingSetPage';
 import { ScopedUserProfilePage } from '../../features/users/ScopedUserProfilePage';
 import { GroupProfilePage } from '../../features/groups/GroupProfilePage';
 
@@ -28,6 +28,7 @@ function Location() { const location = useLocation(); return <><output data-test
 function view(initial = '/users/workspace?page=2') { return render(<MemoryRouter initialEntries={[initial]}>
   <div data-testid="application-scroll-container"><Routes>
     <Route path="/users/workspace" element={<UsersWorkingSetPage />} />
+    <Route path="/devices" element={<DevicesWorkingSetPage />} />
     <Route path="/users/:source/:scope/:objectId" element={<ScopedUserProfilePage />} />
     <Route path="/groups/:source/:scope/:objectId" element={<GroupProfilePage />} />
   </Routes><Location /></div>
@@ -90,6 +91,21 @@ describe('object working-set list', () => {
     expect(screen.getByTestId('url').textContent).toContain('sort=asc');
     expect(screen.getByTestId('url').textContent).not.toContain('page=2');
     expect(within(screen.getByRole('table')).getAllByText('Account 01').length).toBeGreaterThan(0);
+  });
+
+  it('opens a carried global query as an explicit source-search preparation and exposes first-level device modes', () => {
+    view('/users/workspace?q=outside&source=ACTIVE_DIRECTORY&discover=ad');
+    expect((screen.getByLabelText('Source query') as HTMLInputElement).value).toBe('outside');
+    expect((screen.getByText('Load or search a source').closest('details') as HTMLDetailsElement).open).toBe(true);
+    expect(invokeMock).not.toHaveBeenCalled();
+
+    view('/devices');
+    const modes = screen.getByRole('navigation', { name: 'Device work modes' });
+    expect(within(modes).getByRole('link', { name: 'Source records' }).getAttribute('aria-current')).toBe('page');
+    expect(within(modes).getByRole('link', { name: 'Operational view' }).getAttribute('href')).toBe('/clients');
+    expect(within(modes).getByRole('link', { name: 'Compare' })).toBeTruthy();
+    expect(within(modes).getByRole('link', { name: 'Device Cleanup' })).toBeTruthy();
+    expect(within(modes).getByRole('link', { name: 'AD analysis' })).toBeTruthy();
   });
 
   it('retains the originating result through a real profile relationship hop', async () => {

@@ -31,7 +31,8 @@ const alex: UserSummary = {
 };
 
 function CurrentLocation() {
-  return <output aria-label="Current location">{useLocation().pathname}</output>;
+  const location = useLocation();
+  return <output aria-label="Current location">{location.pathname + location.search}</output>;
 }
 
 function renderSearch(onClose = vi.fn()) {
@@ -125,5 +126,20 @@ describe('GlobalSearch', () => {
     await user.keyboard('{Escape}');
 
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('carries an entered query into an explicit bounded AD continuation without querying while typing', async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderSearch();
+    const input = screen.getByRole('combobox', { name: /Search navigation/ });
+
+    await user.type(input, 'unloaded account');
+    expect(invokeMock.mock.calls.some(call => call[0] === 'activedirectory' || call[0] === 'usermanagement')).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Continue in AD users' }));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.getByRole('status', { name: 'Current location' }).textContent)
+      .toBe('/users?q=unloaded+account&source=ACTIVE_DIRECTORY&discover=ad');
+    expect(invokeMock.mock.calls.some(call => call[0] === 'activedirectory' || call[0] === 'usermanagement')).toBe(false);
   });
 });

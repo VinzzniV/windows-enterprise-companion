@@ -39,6 +39,11 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
     onClose();
     navigate(result.to, { state: { directoryEndpoint: workspace?.directoryEndpoint } });
   };
+  const continueInDirectory = (kind: 'devices' | 'users' | 'groups') => {
+    const parameters = new URLSearchParams({ q: query.trim(), source: 'ACTIVE_DIRECTORY', discover: 'ad' });
+    onClose();
+    navigate(`/${kind}?${parameters}`, { state: { directoryEndpoint: workspace?.directoryEndpoint } });
+  };
 
   const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
@@ -151,6 +156,16 @@ export function GlobalSearch({ open, onClose }: GlobalSearchProps) {
           </div>;
         })}
         {results.length === 0 && <p className="px-3 py-8 text-center text-sm text-slate-400">No matching loaded objects or workspaces. Load another source page from an object workspace to extend this search.</p>}      </div>
+
+      {query.trim() && <div className="border-t border-slate-800 px-3 py-2">
+        <p className="mb-2 text-xs text-muted">Not in the loaded set? Continue explicitly in the selected bounded AD source. Typing here never queries it.</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="rounded border border-slate-600 px-2 py-1 text-xs text-accent-400 hover:bg-slate-800" onClick={() => continueInDirectory('users')}>Continue in AD users</button>
+          <button type="button" className="rounded border border-slate-600 px-2 py-1 text-xs text-accent-400 hover:bg-slate-800" onClick={() => continueInDirectory('devices')}>Continue in AD computers</button>
+          <button type="button" className="rounded border border-slate-600 px-2 py-1 text-xs text-accent-400 hover:bg-slate-800" onClick={() => continueInDirectory('groups')}>Continue in AD groups</button>
+        </div>
+        <p className="mt-2 text-xs text-muted">Selected scope: {workspace?.directoryEndpoint?.domain || 'choose a directory scope in the destination'} · maximum 100 returned records per read</p>
+      </div>}
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 px-3 py-2 text-xs text-muted" aria-live="polite">
         <span>{results.length} results · up to six per object kind</span>
