@@ -385,20 +385,20 @@ export function OverviewSection({ host }: { host: string }) {
   </div>;
 }
 
-export function StoredClientEvidence({ host, result }: { host: string; result: ClientOverviewResult }) {
+export function StoredClientEvidence({ host, result, area = 'all' }: { host: string; result: ClientOverviewResult; area?: 'all' | 'health' | 'relationships' }) {
   const inventoryMetadata = result.sources.find((source) => source.source === 'Inventory')!;
   const softwareMetadata = result.sources.find((source) => source.source === 'Installed software')!;
   const healthMetadata = result.sources.find((source) => source.source === 'Health')!;
   const securityMetadata = result.sources.find((source) => source.source === 'Security')!;
   const usersMetadata = result.sources.find((source) => source.source === 'Linked users')!;
   return <div className="flex flex-col gap-4">
-    <SourceLedger host={host} sources={result.sources} />
+    {area === 'all' && <SourceLedger host={host} sources={result.sources} />}
     <div className="grid gap-4 xl:grid-cols-2">
-      <InventorySummary host={host} inventory={result.inventory} metadata={inventoryMetadata} />
-      <HealthSummary host={host} health={result.health} metadata={healthMetadata} />
-      <SoftwareSummary host={host} software={result.software} metadata={softwareMetadata} />
-      <SecuritySummary host={host} security={result.security} metadata={securityMetadata} />
-      <UserSummary host={host} users={result.users} metadata={usersMetadata} />
+      {area === 'all' && <InventorySummary host={host} inventory={result.inventory} metadata={inventoryMetadata} />}
+      {area !== 'relationships' && <HealthSummary host={host} health={result.health} metadata={healthMetadata} />}
+      {area === 'all' && <SoftwareSummary host={host} software={result.software} metadata={softwareMetadata} />}
+      {area !== 'relationships' && <SecuritySummary host={host} security={result.security} metadata={securityMetadata} />}
+      {area !== 'health' && <UserSummary host={host} users={result.users} metadata={usersMetadata} />}
     </div>
   </div>;
 }

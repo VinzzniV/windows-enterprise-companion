@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type { ObjectKind } from '../api-types.generated';
 import { objectPath, objectSourceLabel } from './objectRoutes';
 import { useWorkingSet } from './WorkingSetContext';
-import { queryWorkingSet, type WorkingSetObject, type WorkingSetSource } from './workingSet';
+import { queryWorkingSet, type WorkingSetFilter, type WorkingSetObject, type WorkingSetSource } from './workingSet';
 import { workingSetSourceLabel } from './workingSetSources';
 import { managementRecordPath } from './managementRecordRoutes';
 import { WorkingSetCoverage } from './WorkingSetCoverage';
@@ -28,13 +28,24 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
   const accountState = ['enabled', 'disabled', 'unknown'].find(value => value === parameters.get('account')) as 'enabled' | 'disabled' | 'unknown' | undefined;
   const operatingSystem = parameters.get('os') ?? '';
   const skuId = parameters.get('sku') ?? '';
+  const adAccountState = ['enabled', 'disabled', 'unknown'].find(value => value === parameters.get('adAccount')) as WorkingSetFilter['accountState'];
+  const entraAccountState = ['enabled', 'disabled', 'unknown'].find(value => value === parameters.get('entraAccount')) as WorkingSetFilter['accountState'];
+  const intuneCompliance = parameters.get('compliance') ?? '';
+  const intuneManagement = parameters.get('management') ?? '';
+  const identityState = ['unresolved', 'candidates', 'conflict'].find(value => value === parameters.get('identity')) as WorkingSetFilter['identityState'];
+  const storedEvidence = ['saved', 'scanned'].find(value => value === parameters.get('stored')) as WorkingSetFilter['storedEvidence'];
   const requestedTenant = parameters.get('tenant');
   const tenantMismatch = Boolean(requestedTenant && requestedTenant.toLowerCase() !== workspace.policy?.tenantId?.toLowerCase());
   const descending = parameters.get('sort') === 'desc';
   const pageSize = [25, 50, 100].find(value => value === Number(parameters.get('size'))) ?? 25;
   const result = useMemo(() => workspace.displayed && !tenantMismatch ? queryWorkingSet(workspace.displayed, { kind, query, source, accountState,
-    operatingSystem, skuId, descending, page: Number(parameters.get('page')) || 1, pageSize }) : null,
-  [workspace.displayed, tenantMismatch, kind, query, source, accountState, operatingSystem, skuId, descending, parameters, pageSize]);
+    operatingSystem, skuId, adAccountState, entraAccountState, intuneCompliance, intuneManagement, identityState, storedEvidence,
+    descending, page: Number(parameters.get('page')) || 1, pageSize }) : null,
+  [workspace.displayed, tenantMismatch, kind, query, source, accountState, operatingSystem, skuId, adAccountState, entraAccountState,
+    intuneCompliance, intuneManagement, identityState, storedEvidence, descending, parameters, pageSize]);
+  const intuneValues = (field: 'complianceState' | 'managementState') => [...new Set(workspace.displayed?.objects
+    .flatMap(object => object.observations.filter(row => row.source === 'INTUNE').map(row => row[field]))
+    .filter((value): value is string => Boolean(value)) ?? [])].sort();
   const change = (name: string, value: string) => setParameters(previous => {
     const next = new URLSearchParams(previous); if (value) next.set(name, value); else next.delete(name);
     if (name !== 'page') next.delete('page'); return next;
@@ -74,6 +85,13 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
       <strong>{workingSetSourceLabel[observation.source]}</strong> · {observation.label}
       <p className="break-all text-muted">{workspace.displayed?.reads.find(read => read.key === observation.readKey)?.scope ?? 'Scope unavailable'}{observation.operatingSystem ? ` · ${observation.operatingSystem}` : ''}</p>
       {kind !== 'GROUP' && <p>Account: {observation.accountEnabled === null ? 'Unknown / not supplied' : observation.accountEnabled ? 'Enabled' : 'Disabled'}</p>}
+      {observation.source === 'INTUNE' && <p>Intune compliance: {observation.complianceState ?? 'Unknown / not supplied'} · Management: {observation.managementState ?? 'Unknown / not supplied'}</p>}
+      {kind === 'USER' && observation.source === 'ENTRA' && <p>Assigned SKUs: {observation.assignedSkuIds?.length ?? 'Not supplied'}</p>}
+      {kind === 'USER' && <p>Department: {observation.department ?? 'Not supplied'}</p>}
+      {kind === 'GROUP' && <><p>Type / scope: {observation.groupTypes ?? 'Not supplied'}{observation.groupTypes === '' ? 'No group types returned' : ''}</p>
+        <p>Security: {observation.securityEnabled == null ? 'Unknown' : observation.securityEnabled ? 'Yes' : 'No'} · Mail: {observation.mailEnabled == null ? 'Unknown / not evaluated' : observation.mailEnabled ? 'Yes' : 'No'}</p>
+        <p>Member counts and privileged context are not evaluated by this list. Open the profile for direct-member coverage.</p></>}
+      {observation.storedEvidence && <p>{observation.storedEvidence === 'SAVED_TARGET' ? 'Saved target' : `Stored ${observation.storedEvidence.toLowerCase()} scan`}</p>}
       {observation.observedAtUtc && <p>Observed: {new Date(observation.observedAtUtc).toLocaleString()}</p>}
     </li>)}</ul> },
     { header: 'Identity assessment', cell: row => <div className="max-w-64 space-y-1 text-xs">
@@ -82,6 +100,7 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
       {row.conflictingIdentityEvidence && <p className="text-warn-400">Conflicting identity values are retained.</p>}
       {row.references.length > 0 && row.references.every(reference => reference.source === 'WEC') && <p>Stored execution address; physical device identity unconfirmed.</p>}
       {row.references.length > 1 && <p>Related by verified scoped IDs and sufficient cached query coverage.</p>}
+      {kind === 'USER' && row.references.some(reference => reference.source === 'ENTRA') && !row.references.some(reference => reference.source === 'ACTIVE_DIRECTORY') && <p>No confirmed AD relation in the loaded evidence.</p>}
       {!row.hasCandidates && !row.duplicateSourceIdentity && !row.conflictingIdentityEvidence && row.references.length === 1 && row.references[0].source !== 'WEC' && <p>Scoped source object.</p>}
     </div> },
   ];
@@ -98,9 +117,26 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
       <label className="text-xs text-muted">Search loaded {titles[kind].toLowerCase()}<Input value={query} onChange={event => change('q', event.target.value)} /></label>
       <label className="text-xs text-muted">Source<Select value={source ?? ''} onChange={event => change('source', event.target.value)}><option value="">All loaded sources</option>
         {sources.filter(value => kind === 'DEVICE' || value === 'ACTIVE_DIRECTORY' || value === 'ENTRA').map(value => <option key={value} value={value}>{workingSetSourceLabel[value]}</option>)}</Select></label>
-      {kind !== 'GROUP' && <label className="text-xs text-muted">Account state<Select value={accountState ?? ''} onChange={event => change('account', event.target.value)}>
+      {kind === 'USER' && <label className="text-xs text-muted">Account state<Select value={accountState ?? ''} onChange={event => change('account', event.target.value)}>
         <option value="">Any / conflicting</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option><option value="unknown">Unknown / not supplied</option></Select></label>}
       {kind === 'DEVICE' && <label className="text-xs text-muted">Operating system (exact)<Input value={operatingSystem} onChange={event => change('os', event.target.value)} /></label>}
+      {kind === 'DEVICE' && <>
+        {([['adAccount', 'AD account state', adAccountState], ['entraAccount', 'Entra account state', entraAccountState]] as const).map(([key, label, value]) =>
+          <label key={key} className="text-xs text-muted">{label}<Select value={value ?? ''} onChange={event => change(key, event.target.value)}>
+            <option value="">Any loaded state</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option><option value="unknown">Unknown in source record</option>
+          </Select></label>)}
+        {([['compliance', 'Intune compliance', 'complianceState', intuneCompliance], ['management', 'Intune management', 'managementState', intuneManagement]] as const).map(([key, label, field, value]) =>
+          <label key={key} className="text-xs text-muted">{label}<Select value={value} onChange={event => change(key, event.target.value)}>
+            <option value="">Any loaded state</option><option value="__unknown">Unknown in Intune record</option>
+            {[...new Set([...intuneValues(field), ...(value && value !== '__unknown' ? [value] : [])])].map(state => <option key={state} value={state}>{state}</option>)}
+          </Select></label>)}
+        <label className="text-xs text-muted">Stored evidence<Select value={storedEvidence ?? ''} onChange={event => change('stored', event.target.value)}>
+          <option value="">Any</option><option value="saved">Saved target</option><option value="scanned">Stored Inventory or Security scan</option>
+        </Select></label>
+      </>}
+      <label className="text-xs text-muted">Identity assessment<Select value={identityState ?? ''} onChange={event => change('identity', event.target.value)}>
+        <option value="">Any</option><option value="unresolved">No scoped identity</option><option value="candidates">Candidates / ambiguous association</option><option value="conflict">Conflicting or duplicate identity</option>
+      </Select></label>
       {kind === 'USER' && <label className="text-xs text-muted">Assigned SKU ID<Input value={skuId} onChange={event => change('sku', event.target.value)} /></label>}
     </div>
     <p className="text-xs text-muted">{result?.total ?? 0} matches in this displayed working set. A missing match does not prove absence from an unloaded source.</p>

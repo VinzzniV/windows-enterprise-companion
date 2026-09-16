@@ -23,7 +23,8 @@ const cloud = (name = 'Original account', revision = 1, session = 1): Microsoft3
     lastAttemptAtUtc: now, lastAttemptError: null, retainedUntilUtc: '2026-09-14T11:00:00Z', freshUntilUtc: '2026-09-14T10:10:00Z',
     freshness: 'FRESH', coverage: 'RETURNED_SET', loadedCount: 1, declaredTotal: 1 },
   rows: [{ kind: 'USER', source: 'ENTRA', objectId: id, displayName: name, userPrincipalName: null, accountEnabled: null,
-    operatingSystem: null, securityIdentifier: null, registrationDeviceId: null, associatedUserId: null, assignedSkuIds: null }] }],
+    operatingSystem: null, securityIdentifier: null, registrationDeviceId: null, associatedUserId: null, assignedSkuIds: null, complianceState: null, managementState: null,
+    department: null, securityEnabled: null, mailEnabled: null, groupTypes: null }] }],
 });
 let reply: Microsoft365ObjectLists | Promise<Microsoft365ObjectLists>;
 let cancellation: ReturnType<typeof vi.fn>[];

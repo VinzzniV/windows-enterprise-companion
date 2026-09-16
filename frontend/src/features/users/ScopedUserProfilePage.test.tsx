@@ -62,6 +62,17 @@ it('shows conflicting enrollment observations with original user IDs in the Devi
   expect(screen.getByText(`Enrollment · Reported user: ${other}`)).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Inspect conflicting enrollment' }).getAttribute('href')).toBe(`/devices/intune/${tenant}/${other}`);
 });
+it('links an assigned SKU to tenant capacity without inferring a product name', async () => {
+  const value = profile();
+  value.entraUser!.assignedLicenses = [{ skuId: other, disabledPlans: null }];
+  mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+  page();
+  await screen.findByRole('heading', { name: 'Cloud account' });
+  fireEvent.click(screen.getByRole('button', { name: 'Licenses' }));
+  expect(screen.getByRole('link', { name: 'View tenant SKU' }).getAttribute('href')).toBe(`/software?section=licenses&sku=${other}&tenant=${tenant}`);
+  expect(screen.getByText(/Product name not resolved/)).toBeTruthy();
+  expect(mocks.invoke).toHaveBeenCalledTimes(1);
+});
 beforeEach(() => {
   mocks.invoke.mockReset(); mocks.cancel.mockReset(); mocks.export.mockReset();
   mocks.invoke.mockReturnValue({ promise: Promise.resolve(profile()), cancel: mocks.cancel });

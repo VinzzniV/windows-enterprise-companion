@@ -120,7 +120,7 @@ public sealed class Microsoft365ServiceTests
         Microsoft365Query managed = new(Microsoft365Resource.ManagedDevices);
         _reader.ReadAsync(managed, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
         {
-            ManagedDevices = [new("managed", "Device", "associated-user", "candidate@example.test", "Windows", null, null, null,
+            ManagedDevices = [new("managed", "Device", "associated-user", "candidate@example.test", "Windows", null, "noncompliant", "managed",
                 null, null, null, null, null, "registration"), new(null, "Limited record", null, null, null, null, null, null, null, null, null, null, null, null)],
         }));
         await service.ReadAsync(managed, true, TestContext());
@@ -130,10 +130,33 @@ public sealed class Microsoft365ServiceTests
         Assert.Equal("managed", rows[0].ObjectId);
         Assert.Equal("registration", rows[0].RegistrationDeviceId);
         Assert.Equal("associated-user", rows[0].AssociatedUserId);
+        Assert.Equal("noncompliant", rows[0].ComplianceState);
+        Assert.Equal("managed", rows[0].ManagementState);
+        Assert.Null(rows[1].ComplianceState);
         Assert.Null(rows[1].ObjectId);
         _reader.Connection.Returns(_reader.Connection with { Configuration = _reader.Connection.Configuration with { EnableIntune = false } });
         Assert.Empty(Assert.Single((await service.ReadObjectListsCachedAsync(null, TestContext())).Value.Reads,
             read => read.State.Query == managed).Rows);
+    }
+
+    [Fact]
+    public async Task ObjectListsPreserveGroupClassificationWithoutInferringMembershipOrPrivileges()
+    {
+        using var service = Create();
+        Microsoft365Query groups = new(Microsoft365Resource.Groups);
+        _reader.ReadAsync(groups, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
+        {
+            Groups = [new("group", "Group", false, true, ["Unified", "DynamicMembership"], null, null, null),
+                new(null, "Limited", null, null, null, null, null, null)],
+        }));
+        await service.ReadAsync(groups, true, TestContext());
+        var rows = Assert.Single((await service.ReadObjectListsCachedAsync(null, TestContext())).Value.Reads,
+            read => read.State.Query == groups).Rows;
+        Assert.False(rows[0].SecurityEnabled);
+        Assert.True(rows[0].MailEnabled);
+        Assert.Equal("Unified, DynamicMembership", rows[0].GroupTypes);
+        Assert.Null(rows[1].SecurityEnabled);
+        Assert.Null(rows[1].GroupTypes);
     }
 
     [Fact]

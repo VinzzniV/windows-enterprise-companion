@@ -25,6 +25,28 @@ const devices = (source: 'ENTRA' | 'INTUNE', id: string): WorkingSetObservation 
   reference: { kind: 'DEVICE', source, scope: tenant, id }, sid: null, registrationDeviceId: registration, assignedSkuIds: null });
 
 describe('bounded object working set', () => {
+  it('filters original Intune states and distinguishes missing sources from unknown values', () => {
+    const managed = { ...devices('INTUNE', extraId), complianceState: 'noncompliant', managementState: 'managed' };
+    const snapshot = capture([read('entra', [{ ...devices('ENTRA', cloudId), accountEnabled: false }], { resource: 'DEVICES' }),
+      read('intune', [managed, { ...devices('INTUNE', adId), registrationDeviceId: null, complianceState: null }])]);
+    const filter = { kind: 'DEVICE' as const, page: 1, pageSize: 25 };
+    expect(queryWorkingSet(snapshot, { ...filter, intuneCompliance: 'NONCOMPLIANT', entraAccountState: 'disabled' }).total).toBe(1);
+    expect(queryWorkingSet(snapshot, { ...filter, intuneCompliance: '__unknown' }).rows[0].references[0].id).toBe(adId);
+    expect(queryWorkingSet(snapshot, { ...filter, adAccountState: 'unknown' }).total).toBe(0);
+    expect(queryWorkingSet(snapshot, { ...filter, intuneManagement: 'unmanaged' }).total).toBe(0);
+  });
+
+  it('retains namesakes and filters identity conflicts separately from ordinary candidate associations', () => {
+    const snapshot = capture([read('cloud', [cloud(), { ...cloud(), sid: 'S-1-5-21-1-2-3-2002' }, cloud(extraId)])]);
+    const filter = { page: 1, pageSize: 25 };
+    expect(queryWorkingSet(snapshot, { ...filter, identityState: 'conflict' }).rows[0].references[0].id).toBe(cloudId);
+    expect(queryWorkingSet(snapshot, { ...filter, identityState: 'candidates' }).total).toBe(2);
+    expect(queryWorkingSet(snapshot, { ...filter, identityState: 'unresolved' }).total).toBe(0);
+    const stored = { ...devices('ENTRA', extraId), source: 'WEC' as const, reference: { kind: 'DEVICE' as const, source: 'WEC' as const, scope: 'workspace', id: 'pc.example.test' }, storedEvidence: 'SECURITY' as const };
+    const storedSnapshot = capture([read('stored', [stored])]);
+    expect(queryWorkingSet(storedSnapshot, { ...filter, storedEvidence: 'scanned' }).total).toBe(1);
+    expect(queryWorkingSet(storedSnapshot, { ...filter, storedEvidence: 'saved' }).total).toBe(0);
+  });
   it('bounds source metadata as well as records and disables cross-source proof after a source read was omitted', () => {
     const snapshot = capture([read('old', [cloud(extraId)]), read('ad', [ad()]), read('cloud', [cloud()], { resource: 'USERS' })], { maximumSourceReads: 2 });
     expect(snapshot.reads).toHaveLength(2);

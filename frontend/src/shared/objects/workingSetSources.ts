@@ -40,6 +40,8 @@ export function cloudWorkingSetReads(lists: Microsoft365ObjectLists): WorkingSet
       aliases: [row.userPrincipalName, row.objectId].filter((value): value is string => Boolean(value)),
       accountEnabled: row.accountEnabled, operatingSystem: row.operatingSystem, sid: row.securityIdentifier,
       registrationDeviceId: row.registrationDeviceId, assignedSkuIds: row.assignedSkuIds,
+      complianceState: row.complianceState, managementState: row.managementState,
+      department: row.department, securityEnabled: row.securityEnabled, mailEnabled: row.mailEnabled, groupTypes: row.groupTypes,
       nativeRecordId: row.objectId ?? undefined,
     })),
   }));
@@ -89,7 +91,7 @@ export function directoryUserWorkingSetRead(read: CachedDirectoryUserList, selec
       reference: objectReference('USER', 'ad', user.directoryScope, user.objectId), kind: 'USER', source: 'ACTIVE_DIRECTORY',
       label: user.displayName, aliases: [user.samAccountName, user.userPrincipalName, user.department, user.objectId].filter((value): value is string => Boolean(value)),
       accountEnabled: user.enabled, operatingSystem: null, sid: user.securityIdentifier, registrationDeviceId: null, assignedSkuIds: null,
-      nativeRecordId: user.objectId,
+      nativeRecordId: user.objectId, department: user.department,
     })) ?? [],
   };
 }
@@ -110,7 +112,7 @@ export function directoryGroupWorkingSetRead(read: CachedDirectoryGroupPage, sel
       reference: objectReference('GROUP', 'ad', group.directoryScope, group.objectId ?? undefined), kind: 'GROUP', source: 'ACTIVE_DIRECTORY',
       label: group.name, aliases: [group.samAccountName, group.distinguishedName].filter((value): value is string => Boolean(value)),
       accountEnabled: null, operatingSystem: null, sid: group.securityIdentifier, registrationDeviceId: null, assignedSkuIds: null,
-      nativeRecordId: group.objectId ?? undefined,
+      nativeRecordId: group.objectId ?? undefined, securityEnabled: group.securityEnabled, groupTypes: group.groupScope,
     })) ?? [],
   };
 }
@@ -131,6 +133,6 @@ export function storedWorkingSetReads(lists: StoredObjectLists): WorkingSetRead[
       : read.totalRecords > read.records.length ? 'partial' : 'complete', error: read.error?.message ?? null,
     sourceTotal: read.totalRecords, cachedRecordCount: read.records.length, limited: read.totalRecords !== null && read.records.length < read.totalRecords,
     rows: read.records.map(row => ({ ...storedAddressObservation({ kind: 'DEVICE', source: 'WEC', scope: lists.workspace.scope, id: row.host }, row.label),
-      nativeRecordId: row.recordId, observedAtUtc: row.observedAtUtc })),
+      nativeRecordId: row.recordId, observedAtUtc: row.observedAtUtc, storedEvidence: read.source === 'INVENTORY' ? 'INVENTORY' : read.source === 'SECURITY' ? 'SECURITY' : 'SAVED_TARGET' })),
   }));
 }

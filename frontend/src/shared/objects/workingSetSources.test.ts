@@ -16,7 +16,8 @@ describe('working-set source projection', () => {
     const reads = cloudWorkingSetReads({ tenantId: tenant, sessionRevision: 4, revision: 8, recordLimit: 1, cachedSourceRecords: 2,
       loadedSourceRecords: 1, truncated: true, reads: [{ state, rows: [{ kind: 'USER', source: 'ENTRA', objectId: null,
         displayName: 'Limited record', userPrincipalName: null, accountEnabled: null, operatingSystem: null,
-        securityIdentifier: null, registrationDeviceId: null, associatedUserId: null, assignedSkuIds: null }] }] });
+        securityIdentifier: null, registrationDeviceId: null, associatedUserId: null, assignedSkuIds: null, complianceState: null, managementState: null,
+        department: null, securityEnabled: null, mailEnabled: null, groupTypes: null }] }] });
     expect(reads[0].coverage).toBe('partial');
     expect(reads[0].error).toBe('Denied');
     expect(reads[0].sourceTotal).toBe(200);

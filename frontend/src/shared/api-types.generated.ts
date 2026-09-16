@@ -557,6 +557,12 @@ export interface Microsoft365ObjectListRow {
   registrationDeviceId: string | null;
   associatedUserId: string | null;
   assignedSkuIds: string[] | null;
+  complianceState: string | null;
+  managementState: string | null;
+  department: string | null;
+  securityEnabled: boolean | null;
+  mailEnabled: boolean | null;
+  groupTypes: string | null;
 }
 
 export interface Microsoft365ObjectLists {

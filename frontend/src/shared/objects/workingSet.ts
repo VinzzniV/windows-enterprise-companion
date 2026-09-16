@@ -18,6 +18,13 @@ export interface WorkingSetObservation {
   assignedSkuIds: readonly string[] | null;
   nativeRecordId?: string;
   observedAtUtc?: string | null;
+  complianceState?: string | null;
+  managementState?: string | null;
+  department?: string | null;
+  securityEnabled?: boolean | null;
+  mailEnabled?: boolean | null;
+  groupTypes?: string | null;
+  storedEvidence?: 'INVENTORY' | 'SECURITY' | 'SAVED_TARGET';
 }
 
 export interface WorkingSetRead {
@@ -273,6 +280,12 @@ export interface WorkingSetFilter {
   accountState?: 'enabled' | 'disabled' | 'unknown';
   operatingSystem?: string;
   skuId?: string;
+  adAccountState?: 'enabled' | 'disabled' | 'unknown';
+  entraAccountState?: 'enabled' | 'disabled' | 'unknown';
+  intuneCompliance?: string;
+  intuneManagement?: string;
+  identityState?: 'unresolved' | 'candidates' | 'conflict';
+  storedEvidence?: 'saved' | 'scanned';
   descending?: boolean;
   page: number;
   pageSize: number;
@@ -282,7 +295,17 @@ export function queryWorkingSet(snapshot: WorkingSetSnapshot, filter: WorkingSet
   const terms = canonical(filter.query ?? '').split(/\s+/).filter(Boolean);
   const objects = snapshot.objects.filter(object => {
     const rows = filter.source ? object.observations.filter(row => row.source === filter.source) : object.observations;
+    const accountMatches = (source: WorkingSetSource, state: WorkingSetFilter['accountState']) => !state || object.observations.some(row => row.source === source
+      && (state === 'unknown' ? row.accountEnabled === null : row.accountEnabled === (state === 'enabled')));
+    const intuneMatches = (field: 'complianceState' | 'managementState', value?: string) => !value || object.observations.some(row => row.source === 'INTUNE'
+      && (value === '__unknown' ? !row[field] : canonical(row[field] ?? '') === canonical(value)));
     return (!filter.kind || object.kind === filter.kind) && rows.length > 0
+      && accountMatches('ACTIVE_DIRECTORY', filter.adAccountState) && accountMatches('ENTRA', filter.entraAccountState)
+      && intuneMatches('complianceState', filter.intuneCompliance) && intuneMatches('managementState', filter.intuneManagement)
+      && (!filter.identityState || (filter.identityState === 'unresolved' ? object.references.length === 0 : filter.identityState === 'candidates'
+        ? object.hasCandidates : object.duplicateSourceIdentity || object.conflictingIdentityEvidence))
+      && (!filter.storedEvidence || object.observations.some(row => filter.storedEvidence === 'saved' ? row.storedEvidence === 'SAVED_TARGET'
+        : row.storedEvidence === 'INVENTORY' || row.storedEvidence === 'SECURITY'))
       && (!filter.accountState || rows.some(row => filter.accountState === 'unknown' ? row.accountEnabled === null : row.accountEnabled === (filter.accountState === 'enabled')))
       && (!filter.operatingSystem || rows.some(row => row.operatingSystem && canonical(row.operatingSystem) === canonical(filter.operatingSystem!)))
       && (!filter.skuId || rows.some(row => row.assignedSkuIds?.some(sku => canonical(sku) === canonical(filter.skuId!))))

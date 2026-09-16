@@ -13,6 +13,8 @@ import { StoredClientEvidence } from './sections/OverviewSection';
 import { useDeviceProfile } from './useDeviceProfile';
 
 const canRead = (state: Microsoft365ReadState) => state.availability !== 'NOT_CONNECTED' && state.availability !== 'NOT_ENABLED';
+const sections = [['overview', 'Overview'], ['identity', 'Identity & management'], ['inventory', 'Inventory'], ['health', 'Health & security'],
+  ['relationships', 'Relationships'], ['events', 'Event logs'], ['printers', 'Printers']] as const;
 
 function Relations({ title, links }: { title: string; links: ObjectRelationship[] }) {
   const location = useLocation();
@@ -59,8 +61,10 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
   const environment = useEnvironment();
   const location = useLocation();
   const profile = view.data;
-  const [parameters] = useSearchParams();
+  const [parameters, setParameters] = useSearchParams();
   const legacySection = parameters.get('section');
+  const section = sections.some(([key]) => key === legacySection) ? legacySection : legacySection === 'microsoft365' ? 'identity' : 'overview';
+  const selectSection = (key: string) => { const next = new URLSearchParams(parameters); next.set('section', key); setParameters(next); };
   const directory = profile?.directory;
   const cloud = profile?.cloud;
   if (profile?.operationalHost && legacySection && ['inventory', 'security', 'diagnostics', 'events', 'printers', 'reporting'].includes(legacySection)) {
@@ -76,19 +80,31 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
     {view.error && <p role="alert" className="text-fail-400">{view.error}</p>}
     {view.busy && <Spinner label="Reading available device evidence…" />}
     {profile && <>
+      <nav aria-label="Device profile sections" className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+        {sections.map(([key, label]) => <Button key={key} variant={section === key ? 'primary' : 'ghost'} aria-current={section === key ? 'page' : undefined}
+          onClick={() => selectSection(key)}>{label}</Button>)}
+      </nav>
       <Card title="Device identity">
         <p className={profile.identity === 'CONFLICT' || profile.identity === 'AMBIGUOUS' ? 'text-warn-400' : 'text-slate-200'}>{profile.explanation}</p>
         <CloudFields fields={[["Source", objectSourceLabel[reference.source]], ['Scope', reference.scope], ['Source object / target', reference.id]]} />
         {profile.sourceErrors.map((error, index) => <p key={index} role="alert" className="mt-2 text-fail-400">{error.message}</p>)}
       </Card>
-      {profile.operationalHost && <Card title="Windows tools for this exact target">
+      {section === 'overview' && profile.operationalHost && <Card title="Windows tools for this exact target">
         <div className="flex flex-wrap gap-3">{[['overview', 'Windows overview, saved target and PowerShell'], ['inventory', 'Inventory'], ['security', 'Security'], ['diagnostics', 'Health'], ['events', 'Event logs'], ['printers', 'Printers'], ['reporting', 'Report export']].map(([section, label]) =>
           <Link key={section} state={{ returnObject: location.pathname }} className="text-sm text-accent-400 underline"
             to={`/clients/${encodeURIComponent(profile.operationalHost!)}?section=${section}&target=exact`}>{label}</Link>)}</div>
         <Link className="text-sm text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(profile.operationalHost)}`}>Device Cleanup</Link>
       </Card>}
       {!profile.operationalHost && <p className="text-sm text-muted">Windows scans and exports are not applicable until an exact Windows target is selected. Candidate links open separate source records.</p>}
-      {profile.wec && profile.operationalHost && <StoredClientEvidence host={profile.operationalHost} result={profile.wec} />}
+      {section === 'overview' && <Card title="Available evidence">
+        <p className="text-sm text-muted">{profile.relationships.length} established relationships · {profile.candidates.length} separate candidates. Open Identity & management for source fields and individual refresh.</p>
+        {!cloud && <p className="text-sm text-muted">Cloud identity not confirmed. No cloud compliance is attributed to this Windows target.</p>}
+        {cloud && [...cloud.entraReads, cloud.intune, ...cloud.managedDetails].map((read, index) => <div key={index} className="mt-3">
+          <p className="text-sm">{read.state.query.resource.replaceAll('_', ' ')}</p><SourceReadState state={read.state} now={view.now} />
+        </div>)}
+        {profile.wec?.sources.map(source => <p key={source.source} className="mt-2 text-xs">{source.source} · {source.freshness} · {source.coverage}</p>)}
+      </Card>}
+      {section === 'identity' && <div className="space-y-4">
       {reference.source === 'ACTIVE_DIRECTORY' && <Card title="Active Directory computer">
         <Button disabled={view.busy} onClick={() => void view.load('directory')}>Load this AD computer by GUID</Button>
         <p className="my-2 text-xs text-muted">Directory: {reference.scope} · Retrieved: {timestamp(directory?.data?.retrievedAtUtc ?? profile.managementCandidates?.retrievedAtUtc)} · Last attempt: {timestamp(directory?.lastAttemptAtUtc)}</p>
@@ -113,6 +129,15 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
         <SourceReadState state={read.state} now={view.now} />
         {sourceRetained(read.state, view.now) && read.devices.map((device, position) => <div key={position} className="my-3 border-t border-slate-800 pt-2"><CloudManagedFields device={device} /></div>)}
       </Card>)}
+      <ManagementCandidates profile={profile} />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button disabled={environment.loading || view.busy} onClick={() => void environment.refresh().then(() => view.load())}>Load management sources: AD, KSC, opsi, Nessus</Button>
+        {environment.loading && <Button onClick={environment.cancel}>Cancel management load</Button>}
+        <Link className="text-sm text-accent-400 underline" to="/sources?source=microsoft365">Microsoft 365 connection and source queries</Link>
+      </div>
+      </div>}
+      {section === 'relationships' && <div className="space-y-4">
+      {profile.wec && profile.operationalHost && <StoredClientEvidence host={profile.operationalHost} result={profile.wec} area="relationships" />}
       {cloud?.registeredOwners && <Card title="Registered owners (Entra)">
         <Button disabled={view.busy || !canRead(cloud.registeredOwners.state)} onClick={() => void view.load({ ...cloud.registeredOwners!.state.query, tenantId: cloud.registeredOwners!.state.tenantId ?? undefined })}>Load registered owners</Button>
         <SourceReadState state={cloud.registeredOwners.state} now={view.now} />
@@ -127,12 +152,27 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
           {source.error && <span role="alert" className="text-fail-400"> · {source.error.message}</span>}
         </p>)}
       </Card>
-      <ManagementCandidates profile={profile} />
-      <div className="flex flex-wrap items-center gap-3">
-        <Button disabled={environment.loading || view.busy} onClick={() => void environment.refresh().then(() => view.load())}>Load management sources: AD, KSC, opsi, Nessus</Button>
-        {environment.loading && <Button onClick={environment.cancel}>Cancel management load</Button>}
-        <Link className="text-sm text-accent-400 underline" to="/microsoft365">Microsoft 365 connection and source queries</Link>
-      </div>
+      </div>}
+      {section === 'health' && <div className="space-y-4">
+        {profile.wec && profile.operationalHost && <StoredClientEvidence host={profile.operationalHost} result={profile.wec} area="health" />}
+        {profile.operationalHost && <nav aria-label="Windows health tools" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
+          <Link state={{ returnObject: `${location.pathname}?section=health` }} to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=diagnostics&target=exact`}>Open Windows Health</Link>
+          <Link state={{ returnObject: `${location.pathname}?section=health` }} to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=security&target=exact`}>Open Security history and checks</Link>
+        </nav>}
+        <Card title="Intune compliance evidence">
+          <p className="text-xs text-muted">Source observations for each enrollment; candidate values do not establish this Windows device's compliance. Windows Security and Intune compliance are separate assessments.</p>
+          {cloud ? [cloud.intune, ...cloud.managedDetails].map((read, index) => <div key={index} className="mt-3">
+            <SourceReadState state={read.state} now={view.now} />
+            {sourceRetained(read.state, view.now) && read.devices.map((device, position) => <CloudFields key={position} fields={[
+              ['Enrollment', device.id], ['Reported name', device.deviceName], ['Intune compliance', device.complianceState],
+              ['Management', device.managementState], ['Last sync', timestamp(device.lastSyncAtUtc)],
+            ]} />)}
+          </div>) : <p className="mt-2 text-sm text-muted">No confirmed cloud identity. Inspect source candidates in Identity & management.</p>}
+        </Card>
+      </div>}
+      {!profile.operationalHost && ['inventory', 'events', 'printers'].includes(section ?? '') && <Card title="Windows target required">
+        <p className="text-sm text-muted">This source profile has no confirmed execution address. These Windows tools become available after selecting an exact Windows target from the relationship candidates.</p>
+      </Card>}
     </>}
   </div>;
 }

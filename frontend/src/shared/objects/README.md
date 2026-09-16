@@ -32,7 +32,9 @@ and profile hooks. Ordinary source revisions require explicit adoption so a page
 does not move during investigation.
 
 `ObjectWorkingSetPage` and global search consume the same captured revision.
-Source, nullable account state, OS, SKU, text, ordering and page selection apply
+Source, nullable account state, separate AD/Entra device states, Intune compliance
+and management, identity conflicts/candidates, saved/scanned evidence, OS, SKU,
+text, ordering and page selection apply
 before paging. URL state restores filters and paging through profile navigation;
 bounded in-memory positions restore list scroll/focus. Canonical routes are
 `/devices`, `/users` and `/groups`; the initial `/users/workspace` and
@@ -40,6 +42,11 @@ bounded in-memory positions restore list scroll/focus. Canonical routes are
 Compare and Cleanup. AD query workspaces remain under `/users/directory` and
 `/groups/directory`. Software & licenses and Data sources reuse specialist
 workflows; old routes remain functional and highlighted in their parent section.
+
+The device profile has a compact overview and seven addressable areas. Existing
+Windows tools retain exact execution targets; cloud-only profiles show why those
+tools are unavailable. Intune compliance remains separate from Windows Security.
+Account SKU links retain the tenant and selected SKU in the license catalogue.
 
 Raw management cache reads contribute original AD/KSC/opsi/Nessus observations.
 `managementRecordRoutes.ts` uses a disposable workspace/snapshot/source/index

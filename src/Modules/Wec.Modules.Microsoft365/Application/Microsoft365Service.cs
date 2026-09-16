@@ -410,13 +410,14 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
                 {
                     yield return new(ObjectKind.User, ObjectSource.Entra, user.Id, user.DisplayName, user.UserPrincipalName,
                         user.AccountEnabled, null, user.OnPremisesSid, null, null,
-                        user.AssignedLicenses?.Where(license => !string.IsNullOrWhiteSpace(license.SkuId)).Select(license => license.SkuId!).ToArray());
+                        user.AssignedLicenses?.Where(license => !string.IsNullOrWhiteSpace(license.SkuId)).Select(license => license.SkuId!).ToArray(), Department: user.Department);
                 }
                 break;
             case Microsoft365Resource.Groups or Microsoft365Resource.Group or Microsoft365Resource.UserGroups:
                 foreach (Microsoft365Group group in data.Groups)
                 {
-                    yield return new(ObjectKind.Group, ObjectSource.Entra, group.Id, group.DisplayName, null, null, null, null, null, null, null);
+                    yield return new(ObjectKind.Group, ObjectSource.Entra, group.Id, group.DisplayName, null, null, null, null, null, null, null,
+                        SecurityEnabled: group.SecurityEnabled, MailEnabled: group.MailEnabled, GroupTypes: group.GroupTypes is null ? null : string.Join(", ", group.GroupTypes));
                 }
                 break;
             case Microsoft365Resource.Devices or Microsoft365Resource.Device or Microsoft365Resource.UserDevices:
@@ -430,7 +431,7 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
                 foreach (Microsoft365ManagedDevice device in data.ManagedDevices)
                 {
                     yield return new(ObjectKind.Device, ObjectSource.Intune, device.Id, device.DeviceName, device.UserPrincipalName, null,
-                        device.OperatingSystem, null, device.EntraDeviceId, device.UserId, null);
+                        device.OperatingSystem, null, device.EntraDeviceId, device.UserId, null, device.ComplianceState, device.ManagementState);
                 }
                 break;
         }

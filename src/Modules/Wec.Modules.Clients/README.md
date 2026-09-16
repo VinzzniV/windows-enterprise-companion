@@ -42,8 +42,9 @@ from EmployeeLifecycle. Profile reads perform no Windows scans or probes.
 
 The module references only Core. Source adapters, hygiene assessment, cached
 management records and frozen Lifecycle tables remain with their existing owners.
-The legacy paged hygiene workbench remains there until the unified device list
-has equivalent functionality. No new persistence or data retention is introduced.
+The legacy paged hygiene workbench remains reachable for posture filters, batch
+scans and saved targets; the canonical Devices list composes scoped source rows.
+No new persistence or data retention is introduced.
 # Scoped device profile
 
 `clients/getProfile` composes concrete Core projections for a scoped WEC target,
@@ -62,5 +63,8 @@ KSC/opsi/Nessus name evidence stays in a separate candidate section.
 The frontend route is `/devices/:source/:scope/:objectId`. Source facets retain
 their retrieval, observation and failed-attempt times. The profile expires its
 in-memory cloud copy at source retention and cancels/ignores old subject reads.
-Legacy Client tools and routes remain available during the following user/group,
-working-set and navigation slices.
+The seven detail areas are Overview, Identity & management, Inventory, Health &
+security, Relationships, Event logs and Printers. Exact Windows tools reuse the
+existing implementations and maintain old section URLs. Intune compliance stays
+source-labelled and separate from Windows Security. Cloud-only areas never
+substitute the local host. Report export and Cleanup remain contextual actions.

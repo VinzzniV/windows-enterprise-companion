@@ -50,6 +50,8 @@ function Licenses({ read, title, view }: { read: CachedMicrosoft365Licenses; tit
   return <CloudSource title={title} state={read.state} view={view}>
     {read.licenses.length === 0 && read.state.availability === 'AVAILABLE' && <p className="text-sm text-muted">No license rows returned by this query; its coverage applies.</p>}
     {read.licenses.map((license, index) => <div key={index} className="my-3 rounded border border-slate-800 p-3">
+      {license.skuId && read.state.tenantId && <Link className="text-sm text-accent-400 underline"
+        to={`/software?section=licenses&sku=${encodeURIComponent(license.skuId)}&tenant=${encodeURIComponent(read.state.tenantId)}`}>Open tenant capacity for this SKU</Link>}
       <CloudFields fields={[
         ['Product / SKU', license.skuPartNumber], ['SKU ID', license.skuId], ['License record ID', license.id], ['Capability', license.capabilityStatus],
         ['Applies to', license.appliesTo], ['Enabled seats', license.enabledSeats], ['Consumed seats', license.consumedSeats],
@@ -141,6 +143,8 @@ function UserProfileContent({ reference }: { reference: ObjectReference }) {
             : profile.entraUser.assignedLicenses.length === 0 ? <p className="text-sm text-muted">This user object returned an empty assignedLicenses collection.</p>
               : <ul className="space-y-3">{profile.entraUser.assignedLicenses.map((license, index) => <li key={index} className="text-sm">
                 SKU {license.skuId ?? 'ID unavailable'} · {skuLabel(license.skuId, cloud?.tenantLicenses)}
+                {license.skuId && cloud?.tenantId && <Link className="ml-2 text-accent-400 underline"
+                  to={`/software?section=licenses&sku=${encodeURIComponent(license.skuId)}&tenant=${encodeURIComponent(cloud.tenantId)}`}>View tenant SKU</Link>}
                 <p className="text-xs text-muted">Disabled plans: {license.disabledPlans?.join(', ') || (license.disabledPlans === null ? 'Unknown' : 'None returned')}</p>
               </li>)}</ul>}
         </Card>

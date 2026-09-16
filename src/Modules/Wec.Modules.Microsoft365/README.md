@@ -55,6 +55,9 @@ are separate; truncation never means a complete environment inventory. These
 rows are list/search inputs, not composed profiles or physical-asset identities.
 Assigned SKU IDs retain null versus an empty assignment list for later bounded
 reverse-license filtering. No cloud export or persistent index is introduced.
+Existing department, group classification and Intune compliance/management values
+also enter the minimal cached rows. They add no Graph fields or permissions;
+source-specific filtering preserves unknown values and every enrollment.
 Expired-but-retained data stays visible until explicit refresh. A source-work
 gate coalesces concurrent equivalent refreshes, including failures, without
 blocking cache-only views or status reads. A separate short lock protects state.

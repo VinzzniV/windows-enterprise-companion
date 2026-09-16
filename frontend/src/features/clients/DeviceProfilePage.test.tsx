@@ -35,8 +35,8 @@ function profile(source: ObjectSource = 'ENTRA'): DeviceProfileResult {
   };
 }
 function NavigateToSecond() { const navigate = useNavigate(); return <button onClick={() => navigate(`/devices/entra/${tenant}/${secondId}`)}>Second device</button>; }
-function renderPage(value = profile()) {
-  return render(<MemoryRouter initialEntries={[objectPath(value.reference)]}><NavigateToSecond /><Routes><Route path="/devices/:source/:scope/:objectId" element={<DeviceProfilePage />} /></Routes></MemoryRouter>);
+function renderPage(value = profile(), section = 'identity') {
+  return render(<MemoryRouter initialEntries={[`${objectPath(value.reference)}?section=${section}`]}><NavigateToSecond /><Routes><Route path="/devices/:source/:scope/:objectId" element={<DeviceProfilePage />} /></Routes></MemoryRouter>);
 }
 beforeEach(() => {
   mocks.invoke.mockReset(); mocks.refresh.mockReset(); mocks.cancel.mockReset();
@@ -45,6 +45,18 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('device profiles', () => {
+  it('keeps the overview compact and exposes seven addressable areas without fetching adjacent sources', async () => {
+    renderPage(profile(), 'overview');
+    await screen.findByRole('heading', { name: 'Cloud device' });
+    expect(screen.getByRole('heading', { name: 'Available evidence' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Entra object read' })).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Device profile sections' }).querySelectorAll('button')).toHaveLength(7);
+    fireEvent.click(screen.getByRole('button', { name: 'Relationships' }));
+    expect(screen.getByRole('heading', { name: 'Registered owners (Entra)' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Inventory' }));
+    expect(screen.getByRole('heading', { name: 'Windows target required' })).toBeTruthy();
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+  });
   it('keeps the selected directory server when opening a scoped AD profile', async () => {
     const value = profile();
     value.reference = { kind: 'DEVICE', source: 'ACTIVE_DIRECTORY', scope: 'example.test', id };
@@ -94,6 +106,7 @@ describe('device profiles', () => {
     mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
     renderPage(value);
     expect(await screen.findByText('Second returned record')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Relationships' }));
     expect(screen.getByRole('link', { name: 'Associated account' }).getAttribute('href')).toBe(`/users/entra/${tenant}/${secondId}`);
   });
 
