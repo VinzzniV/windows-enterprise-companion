@@ -84,6 +84,7 @@ public sealed class DirectoryGroupReadServiceTests
     [InlineData(0, 50)]
     [InlineData(1, 101)]
     [InlineData(int.MaxValue, 100)]
+    [InlineData(101, 100)]
     public async Task InvalidPagesNeverReachDirectory(int page, int size)
     {
         Assert.True((await Create().ReadPageAsync(new(Connection, "example.test", Page: page, PageSize: size), CancellationToken.None)).IsFailure);
@@ -100,7 +101,7 @@ public sealed class DirectoryGroupReadServiceTests
         Assert.Equal(2, page.Groups.Count);
         Assert.Null(page.Groups[1].ObjectId);
         await _reader.Received(1).SearchPageAsync(Arg.Is<DirectorySearchQuery>(query => query.SortAttribute == "name"
-            && query.SortTieBreakerAttribute == "sAMAccountName"), 50, 25, CancellationToken.None);
+            && query.SortTieBreakerAttribute == "sAMAccountName" && query.MaximumSortedPageEntries == 10_000), 50, 25, CancellationToken.None);
     }
 
     [Fact]

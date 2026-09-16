@@ -33,6 +33,12 @@ internal sealed class DirectoryUserReadService : IDirectoryUserReadProvider
         {
             return Result.Failure<DirectoryUserPage>(offset.Error!);
         }
+        if (query.SortField != DirectoryUserSortField.SamAccountName
+            && (long)offset.Value + query.PageSize > _options.MaximumSortedPageEntries)
+        {
+            return Result.Failure<DirectoryUserPage>(new(ErrorCode.InvalidRequest,
+                "This sorted page exceeds the configured directory result window. Narrow the search or select an earlier page."));
+        }
 
         DirectoryConnection connection = ToConnection(query.Connection);
         Result<DomainContext> context = await _domainContextService.GetContextAsync(connection, cancellationToken);
@@ -73,7 +79,8 @@ internal sealed class DirectoryUserReadService : IDirectoryUserReadProvider
                 SortDescending: query.SortDirection == DirectoryUserSortDirection.Descending,
                 SortTieBreakerAttribute: string.Equals(sortAttribute, "sAMAccountName", StringComparison.Ordinal)
                     ? null
-                    : "sAMAccountName"),
+                    : "sAMAccountName",
+                MaximumSortedPageEntries: _options.MaximumSortedPageEntries),
             offset.Value,
             query.PageSize,
             cancellationToken);

@@ -101,7 +101,7 @@ internal sealed class DirectoryGroupReadService(DomainContextService domainConte
         if (context.IsFailure) { return Result.Failure<DirectoryGroupPage>(context.Error!); }
         Result<BoundedDirectorySearchResult> result = await reader.SearchPageAsync(Search(query.Connection, context.Value,
             AdFilters.WithAccountNameSearch(AdFilters.Groups, query.Search), GroupAttributes) with
-            { SortAttribute = "name", SortTieBreakerAttribute = "sAMAccountName" },
+            { SortAttribute = "name", SortTieBreakerAttribute = "sAMAccountName", MaximumSortedPageEntries = options.Value.MaximumSortedPageEntries },
             (query.Page - 1) * query.PageSize, query.PageSize, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (result.IsFailure) { return Result.Failure<DirectoryGroupPage>(result.Error!); }
@@ -128,7 +128,7 @@ internal sealed class DirectoryGroupReadService(DomainContextService domainConte
         if (context.IsFailure) { return Result.Failure<DirectoryGroupMemberPage>(context.Error!); }
         Result<BoundedDirectorySearchResult> result = await reader.SearchPageAsync(Search(query.Connection, context.Value,
             AdFilters.DirectMembersOfGroup(group.DistinguishedName), MemberAttributes) with
-            { SortAttribute = "name", SortTieBreakerAttribute = "sAMAccountName" },
+            { SortAttribute = "name", SortTieBreakerAttribute = "sAMAccountName", MaximumSortedPageEntries = options.Value.MaximumSortedPageEntries },
             (query.Page - 1) * query.PageSize, query.PageSize, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (result.IsFailure) { return Result.Failure<DirectoryGroupMemberPage>(result.Error!); }
@@ -177,7 +177,8 @@ internal sealed class DirectoryGroupReadService(DomainContextService domainConte
         && (query.ObjectId is null ? 0 : 1) + (query.SecurityIdentifier is null ? 0 : 1) + (query.DistinguishedName is null ? 0 : 1) == 1
         && (query.SecurityIdentifier is null || NormalizeSid(query.SecurityIdentifier) is not null)
         && (query.DistinguishedName is null || ValidDn(query.DistinguishedName));
-    private static bool ValidPage(int page, int size) => page >= 1 && size is >= 1 and <= 100 && (long)(page - 1) * size <= int.MaxValue;
+    private bool ValidPage(int page, int size) => page >= 1 && size is >= 1 and <= 100
+        && (long)page * size <= options.Value.MaximumSortedPageEntries;
     private static bool ValidDn(string value) => value.Length is > 0 and <= 4096 && !value.Any(char.IsControl) && value.Contains('=', StringComparison.Ordinal);
     private static string? NormalizeSid(string? value)
     {

@@ -10,6 +10,9 @@ public sealed class ActiveDirectoryOptions
     [Range(1, 10_000)]
     public int PageSize { get; set; } = 500;
 
+    [Range(100, 100_000)]
+    public int MaximumSortedPageEntries { get; set; } = 10_000;
+
     [PositiveTimeSpan]
     public TimeSpan SearchTimeout { get; set; } = TimeSpan.FromSeconds(30);
 

@@ -42,6 +42,18 @@ public sealed class UserSearchServiceTests
             options);
     }
 
+    [Fact]
+    public async Task SecondarySortPageBeyondMemoryCapDoesNotQueryDirectory()
+    {
+        var query = new DirectoryUserPageQuery(new("example.test", null, ScanCredentials.CurrentUser), null,
+            null, null, DirectoryUserAccountStateFilter.All, 101, 100, DirectoryUserSortField.Department,
+            DirectoryUserSortDirection.Ascending);
+        var result = await CreateDirectoryUserReadService().GetPageAsync(query, CancellationToken.None);
+        Assert.Equal(ErrorCode.InvalidRequest, result.Error!.Code);
+        Assert.Empty(_directoryReader.ReceivedCalls());
+        Assert.Empty(_wmiQueryService.ReceivedCalls());
+    }
+
     private void SetUpDomainJoined()
     {
         _wmiQueryService.QueryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())

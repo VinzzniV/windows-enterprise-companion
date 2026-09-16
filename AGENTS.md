@@ -71,6 +71,8 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
   **Health** and keeps only update age, selected service state, Event Log
   summary and free disk space; detailed Event Log queries and historical
   `diagnostics_runs` remain (ADR 0018).
+- AD secondary sorting follows ADR 0023: one LDAP server key, a bounded local
+  ordered prefix for ties, and an explicit cap for deep offset pages.
 - User Management is AD-authoritative and read-only first. Stable identity uses
   `objectGUID`; old Employee Lifecycle tables remain frozen and preserved.
   Directory or lifecycle writes require a later ADR (ADR 0019).

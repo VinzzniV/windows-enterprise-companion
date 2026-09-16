@@ -123,6 +123,7 @@ rejected as `INVALID_REQUEST` naming the accepted forms.
 | Option | Default | Purpose |
 |---|---|---|
 | `PageSize` | 500 | LDAP paged-search page size |
+| `MaximumSortedPageEntries` | 10,000 | Maximum offset plus page size retained for deterministic secondary sorting; deeper pages require narrower filters (ADR 0023) |
 | `SearchTimeout` | 30 s | Per-request client/server time limit |
 | `InactivityThreshold` | 90 days | lastLogonTimestamp age that counts as inactive |
 | `ExampleLimit` | 20 | Maximum example accounts/members per rule or group |
