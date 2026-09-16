@@ -19,11 +19,21 @@ export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
   const [search, setSearch] = useState('');
   const [storedSearch, setStoredSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<'directory' | 'cloud' | 'management' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const active = useRef<CancellableBridgeInvocation<unknown> | null>(null);
+  const activeOwner = useRef<typeof operation>(null);
   const generation = useRef(0);
-  const cancel = () => { generation.current++; active.current?.cancel(); active.current = null; setBusy(false); };
+  const managementActive = operation === 'management' || operation === null && environment?.loading === true;
+  const busy = operation !== null || environment?.loading === true;
+  const begin = (owner: Exclude<typeof operation, null>) => { activeOwner.current = owner; setOperation(owner); };
+  const finish = () => { activeOwner.current = null; active.current = null; setOperation(null); };
+  const cancel = () => {
+    generation.current++;
+    if (activeOwner.current === 'management' || activeOwner.current === null && environment?.loading) environment?.cancel();
+    else active.current?.cancel();
+    finish();
+  };
   const changeEndpoint = (next: typeof endpoint) => {
     if (workspace.directoryEndpoint) workspace.clearFamily('directory');
     setEndpoint(next);
@@ -31,13 +41,13 @@ export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
   useEffect(() => { cancel(); return () => { generation.current++; active.current?.cancel(); active.current = null; }; }, [adminCredentials, workspace.cloudGeneration, workspace.directoryGeneration, workspace.managementGeneration]);
   const readManagement = async () => {
     if (!environment) return;
-    const own = ++generation.current; setBusy(true); setError(null);
+    const own = ++generation.current; begin('management'); setError(null);
     try { await environment.refresh(); if (own === generation.current) await workspace.refreshCached(true); }
     catch (caught) { if (own === generation.current) setError(presentError(caught).message); }
-    finally { if (own === generation.current) setBusy(false); }
+    finally { if (own === generation.current) finish(); }
   };
   const readDirectory = async () => {
-    const own = ++generation.current; active.current?.cancel(); setBusy(true); setError(null);
+    const own = ++generation.current; active.current?.cancel(); begin('directory'); setError(null);
     const selection = { scope: endpoint.domain.trim(), search, page, pageSize: 100 };
     const payload = { connection: toUserDirectoryConnection(endpoint, adminCredentials), directoryScope: selection.scope, search, page, pageSize: 100, refresh: true };
     try {
@@ -57,10 +67,10 @@ export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
         if (own === generation.current) workspace.publishDirectory(directoryGroupWorkingSetRead(read, selection), endpoint);
       }
     } catch (caught) { if (own === generation.current) setError(presentError(caught).message); }
-    finally { if (own === generation.current) { active.current = null; setBusy(false); } }
+    finally { if (own === generation.current) finish(); }
   };
   const readCloud = async (resource: Microsoft365Resource) => {
-    const own = ++generation.current; active.current?.cancel(); setBusy(true); setError(null);
+    const own = ++generation.current; active.current?.cancel(); begin('cloud'); setError(null);
     try {
       const status = invokeCancellable<Microsoft365Status>('microsoft365', 'getStatus'); active.current = status;
       const value = await status.promise;
@@ -70,7 +80,7 @@ export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
       if (own === generation.current) await workspace.refreshCached(true);
     } catch (caught) {
       if (own === generation.current) { setError(presentError(caught).message); await workspace.refreshCached(true); }
-    } finally { if (own === generation.current) { active.current = null; setBusy(false); } }
+    } finally { if (own === generation.current) finish(); }
   };
   return <details className="rounded-lg border border-slate-800 p-3 text-sm"><summary className="cursor-pointer text-accent-400">Load a source into this working set</summary>
     <p className="my-3 text-xs text-muted">Only these explicit actions query external sources. Search below filters loaded data. Each AD read is bounded; computer searches return up to 100 matches. Use a narrower query to find records outside that result.</p>
@@ -85,14 +95,15 @@ export function WorkingSetSourceControls({ kind }: { kind: ObjectKind }) {
       <label>Stored address query<Input value={storedSearch} maxLength={100} onChange={event => setStoredSearch(event.target.value)} /></label>
       <Button disabled={workspace.busy || !storedSearch.trim()} onClick={() => void workspace.refreshCached(true, storedSearch.trim())}>Load matching stored addresses</Button>
       {environment && <Button disabled={environment.loading || busy} onClick={() => void readManagement()}>Read configured management sources</Button>}
-      {environment?.loading && <Button onClick={() => { cancel(); environment.cancel(); }}>Cancel management source read</Button>}
       {environment?.error && <p role="alert" className="text-fail-400">{environment.error.message}</p>}
     </div>}
     <div className="flex flex-wrap items-center gap-3">
       <Button disabled={busy} onClick={() => void readCloud(kind === 'USER' ? 'USERS' : kind === 'GROUP' ? 'GROUPS' : 'DEVICES')}>Read bounded Entra inventory</Button>
       {kind === 'DEVICE' && <Button disabled={busy} onClick={() => void readCloud('MANAGED_DEVICES')}>Read bounded Intune inventory</Button>}
       <Link className="text-accent-400 underline" to="/microsoft365">Microsoft 365 connection and source analysis</Link>
-      {busy && <Button onClick={cancel}>Cancel source read</Button>}
+      {busy && <><span role="status" className="text-xs text-muted">{managementActive ? 'Reading configured management sources…'
+        : operation === 'directory' ? 'Reading the selected Active Directory source…' : 'Reading the selected Microsoft 365 source…'}</span>
+        <Button onClick={cancel}>{managementActive ? 'Cancel management source read' : operation === 'directory' ? 'Cancel AD source read' : 'Cancel Microsoft 365 source read'}</Button></>}
     </div>
     {error && <p role="alert" className="mt-3 text-fail-400">{error}</p>}
   </details>;

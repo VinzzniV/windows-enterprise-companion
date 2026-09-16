@@ -3,18 +3,23 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkingSetSourceControls } from './WorkingSetSourceControls';
 
-const { workspaceMock, targetsMock, invokeMock } = vi.hoisted(() => ({ workspaceMock: vi.fn(), targetsMock: vi.fn(), invokeMock: vi.fn() }));
+const { workspaceMock, targetsMock, invokeMock, environmentMock } = vi.hoisted(() => ({
+  workspaceMock: vi.fn(), targetsMock: vi.fn(), invokeMock: vi.fn(), environmentMock: vi.fn(),
+}));
 vi.mock('./WorkingSetContext', () => ({ useWorkingSet: workspaceMock }));
 vi.mock('../targets/TargetContext', () => ({ useTargets: targetsMock }));
 vi.mock('../bridge/bridgeClient', async importOriginal => ({ ...await importOriginal<typeof import('../bridge/bridgeClient')>(), invokeCancellable: invokeMock }));
+vi.mock('../environment/EnvironmentContext', () => ({ useEnvironmentOptional: environmentMock }));
 const publishDirectory = vi.fn();
 const refreshCached = vi.fn();
 const cached = { data: { directoryScope: 'example.test', retrievedAtUtc: new Date().toISOString(), page: 1, pageSize: 100, totalCount: 2000, users: [] },
   lastAttemptAtUtc: new Date().toISOString(), lastAttemptError: null, sessionRevision: 1, revision: 1, retainedUntilUtc: null, freshUntilUtc: null, stale: false };
 const view = () => <MemoryRouter><WorkingSetSourceControls kind="USER" /></MemoryRouter>;
 beforeEach(() => {
-  workspaceMock.mockReturnValue({ directoryEndpoint: null, cloudGeneration: 0, directoryGeneration: 0, publishDirectory, refreshCached, clearFamily: vi.fn() });
+  workspaceMock.mockReturnValue({ directoryEndpoint: null, cloudGeneration: 0, directoryGeneration: 0, managementGeneration: 0,
+    busy: false, publishDirectory, refreshCached, clearFamily: vi.fn() });
   targetsMock.mockReturnValue({ adminCredentials: null });
+  environmentMock.mockReturnValue(null);
   publishDirectory.mockReset(); refreshCached.mockReset(); invokeMock.mockReset();
 });
 
@@ -74,5 +79,48 @@ describe('explicit working-set source reads', () => {
     fireEvent.click(screen.getByText('Read bounded Entra inventory'));
     await waitFor(() => expect(refreshCached).toHaveBeenCalledWith(true));
     expect(invokeMock.mock.calls).toEqual([['microsoft365', 'getStatus'], ['microsoft365', 'read', { resource: 'USERS', tenantId: 'tenant', refresh: true }]]);
+  });
+
+  it('cancels a deferred management refresh through its actual owner and ignores the late result', async () => {
+    let complete!: () => void;
+    const environmentCancel = vi.fn();
+    const refresh = vi.fn(() => new Promise<void>(resolve => { complete = resolve; }));
+    environmentMock.mockReturnValue({ refresh, cancel: environmentCancel, loading: false, error: null });
+    render(<MemoryRouter><WorkingSetSourceControls kind="DEVICE" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Read configured management sources' }));
+    expect(screen.getAllByRole('button', { name: /Cancel/ })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel management source read' }));
+    expect(environmentCancel).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: /Cancel/ })).toBeNull();
+    await act(async () => complete());
+    expect(refreshCached).not.toHaveBeenCalled();
+
+    refresh.mockResolvedValueOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Read configured management sources' }));
+    await waitFor(() => expect(refreshCached).toHaveBeenCalledWith(true));
+  });
+
+  it('cancels AD and Entra reads once without publishing their late results', async () => {
+    let completeDirectory!: (value: typeof cached) => void;
+    const cancelDirectory = vi.fn();
+    invokeMock.mockReturnValueOnce({ cancel: cancelDirectory, promise: new Promise(resolve => { completeDirectory = resolve; }) });
+    render(view());
+    fireEvent.change(screen.getByLabelText('Directory DNS scope'), { target: { value: 'example.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Read AD page (up to 100)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel AD source read' }));
+    await act(async () => completeDirectory(cached));
+    expect(cancelDirectory).toHaveBeenCalledOnce();
+    expect(publishDirectory).not.toHaveBeenCalled();
+
+    let completeCloud!: () => void;
+    const cancelCloud = vi.fn();
+    invokeMock.mockReturnValueOnce({ cancel: vi.fn(), promise: Promise.resolve({ connection: { configuration: { tenantId: 'tenant' } } }) });
+    invokeMock.mockReturnValueOnce({ cancel: cancelCloud, promise: new Promise<void>(resolve => { completeCloud = resolve; }) });
+    fireEvent.click(screen.getByRole('button', { name: 'Read bounded Entra inventory' }));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(3));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Microsoft 365 source read' }));
+    await act(async () => completeCloud());
+    expect(cancelCloud).toHaveBeenCalledOnce();
+    expect(refreshCached).not.toHaveBeenCalled();
   });
 });
