@@ -1,29 +1,30 @@
 # Windows Enterprise Companion — Roadmap Execution
 
-Status: `LIVE_ACCEPTANCE_FINDINGS_OPEN`
+Status: `LIVE_FIXES_VERIFIED_WITH_ACCEPTED_LIMITS`
 
 Current phase: Object-centered consolidation (ADR 0022), phases 0–7 and 9.
 Phase 8 Windows identity collection remains excluded.
 
-Current slice: Live acceptance completed with an unresolved AD sorting defect
-(F-01). The implementation milestone, G2 review, automated regression and
-CI/packaging evidence belong to build `17f53ef`; they do not establish live
-acceptance. No release or tag is authorized.
-Follow-up on 2026-09-16: bounded checks ran against the single user-designated
-workstation under D-003, existing configured sources and the available
-Microsoft 365 tenant. The user entered the admin credential directly in WEC.
-Remote Inventory/Health/Event Log/connectivity, cloud identity/relationship/
-license journeys, narrow-window navigation and sign-out/cache clearing passed.
-AD direct-member reads failed because the DC rejected the two-key server-sort
-control. Full Nessus coverage and a real cross-tenant switch remain unverified.
-Evidence and required correction: `docs/consolidation-live-acceptance.md`.
+Current slice: F-01 AD sorting and F-02 orphaned Nessus sync status are corrected
+and live-verified following the user's explicit fix instruction on 2026-09-16.
+Partial Nessus coverage is accepted when its cause and retained evidence are
+visible. Five AD group members, stable group/user pages and all ten user sort
+combinations passed live. Nessus imported 12 current scans without scan errors
+and published 669 assets/50,219 findings at 12:28:36; optional history continued.
+See ADR 0023 and `docs/consolidation-live-acceptance.md` for bounds and evidence.
+
+Earlier acceptance passed remote Inventory/Health/Event Log/connectivity,
+cloud identity/relationship/license journeys, narrow-window navigation and
+sign-out/cache clearing. Its AD/Nessus findings are resolved above. A real
+cross-tenant switch remains unperformed. The `17f53ef` CI/packaging evidence
+belongs to the previous implementation milestone. No release or tag is authorized.
 Branch: `codex/object-centered-consolidation`, created from clean `184a10f`.
 Binding scope: `docs/consolidation-analysis-and-plan.md`; preservation and
 verification details: `docs/consolidation-verification.md`.
 
 ## Current consolidation verification (2026-09-16)
 
-- All 1,025 backend tests and 559 frontend tests in 97 files pass. The Release
+- All 1,043 backend tests and 559 frontend tests in 97 files pass. The Release
   build has zero warnings/errors, the 494 generated contracts are current, and
   the frontend production build passes after a locked dependency install.
 - Dependency rules pass across all 20 production projects. The NPM High gate
@@ -51,8 +52,8 @@ verification details: `docs/consolidation-verification.md`.
 - The existing Dashboard performed its bounded read-only opsi status/product
   reads using the configured connection. This is not full opsi acceptance.
   The later live follow-up exercised AD/KSC/opsi/Nessus, Graph/Intune and the
-  designated remote client. AD identity succeeded but direct members failed
-  (F-01); Nessus coverage remained Partial. See the live acceptance report for
+  designated remote client. The initial direct-member failure and orphaned
+  Nessus running state were corrected and retested. See the live report for
   per-journey evidence and limits. No remote write or release was performed.
 
 ## Previous program history

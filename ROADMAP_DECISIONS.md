@@ -87,6 +87,11 @@ read-only Inventory, Health, Event Log, Ping and WinRM smoke tests. Its hostname
 is retained in the task context, not this committed register, consistent with
 D-008. No other remote workstation or remote mutation is authorized.
 
+Acceptance clarification on 2026-09-16: the user authorizes correction of the
+live findings and investigation of Nessus coverage. One hundred percent Nessus
+coverage is not required; bounded, partial or historical results are acceptable
+when their cause, freshness and limits are correctly exposed.
+
 ## D-004 — GitHub Actions artifacts may be cleaned up
 
 Decision: confirmed recommendation.

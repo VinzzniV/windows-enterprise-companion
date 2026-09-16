@@ -85,8 +85,9 @@ No export schema is expanded with cloud evidence, and no write action is added.
 The first desktop smoke below is historical evidence from the implementation
 milestone. The explicitly authorized follow-up is recorded in
 [the live acceptance report](consolidation-live-acceptance.md). It passed the
-narrow-window and designated-client journeys but found the unresolved AD
-server-sort defect F-01; automated green results are not full live acceptance.
+narrow-window and designated-client journeys and found AD sorting defect F-01.
+The subsequent correction passed live AD retests and recovered Nessus refresh
+(F-02). The live report distinguishes original observations and correction evidence.
 
 The Release executable ran with an isolated database/log/WebView profile.
 WebView2 and real migrations initialized successfully; no WEC-owned TCP listener
@@ -125,8 +126,11 @@ existing EF Dashboard query warning and unsigned packaging remain separate debt.
 
 The later [live acceptance follow-up](consolidation-live-acceptance.md) covers
 bounded company-source, Graph/Intune and designated remote-client checks.
-F-01 (AD group/member server sorting) remains an acceptance blocker and needs
-a correction, regression and live retest. Nessus returned Partial coverage;
-full source coverage and a real switch between two tenants remain unverified.
-These limits remain explicit release-acceptance gates under D-003/D-008.
+F-01 (AD group/member server sorting) and F-02 (orphaned Nessus running status)
+are corrected and live-retested. Current correction gates pass with 1,043
+backend tests, 559 frontend tests, 494 contracts, Release/production builds and
+the dependency/audit gates. Nessus current publication returned 669 assets from
+12 scans without scan errors; optional history backfill remained running.
+Complete Nessus coverage is not required by the user's clarified acceptance
+scope. A real switch between two tenants remains unverified under D-003/D-008.
 No tag, installer publication or GitHub Release is authorized.
