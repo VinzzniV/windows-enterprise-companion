@@ -328,6 +328,28 @@ describe('ClientDetailPage', () => {
     expect(screen.getByTestId('location').textContent).toBe('/clients/PC1.corp.local');
   });
 
+  it('does not read BitLocker until the administrator starts the explicit check', async () => {
+    const fallback = invokeMock.getMockImplementation() as (module: string, action: string, payload?: unknown) => Promise<unknown>;
+    invokeMock.mockImplementation((module: string, action: string, payload?: unknown) => {
+      if (module === 'inventory' && action === 'getHardwareInfo') return Promise.resolve({ ...capturedInventory, fromCache: true });
+      if (module === 'inventory' && action === 'getDiskEncryptionStatus') return Promise.resolve({ volumes: [] });
+      return fallback(module, action, payload);
+    });
+
+    renderAt('PC1.corp.local');
+    await screen.findByText('Test CPU');
+    expect(invokeMock.mock.calls.filter(call => call[1] === 'getDiskEncryptionStatus')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('tab', { name: 'Inventory' }));
+    expect(invokeMock.mock.calls.filter(call => call[1] === 'getDiskEncryptionStatus')).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check BitLocker now' }));
+    await waitFor(() => expect(invokeMock.mock.calls.filter(call => call[1] === 'getDiskEncryptionStatus')).toHaveLength(1));
+    expect(invokeMock).toHaveBeenCalledWith('inventory', 'getDiskEncryptionStatus', {
+      target: expect.objectContaining({ host: 'PC1.corp.local' }),
+    });
+    expect(await screen.findByText(/Checked/)).toBeDefined();
+  });
+
   it('falls back safely to Overview for an unknown section URL', async () => {
     renderAt('PC1.corp.local', 'not-a-section');
 
