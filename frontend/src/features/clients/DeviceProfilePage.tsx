@@ -70,6 +70,10 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
   const selectSection = (key: string) => { const next = new URLSearchParams(parameters); next.set('section', key); setParameters(next, { state: location.state }); };
   const directory = profile?.directory;
   const cloud = profile?.cloud;
+  const overviewEntraDevices = cloud?.entraReads.flatMap(read => sourceRetained(read.state, view.now) ? read.devices : [])
+    .filter(device => reference.source === 'ENTRA' && device.id?.toLowerCase() === reference.id.toLowerCase()) ?? [];
+  const overviewIntuneDevices = cloud ? [cloud.intune, ...cloud.managedDetails].flatMap(read => sourceRetained(read.state, view.now) ? read.devices : [])
+    .filter(device => reference.source === 'INTUNE' && device.id?.toLowerCase() === reference.id.toLowerCase()) : [];
   if (profile?.operationalHost && legacySection && ['inventory', 'security', 'diagnostics', 'events', 'printers', 'reporting'].includes(legacySection)) {
     return <Navigate replace to={`/clients/${encodeURIComponent(profile.operationalHost)}?section=${legacySection}&target=exact`}
       state={{ ...navigationState, returnObject: `${location.pathname}${location.search}` }} />;
@@ -99,6 +103,11 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
             to={`/clients/${encodeURIComponent(profile.operationalHost!)}?section=${section}&target=exact`}>{label}</Link>)}</div>
         <Link className="text-sm text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(profile.operationalHost)}`}>Device Cleanup</Link>
       </Card>}
+      {section === 'overview' && profile.wec && profile.operationalHost && <StoredClientEvidence host={profile.operationalHost} result={profile.wec} />}
+      {section === 'overview' && !profile.operationalHost && (overviewEntraDevices.length > 0 || overviewIntuneDevices.length > 0) && <div className="grid gap-4 xl:grid-cols-2">
+        {overviewEntraDevices.map((device, index) => <Card key={`entra:${index}`} title="Loaded Entra device facts"><CloudDeviceFields device={device} /></Card>)}
+        {overviewIntuneDevices.map((device, index) => <Card key={`intune:${index}`} title="Loaded Intune enrollment facts"><CloudManagedFields device={device} /></Card>)}
+      </div>}
       {!profile.operationalHost && <p className="text-sm text-muted">Windows scans and exports are not applicable until an exact Windows target is selected. Candidate links open separate source records.</p>}
       {section === 'overview' && <Card title="Available evidence">
         <p className="text-sm text-muted">{profile.relationships.length} established relationships · {profile.candidates.length} separate candidates. Open Identity & management for source fields and individual refresh.</p>

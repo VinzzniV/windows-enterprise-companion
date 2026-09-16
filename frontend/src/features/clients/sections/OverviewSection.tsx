@@ -28,6 +28,7 @@ import {
   sourcePresenceStatus,
 } from '../clientStatus';
 import { DeviceRelationshipMap } from '../DeviceRelationshipMap';
+import { continueWorkingSetNavigation } from '../../../shared/objects/workingSetNavigation';
 
 type OverviewLoadState =
   | { kind: 'loading' }
@@ -78,9 +79,11 @@ function DetailLink({ host, metadata, children }: {
   metadata: ClientOverviewSourceMetadata;
   children: string;
 }) {
+  const location = useLocation();
   const section = DETAIL_SECTIONS.has(metadata.detailSection) ? metadata.detailSection : 'overview';
   const search = section === 'overview' ? '' : `?section=${encodeURIComponent(section)}`;
-  return <Link className="text-sm font-medium text-accent-400 hover:text-accent-300" to={`/clients/${encodeURIComponent(host)}${search}`}>{children}</Link>;
+  return <Link className="text-sm font-medium text-accent-400 hover:text-accent-300" to={`/clients/${encodeURIComponent(host)}${search}`}
+    state={{ ...continueWorkingSetNavigation(location.state), returnObject: `${location.pathname}${location.search}` }}>{children}</Link>;
 }
 
 function SourceEvidence({ host, metadata }: { host: string; metadata: ClientOverviewSourceMetadata }) {

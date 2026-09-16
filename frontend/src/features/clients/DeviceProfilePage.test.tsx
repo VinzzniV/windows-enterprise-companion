@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DeviceProfileResult, Microsoft365ReadState, ObjectSource } from '../../shared/api-types.generated';
+import type { ClientOverviewResult, DeviceProfileResult, Microsoft365ReadState, ObjectSource } from '../../shared/api-types.generated';
 import { objectPath } from '../../shared/objects/objectRoutes';
 import { DeviceProfilePage } from './DeviceProfilePage';
 
@@ -34,6 +34,29 @@ function profile(source: ObjectSource = 'ENTRA'): DeviceProfileResult {
     },
   };
 }
+function storedOverview(): ClientOverviewResult {
+  const capturedAtUtc = '2026-09-16T10:00:00Z';
+  return {
+    host: 'PC-01.example.test',
+    inventory: { operatingSystem: 'Windows 11 Enterprise', operatingSystemVersion: '10.0', operatingSystemBuild: '26200', architecture: '64-bit',
+      cpuName: 'Test CPU', physicalCores: 8, logicalProcessors: 16, totalMemoryBytes: 16 * 1024 ** 3,
+      disks: [{ model: 'Disk', sizeBytes: 512 * 1024 ** 3, interfaceType: 'NVMe' }] },
+    software: { installedCount: 42, sample: [{ name: 'Admin tool', version: '1.2', publisher: 'Example' }] },
+    health: { criticalCount: 0, warningCount: 1, unknownCount: 0, healthyCount: 3,
+      issues: [{ diagnosticId: 'disk', title: 'Disk space', status: 'WARNING', affectedResource: 'C:' }] },
+    security: { scanStatus: 'COMPLETED', criticalCount: 0, highCount: 1, mediumCount: 0, lowCount: 0,
+      topFindings: [{ findingId: 'finding', title: 'Security finding', severity: 'HIGH', affectedResource: 'Service' }] },
+    users: null,
+    sources: [
+      ['Inventory', 'FRESH', true, 'Stored hardware available.', 'inventory'],
+      ['Installed software', 'STALE', true, 'Stored software is older than the freshness limit.', 'inventory'],
+      ['Health', 'FRESH', true, 'Four checks evaluated.', 'diagnostics'],
+      ['Security', 'STALE', false, 'One check was unavailable.', 'security'],
+      ['Linked users', 'MISSING', false, 'No stored user evidence.', 'inventory'],
+    ].map(([source, freshness, isComplete, coverage, detailSection]) => ({ source, provenance: `Stored ${source}`, freshness, capturedAtUtc,
+      ageSeconds: freshness === 'MISSING' ? null : 3600, isComplete, coverage, detailSection })),
+  } as ClientOverviewResult;
+}
 function NavigateToSecond() { const navigate = useNavigate(); return <button onClick={() => navigate(`/devices/entra/${tenant}/${secondId}`)}>Second device</button>; }
 function renderPage(value = profile(), section = 'identity') {
   return render(<MemoryRouter initialEntries={[`${objectPath(value.reference)}?section=${section}`]}><NavigateToSecond /><Routes><Route path="/devices/:source/:scope/:objectId" element={<DeviceProfilePage />} /></Routes></MemoryRouter>);
@@ -57,6 +80,20 @@ describe('device profiles', () => {
     expect(screen.getByRole('heading', { name: 'Windows target required' })).toBeTruthy();
     expect(mocks.invoke).toHaveBeenCalledTimes(1);
   });
+  it('shows stored operating state and direct Windows tools in the canonical overview', async () => {
+    const value = profile('WEC');
+    value.reference = { kind: 'DEVICE', source: 'WEC', scope: 'stored', id: 'PC-01.example.test' };
+    value.title = 'PC-01.example.test'; value.operationalHost = 'PC-01.example.test'; value.wec = storedOverview(); value.cloud = null;
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+    renderPage(value, 'overview');
+    expect(await screen.findByText('Windows 11 Enterprise')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Health' })).toBeTruthy();
+    expect(screen.getByText('42 installed applications')).toBeTruthy();
+    expect(screen.getByText('One check was unavailable.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Event logs' }).getAttribute('href')).toContain('section=events');
+    expect(screen.getAllByRole('link', { name: /Health/ }).some(link => link.getAttribute('href')?.includes('section=diagnostics'))).toBe(true);
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+  });
   it('keeps the selected directory server when opening a scoped AD profile', async () => {
     const value = profile();
     value.reference = { kind: 'DEVICE', source: 'ACTIVE_DIRECTORY', scope: 'example.test', id };
@@ -69,14 +106,17 @@ describe('device profiles', () => {
   });
 
   it('opens cloud-only evidence without source reads or a Windows action fallback', async () => {
-    renderPage();
+    renderPage(profile(), 'overview');
     expect(await screen.findByRole('heading', { name: 'Cloud device' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Loaded Entra device facts' })).toBeTruthy();
     expect(mocks.invoke).toHaveBeenCalledTimes(1);
     expect(mocks.invoke).toHaveBeenCalledWith('clients', 'getProfile', expect.objectContaining({ loadDirectoryIdentity: false }));
     expect(screen.queryByRole('link', { name: 'Inventory' })).toBeNull();
     expect(screen.getByText('No')).toBeTruthy();
     expect(screen.getAllByText('Not available').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Identity & management' }));
     expect((screen.getByRole('button', { name: 'Load bounded Intune inventory' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes the selected Entra query with its tenant and then recomposes cached facts', async () => {
