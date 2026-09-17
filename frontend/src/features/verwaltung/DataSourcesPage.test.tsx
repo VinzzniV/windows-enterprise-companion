@@ -24,6 +24,7 @@ describe('data source sessions', () => {
   it('retains independent status failures and connects only after the explicit action', async () => {
     render(<MemoryRouter><DataSourcesPage /></MemoryRouter>);
     expect(await screen.findByText(/Kaspersky configuration: Source status unavailable/)).toBeTruthy();
+    expect(screen.getByText(/KES is not a separate data source/)).toBeTruthy();
     expect(screen.getByText(/API keys stored securely/)).toBeTruthy();
     expect(mocks.refresh).not.toHaveBeenCalled();
     expect(mocks.invoke).toHaveBeenCalledWith('patchmanagement', 'getConnectionStatus', { connectStoredCredential: false });

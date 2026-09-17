@@ -1,17 +1,18 @@
 import { Link, useLocation } from 'react-router-dom';
 
 export const settingsSections = [
-  { id: 'overview', label: 'Effective configuration' },
-  { id: 'environment-health', label: 'Environment Health' },
-  { id: 'vulnerability-management', label: 'Vulnerability Management' },
-  { id: 'patch-management', label: 'Patch Management' },
-  { id: 'microsoft365', label: 'Microsoft 365' },
+  { id: 'overview', label: 'General' },
+  { id: 'environment-health', label: 'Kaspersky & health rules' },
+  { id: 'vulnerability-management', label: 'Nessus' },
+  { id: 'patch-management', label: 'opsi' },
+  { id: 'microsoft365', label: 'Microsoft 365 defaults' },
   { id: 'policy', label: 'Configuration policy' },
 ] as const;
 
 export type SettingsSectionId = (typeof settingsSections)[number]['id'];
 
 const sectionIds = new Set<string>(settingsSections.map((section) => section.id));
+const sectionLabels = new Map<SettingsSectionId, string>(settingsSections.map((section) => [section.id, section.label]));
 
 export function isSettingsSection(value: string | null): value is SettingsSectionId {
   return value !== null && sectionIds.has(value);
@@ -19,6 +20,10 @@ export function isSettingsSection(value: string | null): value is SettingsSectio
 
 export function settingsSectionElementId(section: SettingsSectionId) {
   return `settings-section-${section}`;
+}
+
+export function settingsSectionLabel(section: SettingsSectionId) {
+  return sectionLabels.get(section) ?? section;
 }
 
 export function settingsSectionLocation(pathname: string, search: string, section: SettingsSectionId) {

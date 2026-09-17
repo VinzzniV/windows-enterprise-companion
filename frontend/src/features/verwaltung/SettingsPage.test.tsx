@@ -47,7 +47,7 @@ const nessusSettings = {
 
 beforeEach(() => {
   invokeMock.mockReset();
-  invokeMock.mockImplementation((_module: string, action: string) => {
+  invokeMock.mockImplementation((_module: string, action: string, payload?: { userName?: string }) => {
     if (action === 'getMicrosoft365Settings') {
       return Promise.resolve({ settings: { tenantId: '', clientId: '', enableIntune: false, enableAuthenticationReports: false }, restartRequired: false });
     }
@@ -97,10 +97,7 @@ beforeEach(() => {
       });
     }
     if (action === 'saveServiceCredential') {
-      return Promise.resolve({ saved: true, userName: 'ksc-reader', domain: null });
-    }
-    if (action === 'connect') {
-      return Promise.resolve({ connected: true, serverUrl: 'https://opsi.example.test:4447/rpc', userName: 'opsi-reader', opsiVersion: '4.3', defaultDepotFilter: 'depot01' });
+      return Promise.resolve({ saved: true, userName: payload?.userName ?? null, domain: null });
     }
     if (action === 'list') return Promise.resolve({ targets: [] });
     return Promise.resolve({});
@@ -159,26 +156,27 @@ describe('SettingsPage', () => {
 
     const navigation = await screen.findByRole('navigation', { name: 'Settings sections' });
     const labels = [
-      'Effective configuration',
-      'Environment Health',
-      'Vulnerability Management',
-      'Patch Management',
+      'General',
+      'Kaspersky & health rules',
+      'Nessus',
+      'opsi',
+      'Microsoft 365 defaults',
       'Configuration policy',
     ];
     for (const label of labels) {
       expect(within(navigation).getByRole('link', { name: label })).toBeTruthy();
     }
-    expect(within(navigation).getByRole('link', { name: 'Patch Management' }).getAttribute('aria-current')).toBe('location');
+    expect(within(navigation).getByRole('link', { name: 'opsi' }).getAttribute('aria-current')).toBe('location');
     expect(screen.getByTestId('settings-location').textContent).toBe('/settings?section=patch-management');
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }));
 
-    await userEvent.click(within(navigation).getByRole('link', { name: 'Vulnerability Management' }));
+    await userEvent.click(within(navigation).getByRole('link', { name: 'Nessus' }));
 
     expect(screen.getByTestId('settings-location').textContent).toBe('/settings?section=vulnerability-management');
-    expect(within(navigation).getByRole('link', { name: 'Vulnerability Management' }).getAttribute('aria-current')).toBe('location');
+    expect(within(navigation).getByRole('link', { name: 'Nessus' }).getAttribute('aria-current')).toBe('location');
 
     scrollIntoView.mockClear();
-    await userEvent.click(within(navigation).getByRole('link', { name: 'Effective configuration' }));
+    await userEvent.click(within(navigation).getByRole('link', { name: 'General' }));
     expect(screen.getByTestId('settings-location').textContent).toBe('/settings');
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }));
   });
@@ -187,7 +185,7 @@ describe('SettingsPage', () => {
     renderSettings('/settings?section=not-a-real-section');
 
     const navigation = await screen.findByRole('navigation', { name: 'Settings sections' });
-    expect(within(navigation).getByRole('link', { name: 'Effective configuration' }).getAttribute('aria-current')).toBe('location');
+    expect(within(navigation).getByRole('link', { name: 'General' }).getAttribute('aria-current')).toBe('location');
     expect(screen.getByTestId('settings-location').textContent).toBe('/settings');
   });
 
@@ -201,21 +199,21 @@ describe('SettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Nessus HTTPS URL'), { target: { value: 'https://nessus-new.example.test:8834' } });
     fireEvent.change(screen.getByLabelText('opsi server'), { target: { value: 'opsi-new.example.test' } });
 
-    expect(within(navigation).getByRole('link', { name: /Environment Health.*Unsaved changes/ })).toBeTruthy();
-    expect(within(navigation).getByRole('link', { name: /Vulnerability Management.*Unsaved changes/ })).toBeTruthy();
-    expect(within(navigation).getByRole('link', { name: /Patch Management.*Unsaved changes/ })).toBeTruthy();
+    expect(within(navigation).getByRole('link', { name: /Kaspersky & health rules.*Unsaved changes/ })).toBeTruthy();
+    expect(within(navigation).getByRole('link', { name: /Nessus.*Unsaved changes/ })).toBeTruthy();
+    expect(within(navigation).getByRole('link', { name: /opsi.*Unsaved changes/ })).toBeTruthy();
 
-    const environmentSection = screen.getByRole('heading', { name: 'IT Lifecycle / Environment Health' }).closest('[id="settings-section-environment-health"]')!;
+    const environmentSection = screen.getByRole('heading', { name: 'Kaspersky and device health rules' }).closest('[id="settings-section-environment-health"]')!;
     expect(within(environmentSection as HTMLElement).getByText('Unsaved changes')).toBeTruthy();
 
     await userEvent.click(screen.getByRole('button', { name: 'Save IT Lifecycle settings' }));
-    await waitFor(() => expect(within(navigation).getByRole('link', { name: 'Environment Health' })).toBeTruthy());
-    expect(within(navigation).getByRole('link', { name: /Vulnerability Management.*Unsaved changes/ })).toBeTruthy();
+    await waitFor(() => expect(within(navigation).getByRole('link', { name: 'Kaspersky & health rules' })).toBeTruthy());
+    expect(within(navigation).getByRole('link', { name: /Nessus.*Unsaved changes/ })).toBeTruthy();
 
     invokeMock.mockRejectedValueOnce(new Error('save rejected'));
     await userEvent.click(screen.getByRole('button', { name: 'Save Nessus settings' }));
     await screen.findByText('The Nessus settings or connection could not be updated.');
-    expect(within(navigation).getByRole('link', { name: /Vulnerability Management.*Unsaved changes/ })).toBeTruthy();
+    expect(within(navigation).getByRole('link', { name: /Nessus.*Unsaved changes/ })).toBeTruthy();
   });
 
   it('summarizes invalid sections and blocks only their save requests until corrected', async () => {
@@ -228,12 +226,12 @@ describe('SettingsPage', () => {
 
     const summary = screen.getByRole('alert', { name: 'Settings validation' });
     expect(within(summary).getByText('3 settings problems must be fixed before saving.')).toBeTruthy();
-    expect(within(summary).getByRole('link', { name: /Environment Health.*Stale cleanup candidate must be greater/ })).toBeTruthy();
-    expect(within(summary).getByRole('link', { name: /Vulnerability Management.*valid HTTPS URL/ })).toBeTruthy();
-    expect(within(summary).getByRole('link', { name: /Patch Management.*opsi port must be between 1 and 65535/ })).toBeTruthy();
-    expect(within(navigation).getByRole('link', { name: /Environment Health.*1 validation issue/ })).toBeTruthy();
-    expect(within(navigation).getByRole('link', { name: /Vulnerability Management.*1 validation issue/ })).toBeTruthy();
-    expect(within(navigation).getByRole('link', { name: /Patch Management.*1 validation issue/ })).toBeTruthy();
+    expect(within(summary).getByRole('link', { name: /Kaspersky & health rules.*Stale cleanup candidate must be greater/ })).toBeTruthy();
+    expect(within(summary).getByRole('link', { name: /Nessus.*valid HTTPS URL/ })).toBeTruthy();
+    expect(within(summary).getByRole('link', { name: /opsi.*opsi port must be between 1 and 65535/ })).toBeTruthy();
+    expect(within(navigation).getByRole('link', { name: /Kaspersky & health rules.*1 validation issue/ })).toBeTruthy();
+    expect(within(navigation).getByRole('link', { name: /Nessus.*1 validation issue/ })).toBeTruthy();
+    expect(within(navigation).getByRole('link', { name: /opsi.*1 validation issue/ })).toBeTruthy();
 
     const saveButtons = [
       screen.getByRole('button', { name: 'Save IT Lifecycle settings' }),
@@ -270,7 +268,7 @@ describe('SettingsPage', () => {
 
   it('keeps Nessus provider diagnostics local and collapsed', async () => {
     renderSettings();
-    const heading = await screen.findByRole('heading', { name: 'Nessus / Vulnerability Management' });
+    const heading = await screen.findByRole('heading', { name: 'Nessus configuration' });
     const section = heading.closest('[id="settings-section-vulnerability-management"]') as HTMLElement;
     const readCertificate = within(section).getByRole('button', { name: 'Read HTTPS certificate fingerprint' });
     invokeMock.mockRejectedValueOnce(new Error('raw TLS provider failure'));
@@ -318,42 +316,41 @@ describe('SettingsPage', () => {
     expect(JSON.stringify(savePayload)).not.toContain('secret');
   });
 
-  it('stores and signs in a dedicated KSC account', async () => {
+  it('stores a dedicated KSC account without changing the current source session', async () => {
     renderSettings();
 
     await screen.findByLabelText('User name');
     await userEvent.type(screen.getByLabelText('User name'), 'ksc-reader');
     await userEvent.type(screen.getByLabelText('Password'), 'secret');
-    await userEvent.click(screen.getByRole('button', { name: 'Save securely and sign in KSC' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save KSC account securely' }));
 
-    expect(screen.getAllByText('ksc-reader')).toHaveLength(2);
-    expect(screen.getByRole('button', { name: 'Sign out KSC' })).toBeTruthy();
+    expect(screen.getByText('ksc-reader')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Sign out KSC' })).toBeNull();
     expect(invokeMock).toHaveBeenCalledWith('system', 'saveServiceCredential', {
       kind: 'KASPERSKY', userName: 'ksc-reader', domain: null, password: 'secret',
     });
   });
 
-  it('persists opsi connection settings separately and requests secure credential storage', async () => {
+  it('persists opsi settings and credentials without opening a source session', async () => {
     renderSettings();
 
     await screen.findByLabelText('opsi server');
     await userEvent.click(screen.getByRole('button', { name: 'Save opsi settings' }));
     await userEvent.type(screen.getByLabelText('opsi user name'), 'opsi-reader');
     await userEvent.type(screen.getByLabelText('opsi password'), 'session-secret');
-    await userEvent.click(screen.getByRole('button', { name: 'Connect opsi' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save opsi account securely' }));
 
     const savePayload = invokeMock.mock.calls.find((call) => call[1] === 'saveOpsiSettings')?.[2];
     expect(savePayload).toEqual({ settings: opsiSettings });
     expect(JSON.stringify(savePayload)).not.toContain('session-secret');
-    const connectPayload = invokeMock.mock.calls.find((call) => call[1] === 'connect')?.[2];
-    expect(connectPayload).toEqual({
-      server: 'opsi.example.test',
+    expect(invokeMock).toHaveBeenCalledWith('system', 'saveServiceCredential', {
+      kind: 'OPSI',
       userName: 'opsi-reader',
+      domain: null,
       password: 'session-secret',
-      trustServerCertificate: true,
-      rememberCredential: true,
     });
-    expect(screen.queryByLabelText('opsi password')).toBeNull();
+    expect((screen.getByLabelText('opsi password') as HTMLInputElement).value).toBe('');
+    expect(invokeMock.mock.calls.some((call) => call[1] === 'connect')).toBe(false);
   });
 
   it('requires an explicit danger confirmation before deleting each saved credential', async () => {
@@ -383,7 +380,7 @@ describe('SettingsPage', () => {
 
     await userEvent.click(kscDelete);
     expect(invokeMock.mock.calls.filter((call) => call[1] === 'deleteServiceCredential')).toHaveLength(0);
-    expect(screen.getByText(/Automatic Environment Health access will stop/)).toBeTruthy();
+    expect(screen.getByText(/Future Kaspersky reads will require/)).toBeTruthy();
     const cancelKscRemoval = screen.getByRole('button', { name: 'Cancel removing saved KSC credential' });
     expect(document.activeElement).toBe(cancelKscRemoval);
     await userEvent.click(cancelKscRemoval);
@@ -394,7 +391,7 @@ describe('SettingsPage', () => {
     expect(invokeMock).toHaveBeenCalledWith('system', 'deleteServiceCredential', { kind: 'KASPERSKY' });
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove saved opsi credential' }));
-    expect(screen.getByText(/Automatic opsi connections will stop/)).toBeTruthy();
+    expect(screen.getByText(/Future opsi sessions will require/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Confirm removal of saved opsi credential' }));
     expect(invokeMock).toHaveBeenCalledWith('system', 'deleteServiceCredential', { kind: 'OPSI' });
 
@@ -407,7 +404,7 @@ describe('SettingsPage', () => {
   it('reads the Nessus certificate fingerprint from the currently entered server', async () => {
     renderSettings();
 
-    const heading = await screen.findByRole('heading', { name: 'Nessus / Vulnerability Management' });
+    const heading = await screen.findByRole('heading', { name: 'Nessus configuration' });
     const section = heading.closest('[id="settings-section-vulnerability-management"]') as HTMLElement;
     await userEvent.click(within(section).getByRole('button', { name: 'Read HTTPS certificate fingerprint' }));
 
@@ -423,7 +420,7 @@ describe('SettingsPage', () => {
 
     const server = await screen.findByLabelText('Kaspersky Administration Server');
     await userEvent.type(server, 'ksc.example.test');
-    const heading = screen.getByRole('heading', { name: 'IT Lifecycle / Environment Health' });
+    const heading = screen.getByRole('heading', { name: 'Kaspersky and device health rules' });
     const section = heading.closest('[id="settings-section-environment-health"]') as HTMLElement;
     await userEvent.click(within(section).getByRole('button', { name: 'Read HTTPS certificate fingerprint' }));
 

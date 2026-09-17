@@ -77,14 +77,15 @@ function ManagementSourceSessions() {
     <div className="flex flex-wrap gap-3"><Button disabled={busy} onClick={() => void load()}>Update connection status</Button>
       <Button disabled={busy || environment.loading} onClick={() => void environment.refresh().then(() => workspace?.refreshCached())}>Read management inventory</Button>
       {environment.loading && <Button onClick={environment.cancel}>Cancel inventory read</Button>}</div>
-    <p className="text-xs text-muted">Status reads do not scan Windows clients. Management inventory is fetched only on request. Saved endpoints, certificate policy, thresholds and credentials are edited in Settings.</p>
+    <p className="text-xs text-muted">This area controls current sessions, connection status and explicit inventory reads. Saved endpoints, certificate policy, thresholds and credentials are edited only in Settings.</p>
     {busy && <Spinner label="Reading source status…" />}
     {errors.map((error, index) => <p role="alert" key={index} className="text-fail-400">{error}</p>)}
     {environment.error && <p role="alert" className="text-fail-400">{environment.error.message}</p>}
     <Card title="Kaspersky Security Center">
       <p className="text-sm">Server: {ksc?.settings.kaspersky.server || 'Not configured / unavailable'} · Inventory: {sourceStates?.kaspersky.availability ?? 'Not read'}</p>
       {sourceStates?.kaspersky.error && <p role="alert">{sourceStates.kaspersky.error}</p>}
-      <p className="my-2 text-xs text-muted">{credentials?.kaspersky.saved ? 'A separate KSC account is stored securely.' : 'No stored KSC credential reported.'} A selected session account is used on the next explicit inventory read.</p>
+      <p className="my-2 text-xs text-muted">KES is not a separate data source. Its installation and version status are attributes returned by the Kaspersky Security Center inventory.</p>
+      <p className="my-2 text-xs text-muted">{credentials?.kaspersky.saved ? 'A KSC account is stored securely and can be used by explicit reads.' : 'No stored KSC credential reported.'} A temporary session account overrides it until cleared.</p>
       {targets.kasperskyCredentials ? <div className="flex gap-3 text-sm"><span>Session account: {targets.kasperskyCredentials.userName}</span><Button onClick={() => changeKsc(false)}>Clear KSC session override</Button></div>
         : <><CredentialFields values={kscDraft} onChange={patch => setKscDraft(previous => ({ ...previous, ...patch }))} />
           <Button disabled={!kscDraft.userName.trim() || !kscDraft.password} onClick={() => changeKsc(true)}>Use KSC account for this session</Button></>}
@@ -114,9 +115,9 @@ export function DataSourcesPage() {
   const [parameters] = useSearchParams();
   const source = parameters.get('source') ?? 'management';
   return <div className="space-y-4">
-    <PageHeader title="Data sources" subtitle="Connections, source coverage and source-specific analysis" />
+    <PageHeader title="Data sources" subtitle="Current source sessions, coverage and explicit reads" />
     <nav aria-label="Data sources" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
-      <Link to="/sources?source=management" aria-current={source === 'management' ? 'page' : undefined}>Management sources</Link>
+      <Link to="/sources?source=management" aria-current={source === 'management' ? 'page' : undefined}>Management connections</Link>
       <Link to="/sources?source=ad" aria-current={source === 'ad' ? 'page' : undefined}>Active Directory analysis</Link>
       <Link to="/sources?source=microsoft365" aria-current={source === 'microsoft365' ? 'page' : undefined}>Microsoft 365</Link>
     </nav>

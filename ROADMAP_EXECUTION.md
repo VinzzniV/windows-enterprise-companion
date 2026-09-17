@@ -9,6 +9,11 @@ Current slice: UI/UX audit remediation packages S1-S8 and findings F01-F16 from
 `docs/audits/2026-09-16-ui-ux/`. The user explicitly authorized implementation
 on 2026-09-16. Follow-up work runs on `codex/device-source-precedence` after
 the completed UI/UX branch was fast-forwarded into local `master` at `4896690`.
+The 2026-09-17 follow-up removes the remaining navigation ownership overlap:
+Data Sources owns current sessions,
+connection status, source coverage and explicit reads; Settings owns persisted
+defaults, endpoints, trust policy, thresholds and credentials. KES remains a
+Kaspersky inventory attribute and health-policy input, not a separate source.
 The selected product
 direction keeps Devices, Users and Groups with source-scoped identity while
 restoring operational summaries, working modes and bounded explicit source

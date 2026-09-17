@@ -31,7 +31,7 @@ describe('settings validation', () => {
     expect(validateOpsiSettings({ server: '', port: 1, requestTimeoutSeconds: 600, defaultDepotFilter: '', trustServerCertificate: false })).toEqual([]);
   });
 
-  it('reports every invalid Environment Health boundary', () => {
+  it('reports every invalid Kaspersky and health-rule boundary with the navigation label', () => {
     const issues = validateItLifecycleSettings({
       ...lifecycle,
       inventoryLimit: 0,
@@ -43,6 +43,7 @@ describe('settings validation', () => {
       'inventoryLimit', 'staleWarningDays', 'staleCriticalDays', 'kaspersky.port',
       'kaspersky.requestTimeoutSeconds', 'kaspersky.trustedCertificateThumbprint',
     ]);
+    expect(new Set(issues.map((entry) => entry.sectionLabel))).toEqual(new Set(['Kaspersky & health rules']));
   });
 
   it('reports every invalid Nessus and opsi boundary', () => {
@@ -53,6 +54,9 @@ describe('settings validation', () => {
       retentionDays: 6, staleWarningDays: 0, staleCriticalDays: 3651,
     });
     expect(nessusIssues).toHaveLength(8);
-    expect(validateOpsiSettings({ server: '', port: 0, requestTimeoutSeconds: 601, defaultDepotFilter: '', trustServerCertificate: false })).toHaveLength(2);
+    expect(new Set(nessusIssues.map((entry) => entry.sectionLabel))).toEqual(new Set(['Nessus']));
+    const opsiIssues = validateOpsiSettings({ server: '', port: 0, requestTimeoutSeconds: 601, defaultDepotFilter: '', trustServerCertificate: false });
+    expect(opsiIssues).toHaveLength(2);
+    expect(new Set(opsiIssues.map((entry) => entry.sectionLabel))).toEqual(new Set(['opsi']));
   });
 });
