@@ -42,13 +42,15 @@ describe('ErrorLogPage', () => {
 
     await userEvent.click(summary.closest('tr')!);
 
-    expect(screen.getByRole('region', { name: 'Log entry details' })).toBeDefined();
+    const dialog = screen.getByRole('dialog', { name: 'Log entry details' });
+    expect(document.activeElement).toBe(dialog);
     expect(screen.getByText(/SELECT \* FROM MSFT_Printer/)).toBeDefined();
     expect(screen.getByText(/"host":"PC-041"/)).toBeDefined();
     expect(summary.closest('tr')?.getAttribute('aria-selected')).toBe('true');
 
     await userEvent.click(screen.getByRole('button', { name: 'Close log entry details' }));
-    expect(screen.queryByRole('region', { name: 'Log entry details' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Log entry details' })).toBeNull();
+    expect(document.activeElement).toBe(summary.closest('tr'));
   });
 
   it('keeps load diagnostics collapsed and offers a local retry', async () => {
@@ -64,6 +66,28 @@ describe('ErrorLogPage', () => {
     expect(within(alert).getByRole('button', { name: 'Retry loading' })).toBeDefined();
     const details = within(alert).getByText('Technical details').closest('details') as HTMLDetailsElement;
     expect(details.open).toBe(false);
+  });
+
+  it('opens the first of 500 rows in the viewport-bound dialog', async () => {
+    invokeMock.mockResolvedValue({
+      entries: Array.from({ length: 500 }, (_, index) => ({
+        timestamp: `2026-08-19 16:${String(index % 60).padStart(2, '0')}:00.000 +02:00`,
+        level: 'ERR',
+        source: `Source ${index}`,
+        summary: `Failure ${index}`,
+        technicalDetails: `Technical evidence ${index}`,
+      })),
+      source: 'wec-20260819.log',
+      clearedAtUtc: null,
+    });
+    render(<ErrorLogPage />);
+    const firstSummary = await screen.findByText('Failure 0');
+
+    await userEvent.click(firstSummary.closest('tr')!);
+
+    const dialog = screen.getByRole('dialog', { name: 'Log entry details' });
+    expect(dialog.className).toContain('max-h-[calc(100dvh-1rem)]');
+    expect(within(dialog).getByText('Technical evidence 0')).toBeDefined();
   });
 
   it('explains and performs the view-only history boundary without claiming to delete logs', async () => {

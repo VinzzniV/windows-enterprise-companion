@@ -94,6 +94,23 @@ describe('DataTable', () => {
     expect(row.className).toContain('focus-visible:outline');
   });
 
+  it('focuses a clicked selectable row before opening its details', async () => {
+    let focusedAtSelection: Element | null = null;
+    render(
+      <DataTable
+        columns={columns}
+        rows={[{ id: 1, name: 'Alpha' }]}
+        emptyMessage="No rows"
+        onRowClick={() => { focusedAtSelection = document.activeElement; }}
+      />,
+    );
+    const row = screen.getAllByRole('row')[1];
+
+    await userEvent.click(row);
+
+    expect(focusedAtSelection).toBe(row);
+  });
+
   it('leaves checkbox, button and link activation to the child controls', async () => {
     const onRowClick = vi.fn();
     const onButtonClick = vi.fn();
