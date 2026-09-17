@@ -49,6 +49,7 @@ public sealed class EfHardwareSnapshotRepository : IHardwareSnapshotRepository
     public async Task<IReadOnlyList<StoredInventoryHost>> ListHostsAsync(CancellationToken cancellationToken)
     {
         return await _dbContext.Set<HardwareSnapshotRecord>()
+            .AsNoTracking()
             .Where(snapshot => snapshot.Host.Trim() != string.Empty)
             .OrderBy(snapshot => snapshot.Host)
             .Select(snapshot => new StoredInventoryHost(snapshot.Host, snapshot.CapturedAtUtc))
