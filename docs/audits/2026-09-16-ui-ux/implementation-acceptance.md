@@ -3,7 +3,7 @@
 Date: 2026-09-16  
 Branch: `codex/ui-ux-audit-improvements`  
 Base: `664bbe4604801a19b88724ac3beaf0ac48cc0ecc`  
-Automated baseline: `4a970f2de03be520ba91311293f5a95d0c2f849c`
+Automated baseline: `e094cf2783188f96fb1a7c252b2e9aab1fe761d5`
 
 ## Outcome
 
@@ -19,7 +19,7 @@ viewport run is still required before describing the remediation as fully
 accepted. The available Computer Use provider exposed browser control only;
 native app selection failed with `cua.getApp is not a function`, consistent
 with its `Native computer APIs are disabled` capability declaration. This was
-not replaced with PowerShell UI automation or a browser/CSS approximation.
+not replaced with PowerShell UI automation.
 
 A follow-up started the compiled Release executable with isolated `APPDATA` and
 `LOCALAPPDATA`. The host applied the new database migrations in 1,106 ms,
@@ -38,10 +38,10 @@ data directory were then removed.
 | S1 | F03, F14 foundation | Real scoped profile headers consume an allowlisted originating working set. Query, source/tenant, sort, page, size, scroll and focus survive profile and relationship journeys; direct bookmarks use safe roots and navigation state excludes credentials. | `632b341` |
 | S2 | F05, F16 | Management cancellation calls the current operation owner once and ignores late completion. Cached Inventory no longer starts BitLocker on mount; one explicit check performs the live read and owns its status. | `90ccd84`, `286970a` |
 | S3 | F01, F02 profile split | Canonical WEC Overview reuses stored Inventory, software, Health, Security and user evidence with original provenance. Cloud-only records show only loaded native facts; Windows tools require an exact eligible target. | `55f19c2` |
-| S4 | F02, F04, F13 | Devices exposes Source records and Operational view as first-level modes, keeps Compare/Cleanup/AD analysis visible and carries a global query into a deliberate bounded AD continuation. Typing performs no external query. | `299a33f` |
+| S4 | F02, F04, F13 | Devices exposes Operational view and Source records as the only first-level device views. Compare/Cleanup/AD analysis remain directly named as subordinate related tasks. The duplicate Devices/Users/Groups row is no longer rendered on Devices. A global query still carries into a deliberate bounded AD continuation and typing performs no external query. | `299a33f`, `e094cf2` |
 | S5 | F06, F07 | Object lists lead with clickable names and UPN/address, source-specific operational fields, current-kind counts and named source exceptions. Technical IDs/provenance and infrequent filters move behind disclosures without flattening source state. | `1aa6f00`, `a7f0c44` |
 | S6 | F09 | AD and Entra members use one navigable bounded table with loaded search, stable sort and local paging. AD source paging remains distinct; limited/unknown types stay visible and unsupported types are not routed as users. | `76fdbb7` |
-| S7 | F08, F10, F13 | Software has one five-destination navigation and compatible legacy bookmarks; destination vocabulary is aligned. Canonical Device/User sections now use the same roving ArrowLeft/ArrowRight tab behavior as retained detail shells. | `7a127a6`, `bb7be2e`, `4a970f2` |
+| S7 | F08, F10, F13 | Software has one five-destination navigation and compatible legacy bookmarks; destination vocabulary is aligned. The operational device page now uses the consolidated Devices title. Canonical Device/User sections use the same roving ArrowLeft/ArrowRight tab behavior as retained detail shells, and the narrow navigation drawer restores focus only after the inert main region is released. | `7a127a6`, `bb7be2e`, `4a970f2`, `e094cf2` |
 | S8 | F11, F12, F14, F15 | Event messages open in a keyboard-accessible selectable dialog, Escape closes it and focus returns to the trigger. Successful Inventory/Security/Health captures invalidate stored Overview and Reporting summaries. Missing results remain empty states; rejected stored reads show a retry that performs no scan. Action Center and AD user detail journeys retain URL-addressed filter/page/sort context and expose visible safe return controls. | `edb4dc4` |
 
 ## Finding disposition
@@ -61,10 +61,11 @@ data directory were then removed.
 | `dotnet test --configuration Release --no-build` | Pass; 1,043 tests |
 | Contract generator `--check` | Pass; 494 generated types current |
 | `npm test -- --run` | Pass; 583 tests in 101 files |
-| `npm run build` | Pass; initial JS 311.65 kB, 98.64 kB gzip |
+| `npm run build` | Pass; initial JS 311.69 kB, 98.61 kB gzip |
 | `npm audit --audit-level=high` | Pass; no High/Critical issue. Two existing Moderate Vitest/@vitest-mocker advisories remain; available remediation is a breaking major update. |
 | G2 preservation | Pass at automated level through the full route, specialist, export, settings, operation and compatibility suites. No G2 route/function was removed. |
 | Isolated Release-host startup | Pass; migrations, local assets and WebView2 initialized, startup bridge reads succeeded, no Error/Fatal log entry |
+| Supervised frontend viewport/input check | Pass at 1602×1040, 1280×800 and 800×650 for the Devices source/operational hierarchy, responsive shell, Ctrl+K, Escape and drawer focus restoration. This used the actual routed React UI with an isolated in-memory bridge stub; it is not native WebView2 acceptance or populated-provider evidence. |
 | Native viewport/input acceptance | Blocked by unavailable native Computer Use; no visual or input pass claimed |
 
 The first full Release build exposed two culture-sensitive timestamp parses in
@@ -73,6 +74,33 @@ use `InvariantCulture`; the complete Release build then passed. The first full
 frontend run exposed one obsolete test query after profile controls changed
 from generic buttons to tabs. Commit `4a970f2` updated that real multi-hop
 journey; the repeated complete frontend run passed.
+
+## Follow-up visual acceptance — 2026-09-17
+
+The primary sidebar was compared against consolidation base `664bbe4` and is
+unchanged: `routeRegistry.tsx` still exposes the grouped Work, Objects,
+Operations and Administration navigation. The regression was introduced by
+this remediation branch in `299a33f`, which rendered Operational view, Source
+records, Compare, Device Cleanup and AD analysis with equal visual weight and
+left a second Devices/Users/Groups row directly below them.
+
+Commit `e094cf2` restores the intended hierarchy without rolling back S4:
+Operational view and Source records are the two device views; Compare, Device
+Cleanup and AD analysis remain visible as related tasks. The operational page
+heading is Devices rather than the legacy Clients label. At 1602×1040,
+1280×800 and 800×650 the two levels remained distinct and wrapped without
+horizontal page overflow. Ctrl+K opened focused global search; Escape closed
+search and the narrow drawer. The live browser check exposed that the drawer
+previously attempted to focus its opener while the main region was still
+`inert`; focus restoration now runs after the render and was observed on the
+Open navigation button.
+
+This check rendered the actual application routes and production styles in a
+local browser with deterministic empty bridge data. It verifies frontend
+layout and input behavior only. Native window chrome, WebView2 accessibility,
+populated lists and provider-backed journeys remain in the native checklist
+below. A real isolated Release host was started again, but Computer Use still
+returned no native apps and `cua.getApp` remained unavailable.
 
 ## Native acceptance still required
 

@@ -17,7 +17,12 @@ discovery. No new provider, permission, implicit scan, persistent identity
 registry, directory write or competing top-level device workspace is in scope.
 
 Implementation on `codex/ui-ux-audit-improvements` now covers S1-S8 and all
-F01-F16 code corrections. The final automated baseline is commit `4a970f2`:
+F01-F16 code corrections. A 2026-09-17 follow-up identified that remediation
+commit `299a33f`, not the consolidated sidebar registry, had flattened two
+device views and three related tools into one navigation row. Commit `e094cf2`
+restores the hierarchy, keeps the S4 shortcuts, aligns the operational heading
+to Devices and corrects narrow-drawer focus restoration. The final automated
+baseline is commit `e094cf2`:
 the warning-free Release build, all 1,043 backend tests, all 583 frontend tests
 in 101 files, 494 generated bridge contracts, the production frontend build,
 the High-severity NPM audit gate and `git diff --check` pass. The G2 specialist
@@ -36,6 +41,12 @@ warning remained. No substitute Windows automation was used. See
 `docs/audits/2026-09-16-ui-ux/implementation-acceptance.md`. The user's original
 `master` checkout remains at `e89395f` with its pre-existing untracked audit
 documents unchanged. No push, PR update, merge, tag or release was performed.
+
+The actual routed React frontend was additionally inspected with deterministic
+empty bridge data at 1602×1040, 1280×800 and 800×650. The corrected device
+view/task hierarchy, responsive shell, Ctrl+K, Escape and drawer focus return
+passed. This is explicitly frontend visual/input evidence, not a substitute
+for native WebView2 or populated-provider acceptance.
 
 The immediately preceding slice corrected F-01 AD sorting and F-02 orphaned
 Nessus sync status and live-verified them following the user's explicit fix
