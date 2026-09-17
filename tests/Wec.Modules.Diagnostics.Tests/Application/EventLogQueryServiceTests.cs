@@ -14,13 +14,13 @@ public class EventLogQueryServiceTests
     private void SetUpEvents(params WmiInstance[] instances) =>
         _wmiQueryService.SetUpWmiQuery("Win32_NTLogEvent", instances);
 
-    private static WmiInstance Event(string source, long eventType, DateTime time) =>
+    private static WmiInstance Event(string source, long eventType, DateTime time, string message = "Service crashed.") =>
         SystemTestSetup.Instance(
             ("SourceName", source),
             ("EventType", eventType),
             ("EventCode", 7031L),
             ("TimeGenerated", time),
-            ("Message", "Service crashed."));
+            ("Message", message));
 
     [Fact]
     public void BuildQuery_EmbedsWhereClauseAndDmtfUtcLookback()
@@ -55,7 +55,10 @@ public class EventLogQueryServiceTests
 
         Assert.True(result.IsSuccess, result.Error?.Message);
         Assert.Equal("disk-events", result.Value.PresetKey);
+        Assert.Equal(TestDefaults.Now.AddDays(-7), result.Value.WindowStartUtc);
+        Assert.Equal(TestDefaults.Now, result.Value.WindowEndUtc);
         Assert.Equal(2, result.Value.TotalMatched);
+        Assert.Equal(EventLogQueryService.MaxEntries, result.Value.ResultLimit);
         Assert.False(result.Value.Truncated);
         Assert.Equal("Ntfs", result.Value.Entries[0].Source); // newest first
         Assert.Equal("Error", result.Value.Entries[0].Level);
@@ -74,5 +77,22 @@ public class EventLogQueryServiceTests
         Assert.True(result.Value.Truncated);
         Assert.Equal(EventLogQueryService.MaxEntries + 5, result.Value.TotalMatched);
         Assert.Equal(EventLogQueryService.MaxEntries, result.Value.Entries.Count);
+    }
+
+    [Fact]
+    public async Task Query_ReportsMessageTruncationExplicitly()
+    {
+        SetUpEvents(Event(
+            "disk",
+            1,
+            new DateTime(2026, 7, 8, 9, 0, 0, DateTimeKind.Utc),
+            new string('x', 501)));
+
+        Result<EventLogQueryResult> result = await CreateService().QueryAsync(
+            DiagnosticContext.Local, "disk-events", CancellationToken.None);
+
+        RemoteEventLogEntry entry = Assert.Single(result.Value.Entries);
+        Assert.True(entry.MessageTruncated);
+        Assert.EndsWith(" …", entry.Message, StringComparison.Ordinal);
     }
 }

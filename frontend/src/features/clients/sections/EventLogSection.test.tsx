@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventLogSection } from './EventLogSection';
@@ -8,44 +8,55 @@ const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('../../../shared/bridge/bridgeClient', () => ({
   invoke: invokeMock,
   BridgeInvokeError: class extends Error {},
+  BridgeCancelledError: class extends Error {},
   BridgeTimeoutError: class extends Error {},
   BridgeUnavailableError: class extends Error {},
-  BridgeCancelledError: class extends Error {},
 }));
 
 describe('EventLogSection', () => {
-  beforeEach(() => {
-    invokeMock.mockReset();
-  });
+  beforeEach(() => invokeMock.mockReset());
 
-  it('opens a long message from the keyboard and returns focus after Escape', async () => {
-    const message = `Beginning of message ${'diagnostic detail '.repeat(80)}end of message`;
+  it('opens safe full text with host, time, source, truncation and clipboard feedback', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const message = '<script>alert("unsafe")</script> diagnostic text …';
     invokeMock.mockResolvedValue({
       presetKey: 'system-errors',
+      windowStartUtc: '2026-09-08T07:00:00Z',
+      windowEndUtc: '2026-09-08T09:00:00Z',
+      resultLimit: 200,
       totalMatched: 1,
-      truncated: false,
+      truncated: true,
       entries: [{
-        timeGenerated: '2026-09-16T08:00:00Z',
+        timeGenerated: '2026-09-08T08:30:00Z',
         level: 'Error',
         source: 'Service Control Manager',
         eventCode: 7000,
         message,
+        messageTruncated: true,
       }],
     });
 
-    render(<EventLogSection target={{ host: 'PC-041' }} />);
-    expect(screen.getByText(/Reads PC-041 live.*Results are not saved and the target is not changed/)).toBeDefined();
+    render(<EventLogSection target={{ host: 'PC-041.corp.example' }} />);
+    expect(screen.getByText(/Reads PC-041\.corp\.example live.*Results are not saved and the target is not changed/)).toBeDefined();
     await userEvent.click(screen.getByRole('button', { name: 'Run query' }));
-    const trigger = await screen.findByRole('button', { name: 'View full message' });
-    trigger.focus();
-    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByText(/Queried .*1 matching event.*200-entry result limit/)).toBeDefined();
+    const open = await screen.findByRole('button', { name: 'View full message from Service Control Manager, event 7000' });
+    await userEvent.click(open);
 
-    const dialog = screen.getByRole('dialog', { name: 'Event 7000 message' });
-    expect(dialog.textContent).toContain('end of message');
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close message' }));
+    const dialog = screen.getByRole('dialog', { name: 'Event 7000 on PC-041.corp.example' });
+    expect(within(dialog).getByText('PC-041.corp.example')).toBeDefined();
+    expect(within(dialog).getAllByText('Service Control Manager').length).toBeGreaterThan(0);
+    expect(within(dialog).getByText(message)).toBeDefined();
+    expect(dialog.querySelector('script')).toBeNull();
+    expect(within(dialog).getByText(/exceeded the 500-character detail limit/)).toBeDefined();
 
-    await userEvent.keyboard('{Escape}');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Copy message' }));
+    expect(writeText).toHaveBeenCalledWith(message);
+    expect(within(dialog).getByText('Message copied.')).toBeDefined();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Close event message' }));
     expect(screen.queryByRole('dialog')).toBeNull();
-    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    expect(document.activeElement).toBe(open);
   });
 });
