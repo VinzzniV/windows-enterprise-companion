@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventLogSection } from './EventLogSection';
@@ -45,6 +45,6 @@ describe('EventLogSection', () => {
 
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });

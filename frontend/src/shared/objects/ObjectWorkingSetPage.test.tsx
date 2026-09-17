@@ -97,19 +97,22 @@ describe('object working-set list', () => {
     expect(within(screen.getByRole('table')).getAllByText('Account 01').length).toBeGreaterThan(0);
   });
 
-  it('opens a carried global query as an explicit source-search preparation and exposes first-level device modes', () => {
-    view('/users/workspace?q=outside&source=ACTIVE_DIRECTORY&discover=ad');
+  it('opens a carried global query as an explicit source-search preparation and separates device views from shortcuts', () => {
+    const userView = view('/users/workspace?q=outside&source=ACTIVE_DIRECTORY&discover=ad');
     expect((screen.getByLabelText('Source query') as HTMLInputElement).value).toBe('outside');
     expect((screen.getByText('Load or search a source').closest('details') as HTMLDetailsElement).open).toBe(true);
     expect(invokeMock).not.toHaveBeenCalled();
 
+    userView.unmount();
     view('/devices');
-    const modes = screen.getByRole('navigation', { name: 'Device work modes' });
+    const modes = screen.getByRole('navigation', { name: 'Device views' });
     expect(within(modes).getByRole('link', { name: 'Source records' }).getAttribute('aria-current')).toBe('page');
     expect(within(modes).getByRole('link', { name: 'Operational view' }).getAttribute('href')).toBe('/clients');
-    expect(within(modes).getByRole('link', { name: 'Compare' })).toBeTruthy();
-    expect(within(modes).getByRole('link', { name: 'Device Cleanup' })).toBeTruthy();
-    expect(within(modes).getByRole('link', { name: 'AD analysis' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Object workspaces' })).toBeNull();
+    const shortcuts = screen.getByRole('navigation', { name: 'Device shortcuts' });
+    expect(within(shortcuts).getByRole('link', { name: 'Compare' })).toBeTruthy();
+    expect(within(shortcuts).getByRole('link', { name: 'Device Cleanup' })).toBeTruthy();
+    expect(within(shortcuts).getByRole('link', { name: 'AD analysis' })).toBeTruthy();
   });
 
   it('retains the originating result through a real profile relationship hop', async () => {

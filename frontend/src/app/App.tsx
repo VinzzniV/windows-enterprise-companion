@@ -271,7 +271,7 @@ function ApplicationShell({ appInfoState }: { appInfoState: AppInfoState }) {
 
   const closeNavigation = useCallback(() => {
     setNavigationOpen(false);
-    navigationButtonRef.current?.focus();
+    requestAnimationFrame(() => navigationButtonRef.current?.focus());
   }, []);
 
   const openGlobalSearch = useCallback(() => {

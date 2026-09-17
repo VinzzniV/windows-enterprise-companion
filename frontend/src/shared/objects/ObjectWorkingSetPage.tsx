@@ -126,18 +126,24 @@ export function ObjectWorkingSetPage({ kind }: { kind: ObjectKind }) {
     </div> },
   ];
   return <div ref={root} className="space-y-4"><PageHeader title={titles[kind]} subtitle="Source-scoped objects in the current working set" />
-    {kind === 'DEVICE' && <nav aria-label="Device work modes" className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3 text-sm">
-      <Link aria-current="page" className="rounded bg-accent-600 px-3 py-2 font-medium text-white" to="/devices">Source records</Link>
-      <Link className="rounded px-3 py-2 font-medium text-slate-200 hover:bg-slate-800" to="/clients">Operational view</Link>
-      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/clients/compare">Compare</Link>
-      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/cleanup">Device Cleanup</Link>
-      <Link className="rounded px-3 py-2 text-accent-400 hover:bg-slate-800" to="/activedirectory">AD analysis</Link>
-    </nav>}
-    <nav aria-label="Object workspaces" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
+    {kind === 'DEVICE' && <div className="space-y-2 border-b border-slate-800 pb-3">
+      <nav aria-label="Device views" className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted">View</span>
+        <Link className="rounded px-3 py-2 font-medium text-slate-200 hover:bg-slate-800" to="/clients">Operational view</Link>
+        <Link aria-current="page" className="rounded bg-accent-600 px-3 py-2 font-medium text-white" to="/devices">Source records</Link>
+      </nav>
+      <nav aria-label="Device shortcuts" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+        <span className="font-medium uppercase tracking-wide text-muted">Related tasks</span>
+        <Link className="text-accent-400 underline" to="/clients/compare">Compare</Link>
+        <Link className="text-accent-400 underline" to="/cleanup">Device Cleanup</Link>
+        <Link className="text-accent-400 underline" to="/activedirectory">AD analysis</Link>
+      </nav>
+    </div>}
+    {kind !== 'DEVICE' && <nav aria-label="Object workspaces" className="flex flex-wrap gap-4 text-sm text-accent-400 underline">
       <Link to="/devices">Devices</Link><Link to="/users">Users</Link><Link to="/groups">Groups</Link>
       {kind === 'USER' && <Link to="/users/directory">AD query workspace</Link>}
       {kind === 'GROUP' && <Link to="/groups/directory">AD group query workspace</Link>}
-    </nav>
+    </nav>}
     <WorkingSetCoverage kind={kind} kindTotal={kindTotal} matchTotal={result?.total ?? 0} /><WorkingSetSourceControls key={`${kind}:${directoryDiscovery ? query : ''}`} kind={kind}
       initialSearch={directoryDiscovery ? query : ''} initiallyExpanded={directoryDiscovery} />
     {tenantMismatch && <p role="alert" className="text-warn-400">This link belongs to tenant {requestedTenant}. Select that tenant in Data sources before reviewing its loaded assignments.</p>}

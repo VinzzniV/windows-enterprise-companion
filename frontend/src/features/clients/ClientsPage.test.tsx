@@ -181,6 +181,14 @@ describe('ClientsPage', () => {
     renderPage();
 
     expect(await screen.findByText('DISABLED-PC')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Devices' })).toBeTruthy();
+    const views = screen.getByRole('navigation', { name: 'Device views' });
+    expect(within(views).getByRole('link', { name: 'Operational view' }).getAttribute('aria-current')).toBe('page');
+    expect(within(views).getByRole('link', { name: 'Source records' }).getAttribute('href')).toBe('/devices');
+    const shortcuts = screen.getByRole('navigation', { name: 'Device shortcuts' });
+    for (const shortcut of ['Compare', 'Device Cleanup', 'AD analysis']) {
+      expect(within(shortcuts).getByRole('link', { name: shortcut })).toBeTruthy();
+    }
     expect(screen.getByText('PC01')).toBeTruthy();
     expect(screen.getByText('SCAN-ONLY')).toBeTruthy();
     for (const heading of ['Device', 'AD', 'Kaspersky', 'opsi', 'Nessus', 'Overall']) {

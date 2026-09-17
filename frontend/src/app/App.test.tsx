@@ -143,7 +143,7 @@ describe('responsive application shell', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Main navigation' })).toBeNull();
     expect(screen.getByTestId('application-main').hasAttribute('inert')).toBe(false);
-    expect(document.activeElement).toBe(openNavigation);
+    await waitFor(() => expect(document.activeElement).toBe(openNavigation));
   });
 
   it('navigates between lazy workspaces through the primary navigation', async () => {
