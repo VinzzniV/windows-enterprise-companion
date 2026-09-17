@@ -310,7 +310,8 @@ internal sealed class ItHygieneService
                 string name = ad?.ComputerName ?? opsi?.ComputerName ?? ksc?.ComputerName ?? nessus?.ComputerName ?? string.Empty;
                 var unknown = new InventorySourceState(InventorySourceAvailability.Partial, "Name collision; source absence is not established.");
                 EnvironmentSourceStates assessmentSources = candidate.Ambiguous
-                    ? new(unknown, unknown, unknown, nessus is null ? unknown : sources.Nessus) : sources;
+                    ? new(unknown, unknown, unknown, nessus is null ? unknown : sources.Nessus)
+                    : candidate.NessusAmbiguous ? sources with { Nessus = unknown } : sources;
                 HygieneAssessment assessment = HygieneAssessmentPolicy.Assess(
                     ad, ksc, opsi, nessus, nessusInventory, assessmentSources, now, options, assessNessus);
 
@@ -364,9 +365,11 @@ internal sealed class ItHygieneService
                     assessment)
                 {
                     EvidenceKey = candidate.EvidenceKey,
-                    Correlation = candidate.Ambiguous ? IdentityEvidence.Ambiguous : IdentityEvidence.AliasCandidate,
+                    Correlation = candidate.Ambiguous || candidate.NessusAmbiguous ? IdentityEvidence.Ambiguous : IdentityEvidence.AliasCandidate,
                     CorrelationExplanation = candidate.Ambiguous
                         ? "Names, namespaces or duplicate source records conflict. This row preserves one source observation; no shared identity or execution target is selected."
+                        : candidate.NessusAmbiguous
+                            ? "Multiple or conflicting Nessus records match this device name. Nessus evidence remains separate and is not attached automatically."
                         : "Legacy posture comparison by name/address only. Source presence is candidate evidence, not a confirmed shared identity. Windows actions use only the displayed source address.",
                     CanTargetWindows = !candidate.Ambiguous && (ad is not null || opsi is not null || ksc is not null)
                         && hostName.Length <= 253 && Uri.CheckHostName(hostName) != UriHostNameType.Unknown,

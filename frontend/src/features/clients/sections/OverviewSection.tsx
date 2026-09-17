@@ -305,7 +305,7 @@ function DeviceOverview({ device, overview }: { device: HygieneDevice; overview:
       managementObservedAtUtc={environment.result!.assessedAtUtc}
     />
     <Card title="Environment assessment">
-      <p className="mb-3 text-xs text-warn-300">{device.correlationExplanation ?? 'Name/address candidate comparison. Source identity is not confirmed.'}</p>
+      {device.correlation === 'AMBIGUOUS' && <p className="mb-3 text-xs text-warn-300">{device.correlationExplanation}</p>}
       <div className="mb-3"><ClientSemanticStatus {...hygieneAssessmentStatus(device.assessment.status)} /></div>
       {device.assessment.findings.length ? <ul className="space-y-2">{device.assessment.findings.map((finding) => <li key={finding.code} className="rounded border border-slate-800 px-3 py-2 text-sm text-slate-300">
         <span className={finding.severity === 'CRITICAL' ? 'text-fail-300' : 'text-warn-300'}>{finding.code.replaceAll('_', ' ')}</span> — {finding.message}

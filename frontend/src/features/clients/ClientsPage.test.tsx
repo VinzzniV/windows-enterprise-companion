@@ -198,6 +198,7 @@ describe('ClientsPage', () => {
     expect(screen.queryAllByText('OK')).toHaveLength(0);
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Unmanaged').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Name/address candidate comparison')).toBeNull();
     expect(screen.getByText('1–3 of 3')).toBeTruthy();
   });
 
@@ -209,6 +210,7 @@ describe('ClientsPage', () => {
       action === 'listClientWorkspace' ? Promise.resolve(pageFor(payload, [item(ambiguous, 'PC01'), item(normal, 'PC02')])) : original(module, action, payload));
     renderPage();
     await screen.findByText('PC01');
+    expect(screen.getByText('Ambiguous source identity')).toBeTruthy();
     expect((screen.getByRole('checkbox', { name: 'Select PC01 for bulk scan' }) as HTMLInputElement).disabled).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: 'Select page' }));
     expect((screen.getByRole('checkbox', { name: 'Select PC02 for bulk scan' }) as HTMLInputElement).checked).toBe(true);

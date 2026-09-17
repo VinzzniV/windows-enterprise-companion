@@ -113,6 +113,7 @@ describe('OverviewSection', () => {
     const opsiCard = screen.getByText('Client ID').closest('[class*="rounded"]');
     expect(opsiCard).not.toBeNull();
     expect(opsiCard!.textContent).toContain('Stale');
+    expect(screen.queryByText('Name candidate only.')).toBeNull();
     await waitFor(() => expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(true));
     expect(invokeMock.mock.calls.some((call) => call[0] === 'connectivity')).toBe(false);
   });

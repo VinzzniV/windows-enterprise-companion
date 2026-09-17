@@ -298,7 +298,7 @@ export function ClientsPage() {
         />;
       } },
       { id: 'device', header: 'Device', sortable: true, cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
-        {client.environment?.correlationExplanation && <details className="text-xs text-warn-300"><summary>{client.environment.correlation === 'AMBIGUOUS' ? 'Ambiguous source identity' : 'Name/address candidate comparison'}</summary>{client.environment.correlationExplanation}</details>}
+        {client.environment?.correlation === 'AMBIGUOUS' && <details className="text-xs text-warn-300"><summary>Ambiguous source identity</summary>{client.environment.correlationExplanation}</details>}
         {client.os && <span className="text-xs text-muted">{client.os}</span>}
         {client.description && <span className="text-xs text-slate-400">{client.description}</span>}
         <div className="flex flex-col items-start gap-1">

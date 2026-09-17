@@ -7,14 +7,25 @@ Phase 8 Windows identity collection remains excluded.
 
 Current slice: UI/UX audit remediation packages S1-S8 and findings F01-F16 from
 `docs/audits/2026-09-16-ui-ux/`. The user explicitly authorized implementation
-on 2026-09-16. Work runs in the isolated
-`codex/ui-ux-audit-improvements` worktree created from the latest consolidation
-head `664bbe4604801a19b88724ac3beaf0ac48cc0ecc`; the user's existing checkout
-and its untracked audit documents remain unchanged. The selected product
+on 2026-09-16. Follow-up work runs on `codex/device-source-precedence` after
+the completed UI/UX branch was fast-forwarded into local `master` at `4896690`.
+The selected product
 direction keeps Devices, Users and Groups with source-scoped identity while
 restoring operational summaries, working modes and bounded explicit source
 discovery. No new provider, permission, implicit scan, persistent identity
 registry, directory write or competing top-level device workspace is in scope.
+
+A 2026-09-17 post-integration correction restores the documented Device source
+precedence after `6cc90cf` had unintentionally included Nessus-only aliases in
+the primary environment union. AD, Kaspersky and opsi now define environment
+Device rows; a unique matching Nessus asset enriches such a row, while
+unmatched or conflicting Nessus records remain available through source-record
+and Vulnerabilities views without becoming Devices. Routine candidate matching
+remains represented in the contract but is no longer repeated as a warning on
+every Device row; genuine ambiguity stays visible. Verification passes all
+1,045 backend tests, all 583 frontend tests, the warning-free Release build,
+494 generated bridge contracts, the production frontend build, the
+High-severity NPM audit gate and `git diff --check`.
 
 Implementation on `codex/ui-ux-audit-improvements` now covers S1-S8 and all
 F01-F16 code corrections. A 2026-09-17 follow-up identified that remediation
@@ -38,9 +49,10 @@ a real running Release host still returned `apps: []`. The isolated host did
 start successfully, apply migrations, load local assets and initialize WebView2
 153.0.4234.32 without Error/Fatal log entries; the known EF multiple-collection
 warning remained. No substitute Windows automation was used. See
-`docs/audits/2026-09-16-ui-ux/implementation-acceptance.md`. The user's original
-`master` checkout remains at `e89395f` with its pre-existing untracked audit
-documents unchanged. No push, PR update, merge, tag or release was performed.
+`docs/audits/2026-09-16-ui-ux/implementation-acceptance.md`. Local `master`
+contains the completed UI/UX branch at `4896690`; the original untracked audit
+documents were preserved in a separate pre-merge backup. No push, PR update,
+tag or release was performed.
 
 The actual routed React frontend was additionally inspected with deterministic
 empty bridge data at 1602×1040, 1280×800 and 800×650. The corrected device

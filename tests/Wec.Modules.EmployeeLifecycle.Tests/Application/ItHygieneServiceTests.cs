@@ -56,19 +56,47 @@ public sealed class ItHygieneServiceTests
     }
 
     [Fact]
-    public void NessusOnlyIpAddressesAndUnknownNamesRemainSeparateEvidence()
+    public void NessusOnlyIpAddressesAndUnknownNamesDoNotCreateDevices()
     {
         var first = new NessusComputerInventoryItem("192.0.2.10", null, "192.0.2.10", Now, 1, 0, 0, 0, 0, [], []);
         var inventory = new NessusComputerInventory([first, first with { ComputerName = "192.0.2.11", IpAddress = "192.0.2.11" },
             first with { ComputerName = "", IpAddress = null }, first with { ComputerName = "", IpAddress = null }], NessusInventoryAvailability.Available, Now);
         var rows = ItHygieneService.CorrelateAndAssess([], [], [], inventory,
             new(Available, Available, Available, Available), Now, Options);
-        Assert.Equal(4, rows.Count);
-        Assert.Equal(4, rows.Select(row => row.EvidenceKey).Distinct().Count());
-        Assert.All(rows, row => { Assert.False(row.CanTargetWindows); Assert.True(row.Nessus.Exists); });
-        Assert.Contains(rows, row => row.HostName == "192.0.2.10");
-        Assert.Contains(rows, row => row.HostName == "192.0.2.11");
+        Assert.Empty(rows);
         Assert.Equal("192.0.2.10", ItHygieneService.NormalizeComputerName("192.0.2.10"));
+    }
+
+    [Fact]
+    public void NessusEnrichesOnlyMatchingPrimaryDeviceRows()
+    {
+        var matched = new NessusComputerInventoryItem("PC001", "asset-1", "192.0.2.10", Now, 1, 0, 0, 0, 0, [], []);
+        var unmatched = new NessusComputerInventoryItem("192.0.2.11", "asset-2", "192.0.2.11", Now, 0, 1, 0, 0, 0, [], []);
+        var inventory = new NessusComputerInventory([matched, unmatched], NessusInventoryAvailability.Available, Now);
+
+        HygieneDevice row = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("PC001")], [], [], inventory, new(Available, Available, Available, Available), Now, Options));
+
+        Assert.Equal("PC001", row.ComputerName);
+        Assert.True(row.Nessus.Exists);
+        Assert.Equal("192.0.2.10", row.Nessus.IpAddress);
+    }
+
+    [Fact]
+    public void ConflictingNessusMatchesRemainDetachedWithoutCreatingAdditionalDevices()
+    {
+        var first = new NessusComputerInventoryItem("PC001", "asset-1", "192.0.2.10", Now, 1, 0, 0, 0, 0, [], []);
+        var inventory = new NessusComputerInventory(
+            [first, first with { AssetId = "asset-2", IpAddress = "192.0.2.11" }],
+            NessusInventoryAvailability.Available, Now);
+
+        HygieneDevice row = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("PC001")], [], [], inventory, new(Available, Available, Available, Available), Now, Options));
+
+        Assert.False(row.Nessus.Exists);
+        Assert.Equal(Wec.Core.Objects.IdentityEvidence.Ambiguous, row.Correlation);
+        Assert.True(row.CanTargetWindows);
+        Assert.DoesNotContain(row.Assessment.Findings, finding => finding.Code == HygieneFindingCode.MissingNessus);
     }
 
     [Fact]
