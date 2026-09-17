@@ -64,4 +64,32 @@ public sealed class PatchDashboardComposeTests
         Assert.Equal(PatchWorkflowState.UpdateAvailable, client.State);
         Assert.Equal("25.01-1", client.TargetVersion);
     }
+
+    [Fact]
+    public void Summary_CountsOutdatedProductInstallations_NotDistinctClients()
+    {
+        PatchDashboardResult dashboard = PatchDashboardService.Compose(
+            "https://opsi.example.test:4447/",
+            Depot,
+            [new OpsiDepot(Depot, "Test", true)],
+            [new OpsiClientHost("client1.example.test", null, Depot, Now)],
+            [
+                new OpsiProduct("product-a", "Product A", "2.0", "1", null),
+                new OpsiProduct("product-b", "Product B", "3.0", "1", null),
+            ],
+            [
+                new OpsiProductOnDepot("product-a", Depot, "2.0", "1"),
+                new OpsiProductOnDepot("product-b", Depot, "3.0", "1"),
+            ],
+            [
+                new OpsiProductOnClient("product-a", "client1.example.test", "installed", "none", "successful", "1.0", "1", Now),
+                new OpsiProductOnClient("product-b", "client1.example.test", "installed", "none", "successful", "2.0", "1", Now),
+            ],
+            [],
+            Now);
+
+        Assert.Equal(2, dashboard.Summary.OutdatedInstallationCount);
+        Assert.All(dashboard.Products, product => Assert.Equal(1, product.OutdatedInstallationCount));
+        Assert.Equal(1, dashboard.Summary.ClientCount);
+    }
 }

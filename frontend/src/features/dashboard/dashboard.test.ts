@@ -53,11 +53,24 @@ describe('dashboard tile derivation', () => {
       { host: 'PC2', capturedAtUtc: '2026-07-03T08:00:00Z' },
     ];
     const tile = deriveInventoryTile(hosts, 86_400, new Date('2026-07-03T09:00:00Z'));
-    expect(tile.value).toBe('2 hosts');
+    expect(tile.value).toBe('2 stored hosts');
     expect(tile.state).toBe('partial');
     expect(tile.capturedAtUtc).toBe('2026-07-03T08:00:00Z');
     expect(tile.coverage).toBe('1 of 2 hosts within 24h freshness window');
     expect(tile.note).toContain(new Date('2026-07-03T08:00:00Z').toLocaleString());
+  });
+
+  it('inventory: never presents stored hosts as the entire fleet', () => {
+    const hosts = Array.from({ length: 41 }, (_, index): StoredInventoryHost => ({
+      host: `PC-${index + 1}`,
+      capturedAtUtc: '2026-07-03T08:00:00Z',
+    }));
+
+    const tile = deriveInventoryTile(hosts, 86_400, new Date('2026-07-03T09:00:00Z'));
+
+    expect(tile.value).toBe('41 stored hosts');
+    expect(tile.source).toBe('Stored WMI/CIM inventory snapshots');
+    expect(tile.coverage).toBe('41 of 41 hosts within 24h freshness window');
   });
 
   it('security: critical findings drive the danger tone', () => {

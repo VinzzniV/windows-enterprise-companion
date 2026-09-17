@@ -108,7 +108,7 @@ export function deriveInventoryTile(
         : 'partial';
   const window = freshnessWindowLabel(maximumAgeSeconds);
   return {
-    value: `${hosts.length} host${hosts.length === 1 ? '' : 's'}`,
+    value: `${hosts.length} stored host${hosts.length === 1 ? '' : 's'}`,
     tone: state === 'fresh' ? 'neutral' : state === 'unknown' ? 'neutral' : 'warning',
     state,
     note: state === 'stale'

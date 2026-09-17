@@ -392,8 +392,12 @@ export function ClientsPage() {
         <EnvironmentSourceBadge name="opsi" state={workspace.sources.opsi} />
         <EnvironmentSourceBadge name="Nessus" state={workspace.sources.nessus} />
       </div>
+      <p className="mb-3 text-xs text-slate-400" title="Stored-only and saved-only clients remain in the table but are excluded from posture counters.">
+        Posture counters cover unique devices in the current AD, Kaspersky, opsi and Nessus assessment before table filters.
+        Stored-Inventory-only and saved-target-only devices are excluded from these counters.
+      </p>
       <div className="flex flex-wrap gap-3">
-        <SummaryMetric label="Assessed devices" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
+        <SummaryMetric label="Devices in this assessment" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
         <SummaryMetric label="Healthy" value={workspace.summary.healthy} tone="success" onClick={() => applyPostureFilter('HEALTHY')} active={postureFilter === 'HEALTHY'} ariaLabel={`Filter clients by Healthy (${workspace.summary.healthy})`} />
         <SummaryMetric label="Problems" value={workspace.summary.problems} tone={workspace.summary.problems ? 'warning' : 'success'} onClick={() => applyPostureFilter('PROBLEMS')} active={postureFilter === 'PROBLEMS'} ariaLabel={`Filter clients by Problems (${workspace.summary.problems})`} />
         <SummaryMetric label="Incomplete" value={workspace.summary.incomplete} onClick={() => applyPostureFilter('INCOMPLETE')} active={postureFilter === 'INCOMPLETE'} ariaLabel={`Filter clients by Incomplete (${workspace.summary.incomplete})`} />
@@ -427,7 +431,9 @@ export function ClientsPage() {
       onRunningChange={setBatchRunning}
       onCompleted={() => setRefreshRevision((current) => current + 1)}
     />
-    <p className="text-sm text-slate-400">{workspace?.total ?? 0} devices · {workspace?.scannedTotal ?? 0} scanned{workspace && workspace.total !== workspace.snapshotTotal ? ` · ${workspace.snapshotTotal} total` : ''}</p>
+    <p className="text-sm text-slate-400">
+      {workspace?.total ?? 0} matching devices · {workspace?.scannedTotal ?? 0} with stored Inventory · {workspace?.snapshotTotal ?? 0} merged candidates before table filters
+    </p>
     {loading && showEnvironmentProgress && <HygieneLoadStatus progress={hygieneOperation.progress} elapsedSeconds={hygieneOperation.elapsedSeconds} onCancel={() => { setCancelled(true); activeLoad.current?.cancel(); }} />}
     {cancelled && !loading && <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-4"><p className="text-sm text-slate-300">Environment load cancelled. The previous successful data remains unchanged.</p><Button variant="secondary" onClick={retry}>Retry</Button></div>}
     {loadError && <ErrorState
