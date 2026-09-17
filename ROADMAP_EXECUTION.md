@@ -15,6 +15,14 @@ restoring operational summaries, working modes and bounded explicit source
 discovery. No new provider, permission, implicit scan, persistent identity
 registry, directory write or competing top-level device workspace is in scope.
 
+The active 2026-09-17 follow-up on `codex/legacy-branch-reconciliation`
+reconciles the unmerged `codex/m01-m16-audit-measures` history with the current
+object-centered implementation. Only still-missing behavior that remains
+compatible with ADRs 0018-0023 is carried forward and reverified on current
+code. The historical canonical-device migration is superseded by ADR 0022 and
+must not be merged. The separate automatic-ping branch is also excluded because
+current Client 360 and consolidation decisions require an explicit Ping action.
+
 A 2026-09-17 post-integration correction restores the documented Device source
 precedence after `6cc90cf` had unintentionally included Nessus-only aliases in
 the primary environment union. AD, Kaspersky and opsi now define environment
