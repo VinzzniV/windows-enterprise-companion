@@ -3,12 +3,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataSourcesPage } from './DataSourcesPage';
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn(), refresh: vi.fn(), clear: vi.fn(), invalidate: vi.fn(), ksc: vi.fn() }));
+const mocks = vi.hoisted(() => ({ invoke: vi.fn(), refresh: vi.fn(), clear: vi.fn(), invalidate: vi.fn() }));
 vi.mock('../../shared/bridge/bridgeClient', () => ({ invoke: mocks.invoke }));
 vi.mock('../../shared/bridge/errorPresentation', () => ({ presentError: () => ({ message: 'Source status unavailable.' }) }));
 vi.mock('../../shared/environment/EnvironmentContext', () => ({ useEnvironment: () => ({ result: null, loading: false, error: null, refresh: mocks.refresh, invalidate: mocks.invalidate }) }));
 vi.mock('../../shared/objects/WorkingSetContext', () => ({ useOptionalWorkingSet: () => ({ clearFamily: mocks.clear, refreshCached: vi.fn() }) }));
-vi.mock('../../shared/targets/TargetContext', () => ({ useTargets: () => ({ kasperskyCredentials: null, signInKaspersky: mocks.ksc, signOutKaspersky: vi.fn() }) }));
 describe('data source sessions', () => {
   beforeEach(() => {
     mocks.invoke.mockReset(); mocks.clear.mockClear(); mocks.refresh.mockClear();
@@ -26,6 +25,9 @@ describe('data source sessions', () => {
     expect(await screen.findByText(/Kaspersky configuration: Source status unavailable/)).toBeTruthy();
     expect(screen.getByText(/KES is not a separate data source/)).toBeTruthy();
     expect(screen.getByText(/API keys stored securely/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Use KSC account for this session' })).toBeNull();
+    expect(screen.queryByLabelText('opsi session user')).toBeNull();
+    expect(screen.queryByLabelText('opsi session password')).toBeNull();
     expect(mocks.refresh).not.toHaveBeenCalled();
     expect(mocks.invoke).toHaveBeenCalledWith('patchmanagement', 'getConnectionStatus', { connectStoredCredential: false });
     expect(mocks.invoke.mock.calls.some(([, action]) => action === 'connect')).toBe(false);

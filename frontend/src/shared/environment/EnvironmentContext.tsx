@@ -33,10 +33,9 @@ const EnvironmentContext = createContext<EnvironmentContextValue | null>(null);
 export function useEnvironmentRequest(): ItHygieneRequest {
   const targets = useTargets();
   const admin = targets.adminCredentials;
-  // KSC is a separate authentication realm. Never fall back to the global
-  // Windows/AD administrator; when no KSC session override is present, the
-  // backend uses only the separately stored KSC credential.
-  const ksc = targets.kasperskyCredentials;
+  // KSC is a separate authentication realm. The frontend never reuses the
+  // global Windows/AD administrator; the backend reads the KSC account stored
+  // through Settings from Windows Credential Manager.
   const savedDc = targets.savedTargets
     .filter((target) => target.role === 'DomainController')
     .at(-1);
@@ -56,17 +55,12 @@ export function useEnvironmentRequest(): ItHygieneRequest {
 
     return {
       activeDirectory,
-      kaspersky: ksc
-        ? { userName: ksc.userName.trim(), domain: ksc.domain.trim() || null, password: ksc.password }
-        : null,
+      kaspersky: null,
     };
   }, [
     admin?.domain,
     admin?.password,
     admin?.userName,
-    ksc?.domain,
-    ksc?.password,
-    ksc?.userName,
     savedDc?.host,
   ]);
 }

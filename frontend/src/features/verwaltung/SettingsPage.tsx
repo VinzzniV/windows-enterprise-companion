@@ -403,14 +403,14 @@ export function SettingsPage() {
                     Save KSC account securely
                   </Button>
                   <p className="text-xs text-slate-400">
-                    Stored for the current Windows user. Temporary sign-in and source reads belong under Data sources.
+                    Stored for the current Windows user and used by explicit Kaspersky reads under Data sources.
                   </p>
                 </div>
               </>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <Field label="Kaspersky Administration Server" hint="Host name or HTTPS URL; credentials use the separate KSC session above.">
+            <Field label="Kaspersky Administration Server" hint="Host name or HTTPS URL; explicit reads use the saved KSC account above.">
               {(id) => (
                 <Input
                   id={id}
@@ -613,7 +613,7 @@ export function SettingsPage() {
                 <Input type="password" value={opsiPassword} onChange={(event) => setOpsiPassword(event.target.value)} aria-label="opsi password" placeholder="Password" autoComplete="off" />
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-3"><Button variant="secondary" onClick={saveOpsiCredential} disabled={opsiBusy || !opsiUserName.trim() || !opsiPassword}>{opsiBusy ? 'Saving…' : 'Save opsi account securely'}</Button>
-                <p className="text-xs text-slate-400">Connection status and temporary sessions belong under Data sources.</p></div>
+                <p className="text-xs text-slate-400">The saved account is used by explicit opsi connections under Data sources.</p></div>
             </>
           </div>
           {opsiError && <div className="mt-3"><ErrorState title="opsi settings or connection failed" {...opsiError} /></div>}

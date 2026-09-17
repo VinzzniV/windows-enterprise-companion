@@ -346,10 +346,13 @@ their editable settings with a separate last-loaded-or-successfully-saved
 baseline. A dirty section is labelled `Unsaved changes` both in the local
 navigation and beside its Save action; color is supplementary only. A failed
 save must preserve that state, and a successful save may clear only its own
-section. Settings owns persisted defaults, endpoints, trust policy, thresholds
-and credentials. Data Sources owns current sessions, connection status, source
-coverage and explicit reads. KES is a Kaspersky inventory attribute and health
-policy input, not an independent data source.
+section. Settings exclusively owns persisted Kaspersky, opsi and Nessus
+credentials together with defaults, endpoints, trust policy and thresholds.
+Data Sources never repeats those credential fields; it owns connection status,
+source coverage and explicit reads using the saved accounts. Microsoft 365 is
+the exception because its delegated interactive sign-in is session-only and no
+password or token is persisted. KES is a Kaspersky inventory attribute and
+health policy input, not an independent data source.
 
 The three settings save boundaries mirror their existing backend validation
 rules in feature-local pure validators. Current problems appear in one

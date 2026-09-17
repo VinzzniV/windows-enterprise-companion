@@ -12,8 +12,11 @@ the completed UI/UX branch was fast-forwarded into local `master` at `4896690`.
 The 2026-09-17 follow-up removes the remaining navigation ownership overlap:
 Data Sources owns current sessions,
 connection status, source coverage and explicit reads; Settings owns persisted
-defaults, endpoints, trust policy, thresholds and credentials. KES remains a
-Kaspersky inventory attribute and health-policy input, not a separate source.
+defaults, endpoints, trust policy, thresholds and credentials. KSC and opsi
+credential fields now exist only in Settings; Data Sources uses the saved
+accounts without repeating their inputs. Microsoft 365 delegated sign-in stays
+session-only under Data Sources. KES remains a Kaspersky inventory attribute
+and health-policy input, not a separate source.
 The selected product
 direction keeps Devices, Users and Groups with source-scoped identity while
 restoring operational summaries, working modes and bounded explicit source

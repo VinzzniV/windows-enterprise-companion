@@ -5,29 +5,21 @@ import { invoke } from '../../shared/bridge/bridgeClient';
 import { presentError } from '../../shared/bridge/errorPresentation';
 import { useEnvironment } from '../../shared/environment/EnvironmentContext';
 import { useOptionalWorkingSet } from '../../shared/objects/WorkingSetContext';
-import { CredentialFields, type CredentialValues } from '../../shared/targets/Credentials';
-import { useTargets } from '../../shared/targets/TargetContext';
 import { Button } from '../../shared/ui/Button';
 import { Card } from '../../shared/ui/Card';
-import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Spinner } from '../../shared/ui/Spinner';
 
 const ActiveDirectoryPage = lazy(() => import('../activedirectory/ActiveDirectoryPage').then(module => ({ default: module.ActiveDirectoryPage })));
 const Microsoft365Page = lazy(() => import('../microsoft365/Microsoft365Page').then(module => ({ default: module.Microsoft365Page })));
-const emptyCredential: CredentialValues = { userName: '', domain: '', password: '' };
-
 function ManagementSourceSessions() {
   const environment = useEnvironment();
   const workspace = useOptionalWorkingSet();
-  const targets = useTargets();
   const [settings, setSettings] = useState<OpsiSettingsResult | null>(null);
   const [opsi, setOpsi] = useState<OpsiConnectionStatusResult | null>(null);
   const [ksc, setKsc] = useState<ItLifecycleSettingsResult | null>(null);
   const [nessus, setNessus] = useState<NessusCredentialStatus | null>(null);
   const [credentials, setCredentials] = useState<ServiceCredentialStatuses | null>(null);
-  const [kscDraft, setKscDraft] = useState(emptyCredential);
-  const [opsiDraft, setOpsiDraft] = useState(emptyCredential);
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
@@ -53,24 +45,18 @@ function ManagementSourceSessions() {
   }, []);
   useEffect(() => { void load(); return () => { generation.current++; }; }, [load]);
 
-  const changeOpsi = async (action: 'connect' | 'disconnect', stored = false) => {
+  const changeOpsi = async (action: 'connect' | 'disconnect') => {
     if (action === 'connect' && !settings) return;
     const own = ++generation.current;
     setBusy(true); setErrors([]); workspace?.clearFamily('management'); environment.invalidate();
     try {
       const value = await invoke<OpsiConnectionStatusResult>('patchmanagement', action, action === 'disconnect' ? {} : {
         server: settings!.settings.server, trustServerCertificate: settings!.settings.trustServerCertificate,
-        userName: stored ? '' : opsiDraft.userName, password: stored ? null : opsiDraft.password,
-        useStoredCredential: stored, rememberCredential: false,
+        userName: '', password: null, useStoredCredential: true, rememberCredential: false,
       });
-      if (generation.current === own) { setOpsi(value); setOpsiDraft(emptyCredential); }
+      if (generation.current === own) setOpsi(value);
     } catch (error) { if (generation.current === own) setErrors([presentError(error).message]); }
     finally { if (generation.current === own) { setBusy(false); void workspace?.refreshCached(); } }
-  };
-  const changeKsc = (connect: boolean) => {
-    workspace?.clearFamily('management'); environment.invalidate();
-    if (connect) targets.signInKaspersky(kscDraft); else targets.signOutKaspersky();
-    setKscDraft(emptyCredential);
   };
   const sourceStates = environment.result?.sources;
   return <div className="space-y-4">
@@ -85,28 +71,24 @@ function ManagementSourceSessions() {
       <p className="text-sm">Server: {ksc?.settings.kaspersky.server || 'Not configured / unavailable'} · Inventory: {sourceStates?.kaspersky.availability ?? 'Not read'}</p>
       {sourceStates?.kaspersky.error && <p role="alert">{sourceStates.kaspersky.error}</p>}
       <p className="my-2 text-xs text-muted">KES is not a separate data source. Its installation and version status are attributes returned by the Kaspersky Security Center inventory.</p>
-      <p className="my-2 text-xs text-muted">{credentials?.kaspersky.saved ? 'A KSC account is stored securely and can be used by explicit reads.' : 'No stored KSC credential reported.'} A temporary session account overrides it until cleared.</p>
-      {targets.kasperskyCredentials ? <div className="flex gap-3 text-sm"><span>Session account: {targets.kasperskyCredentials.userName}</span><Button onClick={() => changeKsc(false)}>Clear KSC session override</Button></div>
-        : <><CredentialFields values={kscDraft} onChange={patch => setKscDraft(previous => ({ ...previous, ...patch }))} />
-          <Button disabled={!kscDraft.userName.trim() || !kscDraft.password} onClick={() => changeKsc(true)}>Use KSC account for this session</Button></>}
-      <Link className="mt-3 block text-sm text-accent-400 underline" to="/settings?section=environment-health">Saved Kaspersky settings and credentials</Link>
+      <p className="my-2 text-xs text-muted">{credentials?.kaspersky.saved ? 'A KSC account is stored securely and will be used by explicit reads.' : 'No KSC account is stored. Add one in Settings before reading Kaspersky inventory.'}</p>
+      <Link className="mt-3 block text-sm text-accent-400 underline" to="/settings?section=environment-health">Manage Kaspersky settings and account</Link>
     </Card>
     <Card title="opsi">
       <p className="text-sm">{opsi ? opsi.connected ? `Connected to ${opsi.serverUrl} as ${opsi.userName}` : 'Not connected' : 'Session status unavailable'} · Inventory: {sourceStates?.opsi.availability ?? 'Not read'}</p>
       {(opsi?.connectionError || sourceStates?.opsi.error) && <p role="alert">{opsi?.connectionError ?? sourceStates?.opsi.error}</p>}
       {opsi?.connected ? <Button disabled={busy} onClick={() => void changeOpsi('disconnect')}>Disconnect opsi</Button> : <div className="my-3 space-y-3">
-        <p className="text-xs text-muted">Uses saved server and certificate policy: {settings?.settings.server || 'Not configured / unavailable'}.</p>
-        <Input aria-label="opsi session user" value={opsiDraft.userName} onChange={event => setOpsiDraft(previous => ({ ...previous, userName: event.target.value }))} />
-        <Input aria-label="opsi session password" type="password" autoComplete="off" value={opsiDraft.password} onChange={event => setOpsiDraft(previous => ({ ...previous, password: event.target.value }))} />
-        <div className="flex gap-3"><Button disabled={busy || !settings?.settings.server || !opsiDraft.userName.trim() || !opsiDraft.password} onClick={() => void changeOpsi('connect')}>Connect for this session</Button>
-          {credentials?.opsi.saved && <Button disabled={busy || !settings?.settings.server} onClick={() => void changeOpsi('connect', true)}>Connect saved opsi account</Button>}</div>
+        <p className="text-xs text-muted">Uses the saved server, certificate policy and account: {settings?.settings.server || 'Not configured / unavailable'}.</p>
+        {credentials?.opsi.saved
+          ? <Button disabled={busy || !settings?.settings.server} onClick={() => void changeOpsi('connect')}>Connect saved opsi account</Button>
+          : <p className="text-xs text-warn-300">No opsi account is stored. Add one in Settings before connecting.</p>}
       </div>}
-      <Link className="mt-3 block text-sm text-accent-400 underline" to="/settings?section=patch-management">Saved opsi settings and credentials</Link>
+      <Link className="mt-3 block text-sm text-accent-400 underline" to="/settings?section=patch-management">Manage opsi settings and account</Link>
     </Card>
     <Card title="Nessus">
       <p className="text-sm">{nessus ? nessus.saved ? 'API keys stored securely' : 'No saved API keys' : 'Credential status unavailable'} · Inventory: {sourceStates?.nessus.availability ?? 'Not read'}</p>
       {sourceStates?.nessus.error && <p role="alert">{sourceStates.nessus.error}</p>}
-      <div className="mt-3 flex flex-wrap gap-4 text-sm text-accent-400 underline"><Link to="/vulnerabilities">Scan status, findings and explicit synchronization</Link><Link to="/settings?section=vulnerability-management">Saved Nessus settings and API keys</Link></div>
+      <div className="mt-3 flex flex-wrap gap-4 text-sm text-accent-400 underline"><Link to="/vulnerabilities">Scan status, findings and explicit synchronization</Link><Link to="/settings?section=vulnerability-management">Manage Nessus settings and API keys</Link></div>
     </Card>
   </div>;
 }
