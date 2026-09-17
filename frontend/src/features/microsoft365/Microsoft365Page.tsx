@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { Microsoft365Configuration, Microsoft365Connection, Microsoft365Resource, Microsoft365Snapshot, Microsoft365Status } from '../../shared/api-types.generated';
 import { Button } from '../../shared/ui/Button';
@@ -61,6 +61,7 @@ export function Microsoft365Page() {
   const [configuration, setConfiguration] = useState<Microsoft365Configuration>({ tenantId: '', clientId: '', enableIntune: false, enableAuthenticationReports: false });
   const [sessionRevision, setSessionRevision] = useState(0);
   const [inventoryProgress, setInventoryProgress] = useState<string | null>(null);
+  const inventoryCancellationRequested = useRef(false);
   const { run: readStatus } = status;
   const refreshStatus = useCallback(() => { void readStatus('getStatus'); void refreshCached?.(true); }, [readStatus, refreshCached]);
   useEffect(() => {
@@ -92,16 +93,18 @@ export function Microsoft365Page() {
   };
   const readCoreInventories = async () => {
     if (!connection?.connected) return;
+    inventoryCancellationRequested.current = false;
     const resources: Microsoft365Resource[] = ['USERS', 'LICENSES', 'GROUPS', 'DEVICES'];
     if (connection.configuration.enableIntune) resources.push('MANAGED_DEVICES');
     for (const [index, item] of resources.entries()) {
+      if (inventoryCancellationRequested.current) break;
       setInventoryProgress(`Reading ${resourceLabels[item]} (${index + 1}/${resources.length})…`);
       const result = await inventory.run('read', {
         resource: item,
         tenantId: connection.configuration.tenantId,
         refresh: true,
       });
-      if (!result) { setInventoryProgress(null); return; }
+      if (!result && inventoryCancellationRequested.current) break;
     }
     await refreshCached?.(true);
     await readStatus('getStatus');
@@ -156,7 +159,7 @@ export function Microsoft365Page() {
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={status.busy || inventory.busy} onClick={() => void readStatus('getStatus')}>Update displayed cache status</Button>
         <Button variant="primary" disabled={status.busy || inventory.busy} onClick={() => void readCoreInventories()}>Read users, licenses, groups and devices</Button>
-        {inventory.busy && <><Spinner label={inventoryProgress ?? 'Reading Microsoft 365 inventories…'} /><Button onClick={inventory.cancel}>Cancel inventory read</Button></>}
+        {inventory.busy && <><Spinner label={inventoryProgress ?? 'Reading Microsoft 365 inventories…'} /><Button onClick={() => { inventoryCancellationRequested.current = true; inventory.cancel(); }}>Cancel inventory read</Button></>}
       </div>
       {inventory.error && <p role="alert" className="mt-3 text-sm text-fail-400">{inventory.error}</p>}
       <p className="my-2 text-xs text-muted">Source reads are independent. No background tenant-wide synchronization runs. Signed in does not mean Graph is currently reachable.</p>

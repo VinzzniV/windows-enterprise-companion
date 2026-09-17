@@ -59,7 +59,7 @@ window, screenshot, dimension or input action could be obtained.
 | `dotnet build --configuration Release` | Pass; 0 warnings, 0 errors |
 | `dotnet test --configuration Release` | Pass; 1,059 tests |
 | Contract generator `--check` | Pass; 501 generated types current |
-| `npm test -- --run` | Pass; 627 tests in 104 files |
+| `npm test -- --run` | Pass; 629 tests in 104 files |
 | `npm run build` | Pass; initial JS 312.43 kB, 98.93 kB gzip |
 | `npm audit --audit-level=high` | Pass; no High/Critical issue. Two existing Moderate Vitest/@vitest-mocker advisories remain; available remediation is a breaking major update. |
 | G2 preservation | Pass at automated level through the full route, specialist, export, settings, operation and compatibility suites. No G2 route/function was removed. |
@@ -112,8 +112,10 @@ A post-fix populated native screenshot now shows 3,023 loaded groups, 3,023
 current matches and 5,174 source records across all object kinds without the
 previous unrelated Nessus exception. The same retest exposed that the combined
 Microsoft 365 action did not request the already-supported license inventory;
-the follow-up adds `LICENSES` to that explicit sequence. A post-fix native
-license result remains to be observed.
+the follow-up adds `LICENSES` to that explicit sequence. Individual failures no
+longer suppress later source reads or the final status refresh, while explicit
+cancellation still stops the sequence. A post-fix native license result remains
+to be observed.
 
 ## Native acceptance still required
 

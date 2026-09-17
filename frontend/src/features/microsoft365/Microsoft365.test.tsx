@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Microsoft365Data, Microsoft365Snapshot, Microsoft365Status, Microsoft365User } from '../../shared/api-types.generated';
-import { BridgeInvokeError } from '../../shared/bridge/bridgeClient';
+import { BridgeCancelledError, BridgeInvokeError } from '../../shared/bridge/bridgeClient';
 import { Microsoft365Page } from './Microsoft365Page';
 import { Microsoft365DataView } from './Microsoft365DataView';
 import { Microsoft365ContextPanel } from './Microsoft365ContextPanel';
@@ -98,6 +98,69 @@ describe('Microsoft 365 UI', () => {
       .filter(call => call[1] === 'read' && call[2]?.refresh === true)
       .map(call => call[2].resource);
     expect(resources).toEqual(['USERS', 'LICENSES', 'GROUPS', 'DEVICES']);
+  });
+
+  it('continues independent inventory reads after one source fails and refreshes source status', async () => {
+    const connected = { ...status.connection, connected: true, configuration: {
+      tenantId: '11111111-1111-1111-1111-111111111111', clientId: '22222222-2222-2222-2222-222222222222', enableIntune: false,
+    } };
+    requestMock.mockImplementation(async (_module, action, payload) => {
+      if (action === 'getStatus') return { ...status, connection: connected };
+      if (action === 'read' && payload.resource === 'LICENSES') {
+        throw new BridgeInvokeError({ code: 'MICROSOFT365_PERMISSION_MISSING', message: 'License read is not permitted.' });
+      }
+      if (action === 'read') return snapshot({}, payload.resource);
+      throw new Error(`Unexpected action ${action}`);
+    });
+    const actor = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/sources?source=microsoft365']}><Microsoft365Page /></MemoryRouter>);
+    await screen.findByText('Signed in');
+
+    await actor.click(screen.getByRole('button', { name: 'Read users, licenses, groups and devices' }));
+
+    await waitFor(() => expect(refreshCachedMock).toHaveBeenCalledWith(true));
+    const resources = requestMock.mock.calls
+      .filter(call => call[1] === 'read' && call[2]?.refresh === true)
+      .map(call => call[2].resource);
+    expect(resources).toEqual(['USERS', 'LICENSES', 'GROUPS', 'DEVICES']);
+    let lastInventoryRead = -1;
+    let lastStatusRead = -1;
+    requestMock.mock.calls.forEach((call, index) => {
+      if (call[1] === 'read' && call[2]?.refresh === true) lastInventoryRead = index;
+      if (call[1] === 'getStatus') lastStatusRead = index;
+    });
+    expect(lastStatusRead).toBeGreaterThan(lastInventoryRead);
+  });
+
+  it('stops the remaining inventory sequence after explicit cancellation', async () => {
+    const connected = { ...status.connection, connected: true, configuration: {
+      tenantId: '11111111-1111-1111-1111-111111111111', clientId: '22222222-2222-2222-2222-222222222222', enableIntune: false,
+    } };
+    let rejectLicenseRead: ((reason: Error) => void) | undefined;
+    requestMock.mockImplementation(async (_module, action, payload) => {
+      if (action === 'getStatus') return { ...status, connection: connected };
+      if (action === 'read' && payload.resource === 'LICENSES') {
+        return await new Promise((_resolve, reject) => { rejectLicenseRead = reject; });
+      }
+      if (action === 'read') return snapshot({}, payload.resource);
+      throw new Error(`Unexpected action ${action}`);
+    });
+    cancelMock.mockImplementation(() => rejectLicenseRead?.(new BridgeCancelledError('microsoft365', 'read')));
+    const actor = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/sources?source=microsoft365']}><Microsoft365Page /></MemoryRouter>);
+    await screen.findByText('Signed in');
+
+    await actor.click(screen.getByRole('button', { name: 'Read users, licenses, groups and devices' }));
+    await screen.findByText('Reading Licenses (2/4)…');
+    await actor.click(screen.getByRole('button', { name: 'Cancel inventory read' }));
+
+    await waitFor(() => expect(refreshCachedMock).toHaveBeenCalledWith(true));
+    const resources = requestMock.mock.calls
+      .filter(call => call[1] === 'read' && call[2]?.refresh === true)
+      .map(call => call[2].resource);
+    expect(resources).toEqual(['USERS', 'LICENSES']);
+    expect(cancelMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('shows loading and cancels requests on navigation teardown', async () => {

@@ -29,7 +29,9 @@ The populated native retest confirmed all 3,023 groups in the Groups working
 set and no unrelated Nessus exception. It also exposed that the combined
 Microsoft 365 action omitted the already-supported license inventory. The
 follow-up restores licenses to that explicit bounded read without changing
-permissions or source semantics.
+permissions or source semantics. A failed individual source read no longer
+prevents the remaining inventories or the final status refresh; explicit user
+cancellation still stops the sequence.
 The selected product
 direction keeps Devices, Users and Groups with source-scoped identity while
 restoring operational summaries, working modes and bounded explicit source

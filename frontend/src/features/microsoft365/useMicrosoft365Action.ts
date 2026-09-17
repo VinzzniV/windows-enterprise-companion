@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BridgeInvokeError, invokeCancellable } from '../../shared/bridge/bridgeClient';
+import { BridgeCancelledError, BridgeInvokeError, invokeCancellable } from '../../shared/bridge/bridgeClient';
 import { presentError } from '../../shared/bridge/errorPresentation';
 
 export function useMicrosoft365Action<T>() {
@@ -23,7 +23,7 @@ export function useMicrosoft365Action<T>() {
       setData(result);
       return result;
     } catch (caught) {
-      if (generation.current === requestGeneration) {
+      if (generation.current === requestGeneration && !(caught instanceof BridgeCancelledError)) {
         setError(caught instanceof BridgeInvokeError ? caught.error.message : presentError(caught).message);
       }
     } finally {
