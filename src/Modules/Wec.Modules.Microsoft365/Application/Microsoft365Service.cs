@@ -373,6 +373,7 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
             var reads = new List<Microsoft365ObjectListRead>();
             int cached = 0;
             int loaded = 0;
+            var loadedByKind = new Dictionary<ObjectKind, int>();
             foreach (Microsoft365Query query in queries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -384,8 +385,10 @@ internal sealed class Microsoft365Service(IMicrosoft365Reader reader, IClock clo
                     foreach (Microsoft365ObjectListRow row in ObjectListRows(query, data))
                     {
                         ++cached;
-                        if (loaded >= options.Value.MaximumObjectListRecords) { continue; }
+                        int kindCount = loadedByKind.GetValueOrDefault(row.Kind);
+                        if (kindCount >= options.Value.MaximumObjectListRecords) { continue; }
                         rows.Add(row); ++loaded;
+                        loadedByKind[row.Kind] = kindCount + 1;
                     }
                 }
                 reads.Add(new(state, rows));

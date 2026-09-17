@@ -11,8 +11,8 @@ public sealed class Microsoft365Options
     public bool EnableIntune { get; set; }
     public bool EnableAuthenticationReports { get; set; }
     [Range(1, 100)] public int PageSize { get; set; } = 100;
-    [Range(1, 100)] public int MaximumPages { get; set; } = 20;
-    [Range(1, 10000)] public int MaximumItems { get; set; } = 2000;
+    [Range(1, 100)] public int MaximumPages { get; set; } = 50;
+    [Range(1, 10000)] public int MaximumItems { get; set; } = 5000;
     [Range(0, 5)] public int MaximumRetries { get; set; } = 2;
     [Range(1, 30)] public int MaximumRetryDelaySeconds { get; set; } = 15;
     [Range(5, 90)] public int QueryTimeoutSeconds { get; set; } = 60;

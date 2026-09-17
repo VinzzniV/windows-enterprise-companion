@@ -20,7 +20,7 @@ const groupId = '33333333-3333-3333-3333-333333333333';
 const read: WorkingSetRead = { key: 'users', title: 'Entra users', family: 'cloud', scope: tenant, sessionRevision: 1, revision: 1,
   retrievedAtUtc: null, lastAttemptAtUtc: null, retainedUntilUtc: null, freshUntilUtc: null,
   availability: 'available', coverage: 'partial', error: null, sourceTotal: 5000, cachedRecordCount: 60, limited: false,
-  rows: Array.from({ length: 60 }, (_, index) => ({ kind: 'USER', source: 'ENTRA', label: index === 0 ? 'Needle account' : `Account ${String(index).padStart(2, '0')}`, aliases: [],
+  kinds: ['USER'], rows: Array.from({ length: 60 }, (_, index) => ({ kind: 'USER', source: 'ENTRA', label: index === 0 ? 'Needle account' : `Account ${String(index).padStart(2, '0')}`, aliases: [],
     reference: { kind: 'USER', source: 'ENTRA', scope: tenant, id: `22222222-2222-2222-2222-${String(index + 1).padStart(12, '0')}` },
     accountEnabled: index % 2 === 0 ? true : null, operatingSystem: null, sid: null, registrationDeviceId: null, assignedSkuIds: null,
     userPrincipalName: index === 0 ? 'needle@example.test' : `account${index}@example.test` })) };
@@ -36,7 +36,10 @@ function view(initial = '/users/workspace?page=2') { return render(<MemoryRouter
 </MemoryRouter>); }
 beforeEach(() => {
   const policy = { maximumRecords: 100, maximumSourceReads: 128, directoryScope: null, tenantId: tenant };
-  const snapshot = captureWorkingSet([read], policy, Date.now());
+  const deviceFailure: WorkingSetRead = { ...read, key: 'nessus', title: 'Nessus management records', family: 'management',
+    scope: 'workspace', availability: 'unavailable', coverage: 'unknown', error: 'Unavailable', sourceTotal: null,
+    cachedRecordCount: 0, kinds: ['DEVICE'], rows: [] };
+  const snapshot = captureWorkingSet([read, deviceFailure], policy, Date.now());
   workspaceMock.mockReturnValue({ displayed: snapshot, available: snapshot, policy, directoryEndpoint: null, busy: false, error: null,
     hasUpdates: false, cloudGeneration: 0, directoryGeneration: 0, refreshCached: vi.fn(), applyUpdates: vi.fn(), publishDirectory: vi.fn(), clearFamily: vi.fn() });
   invokeMock.mockReset();
@@ -73,6 +76,7 @@ describe('object working-set list', () => {
     expect(within(table).getByRole('link', { name: 'Needle account' })).toBeTruthy();
     expect(within(table).getAllByText('needle@example.test').length).toBeGreaterThan(0);
     expect(screen.getByText(/Source exceptions: Entra users \(partial\)/)).toBeTruthy();
+    expect(screen.queryByText(/Nessus management records/)).toBeNull();
     expect(invokeMock).not.toHaveBeenCalled();
   });
 

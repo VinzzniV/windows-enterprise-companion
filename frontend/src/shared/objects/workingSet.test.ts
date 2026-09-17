@@ -18,7 +18,8 @@ const cloud = (id = cloudId, label = 'Cloud account'): WorkingSetObservation => 
 const read = (key: string, rows: WorkingSetObservation[], extra: Partial<WorkingSetRead> = {}): WorkingSetRead => ({
   key, title: key, family: key === 'ad' ? 'directory' : 'cloud', scope: rows[0]?.reference?.scope ?? tenant, sessionRevision: 1, revision: 1,
   retrievedAtUtc: '2026-09-14T09:55:00Z', lastAttemptAtUtc: '2026-09-14T09:55:00Z', retainedUntilUtc: '2026-09-14T10:55:00Z', freshUntilUtc: '2026-09-14T10:05:00Z',
-  availability: 'available', coverage: 'complete', error: null, sourceTotal: rows.length, cachedRecordCount: rows.length, limited: false, rows, ...extra,
+  availability: 'available', coverage: 'complete', error: null, sourceTotal: rows.length, cachedRecordCount: rows.length, limited: false,
+  kinds: [...new Set(rows.map(row => row.kind))], rows, ...extra,
 });
 const capture = (reads: WorkingSetRead[], overrides: Partial<WorkingSetPolicy> = {}) => captureWorkingSet(reads, { ...policy, ...overrides }, now);
 const devices = (source: 'ENTRA' | 'INTUNE', id: string): WorkingSetObservation => ({ ...cloud(id, 'Device'), kind: 'DEVICE', source,
@@ -111,6 +112,17 @@ describe('bounded object working set', () => {
     expect(snapshot.reads.map(source => source.rows.length)).toEqual([1, 1]);
     expect(snapshot.limited).toBe(true);
     expect(snapshot.objects).toHaveLength(2);
+  });
+
+  it('applies the record bound independently to each object kind', () => {
+    const group = (id: string): WorkingSetObservation => ({ ...cloud(id, 'Group'), kind: 'GROUP', sid: null,
+      reference: { kind: 'GROUP', source: 'ENTRA', scope: tenant, id } });
+    const snapshot = capture([read('users', [cloud(), cloud(extraId)], { resource: 'USERS' }),
+      read('groups', [group(adId), group(registration)], { resource: 'GROUPS' })], { maximumRecords: 2 });
+    expect(snapshot.loadedSourceRecords).toBe(4);
+    expect(queryWorkingSet(snapshot, { kind: 'USER', page: 1, pageSize: 10 }).total).toBe(2);
+    expect(queryWorkingSet(snapshot, { kind: 'GROUP', page: 1, pageSize: 10 }).total).toBe(2);
+    expect(snapshot.limited).toBe(false);
   });
 
   it('retains all Intune enrollment references for a uniquely proven Entra registration', () => {

@@ -113,6 +113,30 @@ public sealed class Microsoft365ServiceTests
     }
 
     [Fact]
+    public async Task ObjectListBoundIsIndependentForEachObjectKind()
+    {
+        using var service = Create(maximumObjectListRecords: 1);
+        var groups = new Microsoft365Query(Microsoft365Resource.Groups);
+        _reader.ReadAsync(Users, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
+        {
+            Users = [new(Guid.NewGuid().ToString("D"), "User", null, null, null, null, null, null, null, null, null, null, null)],
+        }));
+        _reader.ReadAsync(groups, Arg.Any<CancellationToken>()).Returns(Result.Success(new Microsoft365Data
+        {
+            Groups = [new(Guid.NewGuid().ToString("D"), "Group", null, null, null, null, null, null)],
+        }));
+        await service.ReadAsync(Users, true, TestContext());
+        await service.ReadAsync(groups, true, TestContext());
+
+        Microsoft365ObjectLists result = (await service.ReadObjectListsCachedAsync(null, TestContext())).Value;
+
+        Assert.Equal(2, result.LoadedSourceRecords);
+        Assert.False(result.Truncated);
+        Assert.Single(Assert.Single(result.Reads, read => read.State.Query == Users).Rows);
+        Assert.Single(Assert.Single(result.Reads, read => read.State.Query == groups).Rows);
+    }
+
+    [Fact]
     public async Task ObjectListsKeepIntuneRegistrationAndAssociatedUserIdsDistinctAndRetainMissingIds()
     {
         _reader.Connection.Returns(_reader.Connection with { Configuration = _reader.Connection.Configuration with { EnableIntune = true } });

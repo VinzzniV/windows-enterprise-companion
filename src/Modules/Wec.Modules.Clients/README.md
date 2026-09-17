@@ -12,7 +12,7 @@ snapshot payloads/findings; one failed source leaves other results available.
 Native record IDs, full addresses, observation timestamps, individual source
 totals and content revisions remain visible. The configurable
 `Wec:ObjectWorkingSet:MaximumRecords` defaults to 5000 and also supplies the
-overall frontend working-set bound. Optional targeted search is explicit and
+frontend working-set bound for each object kind. Optional targeted search is explicit and
 literal; SQLite's default LIKE case behavior applies. No Windows/provider scan
 or saved-target mutation is performed.
 

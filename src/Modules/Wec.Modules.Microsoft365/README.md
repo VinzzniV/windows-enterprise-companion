@@ -50,7 +50,7 @@ minimal list fields from cached user, group, Entra device and Intune queries.
 It performs no Graph request, includes inventory and explicitly read object
 queries, preserves duplicate/missing IDs, and keeps each query's original
 state and totals. Its configurable `Cache:MaximumObjectListRecords` limit is
-5000 source observations by default. Cached and returned observation counts
+5000 source observations per object kind by default. Cached and returned observation counts
 are separate; truncation never means a complete environment inventory. These
 rows are list/search inputs, not composed profiles or physical-asset identities.
 Assigned SKU IDs retain null versus an empty assignment list for later bounded

@@ -17,6 +17,14 @@ credential fields now exist only in Settings; Data Sources uses the saved
 accounts without repeating their inputs. Microsoft 365 delegated sign-in stays
 session-only under Data Sources. KES remains a Kaspersky inventory attribute
 and health-policy input, not a separate source.
+The subsequent bounded-working-set correction removes three stacked limits that
+reduced a 3,023-group Microsoft 365 result to 1,225 visible groups. Graph now
+loads up to 5,000 records per collection by default, the session object-list
+projection and frontend working set apply their 5,000-record bound independently
+per object kind, and source coverage on Devices, Users and Groups only reports
+sources relevant to the selected kind. The reads remain explicit, session-local,
+read-only and bounded; no synchronization, persistence or permission expansion
+was introduced.
 The selected product
 direction keeps Devices, Users and Groups with source-scoped identity while
 restoring operational summaries, working modes and bounded explicit source

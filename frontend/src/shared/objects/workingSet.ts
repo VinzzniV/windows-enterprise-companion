@@ -53,6 +53,7 @@ export interface WorkingSetRead {
   limited: boolean;
   resource?: Microsoft365Resource;
   querySid?: string | null;
+  kinds: readonly ObjectKind[];
   rows: readonly WorkingSetObservation[];
 }
 
@@ -172,8 +173,9 @@ function confirmedGroups(objects: WorkingSetObject[], reads: readonly WorkingSet
   const cloudUsers = sourceObjects(objects, 'USER', 'ENTRA', policy.tenantId);
   const directoryUsers = sourceObjects(objects, 'USER', 'ACTIVE_DIRECTORY', policy.directoryScope);
   const cloudReads = reads.filter(read => read.scope && policy.tenantId && canonical(read.scope) === canonical(policy.tenantId));
-  const cloudLimited = cloudReads.some(read => read.limited);
-  const directoryLimited = reads.some(read => read.family === 'directory' && read.scope && policy.directoryScope
+  const cloudUsersLimited = cloudReads.some(read => read.kinds.includes('USER') && read.limited);
+  const cloudDevicesLimited = cloudReads.some(read => read.kinds.includes('DEVICE') && read.limited);
+  const directoryUsersLimited = reads.some(read => read.family === 'directory' && read.kinds.includes('USER') && read.scope && policy.directoryScope
     && canonical(read.scope) === canonical(policy.directoryScope) && read.limited);
   const directoryBySid = valueIndex(directoryUsers, row => row.sid);
   const cloudBySid = valueIndex(cloudUsers, row => row.sid);
@@ -186,7 +188,7 @@ function confirmedGroups(objects: WorkingSetObject[], reads: readonly WorkingSet
   }
   for (const directory of directoryUsers) {
     const sid = uniqueValue(directory.observations, row => row.sid);
-    if (cloudLimited || directoryLimited || !sid || !sidPattern.test(sid) || sid.split('-').slice(4).some(value => Number(value) > 0xffffffff)
+    if (cloudUsersLimited || directoryUsersLimited || !sid || !sidPattern.test(sid) || sid.split('-').slice(4).some(value => Number(value) > 0xffffffff)
       || directory.duplicateSourceIdentity) continue;
     const matches = [...cloudBySid.get(sid) ?? []];
     if (directoryBySid.get(sid)?.size !== 1 || matches.length !== 1 || unknownSids.has(sid) || matches[0].duplicateSourceIdentity
@@ -202,7 +204,7 @@ function confirmedGroups(objects: WorkingSetObject[], reads: readonly WorkingSet
     .map(row => row.registrationDeviceId).filter((value): value is string => Boolean(value)).map(canonical)));
   for (const entra of entraDevices) {
     const registration = uniqueValue(entra.observations, row => row.registrationDeviceId);
-    if (cloudLimited || !registration || !guid.test(registration) || entra.duplicateSourceIdentity
+    if (cloudDevicesLimited || !registration || !guid.test(registration) || entra.duplicateSourceIdentity
       || entraByRegistration.get(registration)?.size !== 1 || unknownRegistrations.has(registration) || !provenRegistrations.has(registration)) continue;
     for (const managed of intuneByRegistration.get(registration) ?? []) {
       if (!managed.duplicateSourceIdentity && uniqueValue(managed.observations, row => row.registrationDeviceId) === registration) join(entra, managed);
@@ -238,19 +240,27 @@ export function captureWorkingSet(input: readonly WorkingSetRead[], policy: Work
   const omittedSourceReads = Math.max(0, input.length - policy.maximumSourceReads);
   const ordered = input.slice(-policy.maximumSourceReads).sort((a, b) => order(a.key, b.key));
   const visible = ordered.map(read => read.availability === 'available'
-    && (read.retainedUntilUtc === null || Date.parse(read.retainedUntilUtc) > now) ? read.rows.length : 0);
-  const selected = ordered.map(() => 0);
-  let remaining = policy.maximumRecords;
-  let active = ordered.map((_, index) => index).filter(index => visible[index] > 0);
-  while (remaining > 0 && active.length > 0) {
-    for (const index of active) { if (remaining <= 0) break; selected[index]++; remaining--; }
-    active = active.filter(index => selected[index] < visible[index]);
+    && (read.retainedUntilUtc === null || Date.parse(read.retainedUntilUtc) > now) ? read.rows : []);
+  const selected = ordered.map(() => new Set<number>());
+  for (const kind of ['DEVICE', 'USER', 'GROUP'] as const) {
+    const candidates = visible.map(rows => rows.map((row, index) => row.kind === kind ? index : -1).filter(index => index >= 0));
+    const counts = candidates.map(() => 0);
+    let remaining = policy.maximumRecords;
+    let active = candidates.map((rows, index) => ({ rows, index })).filter(candidate => candidate.rows.length > 0);
+    while (remaining > 0 && active.length > 0) {
+      for (const candidate of active) {
+        if (remaining <= 0) break;
+        selected[candidate.index].add(candidate.rows[counts[candidate.index]++]);
+        remaining--;
+      }
+      active = active.filter(candidate => counts[candidate.index] < candidate.rows.length);
+    }
   }
   let loaded = 0;
   const reads = ordered.map((read, index) => {
     const expired = read.retainedUntilUtc !== null && Date.parse(read.retainedUntilUtc) <= now;
     const available = read.availability === 'available' && !expired;
-    const rows = available ? read.rows.slice(0, selected[index]) : [];
+    const rows = available ? read.rows.filter((_, rowIndex) => selected[index].has(rowIndex)) : [];
     loaded += rows.length;
     return structuredClone({ ...read, availability: expired ? 'not-loaded' as const : read.availability,
       limited: omittedSourceReads > 0 || read.limited || available && rows.length < read.rows.length, rows });

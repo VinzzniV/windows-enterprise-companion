@@ -6,7 +6,7 @@ const tenant = '11111111-1111-1111-1111-111111111111';
 const makeRead = (count: number): WorkingSetRead => ({ key: 'entra', title: 'Entra', family: 'cloud', scope: tenant, sessionRevision: 1, revision: 1,
   retrievedAtUtc: null, lastAttemptAtUtc: null, retainedUntilUtc: null, freshUntilUtc: null, availability: 'available', coverage: 'partial',
   sourceTotal: 2000, cachedRecordCount: count * 3, limited: false,
-  error: 'Previous refresh failed', rows: (['USER', 'DEVICE', 'GROUP'] as const).flatMap(kind => Array.from({ length: count }, (_, index) => ({
+  error: 'Previous refresh failed', kinds: ['USER', 'DEVICE', 'GROUP'], rows: (['USER', 'DEVICE', 'GROUP'] as const).flatMap(kind => Array.from({ length: count }, (_, index) => ({
     reference: { kind, source: 'ENTRA' as const, scope: tenant, id: `22222222-2222-2222-2222-${String(index + 1).padStart(12, '0')}` },
     kind, source: 'ENTRA' as const, label: `Searchable ${kind} ${index}`, aliases: [], accountEnabled: null,
     operatingSystem: null, sid: null, registrationDeviceId: null, assignedSkuIds: null,

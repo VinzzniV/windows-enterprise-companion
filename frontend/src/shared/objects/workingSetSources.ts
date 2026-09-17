@@ -1,8 +1,17 @@
-import type { CachedDirectoryGroupPage, CachedDirectoryUserList, ManagementDeviceObjectLists, Microsoft365ObjectLists, ObjectReference, ReadAdComputerListResult, StoredObjectLists } from '../api-types.generated';
+import type { CachedDirectoryGroupPage, CachedDirectoryUserList, ManagementDeviceObjectLists, Microsoft365ObjectLists, Microsoft365Resource, ObjectKind, ObjectReference, ReadAdComputerListResult, StoredObjectLists } from '../api-types.generated';
 import { objectReference, objectSourceLabel } from './objectRoutes';
 import type { WorkingSetObservation, WorkingSetRead, WorkingSetSource } from './workingSet';
 
 export const workingSetSourceLabel: Record<WorkingSetSource, string> = { ...objectSourceLabel, KASPERSKY: 'Kaspersky', OPSI: 'opsi', NESSUS: 'Nessus' };
+
+function cloudKinds(resource: Microsoft365Resource, rows: readonly { kind: ObjectKind }[]): readonly ObjectKind[] {
+  const loaded = [...new Set(rows.map(row => row.kind))];
+  if (loaded.length > 0) return loaded;
+  if (['USERS', 'USER', 'USERS_BY_SID', 'USER_ACTIVITY', 'USER_REGISTRATION'].includes(resource)) return ['USER'];
+  if (['GROUPS', 'GROUP', 'USER_GROUPS'].includes(resource)) return ['GROUP'];
+  if (['DEVICES', 'DEVICE', 'MANAGED_DEVICES', 'MANAGED_DEVICE', 'USER_DEVICES', 'DEVICE_OWNERS'].includes(resource)) return ['DEVICE'];
+  return [];
+}
 
 export function managementWorkingSetReads(lists: ManagementDeviceObjectLists): WorkingSetRead[] {
   return lists.reads.map(read => ({
@@ -14,7 +23,7 @@ export function managementWorkingSetReads(lists: ManagementDeviceObjectLists): W
       : read.state.availability === 'NotConnected' ? 'disconnected' : read.state.availability === 'NotLoaded' ? 'not-loaded' : 'unavailable',
     coverage: read.state.availability === 'Available' ? 'complete' : ['Partial', 'Truncated'].includes(read.state.availability) ? 'partial' : 'unknown',
     error: read.state.error, sourceTotal: read.matchingCachedRecords, cachedRecordCount: read.matchingCachedRecords ?? 0,
-    limited: read.limited, rows: read.rows.map(row => ({ kind: 'DEVICE', source: read.source, reference: row.nativeReference,
+    limited: read.limited, kinds: ['DEVICE'], rows: read.rows.map(row => ({ kind: 'DEVICE', source: read.source, reference: row.nativeReference,
       managementReference: row.reference, label: row.label, aliases: row.aliases, accountEnabled: row.accountEnabled,
       operatingSystem: row.operatingSystem, sid: row.securityIdentifier, registrationDeviceId: null, assignedSkuIds: null })),
   }));
@@ -32,8 +41,9 @@ export function cloudWorkingSetReads(lists: Microsoft365ObjectLists): WorkingSet
       : read.state.availability === 'NOT_CONNECTED' ? 'disconnected' : read.state.availability === 'NOT_ENABLED' ? 'disabled' : 'unavailable',
     coverage: read.state.coverage === 'RETURNED_SET' ? 'complete' : read.state.coverage === 'PARTIAL' ? 'partial' : 'unknown',
     error: read.state.lastAttemptError?.message ?? null, sourceTotal: read.state.declaredTotal,
-    cachedRecordCount: read.state.loadedCount ?? 0, limited: lists.truncated || read.rows.length < (read.state.loadedCount ?? 0),
+    cachedRecordCount: read.state.loadedCount ?? 0, limited: read.rows.length < (read.state.loadedCount ?? 0),
     resource: read.state.query.resource, querySid: read.state.query.securityIdentifier,
+    kinds: cloudKinds(read.state.query.resource, read.rows),
     rows: read.rows.map(row => ({
       reference: objectReference(row.kind, row.source === 'INTUNE' ? 'intune' : 'entra', lists.tenantId ?? undefined, row.objectId ?? undefined),
       kind: row.kind, source: row.source, label: row.displayName ?? row.objectId ?? 'Limited-information record',
@@ -63,7 +73,7 @@ export function directoryComputerWorkingSetRead(result: ReadAdComputerListResult
     lastAttemptAtUtc: read?.lastAttemptAtUtc ?? null, retainedUntilUtc: read?.retainedUntilUtc ?? null, freshUntilUtc: result.freshUntilUtc,
     availability: data ? 'available' : read?.lastAttemptError ? 'unavailable' : 'not-loaded',
     coverage: data ? data.truncated ? 'partial' : 'complete' : 'unknown', error: read?.lastAttemptError?.message ?? null,
-    sourceTotal: data && !data.truncated ? data.computers.length : null, cachedRecordCount: data?.computers.length ?? 0, limited: false,
+    sourceTotal: data && !data.truncated ? data.computers.length : null, cachedRecordCount: data?.computers.length ?? 0, limited: false, kinds: ['DEVICE'],
     rows: data?.computers.map(computer => ({
       reference: objectReference('DEVICE', 'ad', computer.directoryScope ?? undefined, computer.objectId ?? undefined),
       kind: 'DEVICE', source: 'ACTIVE_DIRECTORY', label: computer.dnsHostName ?? computer.computerName,
@@ -89,7 +99,7 @@ export function directoryUserWorkingSetRead(read: CachedDirectoryUserList, selec
     availability: page ? 'available' : read.lastAttemptError ? 'unavailable' : 'not-loaded',
     coverage: page ? page.users.length === page.totalCount ? 'complete' : 'partial' : 'unknown',
     error: read.lastAttemptError?.message ?? null, sourceTotal: page?.totalCount ?? null,
-    cachedRecordCount: page?.users.length ?? 0, limited: false,
+    cachedRecordCount: page?.users.length ?? 0, limited: false, kinds: ['USER'],
     rows: page?.users.map(user => ({
       reference: objectReference('USER', 'ad', user.directoryScope, user.objectId), kind: 'USER', source: 'ACTIVE_DIRECTORY',
       label: user.displayName, aliases: [user.samAccountName, user.userPrincipalName, user.department, user.objectId].filter((value): value is string => Boolean(value)),
@@ -110,7 +120,7 @@ export function directoryGroupWorkingSetRead(read: CachedDirectoryGroupPage, sel
     availability: page ? 'available' : read.state.lastAttemptError ? 'unavailable' : 'not-loaded',
     coverage: page ? page.groups.length === page.totalCount ? 'complete' : 'partial' : 'unknown',
     error: read.state.lastAttemptError?.message ?? null, sourceTotal: page?.totalCount ?? null,
-    cachedRecordCount: page?.groups.length ?? 0, limited: false,
+    cachedRecordCount: page?.groups.length ?? 0, limited: false, kinds: ['GROUP'],
     rows: page?.groups.map(group => ({
       reference: objectReference('GROUP', 'ad', group.directoryScope, group.objectId ?? undefined), kind: 'GROUP', source: 'ACTIVE_DIRECTORY',
       label: group.name, aliases: [group.samAccountName, group.distinguishedName].filter((value): value is string => Boolean(value)),
@@ -134,7 +144,7 @@ export function storedWorkingSetReads(lists: StoredObjectLists): WorkingSetRead[
     lastAttemptAtUtc: lists.retrievedAtUtc,
     availability: read.error ? 'unavailable' : 'available', coverage: read.totalRecords === null ? 'unknown'
       : read.totalRecords > read.records.length ? 'partial' : 'complete', error: read.error?.message ?? null,
-    sourceTotal: read.totalRecords, cachedRecordCount: read.records.length, limited: read.totalRecords !== null && read.records.length < read.totalRecords,
+    sourceTotal: read.totalRecords, cachedRecordCount: read.records.length, limited: read.totalRecords !== null && read.records.length < read.totalRecords, kinds: ['DEVICE'],
     rows: read.records.map(row => ({ ...storedAddressObservation({ kind: 'DEVICE', source: 'WEC', scope: lists.workspace.scope, id: row.host }, row.label),
       nativeRecordId: row.recordId, observedAtUtc: row.observedAtUtc, storedEvidence: read.source === 'INVENTORY' ? 'INVENTORY' : read.source === 'SECURITY' ? 'SECURITY' : 'SAVED_TARGET' })),
   }));
