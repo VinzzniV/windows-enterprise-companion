@@ -108,8 +108,12 @@ Commit `8f24e06` raises the explicit Graph collection bound to 5,000 and applies
 the session object-list and frontend working-set bounds independently per object
 kind. Groups coverage no longer reports unrelated Nessus device failures. Unit,
 component, full-suite, build and contract checks cover the corrected semantics.
-A post-fix signed-in Graph refresh and populated native screenshot have not yet
-been observed, so the live 3,023-group outcome is not claimed here.
+A post-fix populated native screenshot now shows 3,023 loaded groups, 3,023
+current matches and 5,174 source records across all object kinds without the
+previous unrelated Nessus exception. The same retest exposed that the combined
+Microsoft 365 action did not request the already-supported license inventory;
+the follow-up adds `LICENSES` to that explicit sequence. A post-fix native
+license result remains to be observed.
 
 ## Native acceptance still required
 

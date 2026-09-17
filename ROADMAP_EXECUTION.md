@@ -25,6 +25,11 @@ per object kind, and source coverage on Devices, Users and Groups only reports
 sources relevant to the selected kind. The reads remain explicit, session-local,
 read-only and bounded; no synchronization, persistence or permission expansion
 was introduced.
+The populated native retest confirmed all 3,023 groups in the Groups working
+set and no unrelated Nessus exception. It also exposed that the combined
+Microsoft 365 action omitted the already-supported license inventory. The
+follow-up restores licenses to that explicit bounded read without changing
+permissions or source semantics.
 The selected product
 direction keeps Devices, Users and Groups with source-scoped identity while
 restoring operational summaries, working modes and bounded explicit source

@@ -92,7 +92,7 @@ export function Microsoft365Page() {
   };
   const readCoreInventories = async () => {
     if (!connection?.connected) return;
-    const resources: Microsoft365Resource[] = ['USERS', 'GROUPS', 'DEVICES'];
+    const resources: Microsoft365Resource[] = ['USERS', 'LICENSES', 'GROUPS', 'DEVICES'];
     if (connection.configuration.enableIntune) resources.push('MANAGED_DEVICES');
     for (const [index, item] of resources.entries()) {
       setInventoryProgress(`Reading ${resourceLabels[item]} (${index + 1}/${resources.length})…`);
@@ -155,7 +155,7 @@ export function Microsoft365Page() {
     {resource === 'TENANT' && connection?.connected && <Card title="Source status">
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={status.busy || inventory.busy} onClick={() => void readStatus('getStatus')}>Update displayed cache status</Button>
-        <Button variant="primary" disabled={status.busy || inventory.busy} onClick={() => void readCoreInventories()}>Read users, groups and devices</Button>
+        <Button variant="primary" disabled={status.busy || inventory.busy} onClick={() => void readCoreInventories()}>Read users, licenses, groups and devices</Button>
         {inventory.busy && <><Spinner label={inventoryProgress ?? 'Reading Microsoft 365 inventories…'} /><Button onClick={inventory.cancel}>Cancel inventory read</Button></>}
       </div>
       {inventory.error && <p role="alert" className="mt-3 text-sm text-fail-400">{inventory.error}</p>}

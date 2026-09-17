@@ -91,13 +91,13 @@ describe('Microsoft 365 UI', () => {
     render(<MemoryRouter initialEntries={['/sources?source=microsoft365']}><Microsoft365Page /></MemoryRouter>);
     await screen.findByText('Signed in');
 
-    await actor.click(screen.getByRole('button', { name: 'Read users, groups and devices' }));
+    await actor.click(screen.getByRole('button', { name: 'Read users, licenses, groups and devices' }));
 
     await waitFor(() => expect(refreshCachedMock).toHaveBeenCalledWith(true));
     const resources = requestMock.mock.calls
       .filter(call => call[1] === 'read' && call[2]?.refresh === true)
       .map(call => call[2].resource);
-    expect(resources).toEqual(['USERS', 'GROUPS', 'DEVICES']);
+    expect(resources).toEqual(['USERS', 'LICENSES', 'GROUPS', 'DEVICES']);
   });
 
   it('shows loading and cancels requests on navigation teardown', async () => {
