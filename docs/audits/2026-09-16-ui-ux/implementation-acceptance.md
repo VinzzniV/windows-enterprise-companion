@@ -114,10 +114,18 @@ previous unrelated Nessus exception. The same retest exposed that the combined
 Microsoft 365 action did not request the already-supported license inventory;
 the follow-up adds `LICENSES` to that explicit sequence. Individual failures no
 longer suppress later source reads or the final status refresh, while explicit
-cancellation still stops the sequence. A post-fix native license result remains
-to be observed.
+cancellation still stops the sequence.
 
-## Native acceptance still required
+The user's post-fix native screenshot from a locally started Debug host confirms
+the complete explicit sequence at 2026-09-17 16:34: users 761, licenses 10,
+groups 3,023, Entra devices 1,143 and Intune devices 100. Every card is cached,
+none is partial, and the matching host log records the organization read plus
+all five inventory reads as successful followed by the final status refresh;
+there is no Microsoft 365 Error or Fatal entry. This is native provider-backed
+evidence for the source behavior, but not a substitute for the remaining
+self-contained Release viewport and keyboard checks.
+
+## Remaining native acceptance
 
 Use the running self-contained Release host from the integrated checkout.
 Record actual outer-window dimensions and verify:
@@ -132,10 +140,10 @@ Record actual outer-window dimensions and verify:
    sensible focus restoration.
 4. Re-run the visible Action Center and AD-query return journeys at a populated
    state and confirm their original query/filter/page controls.
-5. Sign in to Microsoft 365, run the explicit core inventory read, and confirm
-   that the 3,023-group tenant result is no longer marked partial or reduced by
-   another object kind's rows. The Groups page may still report a genuine AD
-   group-read failure, but must not report Nessus device-read failures.
+
+The Microsoft 365 source acceptance is complete: the explicit read returns all
+five requested inventories, retains all 3,023 groups and the Groups working set
+does not surface Nessus device-read failures.
 
 Prior native consolidation acceptance remains valid historical evidence, but
 it is not substituted for this required post-remediation viewport run.
@@ -144,7 +152,7 @@ it is not substituted for this required post-remediation viewport run.
 
 The completed remediation and subsequent corrections were fast-forwarded into
 the local `master` checkout. Temporary implementation branches were removed;
-only `master` remains locally. At this baseline `master` is 90 commits ahead of
+only `master` remains locally. At this baseline `master` is 94 commits ahead of
 `origin/master`. No push, tag, installer publication, GitHub Release or
 published release asset change was performed. The local `publish` directory
 contains the verified self-contained executable and is not a release

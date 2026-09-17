@@ -32,6 +32,12 @@ follow-up restores licenses to that explicit bounded read without changing
 permissions or source semantics. A failed individual source read no longer
 prevents the remaining inventories or the final status refresh; explicit user
 cancellation still stops the sequence.
+The native provider-backed retest at 2026-09-17 16:34 confirms 761 users, 10
+licenses, 3,023 groups, 1,143 Entra devices and 100 Intune devices from one
+explicit action. All five reads and the final status refresh completed
+successfully without a Microsoft 365 Error/Fatal log entry. The screenshot was
+captured from a local Debug host, so the remaining native Release viewport and
+keyboard checks are still pending.
 The selected product
 direction keeps Devices, Users and Groups with source-scoped identity while
 restoring operational summaries, working modes and bounded explicit source
