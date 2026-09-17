@@ -27,6 +27,17 @@ every Device row; genuine ambiguity stays visible. Verification passes all
 494 generated bridge contracts, the production frontend build, the
 High-severity NPM audit gate and `git diff --check`.
 
+A second 2026-09-17 post-integration correction fixes an apparently inactive
+Microsoft 365 refresh. Graph reads completed successfully, but the refreshed
+session cache was not applied to the displayed object working set. Successful
+reads now update the visible Users, Groups and Devices workspaces immediately,
+and the source overview offers one explicit bounded action for those three core
+inventories (plus managed devices only when Intune is enabled). This remains
+read-only and user-triggered; it adds no permission, persistence or background
+synchronization. Verification passes all 585 frontend tests, the warning-free
+Release build, the production frontend build and the High-severity NPM audit
+gate; the two existing Moderate Vitest advisories remain deferred.
+
 Implementation on `codex/ui-ux-audit-improvements` now covers S1-S8 and all
 F01-F16 code corrections. A 2026-09-17 follow-up identified that remediation
 commit `299a33f`, not the consolidated sidebar registry, had flattened two

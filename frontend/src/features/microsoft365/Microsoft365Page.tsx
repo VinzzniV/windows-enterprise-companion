@@ -34,7 +34,9 @@ function QueryPanel({ resource, objectId, securityIdentifier, onRead }: { resour
   return <Card title={resourceLabels[resource]}>
     <div className="mb-3 flex flex-wrap items-center gap-3">
       {parent && objectId && <Link className="text-sm text-accent-400 underline" to={cloudPath(parent, objectId)}>Back to {parent.toLowerCase()}</Link>}
-      <Button disabled={query.busy} onClick={() => void run('read', { resource, objectId, securityIdentifier, refresh: true })}>Refresh this source</Button>
+      <Button disabled={query.busy} onClick={() => void run('read', { resource, objectId, securityIdentifier, refresh: true })}>
+        {resource === 'TENANT' ? 'Refresh organization overview' : `Refresh ${resourceLabels[resource]}`}
+      </Button>
       {query.busy && <><Spinner label="Reading Microsoft Graph…" /><Button onClick={query.cancel}>Cancel</Button></>}
     </div>
     {query.error && <p role="alert" className="mb-3 text-sm text-fail-400">{query.error}{query.data ? ' Previous data remains visible; it has not been refreshed.' : ''}</p>}
@@ -54,11 +56,13 @@ export function Microsoft365Page() {
   const securityIdentifier = resource === 'USERS_BY_SID' ? parameters.get('securityIdentifier') : null;
   const status = useMicrosoft365Action<Microsoft365Status>();
   const auth = useMicrosoft365Action<Microsoft365Connection | boolean>();
+  const inventory = useMicrosoft365Action<Microsoft365Snapshot>();
   const [connection, setConnection] = useState<Microsoft365Connection | null>(null);
   const [configuration, setConfiguration] = useState<Microsoft365Configuration>({ tenantId: '', clientId: '', enableIntune: false, enableAuthenticationReports: false });
   const [sessionRevision, setSessionRevision] = useState(0);
+  const [inventoryProgress, setInventoryProgress] = useState<string | null>(null);
   const { run: readStatus } = status;
-  const refreshStatus = useCallback(() => { void readStatus('getStatus'); void refreshCached?.(); }, [readStatus, refreshCached]);
+  const refreshStatus = useCallback(() => { void readStatus('getStatus'); void refreshCached?.(true); }, [readStatus, refreshCached]);
   useEffect(() => {
     void readStatus('getStatus').then(value => {
       if (value) { setConnection(value.connection); setConfiguration(value.connection.configuration); }
@@ -85,6 +89,23 @@ export function Microsoft365Page() {
       setSessionRevision(previous => previous + 1);
       await readStatus('getStatus');
     }
+  };
+  const readCoreInventories = async () => {
+    if (!connection?.connected) return;
+    const resources: Microsoft365Resource[] = ['USERS', 'GROUPS', 'DEVICES'];
+    if (connection.configuration.enableIntune) resources.push('MANAGED_DEVICES');
+    for (const [index, item] of resources.entries()) {
+      setInventoryProgress(`Reading ${resourceLabels[item]} (${index + 1}/${resources.length})…`);
+      const result = await inventory.run('read', {
+        resource: item,
+        tenantId: connection.configuration.tenantId,
+        refresh: true,
+      });
+      if (!result) { setInventoryProgress(null); return; }
+    }
+    await refreshCached?.(true);
+    await readStatus('getStatus');
+    setInventoryProgress(null);
   };
 
   const destination = cloudObjectDestination(resource, objectId, connection?.configuration.tenantId);
@@ -132,7 +153,12 @@ export function Microsoft365Page() {
         aria-current={resource === item ? 'page' : undefined} to={cloudObjectDestination(item, null, connection?.configuration.tenantId) ?? cloudPath(item)}>{resourceLabels[item]}</Link>)}
     </nav>
     {resource === 'TENANT' && connection?.connected && <Card title="Source status">
-      <Button disabled={status.busy} onClick={() => void readStatus('getStatus')}>Update displayed cache status</Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button disabled={status.busy || inventory.busy} onClick={() => void readStatus('getStatus')}>Update displayed cache status</Button>
+        <Button variant="primary" disabled={status.busy || inventory.busy} onClick={() => void readCoreInventories()}>Read users, groups and devices</Button>
+        {inventory.busy && <><Spinner label={inventoryProgress ?? 'Reading Microsoft 365 inventories…'} /><Button onClick={inventory.cancel}>Cancel inventory read</Button></>}
+      </div>
+      {inventory.error && <p role="alert" className="mt-3 text-sm text-fail-400">{inventory.error}</p>}
       <p className="my-2 text-xs text-muted">Source reads are independent. No background tenant-wide synchronization runs. Signed in does not mean Graph is currently reachable.</p>
       <p className="mb-3 text-xs text-muted">Last successful Graph read: {timestamp(status.data?.sources.map(source => source.updatedAtUtc).filter((value): value is string => value !== null).sort().at(-1))}</p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{topResources.filter(item => item !== 'TENANT').map(item => {

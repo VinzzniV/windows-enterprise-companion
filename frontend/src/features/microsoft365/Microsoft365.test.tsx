@@ -8,11 +8,14 @@ import { Microsoft365Page } from './Microsoft365Page';
 import { Microsoft365DataView } from './Microsoft365DataView';
 import { Microsoft365ContextPanel } from './Microsoft365ContextPanel';
 
-const { requestMock, cancelMock } = vi.hoisted(() => ({ requestMock: vi.fn(), cancelMock: vi.fn() }));
+const { requestMock, cancelMock, refreshCachedMock } = vi.hoisted(() => ({ requestMock: vi.fn(), cancelMock: vi.fn(), refreshCachedMock: vi.fn() }));
 vi.mock('../../shared/bridge/bridgeClient', async importOriginal => {
   const actual = await importOriginal<typeof import('../../shared/bridge/bridgeClient')>();
   return { ...actual, invokeCancellable: (...args: unknown[]) => ({ promise: requestMock(...args), cancel: cancelMock, requestId: 'fixture' }) };
 });
+vi.mock('../../shared/objects/WorkingSetContext', () => ({
+  useOptionalWorkingSet: () => ({ refreshCached: refreshCachedMock, clearFamily: vi.fn() }),
+}));
 
 const emptyData: Microsoft365Data = { tenants: [], users: [], groups: [], devices: [], managedDevices: [], licenses: [], members: [], activity: null, totalCount: null, truncated: false };
 const user: Microsoft365User = { id: '11111111-1111-1111-1111-111111111111', displayName: 'Alex Example', userPrincipalName: 'alex@example.test', mail: null,
@@ -25,7 +28,7 @@ const snapshot = (data: Partial<Microsoft365Data> = {}, resource: Microsoft365Sn
 const renderView = (value: Microsoft365Snapshot) => render(<MemoryRouter><Microsoft365DataView snapshot={value} /></MemoryRouter>);
 
 describe('Microsoft 365 UI', () => {
-  beforeEach(() => { requestMock.mockReset(); cancelMock.mockReset(); requestMock.mockResolvedValue(status); });
+  beforeEach(() => { requestMock.mockReset(); cancelMock.mockReset(); refreshCachedMock.mockReset(); requestMock.mockResolvedValue(status); });
 
   it('opens disconnected without querying Graph or claiming zero tenant counts', async () => {
     render(<MemoryRouter><Microsoft365Page /></MemoryRouter>);
@@ -59,6 +62,42 @@ describe('Microsoft 365 UI', () => {
     render(<MemoryRouter initialEntries={['/microsoft365?resource=MANAGED_DEVICES']}><Microsoft365Page /></MemoryRouter>);
     expect((await screen.findByRole('alert')).textContent).toContain('Intune requires DeviceManagementManagedDevices.Read.All.');
     expect(screen.queryByText('No matching records in the loaded data.')).toBeNull();
+  });
+
+  it('applies refreshed user inventory to the visible object working set', async () => {
+    requestMock.mockImplementation(async (_module, action) => {
+      if (action === 'getStatus') return { ...status, connection: { ...status.connection, connected: true } };
+      if (action === 'read') return snapshot({ users: [user] }, 'USERS');
+      throw new Error(`Unexpected action ${action}`);
+    });
+
+    render(<MemoryRouter initialEntries={['/sources?source=microsoft365&resource=USERS']}><Microsoft365Page /></MemoryRouter>);
+
+    expect(await screen.findByText('Alex Example')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Refresh Users' })).toBeTruthy();
+    await waitFor(() => expect(refreshCachedMock).toHaveBeenCalledWith(true));
+  });
+
+  it('reads the bounded core inventories explicitly and applies them to the object workspaces', async () => {
+    const connected = { ...status.connection, connected: true, configuration: {
+      tenantId: '11111111-1111-1111-1111-111111111111', clientId: '22222222-2222-2222-2222-222222222222', enableIntune: false,
+    } };
+    requestMock.mockImplementation(async (_module, action, payload) => {
+      if (action === 'getStatus') return { ...status, connection: connected };
+      if (action === 'read') return snapshot({}, payload.resource);
+      throw new Error(`Unexpected action ${action}`);
+    });
+    const actor = userEvent.setup();
+    render(<MemoryRouter initialEntries={['/sources?source=microsoft365']}><Microsoft365Page /></MemoryRouter>);
+    await screen.findByText('Signed in');
+
+    await actor.click(screen.getByRole('button', { name: 'Read users, groups and devices' }));
+
+    await waitFor(() => expect(refreshCachedMock).toHaveBeenCalledWith(true));
+    const resources = requestMock.mock.calls
+      .filter(call => call[1] === 'read' && call[2]?.refresh === true)
+      .map(call => call[2].resource);
+    expect(resources).toEqual(['USERS', 'GROUPS', 'DEVICES']);
   });
 
   it('shows loading and cancels requests on navigation teardown', async () => {
