@@ -45,6 +45,7 @@ export interface DataTableGroup {
 }
 
 interface DataTableProps<T> {
+  layout?: 'auto' | 'fixed';
   columns: readonly DataColumn<T>[];
   /** The rows for the current page. DataTable never fetches or slices them. */
   rows: readonly T[];
@@ -87,6 +88,7 @@ export function DataTable<T>({
   pagination,
   loading = false,
   groupBy,
+  layout = 'auto',
 }: DataTableProps<T>) {
   const [localSort, setLocalSort] = useState<{ index: number; dir: DataTableSortDirection } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(new Set());
@@ -184,7 +186,7 @@ export function DataTable<T>({
         {columns.map((column) => (
           <td
             key={column.header}
-            className={`px-3 py-1.5 align-top ${column.align ? alignClass[column.align] : ''} ${
+            className={`px-3 py-1.5 align-top [overflow-wrap:anywhere] ${column.align ? alignClass[column.align] : ''} ${column.className ?? ''} ${
               column.mono ? 'font-mono text-[13px] tabular-nums' : ''
             }`}
           >
@@ -202,7 +204,7 @@ export function DataTable<T>({
         <p className="text-sm text-slate-400" role={loading ? 'status' : undefined}>
           {loading ? 'Loading table data…' : emptyMessage}
         </p>
-      ) : <table className="w-full border-collapse text-left text-sm">
+      ) : <table className={`w-full border-collapse text-left text-sm ${layout === 'fixed' ? 'min-w-[44rem] table-fixed' : ''}`}>
         <thead>
           <tr>
             {columns.map((column, index) => {
@@ -219,7 +221,7 @@ export function DataTable<T>({
                   aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
                   className={`border-b border-slate-800 px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted ${
                     column.align ? alignClass[column.align] : 'text-left'
-                  } ${stickyHeader ? 'sticky top-0 z-10 bg-slate-900' : ''}`}
+                  } ${stickyHeader ? 'sticky top-0 z-10 bg-slate-900' : ''} ${column.className ?? ''}`}
                 >
                   <button
                     type="button"

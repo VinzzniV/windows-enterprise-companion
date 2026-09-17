@@ -73,6 +73,19 @@ describe('DataTable', () => {
     expect(screen.queryByText('No rows')).toBeNull();
   });
 
+  it('applies feature-owned responsive sizing to both header and cells', () => {
+    render(
+      <DataTable
+        columns={[{ ...columns[0], className: 'w-72' }]}
+        rows={[{ id: 1, name: 'Alpha' }]}
+        emptyMessage="No rows"
+      />,
+    );
+
+    expect(screen.getByRole('columnheader', { name: /Name/ }).className).toContain('w-72');
+    expect(screen.getByText('Alpha').closest('td')?.className).toContain('w-72');
+  });
+
   it('activates a focused row with Enter or Space', async () => {
     const onRowClick = vi.fn();
     render(

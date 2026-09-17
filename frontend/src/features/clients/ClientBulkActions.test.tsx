@@ -53,12 +53,16 @@ describe('ClientBulkActions', () => {
     renderActions();
 
     expect(screen.getByText('2 of 50 hosts selected')).toBeTruthy();
+    const options = screen.getByText('Batch options and selected hosts').closest('details') as HTMLDetailsElement;
+    expect(options.open).toBe(true);
     expect(invokeMock).not.toHaveBeenCalledWith('inventory', 'runBatchScan', expect.anything());
     await userEvent.click(screen.getByRole('button', { name: 'Run Inventory' }));
 
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('inventory', 'runBatchScan', {
       hosts: ['pc-01.corp.local', 'pc-02.corp.local'],
     }));
+    expect(options.open).toBe(false);
+    expect(screen.getByText('Inventory progress')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Cancel batch' }));
     expect(cancelMock).toHaveBeenCalledTimes(1);
   });

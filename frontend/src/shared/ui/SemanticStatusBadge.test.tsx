@@ -33,5 +33,6 @@ describe('SemanticStatusBadge', () => {
     expect(semanticStatusPresentation(status)).toEqual({ label, tone });
     render(<SemanticStatusBadge status={status} />);
     expect(screen.getByText(label).className).toContain(`border-${tone === 'neutral' ? 'slate' : tone}-`);
+    expect(screen.getByText(label).className).toContain('break-normal');
   });
 });
