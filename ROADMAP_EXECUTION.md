@@ -23,7 +23,12 @@ superseded by ADR 0022. The separate automatic-ping branch remains excluded
 because Client 360 requires an explicit Ping action and its proposed ADR number
 collides with the accepted Microsoft 365 ADR. See
 `docs/audits/2026-09-17-legacy-branch-reconciliation.md` for the commit-level
-disposition. Final verification and local fast-forward integration are pending.
+disposition. Final verification passes all 1,058 backend tests and all 626
+frontend tests in 104 files, the warning-free Release build, 501 generated
+bridge contracts, the production frontend build, the High/Critical NPM audit
+gate and `git diff --check`. The two existing Moderate Vitest advisories remain
+deferred because their available fix is a breaking major upgrade. The
+reconciliation is complete and approved for local fast-forward integration.
 
 A 2026-09-17 post-integration correction restores the documented Device source
 precedence after `6cc90cf` had unintentionally included Nessus-only aliases in
