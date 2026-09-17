@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 import type {
   DeviceKind,
   NetworkHostRow,
+  NetworkScanPolicyResult,
   NetworkScanResult,
   ScanNetworkRequest,
   TargetRequest,
@@ -46,6 +47,14 @@ export function NetworkScanPage() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<NetworkScanResult | null>(null);
   const [error, setError] = useState<ErrorPresentation | null>(null);
+  const [scanPolicy, setScanPolicy] = useState<NetworkScanPolicyResult | null>(null);
+  const scanInFlight = useRef(false);
+
+  useEffect(() => {
+    invoke<NetworkScanPolicyResult>('networkscan', 'getPolicy', {})
+      .then(setScanPolicy)
+      .catch(() => setScanPolicy(null));
+  }, []);
 
   // The DHCP server usually sits on a domain controller and needs an admin token;
   // carry the session admin identity when one is signed in (never persisted).
@@ -63,6 +72,7 @@ export function NetworkScanPage() {
   );
 
   const scan = useCallback(() => {
+    if (scanInFlight.current) return;
     const trimmedTarget = target.trim();
     if (trimmedTarget === '') {
       setError({
@@ -79,6 +89,7 @@ export function NetworkScanPage() {
       scanPorts,
       dhcp: trimmedDhcp === '' ? null : dhcpRequest(trimmedDhcp),
     };
+    scanInFlight.current = true;
     setScanning(true);
     setError(null);
     invoke<NetworkScanResult>('networkscan', 'scan', request)
@@ -86,7 +97,10 @@ export function NetworkScanPage() {
       .catch((caught: unknown) => setError(presentError(caught, {
         message: 'The network scan could not be completed.',
       })))
-      .finally(() => setScanning(false));
+      .finally(() => {
+        scanInFlight.current = false;
+        setScanning(false);
+      });
   }, [target, scanPorts, dhcpServer, dhcpRequest]);
 
   const rows = result?.hosts ?? [];
@@ -191,6 +205,17 @@ export function NetworkScanPage() {
           Scan ports
         </label>
       </Toolbar>
+
+      <p className="rounded border border-slate-800 bg-slate-900/40 px-3 py-2 text-xs text-slate-400" role="status">
+        Target: <span className="font-mono text-slate-200">{target.trim() || 'not set'}</span>. This starts active host discovery from the WEC machine
+        {scanPorts
+          ? ` and probes ${scanPolicy ? `TCP ports ${scanPolicy.scanPorts.join(', ')}` : 'the configured TCP service-port set'} on every discovered host`
+          : ' without TCP service-port probes'}.
+        {dhcpServer.trim() !== ''
+          ? ` It also reads DHCP reservations from ${dhcpServer.trim()} using the remote-account context.`
+          : ' No DHCP server will be queried.'}
+        {' '}Results stay in this view and are not persisted; no target configuration is changed.
+      </p>
 
       {dhcpServer.trim() !== '' && !adminCredentials && (
         <p className="text-xs text-elevation-400">

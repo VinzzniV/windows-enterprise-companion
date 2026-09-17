@@ -34,6 +34,7 @@ function levelTone(level: string): BadgeTone {
 
 /** Live event-log queries with canned presets — never persisted, always fresh. */
 export function EventLogSection({ target }: { target: TargetRequest | null }) {
+  const targetLabel = target?.host?.trim() || 'this machine';
   const [preset, setPreset] = useState(PRESETS[0].key);
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [detail, setDetail] = useState<RemoteEventLogEntry | null>(null);
@@ -83,7 +84,7 @@ export function EventLogSection({ target }: { target: TargetRequest | null }) {
         <Button variant="primary" onClick={run} disabled={state.kind === 'running'}>
           Run query
         </Button>
-        <span className="text-xs text-muted">Live view — results are not saved.</span>
+        <span className="text-xs text-muted">Reads {targetLabel} live using the account context shown above. Results are not saved and the target is not changed.</span>
       </div>
 
       {state.kind === 'running' && <Spinner label="Querying event log …" />}

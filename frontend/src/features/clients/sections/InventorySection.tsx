@@ -87,7 +87,7 @@ export function InventorySection({
     return (
       <EmptyState
         title="No inventory yet"
-        message="No stored hardware snapshot for this client. Run a scan to capture CPU, memory, disks, network, GPUs, software and BitLocker."
+        message="No stored hardware snapshot for this client. The scan reads CPU, memory, disks, network, GPUs, software and BitLocker live from this client, then saves the result in WEC's local database."
         action={<Button variant="primary" onClick={() => load(false, false)}>Run inventory scan</Button>}
       />
     );
@@ -101,7 +101,7 @@ export function InventorySection({
           <span className="text-xs text-slate-400">
             {state.refreshing
               ? 'Refreshing — previous snapshot remains visible'
-              : `${state.result.fromCache ? 'From cache' : 'Freshly captured'} — ${formatSnapshotAge(state.result.capturedAtUtc)} — ${new Date(state.result.capturedAtUtc).toLocaleString()}`}
+              : `${state.result.fromCache ? 'From cache' : 'Freshly captured'} — ${formatSnapshotAge(state.result.capturedAtUtc)} — ${new Date(state.result.capturedAtUtc).toLocaleString()}. Refresh reads the client live and replaces this locally saved snapshot.`}
           </span>
           <Button onClick={() => load(true, false)} disabled={state.refreshing}>
             Refresh

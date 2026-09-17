@@ -93,7 +93,7 @@ export function SecuritySection({
     return (
       <EmptyState
         title="No security scan yet"
-        message="No stored security scan for this client. Run the 13 read-only checks now."
+        message="No stored security scan for this client. Run 13 read-only checks live against this client; WEC saves the result locally without changing the client."
         action={<Button variant="primary" onClick={runScan}>Run security scan</Button>}
       />
     );
@@ -103,7 +103,10 @@ export function SecuritySection({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-slate-800 bg-slate-900/50 px-3 py-2">
+        <span className="text-xs text-slate-400">
+          Runs 13 read-only checks live against this client and replaces the locally saved Security result. It makes no client changes.
+        </span>
         <Button onClick={runScan} disabled={state.scanning}>
           {state.scanning ? 'Running scan …' : 'Re-run scan'}
         </Button>

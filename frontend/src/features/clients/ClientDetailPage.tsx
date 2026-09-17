@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
@@ -79,6 +79,9 @@ export function ClientDetailPage() {
   const requestedSection = searchParams.get('section');
   const section: SectionKey = isSectionKey(requestedSection) ? requestedSection : 'overview';
   const [powerShellError, setPowerShellError] = useState<ErrorPresentation | null>(null);
+  const [targetMutationError, setTargetMutationError] = useState<ErrorPresentation | null>(null);
+  const [pendingTargetId, setPendingTargetId] = useState<number | 'new' | null>(null);
+  const targetMutationInFlight = useRef(false);
   const [reportRevision, setReportRevision] = useState(0);
 
   useEffect(() => {
@@ -101,6 +104,29 @@ export function ClientDetailPage() {
     () => savedTargets.filter((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
     [savedTargets, host],
   );
+
+  const mutateSavedTarget = useCallback(async (entryId?: number) => {
+    if (targetMutationInFlight.current) return;
+    targetMutationInFlight.current = true;
+    setPendingTargetId(entryId ?? 'new');
+    setTargetMutationError(null);
+    try {
+      if (entryId === undefined) {
+        await saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null });
+      } else {
+        await deleteTarget(entryId);
+      }
+    } catch (caught: unknown) {
+      setTargetMutationError(presentError(caught, {
+        message: entryId === undefined
+          ? 'The client target could not be saved locally.'
+          : 'The locally saved client target could not be removed.',
+      }));
+    } finally {
+      targetMutationInFlight.current = false;
+      setPendingTargetId(null);
+    }
+  }, [credentials?.userName, deleteTarget, host, saveTarget]);
 
   const selectSection = useCallback((nextSection: SectionKey) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -155,17 +181,16 @@ export function ClientDetailPage() {
             </Button>
           )}
           {savedEntries.length > 0 ? (
-            savedEntries.map(entry => <Button key={entry.id} variant="secondary" onClick={() => void deleteTarget(entry.id)}>
-              {savedEntries.length === 1 ? 'Unsave client' : `Unsave ${entry.label} (${entry.id})`}
+            savedEntries.map(entry => <Button key={entry.id} variant="secondary" disabled={pendingTargetId !== null} onClick={() => void mutateSavedTarget(entry.id)}>
+              {pendingTargetId === entry.id ? 'Removing…' : savedEntries.length === 1 ? 'Unsave client' : `Unsave ${entry.label} (${entry.id})`}
             </Button>)
           ) : (
             <Button
               variant="secondary"
-              onClick={() =>
-                void saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null })
-              }
+              disabled={pendingTargetId !== null}
+              onClick={() => void mutateSavedTarget()}
             >
-              Save client
+              {pendingTargetId === 'new' ? 'Saving…' : 'Save client'}
             </Button>
           )}
         </div>
@@ -177,6 +202,13 @@ export function ClientDetailPage() {
       {powerShellError && (
         <ErrorState title="PowerShell session unavailable" {...powerShellError} />
       )}
+      {targetMutationError && (
+        <ErrorState title="Saved target unchanged" {...targetMutationError} />
+      )}
+
+      <p className="rounded border border-slate-800 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+        Save client stores this host, label, role and optional username in WEC's local database. Session passwords are never saved. Unsave removes only this local shortcut.
+      </p>
 
       {!local && <ClientScanIdentity credentials={credentials} />}
 

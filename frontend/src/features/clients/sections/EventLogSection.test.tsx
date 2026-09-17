@@ -34,6 +34,7 @@ describe('EventLogSection', () => {
     });
 
     render(<EventLogSection target={{ host: 'PC-041' }} />);
+    expect(screen.getByText(/Reads PC-041 live.*Results are not saved and the target is not changed/)).toBeDefined();
     await userEvent.click(screen.getByRole('button', { name: 'Run query' }));
     const trigger = await screen.findByRole('button', { name: 'View full message' });
     trigger.focus();

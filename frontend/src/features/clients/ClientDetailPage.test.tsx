@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { ClientOverviewResult, DiagnosticRunResult, HardwareInfoResult, ReportOverview, SecurityScanResult } from '../../shared/api-types';
 import { BridgeInvokeError } from '../../shared/bridge/bridgeClient';
@@ -360,6 +361,29 @@ describe('ClientDetailPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Overview' }));
     expect(screen.getByTestId('location').textContent).toBe('/clients/PC1.corp.local');
+  });
+
+  it('explains local target storage, suppresses duplicate saves and reports failure', async () => {
+    const fallback = invokeMock.getMockImplementation() as (module: string, action: string, payload?: unknown) => Promise<unknown>;
+    let rejectSave!: (reason: unknown) => void;
+    const pendingSave = new Promise((_resolve, reject) => { rejectSave = reject; });
+    invokeMock.mockImplementation((module: string, action: string, payload?: unknown) => {
+      if (module === 'targets' && action === 'save') return pendingSave;
+      return fallback(module, action, payload);
+    });
+
+    renderAt('PC1.corp.local');
+    expect(await screen.findByText(/stores this host, label, role and optional username in WEC's local database/)).toBeDefined();
+    expect(screen.getByText(/Session passwords are never saved/)).toBeDefined();
+
+    await userEvent.dblClick(screen.getByRole('button', { name: 'Save client' }));
+    const saveCalls = invokeMock.mock.calls.filter((call) => call[0] === 'targets' && call[1] === 'save');
+    expect(saveCalls).toHaveLength(1);
+    expect(saveCalls[0][2]).not.toHaveProperty('password');
+
+    rejectSave(new Error('local database unavailable'));
+    expect(await screen.findByText('The client target could not be saved locally.')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Save client' })).toBeDefined();
   });
 
   it('does not read BitLocker until the administrator starts the explicit check', async () => {
