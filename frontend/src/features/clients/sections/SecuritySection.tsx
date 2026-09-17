@@ -15,10 +15,11 @@ import { Spinner } from '../../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';
 
 type State =
-  | { kind: 'idle' }
+  | { kind: 'missing' }
   | { kind: 'loading'; scanning: boolean }
-  | { kind: 'loaded'; scan: SecurityScanResult }
-  | { kind: 'error'; error: ErrorPresentation; storedRead: boolean };
+  | { kind: 'loaded'; scan: SecurityScanResult; scanning: boolean; refreshError: ErrorPresentation | null }
+  | { kind: 'readError'; error: ErrorPresentation }
+  | { kind: 'scanError'; error: ErrorPresentation };
 
 /** Security section of a client: last saved scan on open, run on demand. */
 export function SecuritySection({
@@ -30,54 +31,65 @@ export function SecuritySection({
 }) {
   const [state, setState] = useState<State>({ kind: 'loading', scanning: false });
 
-  const loadStored = useCallback(() => {
+  const loadLatest = useCallback(() => {
     setState({ kind: 'loading', scanning: false });
     invoke<LatestScanResult>('security', 'getLatestScan', { target })
       .then((result) =>
-        result.scan ? setState({ kind: 'loaded', scan: result.scan }) : setState({ kind: 'idle' }),
+        result.scan
+          ? setState({ kind: 'loaded', scan: result.scan, scanning: false, refreshError: null })
+          : setState({ kind: 'missing' }),
       )
       .catch((error: unknown) => setState({
-        kind: 'error',
+        kind: 'readError',
         error: presentError(error, { message: 'The stored security scan could not be read.' }),
-        storedRead: true,
       }));
   }, [target]);
 
   // Load the latest stored scan on open (no network)
   useEffect(() => {
-    loadStored();
-  }, [loadStored]);
+    loadLatest();
+  }, [loadLatest]);
 
   const runScan = useCallback(() => {
-    setState({ kind: 'loading', scanning: true });
+    setState((current) => current.kind === 'loaded'
+      ? { ...current, scanning: true, refreshError: null }
+      : { kind: 'loading', scanning: true });
     invoke<SecurityScanResult>('security', 'runScan', { target })
       .then((scan) => {
-        setState({ kind: 'loaded', scan });
+        setState({ kind: 'loaded', scan, scanning: false, refreshError: null });
         onDataChanged?.();
       })
-      .catch((error: unknown) => setState({
-        kind: 'error',
-        error: presentError(error, { message: 'Security checks could not be completed.' }),
-        storedRead: false,
-      }));
+      .catch((error: unknown) => {
+        const presentation = presentError(error, { message: 'Security checks could not be completed.' });
+        setState((current) => current.kind === 'loaded'
+          ? { ...current, scanning: false, refreshError: presentation }
+          : { kind: 'scanError', error: presentation });
+      });
   }, [target, onDataChanged]);
 
   if (state.kind === 'loading') {
     return <Spinner label={state.scanning ? 'Running security checks …' : 'Loading last scan …'} />;
   }
 
-  if (state.kind === 'error') {
+  if (state.kind === 'readError') {
     return (
       <ErrorState
         {...state.error}
-        controls={state.storedRead
-          ? <Button onClick={loadStored}>Retry stored read</Button>
-          : <Button onClick={runScan}>Retry scan</Button>}
+        controls={<Button onClick={loadLatest}>Retry stored read</Button>}
       />
     );
   }
 
-  if (state.kind === 'idle') {
+  if (state.kind === 'scanError') {
+    return (
+      <ErrorState
+        {...state.error}
+        controls={<Button onClick={runScan}>Retry scan</Button>}
+      />
+    );
+  }
+
+  if (state.kind === 'missing') {
     return (
       <EmptyState
         title="No security scan yet"
@@ -92,8 +104,17 @@ export function SecuritySection({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-end">
-        <Button onClick={runScan}>Re-run scan</Button>
+        <Button onClick={runScan} disabled={state.scanning}>
+          {state.scanning ? 'Running scan …' : 'Re-run scan'}
+        </Button>
       </div>
+      {state.refreshError && (
+        <ErrorState
+          {...state.refreshError}
+          title="Scan failed; the previous saved scan is still shown."
+          controls={<Button onClick={runScan}>Retry scan</Button>}
+        />
+      )}
       <ResultContext scan={state.scan} problemCount={problems.length} />
       <SeveritySummary problems={problems} />
       {problems.length === 0 ? (

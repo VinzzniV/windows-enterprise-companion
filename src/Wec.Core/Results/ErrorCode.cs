@@ -19,6 +19,7 @@ public enum ErrorCode
     UnsupportedRemoteOperation,
     ServiceUnavailable,
     RemoteCommandFailed,
+    StoredDataUnreadable,
     Microsoft365NotConnected,
     Microsoft365AuthenticationRequired,
     Microsoft365ConsentRequired,

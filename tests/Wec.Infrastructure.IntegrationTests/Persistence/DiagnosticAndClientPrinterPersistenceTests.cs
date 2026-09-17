@@ -109,6 +109,27 @@ public sealed class DiagnosticAndClientPrinterPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task DamagedDiagnosticPayload_DoesNotReportMissing()
+    {
+        using WecDbContext context = CreateContext();
+        await context.Database.MigrateAsync();
+        context.Set<DiagnosticRunRecord>().Add(new DiagnosticRunRecord
+        {
+            Host = "PC-DAMAGED",
+            CompletedAtUtc = When,
+            PayloadJson = "{not-json",
+        });
+        await context.SaveChangesAsync();
+        var repository = new EfDiagnosticRunRepository(
+            context,
+            NullLogger<EfDiagnosticRunRepository>.Instance);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => repository.GetLatestAsync(
+            "PC-DAMAGED",
+            CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ClientPrinterScan_RoundTripsAndReplacesPerHost()
     {
         var printer = new ClientPrinter("Reception", "Kyocera KX", "IP_10.0.0.5", "EG", false, true);

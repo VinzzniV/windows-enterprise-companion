@@ -8,10 +8,11 @@ import { Spinner } from '../../../shared/ui/Spinner';
 import { EmptyState, ErrorState } from '../../../shared/ui/States';
 
 type State =
-  | { kind: 'idle' }
-  | { kind: 'loading' }
+  | { kind: 'missing' }
+  | { kind: 'loading'; scanning: boolean }
   | { kind: 'loaded'; result: HardwareInfoResult; refreshing: boolean; refreshError: ErrorPresentation | null }
-  | { kind: 'error'; error: ErrorPresentation; storedRead: boolean };
+  | { kind: 'readError'; error: ErrorPresentation }
+  | { kind: 'scanError'; error: ErrorPresentation };
 
 /** Inventory section of a client: cached snapshot on open, scan on demand. */
 export function InventorySection({
@@ -21,13 +22,13 @@ export function InventorySection({
   target: TargetRequest | null;
   onDataChanged?: () => void;
 }) {
-  const [state, setState] = useState<State>({ kind: 'idle' });
+  const [state, setState] = useState<State>({ kind: 'loading', scanning: false });
 
   const load = useCallback((forceRefresh: boolean, cacheOnly: boolean) => {
     setState((current) =>
       current.kind === 'loaded' && !cacheOnly
         ? { ...current, refreshing: true, refreshError: null }
-        : { kind: 'loading' },
+        : { kind: 'loading', scanning: !cacheOnly },
     );
     const payload: GetHardwareInfoRequest = { target, forceRefresh, cacheOnly };
     invoke<HardwareInfoResult>('inventory', 'getHardwareInfo', payload)
@@ -36,21 +37,21 @@ export function InventorySection({
         if (!cacheOnly) onDataChanged?.();
       })
       .catch((error: unknown) => {
-        if (cacheOnly && error instanceof BridgeInvokeError && error.error.code === 'NOT_FOUND') {
-          setState({ kind: 'idle' });
-          return;
-        }
-        const presentation = presentError(error, { message: 'Hardware inventory could not be captured.' });
         setState((current) => {
-          if (cacheOnly) return {
-            kind: 'error',
-            error: presentError(error, { message: 'The stored hardware inventory could not be read.' }),
-            storedRead: true,
-          };
+          if (cacheOnly && error instanceof BridgeInvokeError && error.error.code === 'NOT_FOUND') {
+            return { kind: 'missing' };
+          }
+          if (cacheOnly) {
+            return {
+               kind: 'readError',
+               error: presentError(error, { message: 'The stored hardware inventory could not be read.' }),
+            };
+          }
+          const presentation = presentError(error, { message: 'Hardware inventory could not be captured.' });
           if (current.kind === 'loaded') {
             return { ...current, refreshing: false, refreshError: presentation };
           }
-          return { kind: 'error', error: presentation, storedRead: false };
+          return { kind: 'scanError', error: presentation };
         });
       });
   }, [target, onDataChanged]);
@@ -61,21 +62,28 @@ export function InventorySection({
   }, [load]);
 
   if (state.kind === 'loading') {
-    return <Spinner label="Capturing hardware inventory …" />;
+    return <Spinner label={state.scanning ? 'Capturing hardware inventory …' : 'Loading stored inventory …'} />;
   }
 
-  if (state.kind === 'error') {
+  if (state.kind === 'readError') {
     return (
       <ErrorState
         {...state.error}
-        controls={state.storedRead
-          ? <Button onClick={() => load(false, true)}>Retry stored read</Button>
-          : <Button onClick={() => load(true, false)}>Retry scan</Button>}
+        controls={<Button onClick={() => load(false, true)}>Retry stored read</Button>}
       />
     );
   }
 
-  if (state.kind === 'idle') {
+  if (state.kind === 'scanError') {
+    return (
+      <ErrorState
+        {...state.error}
+        controls={<Button onClick={() => load(true, false)}>Retry scan</Button>}
+      />
+    );
+  }
+
+  if (state.kind === 'missing') {
     return (
       <EmptyState
         title="No inventory yet"
