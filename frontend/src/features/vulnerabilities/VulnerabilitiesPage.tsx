@@ -53,19 +53,76 @@ function NessusScanStatusBadge({ scan }: { scan: NessusScan }) {
   </span>;
 }
 
+type TrendSeverityKey = 'critical' | 'high' | 'medium' | 'low';
+
+export function trendXPositions(
+  points: ReadonlyArray<{ dayUtc: string }>,
+  width: number,
+  left: number,
+  right: number,
+): number[] {
+  const times = points.map((point) => Date.parse(`${point.dayUtc}T00:00:00Z`));
+  const valid = times.every(Number.isFinite);
+  const minimum = valid ? Math.min(...times) : 0;
+  const maximum = valid ? Math.max(...times) : points.length - 1;
+  return times.map((time, index) => {
+    const value = valid ? time : index;
+    return left + (maximum === minimum ? 0 : (value - minimum) * (width - left - right) / (maximum - minimum));
+  });
+}
+
+function formatTrendDay(dayUtc: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(`${dayUtc}T00:00:00Z`));
+}
+
 function TrendChart({ trend }: { trend: VulnerabilityTrend }) {
-  const width = 900, height = 210, pad = 28;
+  const width = 900, height = 250, left = 52, right = 20, top = 16, bottom = 40;
   const maximum = Math.max(1, ...trend.points.flatMap((p) => [p.critical, p.high, p.medium, p.low]));
-  const path = (key: 'critical' | 'high' | 'medium' | 'low') => trend.points.map((point, index) => {
-    const x = pad + (trend.points.length < 2 ? 0 : index * (width - pad * 2) / (trend.points.length - 1));
-    const y = height - pad - point[key] * (height - pad * 2) / maximum;
-    return `${index ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
+  const plotHeight = height - top - bottom;
+  const xPositions = trendXPositions(trend.points, width, left, right);
+  const y = (value: number) => height - bottom - value * plotHeight / maximum;
+  const path = (key: TrendSeverityKey) => trend.points.map((point, index) => {
+    const x = xPositions[index];
+    return `${index ? 'L' : 'M'}${x.toFixed(1)},${y(point[key]).toFixed(1)}`;
   }).join(' ');
   const colors = { critical: '#fb7185', high: '#f59e0b', medium: '#60a5fa', low: '#34d399' };
-  return <div className="overflow-x-auto"><svg viewBox={`0 0 ${width} ${height}`} className="min-w-[700px]" role="img" aria-label="Nessus severity trend">
-    <path d={`M${pad},${height - pad}H${width - pad}`} stroke="#334155" />
-    {(Object.keys(colors) as Array<keyof typeof colors>).map((key) => <path key={key} d={path(key)} fill="none" stroke={colors[key]} strokeWidth="2" />)}
-  </svg><div className="flex gap-4 text-xs text-slate-400">{Object.entries(colors).map(([label, color]) => <span key={label}><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}</div></div>;
+  const ticks = [...new Set([0, Math.ceil(maximum / 2), maximum])].sort((a, b) => a - b);
+  return <div className="overflow-x-auto">
+    <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[700px]" role="img" aria-label="Nessus severity findings by UTC date">
+      {ticks.map((tick) => <g key={tick}>
+        <path d={`M${left},${y(tick)}H${width - right}`} stroke="#334155" />
+        <text x={left - 8} y={y(tick) + 4} textAnchor="end" fill="#94a3b8" fontSize="11">{tick}</text>
+      </g>)}
+      <text x="12" y={top + plotHeight / 2} transform={`rotate(-90 12 ${top + plotHeight / 2})`} textAnchor="middle" fill="#94a3b8" fontSize="11">Findings</text>
+      <text x={left} y={height - 12} fill="#94a3b8" fontSize="11">{trend.points[0].dayUtc}</text>
+      <text x={width - right} y={height - 12} textAnchor="end" fill="#94a3b8" fontSize="11">{trend.points[trend.points.length - 1].dayUtc}</text>
+      {(Object.keys(colors) as TrendSeverityKey[]).map((key) => <g key={key}>
+        <path d={path(key)} fill="none" stroke={colors[key]} strokeWidth="2" />
+        {trend.points.map((point, index) => <circle key={point.dayUtc} cx={xPositions[index]} cy={y(point[key])} r="3" fill={colors[key]}>
+          <title>{`${point.dayUtc}: ${key} ${point[key]}`}</title>
+        </circle>)}
+      </g>)}
+    </svg>
+    <div className="flex flex-wrap gap-4 text-xs text-slate-400">{Object.entries(colors).map(([label, color]) => <span key={label}><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />{label}</span>)}</div>
+    <p className="mt-1 text-xs text-slate-500">UTC date axis · findings per daily snapshot · spacing reflects elapsed days.</p>
+  </div>;
+}
+
+function DailyTrendValues({ trend }: { trend: VulnerabilityTrend }) {
+  return <details className="mt-3 rounded border border-slate-800 bg-slate-950/30">
+    <summary className="cursor-pointer px-3 py-2 text-sm text-slate-300">Daily values ({trend.points.length})</summary>
+    <div className="overflow-x-auto px-3 pb-3">
+      <table className="w-full text-left text-xs text-slate-300">
+        <thead><tr className="border-b border-slate-800"><th className="py-1 pr-3">UTC date</th><th className="px-2 py-1 text-right">Critical</th><th className="px-2 py-1 text-right">High</th><th className="px-2 py-1 text-right">Medium</th><th className="px-2 py-1 text-right">Low</th><th className="px-2 py-1 text-right">Assets</th></tr></thead>
+        <tbody>{trend.points.map((point) => <tr key={point.dayUtc} className="border-b border-slate-900"><td className="py-1 pr-3"><time dateTime={point.dayUtc}>{formatTrendDay(point.dayUtc)}</time></td><td className="px-2 py-1 text-right">{point.critical}</td><td className="px-2 py-1 text-right">{point.high}</td><td className="px-2 py-1 text-right">{point.medium}</td><td className="px-2 py-1 text-right">{point.low}</td><td className="px-2 py-1 text-right">{point.assets}</td></tr>)}</tbody>
+      </table>
+    </div>
+  </details>;
 }
 
 function earliestFollowingTrendDay(trend: VulnerabilityTrend): string | null {
@@ -102,16 +159,41 @@ function TrendCard({ trend, days, onDaysChange }: {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-slate-200">Not enough data for a trend yet</p>
           {earliestDay && formattedEarliestDay
-            ? <p className="mt-1 text-sm text-slate-400">Earliest possible: <time dateTime={earliestDay}>{formattedEarliestDay}</time>, after another snapshot captures at least one previously seen asset.</p>
+            ? <><p className="mt-1 text-sm text-slate-400">Earliest possible: <time dateTime={earliestDay}>{formattedEarliestDay}</time>, after another snapshot captures at least one previously seen asset.</p>
+              <p className="mt-1 text-xs text-slate-500">First daily snapshot: {trend.points[0].critical} Critical, {trend.points[0].high} High, {trend.points[0].medium} Medium, {trend.points[0].low} Low across {trend.points[0].assets} assets.</p></>
             : <p className="mt-1 text-sm text-slate-400">Capture snapshots on two different UTC days with at least one common asset.</p>}
         </div>
       </div>
     </Card>;
   }
 
+  const comparison = trend.comparison!;
+  const severityValues = {
+    CRITICAL: [comparison.startCritical, comparison.endCritical],
+    HIGH: [comparison.startHigh, comparison.endHigh],
+    MEDIUM: [comparison.startMedium, comparison.endMedium],
+    LOW: [comparison.startLow, comparison.endLow],
+  } as const;
+  const decidingValues = comparison.decidingSeverity === 'CRITICAL'
+    || comparison.decidingSeverity === 'HIGH'
+    || comparison.decidingSeverity === 'MEDIUM'
+    || comparison.decidingSeverity === 'LOW'
+    ? severityValues[comparison.decidingSeverity]
+    : null;
   return <Card title={`${days}-day trend · ${trend.verdict.replace('_',' ')}`}>
-    <div className="mb-2 flex items-center gap-3 text-xs text-slate-400">{periodSelect}<span>{trend.commonAssets} common</span><span>{trend.newAssets} new</span><span>{trend.removedAssets} removed</span></div>
+    <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">{periodSelect}<span>{trend.commonAssets} common assets</span><span>{trend.newAssets} added</span><span>{trend.removedAssets} removed</span></div>
+    <div className="mb-3 rounded border border-slate-800 bg-slate-950/30 px-3 py-2 text-sm text-slate-300">
+      <p>Verdict compares {formatTrendDay(comparison.startDayUtc)} to {formatTrendDay(comparison.endDayUtc)} using only the {trend.commonAssets} assets present on both dates.</p>
+      <p className="mt-1 text-xs text-slate-400">Common-asset findings: Critical {comparison.startCritical} → {comparison.endCritical}; High {comparison.startHigh} → {comparison.endHigh}; Medium {comparison.startMedium} → {comparison.endMedium}; Low {comparison.startLow} → {comparison.endLow}.</p>
+      <p className="mt-1 text-xs text-slate-400">
+        {comparison.decidingSeverity && decidingValues
+          ? `${comparison.decidingSeverity[0]}${comparison.decidingSeverity.slice(1).toLowerCase()} is the first changed severity in the Critical → High → Medium → Low policy (${decidingValues[0]} → ${decidingValues[1]}), so the verdict is ${trend.verdict.toLowerCase()}.`
+          : 'All compared severities are unchanged, so the verdict is stable.'}
+        {' '}Daily totals below include all assets captured that day; {trend.newAssets} assets were added and {trend.removedAssets} were removed from the end cohort.
+      </p>
+    </div>
     <TrendChart trend={trend} />
+    <DailyTrendValues trend={trend} />
   </Card>;
 }
 
