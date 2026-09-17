@@ -222,7 +222,7 @@ describe('VulnerabilitiesPage', () => {
 
     render(<MemoryRouter initialEntries={['/vulnerabilities?tab=findings']}><TargetProvider><EnvironmentProvider><VulnerabilitiesPage /></EnvironmentProvider></TargetProvider></MemoryRouter>);
 
-    const findingRow = await screen.findByRole('button', { name: /Critical TLS/ });
+    const findingRow = (await screen.findByText('Critical TLS')).closest('tr')!;
     expect(findingRow.textContent).toContain('12 CVEs');
     expect(findingRow.textContent).not.toContain('CVE-2026-0001');
 
@@ -244,7 +244,7 @@ describe('VulnerabilitiesPage', () => {
     });
     render(<MemoryRouter initialEntries={['/vulnerabilities?tab=findings']}><TargetProvider><EnvironmentProvider><VulnerabilitiesPage /></EnvironmentProvider></TargetProvider></MemoryRouter>);
 
-    await userEvent.click(await screen.findByRole('button', { name: /Critical TLS/ }));
+    await userEvent.click((await screen.findByText('Critical TLS')).closest('tr')!);
     const details = await screen.findByRole('region', { name: 'Finding details' });
     expect(await within(details).findByText('Finding details could not be loaded')).toBeTruthy();
     expect(within(details).getByText('The selected finding details could not be loaded.')).toBeTruthy();

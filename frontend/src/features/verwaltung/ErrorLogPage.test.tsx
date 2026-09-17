@@ -45,7 +45,7 @@ describe('ErrorLogPage', () => {
     expect(screen.getByRole('region', { name: 'Log entry details' })).toBeDefined();
     expect(screen.getByText(/SELECT \* FROM MSFT_Printer/)).toBeDefined();
     expect(screen.getByText(/"host":"PC-041"/)).toBeDefined();
-    expect(summary.closest('tr')?.getAttribute('aria-pressed')).toBe('true');
+    expect(summary.closest('tr')?.getAttribute('aria-selected')).toBe('true');
 
     await userEvent.click(screen.getByRole('button', { name: 'Close log entry details' }));
     expect(screen.queryByRole('region', { name: 'Log entry details' })).toBeNull();
