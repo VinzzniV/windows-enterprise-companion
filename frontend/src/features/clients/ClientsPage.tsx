@@ -398,7 +398,7 @@ export function ClientsPage() {
         <EnvironmentSourceBadge name="Kaspersky" state={workspace.sources.kaspersky} />
         <EnvironmentSourceBadge name="opsi" state={workspace.sources.opsi} />
         <EnvironmentSourceBadge name="Nessus" state={workspace.sources.nessus} />
-        <span className="ml-auto text-xs text-muted">Snapshot {workspace.snapshotRevision} · {new Date(workspace.assessedAtUtc).toLocaleString()}</span>
+        <span className="ml-auto text-xs text-muted">Assessed {new Date(workspace.assessedAtUtc).toLocaleString()}</span>
       </div>
       {!coverageComplete && <p className="mt-2 text-xs text-warn-300" role="status">
         Counts are known results only; one or more sources have incomplete coverage.

@@ -34,12 +34,12 @@ function levelTone(level: string): BadgeTone {
 }
 
 /** Live event-log queries with canned presets — never persisted, always fresh. */
-export function EventLogSection({ target }: { target: TargetRequest | null }) {
+export function EventLogSection({ host, target }: { host?: string; target: TargetRequest | null }) {
   const [preset, setPreset] = useState(PRESETS[0].key);
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [selectedEntry, setSelectedEntry] = useState<RemoteEventLogEntry | null>(null);
   const [copyStatus, setCopyStatus] = useState<'copied' | 'failed' | null>(null);
-  const targetLabel = target?.host?.trim() || 'this machine';
+  const targetLabel = target?.host?.trim() || host?.trim() || 'this machine';
 
   const columns = useMemo<DataColumn<RemoteEventLogEntry>[]>(() => [
     {

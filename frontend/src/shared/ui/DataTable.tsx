@@ -29,6 +29,8 @@ export interface DataColumn<T> {
   align?: 'left' | 'right' | 'center';
   /** Monospace the cell (serials, IPs, MACs, versions, OIDs). */
   mono?: boolean;
+  /** Optional responsive width/visibility classes owned by the feature. */
+  className?: string;
   /**
    * Explicit sort key. When omitted, a primitive (string/number) cell value is
    * used automatically; columns whose cells render JSX stay unsortable unless
