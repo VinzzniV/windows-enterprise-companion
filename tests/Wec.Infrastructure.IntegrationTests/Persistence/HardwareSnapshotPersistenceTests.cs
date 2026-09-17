@@ -204,7 +204,6 @@ public sealed class HardwareSnapshotPersistenceTests : IDisposable
         context.Set<HardwareSnapshotRecord>().Add(new HardwareSnapshotRecord
         {
             Host = "PC-DAMAGED",
-            IdentityKey = "PC-DAMAGED",
             CapturedAtUtc = DateTimeOffset.UtcNow,
             PayloadJson = "{not-json",
         });
