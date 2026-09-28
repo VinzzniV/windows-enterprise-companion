@@ -102,6 +102,7 @@ describe('OverviewSection', () => {
       .toBe('/clients/PC-42.corp.local?section=diagnostics');
     expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(false);
     expect(invokeMock.mock.calls.some((call) => call[0] === 'connectivity')).toBe(true);
+    expect((await screen.findByText('Ping or WinRM responded')).className).toContain('text-ok-200');
   });
 
   it('loads management sources only after the explicit action', async () => {

@@ -95,7 +95,7 @@ describe('device profiles', () => {
     mocks.invoke.mockImplementation((module: string) => ({ promise: Promise.resolve(module === 'connectivity'
       ? { results: [{ host: '55Prod.example.test', reachable: true, manageable: false }] } : value), cancel: mocks.cancel }));
     renderPage(value, 'overview');
-    expect(await screen.findByText('Ping or WinRM responded')).toBeTruthy();
+    expect((await screen.findByText('Ping or WinRM responded')).className).toContain('text-ok-200');
     expect(screen.getByText('Stale')).toBeTruthy();
     expect(screen.queryByText('Not loaded')).toBeNull();
     expect(mocks.invoke.mock.calls.filter(call => call[0] === 'connectivity')).toHaveLength(1);
@@ -110,7 +110,7 @@ describe('device profiles', () => {
       ? { results: [{ host: '55Prod.example.test', reachable: false, manageable: false }] } : value), cancel: mocks.cancel }));
     mocks.refresh.mockResolvedValue(null);
     renderPage(value, 'overview');
-    expect(await screen.findByText('No Ping or WinRM response')).toBeTruthy();
+    expect((await screen.findByText('No Ping or WinRM response')).className).toContain('text-fail-200');
     fireEvent.click(screen.getByRole('button', { name: 'Refresh management sources' }));
     expect((await screen.findByRole('alert')).textContent).toContain('could not be refreshed');
     expect(mocks.invoke.mock.calls.filter(call => call[0] === 'clients')).toHaveLength(1);

@@ -13,6 +13,7 @@ import { CloudDeviceFields, CloudFields, CloudManagedFields, timestamp } from '.
 import { StoredClientEvidence } from './sections/OverviewSection';
 import { useDeviceProfile } from './useDeviceProfile';
 import { useDeviceConnectivity } from './useDeviceConnectivity';
+import { DeviceConnectivityStatus } from './DeviceConnectivityStatus';
 import { DeviceManagementSummary } from './DeviceManagementSummary';
 
 const canRead = (state: Microsoft365ReadState) => state.availability !== 'NOT_CONNECTED' && state.availability !== 'NOT_ENABLED';
@@ -133,10 +134,7 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
       </Card>}
       {section === 'overview' && <Card title="Current connectivity">
         {probeHost ? <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span role="status">{connectivity.status === 'responding' ? 'Ping or WinRM responded'
-            : connectivity.status === 'no-response' ? 'No Ping or WinRM response'
-              : connectivity.status === 'checking' ? 'Checking…'
-                : connectivity.status === 'failed' ? 'Connectivity check failed' : 'Not checked'}</span>
+          <DeviceConnectivityStatus status={connectivity.status} />
           {connectivity.checkedAt && <span className="text-xs text-muted">Checked {new Date(connectivity.checkedAt).toLocaleString()}</span>}
           <Button disabled={connectivity.status === 'checking'} onClick={connectivity.check}>Check again</Button>
         </div> : <p className="text-sm text-muted">No exact Windows target is available for a connectivity check.</p>}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProbeHostsResponse } from '../../shared/api-types';
 import { invokeCancellable, type CancellableBridgeInvocation } from '../../shared/bridge/bridgeClient';
 
-type ProbeState = 'not-checked' | 'checking' | 'responding' | 'no-response' | 'failed';
+export type ProbeState = 'not-checked' | 'checking' | 'responding' | 'no-response' | 'failed';
 
 export function useDeviceConnectivity(host: string | null, automatic = true) {
   const active = useRef<CancellableBridgeInvocation<ProbeHostsResponse> | null>(null);

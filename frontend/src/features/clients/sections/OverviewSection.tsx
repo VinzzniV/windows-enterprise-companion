@@ -29,6 +29,7 @@ import {
 } from '../clientStatus';
 import { DeviceRelationshipMap } from '../DeviceRelationshipMap';
 import { useDeviceConnectivity } from '../useDeviceConnectivity';
+import { DeviceConnectivityStatus } from '../DeviceConnectivityStatus';
 import { continueWorkingSetNavigation } from '../../../shared/objects/workingSetNavigation';
 
 type OverviewLoadState =
@@ -383,10 +384,7 @@ export function OverviewSection({ host, refreshKey = 0, active = true }: { host:
 
   return <div className="flex flex-col gap-4">
     <Card title="Current connectivity"><div className="flex flex-wrap items-center gap-3 text-sm">
-      <span role="status">{connectivity.status === 'responding' ? 'Ping or WinRM responded'
-        : connectivity.status === 'no-response' ? 'No Ping or WinRM response'
-          : connectivity.status === 'checking' ? 'Checking…'
-            : connectivity.status === 'failed' ? 'Connectivity check failed' : 'Not checked'}</span>
+      <DeviceConnectivityStatus status={connectivity.status} />
       {connectivity.checkedAt && <span className="text-xs text-muted">Checked {new Date(connectivity.checkedAt).toLocaleString()}</span>}
       <Button disabled={connectivity.status === 'checking'} onClick={connectivity.check}>Check again</Button>
     </div></Card>
