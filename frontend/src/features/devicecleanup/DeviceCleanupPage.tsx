@@ -165,12 +165,12 @@ export function DeviceCleanupPage() {
   const chooseCandidate = (candidate: DeviceCleanupCandidate) => {
     const next = new URLSearchParams(searchParams);
     next.set('host', candidate.subjectKey);
-    setSearchParams(next);
+    setSearchParams(next, { state: location.state });
   };
   const closeAssessment = () => {
     const next = new URLSearchParams(searchParams);
     next.delete('host');
-    setSearchParams(next);
+    setSearchParams(next, { state: location.state });
   };
 
   const columns = useMemo<DataColumn<DeviceCleanupCandidate>[]>(() => [

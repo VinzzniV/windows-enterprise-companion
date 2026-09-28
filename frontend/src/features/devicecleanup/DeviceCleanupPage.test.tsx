@@ -89,7 +89,7 @@ function result(selectedAssessment: DeviceCleanupAssessment | null): DeviceClean
   };
 }
 
-function renderPage() {
+function renderPage(initialEntry: string | { pathname: string; state: unknown } = '/cleanup') {
   invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown>) => {
     if (module === 'targets' && action === 'list') return Promise.resolve({ targets: [] });
     if (module === 'devicecleanup' && action === 'listCandidates') {
@@ -111,7 +111,7 @@ function renderPage() {
     }
     return Promise.resolve({});
   });
-  return render(<MemoryRouter initialEntries={['/cleanup']}><TargetProvider><DeviceCleanupPage /></TargetProvider></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[initialEntry]}><TargetProvider><DeviceCleanupPage /></TargetProvider></MemoryRouter>);
 }
 
 describe('DeviceCleanupPage', () => {
@@ -167,6 +167,22 @@ describe('DeviceCleanupPage', () => {
     await user.click(screen.getByRole('button', { name: 'Close device review' }));
     expect(screen.queryByRole('dialog', { name: `Review ${candidate.host}` })).toBeNull();
     expect(document.activeElement).toBe(reviewTrigger);
+  });
+
+  it('keeps the Action Center return after opening and closing a review', async () => {
+    const user = userEvent.setup();
+    const returnTo = '/actions?q=opsi&page=1&size=25&sort=SEVERITY&dir=ASCENDING';
+    renderPage({ pathname: '/cleanup', state: { returnTo, returnLabel: 'Action Center' } });
+
+    await screen.findByText(candidate.host);
+    expect(screen.getByRole('link', { name: '← Back to Action Center' }).getAttribute('href')).toBe(returnTo);
+
+    await user.click(screen.getByRole('button', { name: 'Review evidence' }));
+    await screen.findByRole('dialog', { name: `Review ${candidate.host}` });
+    await user.click(screen.getByRole('button', { name: 'Close device review' }));
+
+    expect(screen.queryByRole('dialog', { name: `Review ${candidate.host}` })).toBeNull();
+    expect(screen.getByRole('link', { name: '← Back to Action Center' }).getAttribute('href')).toBe(returnTo);
   });
 
   it('applies bounded search explicitly and does not query for each keystroke', async () => {

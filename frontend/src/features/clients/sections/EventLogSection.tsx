@@ -44,13 +44,15 @@ export function EventLogSection({ host, target }: { host?: string; target: Targe
   const columns = useMemo<DataColumn<RemoteEventLogEntry>[]>(() => [
     {
       header: 'Time',
+      className: 'min-w-36 whitespace-nowrap [overflow-wrap:normal]',
       cell: (entry) => entry.timeGenerated ? new Date(entry.timeGenerated).toLocaleString() : '—',
     },
-    { header: 'Level', cell: (entry) => <Badge tone={levelTone(entry.level)}>{entry.level}</Badge> },
-    { header: 'Source', cell: (entry) => entry.source },
-    { header: 'Event', mono: true, align: 'right', cell: (entry) => entry.eventCode },
+    { header: 'Level', className: 'min-w-24 whitespace-nowrap [overflow-wrap:normal]', cell: (entry) => <Badge tone={levelTone(entry.level)}>{entry.level}</Badge> },
+    { header: 'Source', className: 'min-w-40', cell: (entry) => entry.source },
+    { header: 'Event', className: 'min-w-20 whitespace-nowrap [overflow-wrap:normal]', mono: true, align: 'right', cell: (entry) => entry.eventCode },
     {
       header: 'Message',
+      className: 'min-w-80',
       cell: (entry) => (
         <span className="block max-w-xl truncate text-slate-300" title={entry.message}>
           {entry.message || '—'}
@@ -59,8 +61,10 @@ export function EventLogSection({ host, target }: { host?: string; target: Targe
     },
     {
       header: 'Details',
+      className: 'min-w-40 whitespace-nowrap [overflow-wrap:normal]',
       cell: (entry) => <Button
         variant="secondary"
+        className="whitespace-nowrap"
         onClick={() => { setSelectedEntry(entry); setCopyStatus(null); }}
         aria-label={`View full message from ${entry.source}, event ${entry.eventCode}`}
       >

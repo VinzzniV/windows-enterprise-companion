@@ -42,6 +42,8 @@ describe('EventLogSection', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Run query' }));
     expect(await screen.findByText(/Queried .*1 matching event.*200-entry result limit/)).toBeDefined();
     const open = await screen.findByRole('button', { name: 'View full message from Service Control Manager, event 7000' });
+    expect(open.className).toContain('whitespace-nowrap');
+    expect(open.closest('td')?.className).toContain('min-w-40');
     await userEvent.click(open);
 
     const dialog = screen.getByRole('dialog', { name: 'Event 7000 on PC-041.corp.example' });
