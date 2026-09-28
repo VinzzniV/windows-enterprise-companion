@@ -255,6 +255,21 @@ export interface HygieneActionDirectoryConnection {
   password?: string | null;
 }
 
+export interface HygieneActionEvidence {
+  subjectKey: string;
+  host: string;
+  findingCode: string;
+  severity: string;
+  message: string;
+  source: string;
+  evidenceAtUtc: string | null;
+  coverage: ActionEvidenceAvailability;
+  coverageExplanation: string;
+  canTargetWindows: boolean;
+  identityAmbiguous: boolean;
+  nessusSourceKey: string | null;
+}
+
 export interface HygieneActionKasperskyConnection {
   server?: string | null;
   port?: number | null;
@@ -935,8 +950,20 @@ export interface ServiceCredentialStatuses {
   opsi: ServiceCredentialStatus;
 }
 
+export interface ActionCenterDeviceItem {
+  id: string;
+  subjectKey: string;
+  device: string;
+  severity: ActionCenterSeverity;
+  sources: string[];
+  findingCount: number;
+  identityAmbiguous: boolean;
+  href: string;
+  findings: ActionCenterWorkItem[];
+}
+
 export interface ActionCenterPage {
-  items: ActionCenterWorkItem[];
+  items: ActionCenterDeviceItem[];
   total: number;
   page: number;
   pageSize: number;
@@ -954,6 +981,7 @@ export type ActionCenterSortField = 'SEVERITY' | 'DEVICE' | 'SOURCE' | 'EVIDENCE
 
 export interface ActionCenterSummary {
   total: number;
+  findingCount: number;
   critical: number;
   high: number;
   warning: number;
@@ -980,6 +1008,8 @@ export interface ActionCenterWorkItem {
   coverageExplanation: string;
   recommendedAction: string;
   href: string;
+  canTargetWindows: boolean;
+  identityAmbiguous: boolean;
 }
 
 export interface ListActionCenterItemsRequest {
@@ -1284,6 +1314,7 @@ export interface DeviceProfileRequest {
   activeDirectory?: DirectoryInventoryConnection | null;
   kaspersky?: KasperskyInventoryConnection | null;
   loadDirectoryIdentity?: boolean;
+  directoryIdentityConnection?: DirectoryInventoryConnection | null;
 }
 
 export interface DeviceProfileResult {
@@ -1301,6 +1332,9 @@ export interface DeviceProfileResult {
   candidates: ObjectRelationship[];
   sourceErrors: Error[];
   storedCandidateSources: StoredDeviceCandidateSource[];
+  managementSources: ActionEvidenceSourceState[];
+  managementFindings: HygieneActionEvidence[];
+  managementAssessedAtUtc: string | null;
 }
 
 export interface ManagementDeviceListRead {

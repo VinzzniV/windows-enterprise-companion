@@ -28,6 +28,7 @@ import {
   sourcePresenceStatus,
 } from '../clientStatus';
 import { DeviceRelationshipMap } from '../DeviceRelationshipMap';
+import { useDeviceConnectivity } from '../useDeviceConnectivity';
 import { continueWorkingSetNavigation } from '../../../shared/objects/workingSetNavigation';
 
 type OverviewLoadState =
@@ -337,9 +338,11 @@ function ManagementContext({ host, overview }: { host: string; overview: ClientO
   />;
   if (!environment.result) return <Card title="Management systems">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="text-sm font-medium text-slate-200">AD, Kaspersky, opsi and Nessus are not loaded</p><p className="mt-1 text-xs text-slate-400">Load these read-only sources only when their current posture is needed.</p></div>
-      <Button onClick={() => { void environment.ensureLoaded(); }}>Load management sources</Button>
+      <p className="text-sm font-medium text-slate-200">Cached management evidence</p>
+      <Button onClick={() => { void environment.ensureLoaded(); }}>Refresh management sources</Button>
     </div>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{['Active Directory', 'Kaspersky', 'opsi', 'Nessus'].map(source =>
+      <div key={source} className="rounded border border-slate-800 p-3 text-sm"><strong>{source}</strong><p className="mt-1 text-slate-400">Not loaded</p></div>)}</div>
   </Card>;
   const matches = environment.result.devices.filter((entry) => clientKey(entry.hostName) === clientKey(host));
   const device = matches.length === 1 && matches[0].canTargetWindows !== false ? matches[0] : undefined;
@@ -347,7 +350,8 @@ function ManagementContext({ host, overview }: { host: string; overview: ClientO
   return device ? <DeviceOverview device={device} overview={overview} /> : <Card title="Management systems"><p className="text-sm text-slate-400">The loaded management sources contain no matching device.</p></Card>;
 }
 
-export function OverviewSection({ host, refreshKey = 0 }: { host: string; refreshKey?: number }) {
+export function OverviewSection({ host, refreshKey = 0, active = true }: { host: string; refreshKey?: number; active?: boolean }) {
+  const connectivity = useDeviceConnectivity(host || null, active);
   const [state, setState] = useState<OverviewLoadState>({ kind: 'loading' });
   const requestGeneration = useRef(0);
 
@@ -378,6 +382,14 @@ export function OverviewSection({ host, refreshKey = 0 }: { host: string; refres
   if (state.kind === 'error') return <ErrorState {...state.error} controls={<Button onClick={() => loadOverview(false)}>Retry overview</Button>} />;
 
   return <div className="flex flex-col gap-4">
+    <Card title="Current connectivity"><div className="flex flex-wrap items-center gap-3 text-sm">
+      <span role="status">{connectivity.status === 'responding' ? 'Ping or WinRM responded'
+        : connectivity.status === 'no-response' ? 'No Ping or WinRM response'
+          : connectivity.status === 'checking' ? 'Checking…'
+            : connectivity.status === 'failed' ? 'Connectivity check failed' : 'Not checked'}</span>
+      {connectivity.checkedAt && <span className="text-xs text-muted">Checked {new Date(connectivity.checkedAt).toLocaleString()}</span>}
+      <Button disabled={connectivity.status === 'checking'} onClick={connectivity.check}>Check again</Button>
+    </div></Card>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/40 px-4 py-3">
       <div><p className="text-sm font-medium text-slate-200">Client 360 evidence snapshot</p><p className="mt-0.5 text-xs text-slate-400">Stored data is read-only and never refreshed remotely on open.</p></div>
       <Button disabled={state.refreshing} onClick={() => loadOverview(true)}>{state.refreshing ? 'Refreshing …' : 'Refresh stored summaries'}</Button>

@@ -12,12 +12,13 @@ export function useDeviceProfile(reference: ObjectReference) {
   const environment = useEnvironmentRequest();
   const { adminCredentials } = useTargets();
   const location = useLocation();
-  const context = useMemo(() => {
-    if (reference.source !== 'ACTIVE_DIRECTORY') return environment;
+  const directoryIdentityConnection = useMemo(() => {
+    if (reference.source !== 'ACTIVE_DIRECTORY') return null;
     const endpoint = (location.state as { directoryEndpoint?: UserDirectoryEndpoint } | null)?.directoryEndpoint
       ?? { domain: reference.scope, server: environment.activeDirectory?.server ?? '' };
-    return { ...environment, activeDirectory: toUserDirectoryConnection(endpoint, adminCredentials) };
+    return toUserDirectoryConnection(endpoint, adminCredentials);
   }, [environment, reference.source, reference.scope, location.state, adminCredentials]);
+  const context = environment;
   const sessions = useWorkingSetSessions();
   const sessionKey = String(sessions.cloud) + ':' + sessions.directory + ':' + sessions.management;
   const refreshCached = useOptionalWorkingSet()?.refreshCached;
@@ -41,7 +42,9 @@ export function useDeviceProfile(reference: ObjectReference) {
     }
     if (generation.current !== own) return;
     try {
-      const request = invokeCancellable<DeviceProfileResult>('clients', 'getProfile', { reference, ...context, loadDirectoryIdentity: source === 'directory' });
+      const request = invokeCancellable<DeviceProfileResult>('clients', 'getProfile', {
+        reference, ...context, directoryIdentityConnection, loadDirectoryIdentity: source === 'directory',
+      });
       active.current = request;
       const data = await request.promise;
       if (generation.current === own) setState({ reference, context, sessionKey, data, busy: false, error: sourceError });
@@ -49,7 +52,7 @@ export function useDeviceProfile(reference: ObjectReference) {
       if (generation.current === own) setState({ reference, context, sessionKey,
         data: null, busy: false, error: presentError(caught).message });
     } finally { if (generation.current === own) { active.current = null; if (source) void refreshCached?.(); } }
-  }, [reference, context, sessionKey, refreshCached]);
+  }, [reference, context, directoryIdentityConnection, sessionKey, refreshCached]);
 
   useEffect(() => {
     void load();

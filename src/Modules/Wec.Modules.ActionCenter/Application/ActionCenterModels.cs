@@ -47,17 +47,33 @@ public sealed record ActionCenterWorkItem(
     string Reliability,
     string CoverageExplanation,
     string RecommendedAction,
-    string Href);
+    string Href)
+{
+    public bool CanTargetWindows { get; init; } = true;
+    public bool IdentityAmbiguous { get; init; }
+}
+
+public sealed record ActionCenterDeviceItem(
+    string Id,
+    string SubjectKey,
+    string Device,
+    ActionCenterSeverity Severity,
+    IReadOnlyList<string> Sources,
+    int FindingCount,
+    bool IdentityAmbiguous,
+    string Href,
+    IReadOnlyList<ActionCenterWorkItem> Findings);
 
 public sealed record ActionCenterSummary(
     int Total,
+    int FindingCount,
     int Critical,
     int High,
     int Warning,
     int UnknownCoverage);
 
 public sealed record ActionCenterPage(
-    IReadOnlyList<ActionCenterWorkItem> Items,
+    IReadOnlyList<ActionCenterDeviceItem> Items,
     int Total,
     int Page,
     int PageSize,

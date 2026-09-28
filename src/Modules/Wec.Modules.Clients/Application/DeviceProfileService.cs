@@ -10,7 +10,7 @@ namespace Wec.Modules.Clients.Application;
 internal sealed class DeviceProfileService(WecWorkspaceIdentity workspace, ClientOverviewService localOverview,
     IEnumerable<IStoredDeviceListProvider> storedSources, IOptions<ObjectWorkingSetOptions> options,
     IDirectoryComputerReadProvider directory, IManagementDeviceSnapshotProvider management,
-    IMicrosoft365DeviceContextProvider cloud)
+    IMicrosoft365DeviceContextProvider cloud, IHygieneActionEvidenceProvider hygiene)
 {
     internal async Task<Result<DeviceProfileResult>> GetAsync(DeviceProfileRequest request, CancellationToken cancellationToken)
     {
@@ -61,11 +61,16 @@ internal sealed class DeviceProfileService(WecWorkspaceIdentity workspace, Clien
         }
         ClientOverviewResult? wec = operationalHost is null ? null : await localOverview.GetAsync(operationalHost, cancellationToken);
         ManagementDeviceSnapshot? sourceRecords = await management.ReadCachedAsync(request.ActiveDirectory, request.Kaspersky, cancellationToken);
+        HygieneActionEvidenceSnapshot? posture = await hygiene.ReadCachedAsync(new(
+            request.ActiveDirectory is null ? null : new(request.ActiveDirectory.Domain, request.ActiveDirectory.Server,
+                request.ActiveDirectory.UserName, request.ActiveDirectory.UserDomain, request.ActiveDirectory.Password),
+            request.Kaspersky is null ? null : new(request.Kaspersky.Server, request.Kaspersky.Port,
+                request.Kaspersky.UserName, request.Kaspersky.Domain, request.Kaspersky.Password)), cancellationToken);
         CachedDirectoryComputer? ad = null;
         AdComputerInventoryItem[] adRecords = [];
         if (reference.Source == ObjectSource.ActiveDirectory)
         {
-            Result<DirectoryUserReadConnection> connection = DirectoryConnection(request.ActiveDirectory);
+            Result<DirectoryUserReadConnection> connection = DirectoryConnection(request.DirectoryIdentityConnection ?? request.ActiveDirectory);
             if (connection.IsFailure) { return Result.Failure<DeviceProfileResult>(connection.Error!); }
             var query = new DirectoryComputerIdentityQuery(connection.Value with { Domain = connection.Value.Domain ?? reference.Scope }, reference.Scope, Guid.Parse(reference.Id));
             if (request.LoadDirectoryIdentity)
@@ -152,9 +157,27 @@ internal sealed class DeviceProfileService(WecWorkspaceIdentity workspace, Clien
             _ => "Anchored to this source's scoped object ID. Other source records are related only by explicit ID evidence; names remain candidates.",
         };
         cancellationToken.ThrowIfCancellationRequested();
+        HygieneActionEvidence[] managementFindings = [];
+        if (operationalHost is not null && posture is not null)
+        {
+            string address = HostAddress.ComparisonKey(operationalHost);
+            string[] subjects = posture.Findings.Where(finding => finding.CanTargetWindows
+                && HostAddress.ComparisonKey(finding.Host) == address)
+                .Select(finding => finding.SubjectKey).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (subjects.Length == 1)
+            {
+                managementFindings = posture.Findings.Where(finding => finding.SubjectKey == subjects[0]).ToArray();
+            }
+        }
         return Result.Success(new DeviceProfileResult(reference, title, identity, explanation, operationalHost, wec, ad,
             adRecords, cloudContext is null ? null : DeviceCloudRelationships.Filter(reference, cloudContext, names), related,
-            relationships, candidates.Distinct().ToArray(), errors) { StoredCandidateSources = storedCoverage });
+            relationships, candidates.Distinct().ToArray(), errors)
+        {
+            StoredCandidateSources = storedCoverage,
+            ManagementSources = posture?.Sources ?? [],
+            ManagementFindings = managementFindings,
+            ManagementAssessedAtUtc = posture?.AssessedAtUtc,
+        });
 
         async Task ReadStored(IStoredDeviceListProvider source, string? search)
         {

@@ -30,6 +30,18 @@ internal sealed class ItHygieneSnapshotCache(IServiceCredentialStore credentials
         }
     }
 
+    internal Task<ItHygieneResult?> ReadCachedHygieneAsync(ItHygieneRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string fingerprint = Fingerprint(request);
+        lock (_gate)
+        {
+            if (_requestFingerprint != fingerprint) { return Task.FromResult<ItHygieneResult?>(null); }
+            SynchronizeOpsiSession();
+            return Task.FromResult(_snapshot ?? (_lastResult is { IsSuccess: true } ? _lastResult.Value : null));
+        }
+    }
+
     public async Task<Result<ItHygieneResult>> GetAsync(ItHygieneRequest request, bool force,
         Func<ItHygieneRequest, CancellationToken, Task<Result<ItHygieneResult>>> load, CancellationToken cancellationToken)
     {

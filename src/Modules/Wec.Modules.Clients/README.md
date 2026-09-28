@@ -39,6 +39,11 @@ Device profile read composition over concrete Core projections (ADR 0022).
 `clients/getOverview` retains its bridge contract, options section and existing
 stored Inventory/software/Health/Security/user evidence behavior after extraction
 from EmployeeLifecycle. Profile reads perform no Windows scans or probes.
+The device Overview reads management posture from the matching session cache
+and displays source coverage, candidate presence and retained findings without
+triggering source I/O. A separate directory identity connection does not alter
+that management cache context. An exact opened Windows target gets one frontend
+Ping/WinRM check under ADR 0024; candidate-only profiles do not.
 
 The module references only Core. Source adapters, hygiene assessment, cached
 management records and frozen Lifecycle tables remain with their existing owners.

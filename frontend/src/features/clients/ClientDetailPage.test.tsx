@@ -227,7 +227,7 @@ describe('ClientDetailPage', () => {
     expect((await screen.findByRole('tab', { name: 'Overview' })).getAttribute('aria-selected')).toBe('true');
     expect(await screen.findByText('Client 360 evidence snapshot')).toBeDefined();
     expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Load management sources' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh management sources' }));
     expect(await screen.findByText('Environment assessment')).toBeDefined();
     expect(screen.getByText('Warning')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'PowerShell' }));
@@ -405,7 +405,7 @@ describe('ClientDetailPage', () => {
     expect(invokeMock).toHaveBeenCalledWith('inventory', 'getDiskEncryptionStatus', {
       target: expect.objectContaining({ host: 'PC1.corp.local' }),
     });
-    expect(await screen.findByText(/Checked/)).toBeDefined();
+    expect((await screen.findAllByText(/Checked/)).length).toBeGreaterThan(0);
   });
 
   it('falls back safely to Overview for an unknown section URL', async () => {

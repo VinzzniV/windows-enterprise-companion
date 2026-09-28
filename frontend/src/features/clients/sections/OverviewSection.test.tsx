@@ -101,13 +101,13 @@ describe('OverviewSection', () => {
     expect(screen.getByRole('link', { name: 'Open Health' }).getAttribute('href'))
       .toBe('/clients/PC-42.corp.local?section=diagnostics');
     expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(false);
-    expect(invokeMock.mock.calls.some((call) => call[0] === 'connectivity')).toBe(false);
+    expect(invokeMock.mock.calls.some((call) => call[0] === 'connectivity')).toBe(true);
   });
 
   it('loads management sources only after the explicit action', async () => {
     renderOverview();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Load management sources' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh management sources' }));
     await screen.findByText('Client ID');
 
     const opsiCard = screen.getByText('Client ID').closest('[class*="rounded"]');
@@ -115,7 +115,7 @@ describe('OverviewSection', () => {
     expect(opsiCard!.textContent).toContain('Stale');
     expect(screen.queryByText('Name candidate only.')).toBeNull();
     await waitFor(() => expect(invokeMock.mock.calls.some((call) => call[0] === 'employeelifecycle')).toBe(true));
-    expect(invokeMock.mock.calls.some((call) => call[0] === 'connectivity')).toBe(false);
+    expect(invokeMock.mock.calls.filter((call) => call[0] === 'connectivity')).toHaveLength(1);
   });
 
   it('keeps missing sources explicit instead of presenting them as healthy', async () => {

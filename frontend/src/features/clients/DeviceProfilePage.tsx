@@ -1,4 +1,4 @@
-import { useMemo, type KeyboardEvent } from 'react';
+import { useMemo, useState, type KeyboardEvent } from 'react';
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import type { DeviceProfileResult, Microsoft365ReadState, ObjectReference, ObjectRelationship } from '../../shared/api-types.generated';
 import { objectPath, objectReference, objectSourceLabel } from '../../shared/objects/objectRoutes';
@@ -12,6 +12,8 @@ import { Spinner } from '../../shared/ui/Spinner';
 import { CloudDeviceFields, CloudFields, CloudManagedFields, timestamp } from '../microsoft365/Microsoft365Fields';
 import { StoredClientEvidence } from './sections/OverviewSection';
 import { useDeviceProfile } from './useDeviceProfile';
+import { useDeviceConnectivity } from './useDeviceConnectivity';
+import { DeviceManagementSummary } from './DeviceManagementSummary';
 
 const canRead = (state: Microsoft365ReadState) => state.availability !== 'NOT_CONNECTED' && state.availability !== 'NOT_ENABLED';
 const sections = [['overview', 'Overview'], ['identity', 'Identity & management'], ['inventory', 'Inventory'], ['health', 'Health & security'],
@@ -64,9 +66,26 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
   const navigationState = continueWorkingSetNavigation(location.state);
   const returnLink = workingSetReturn(location.state, '/devices');
   const profile = view.data;
+  const [managementError, setManagementError] = useState<string | null>(null);
+  const probeHost = profile?.operationalHost && profile.identity !== 'AMBIGUOUS' && profile.identity !== 'CONFLICT'
+    ? profile.operationalHost : null;
+  const refreshManagement = async () => {
+    setManagementError(null);
+    try {
+      const refreshed = await environment.refresh();
+      if (refreshed === null) {
+        setManagementError('Management sources could not be refreshed. Check connection status and try again.');
+        return;
+      }
+      await view.load();
+    } catch {
+      setManagementError('Management sources could not be refreshed. Check connection status and try again.');
+    }
+  };
   const [parameters, setParameters] = useSearchParams();
   const legacySection = parameters.get('section');
   const section = sections.some(([key]) => key === legacySection) ? legacySection : legacySection === 'microsoft365' ? 'identity' : 'overview';
+  const connectivity = useDeviceConnectivity(probeHost, section === 'overview');
   const selectSection = (key: string) => { const next = new URLSearchParams(parameters); next.set('section', key); setParameters(next, { state: location.state }); };
   const onSectionKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
@@ -112,6 +131,18 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
             to={`/clients/${encodeURIComponent(profile.operationalHost!)}?section=${section}&target=exact`}>{label}</Link>)}</div>
         <Link className="text-sm text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(profile.operationalHost)}`}>Device Cleanup</Link>
       </Card>}
+      {section === 'overview' && <Card title="Current connectivity">
+        {probeHost ? <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span role="status">{connectivity.status === 'responding' ? 'Ping or WinRM responded'
+            : connectivity.status === 'no-response' ? 'No Ping or WinRM response'
+              : connectivity.status === 'checking' ? 'Checking…'
+                : connectivity.status === 'failed' ? 'Connectivity check failed' : 'Not checked'}</span>
+          {connectivity.checkedAt && <span className="text-xs text-muted">Checked {new Date(connectivity.checkedAt).toLocaleString()}</span>}
+          <Button disabled={connectivity.status === 'checking'} onClick={connectivity.check}>Check again</Button>
+        </div> : <p className="text-sm text-muted">No exact Windows target is available for a connectivity check.</p>}
+      </Card>}
+      {section === 'overview' && <DeviceManagementSummary profile={profile} loading={environment.loading || view.busy}
+        error={managementError} refresh={() => { void refreshManagement(); }} />}
       {section === 'overview' && profile.wec && profile.operationalHost && <StoredClientEvidence host={profile.operationalHost} result={profile.wec} />}
       {section === 'overview' && !profile.operationalHost && (overviewEntraDevices.length > 0 || overviewIntuneDevices.length > 0) && <div className="grid gap-4 xl:grid-cols-2">
         {overviewEntraDevices.map((device, index) => <Card key={`entra:${index}`} title="Loaded Entra device facts"><CloudDeviceFields device={device} /></Card>)}
@@ -153,8 +184,9 @@ function DeviceProfileContent({ reference }: { reference: ObjectReference }) {
       </Card>)}
       <ManagementCandidates profile={profile} />
       <div className="flex flex-wrap items-center gap-3">
-        <Button disabled={environment.loading || view.busy} onClick={() => void environment.refresh().then(() => view.load())}>Load management sources: AD, KSC, opsi, Nessus</Button>
+        <Button disabled={environment.loading || view.busy} onClick={() => { void refreshManagement(); }}>Refresh management sources: AD, KSC, opsi, Nessus</Button>
         {environment.loading && <Button onClick={environment.cancel}>Cancel management load</Button>}
+        {managementError && <p role="alert" className="text-sm text-fail-300">{managementError}</p>}
         <Link className="text-sm text-accent-400 underline" to="/sources?source=microsoft365">Microsoft 365 connection and source queries</Link>
       </div>
       </div>}

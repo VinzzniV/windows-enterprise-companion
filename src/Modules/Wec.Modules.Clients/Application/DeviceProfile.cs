@@ -7,7 +7,8 @@ namespace Wec.Modules.Clients.Application;
 
 public sealed record DeviceProfileRequest(ObjectReference Reference,
     DirectoryInventoryConnection? ActiveDirectory = null, KasperskyInventoryConnection? Kaspersky = null,
-    bool LoadDirectoryIdentity = false);
+    bool LoadDirectoryIdentity = false,
+    DirectoryInventoryConnection? DirectoryIdentityConnection = null);
 
 public sealed record DeviceProfileResult(
     ObjectReference Reference,
@@ -25,6 +26,9 @@ public sealed record DeviceProfileResult(
     IReadOnlyList<Error> SourceErrors)
 {
     public IReadOnlyList<StoredDeviceCandidateSource> StoredCandidateSources { get; init; } = [];
+    public IReadOnlyList<ActionEvidenceSourceState> ManagementSources { get; init; } = [];
+    public IReadOnlyList<HygieneActionEvidence> ManagementFindings { get; init; } = [];
+    public DateTimeOffset? ManagementAssessedAtUtc { get; init; }
 }
 
 public sealed record StoredDeviceCandidateSource(StoredDeviceListSource Source, string? Search,

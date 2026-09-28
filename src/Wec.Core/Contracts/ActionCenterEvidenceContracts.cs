@@ -48,6 +48,7 @@ public sealed record HygieneActionEvidence(
     string CoverageExplanation)
 {
     public bool CanTargetWindows { get; init; } = true;
+    public bool IdentityAmbiguous { get; init; }
     public string? NessusSourceKey { get; init; }
 }
 
@@ -68,6 +69,10 @@ public sealed record HygieneActionEvidenceSnapshot(
 public interface IHygieneActionEvidenceProvider
 {
     Task<Result<HygieneActionEvidenceSnapshot>> LoadAsync(
+        HygieneActionEvidenceQuery query,
+        CancellationToken cancellationToken);
+
+    Task<HygieneActionEvidenceSnapshot?> ReadCachedAsync(
         HygieneActionEvidenceQuery query,
         CancellationToken cancellationToken);
 }

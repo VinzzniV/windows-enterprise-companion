@@ -27,31 +27,30 @@ vi.mock('../../shared/bridge/bridgeClient', () => ({
 const result: ActionCenterPageResult = {
   items: [
     {
-      id: 'hygiene:PC-01:NessusCriticalVulnerabilities',
-      subjectType: 'Device',
+      id: 'device:PC-01',
       subjectKey: 'PC-01',
       device: 'PC-01',
-      userObjectId: null,
-      userDisplayName: null,
-      problemCode: 'NessusCriticalVulnerabilities',
-      problem: 'Nessus reports critical vulnerabilities',
-      explanation: 'Nessus reports one critical finding instance.',
-      source: 'Nessus',
       severity: 'CRITICAL',
-      evidenceAtUtc: '2026-08-25T12:00:00Z',
-      assessedAtUtc: '2026-08-27T12:00:00Z',
-      evidenceAgeDays: 2,
-      coverage: 'AVAILABLE',
-      reliability: 'High',
-      coverageExplanation: 'Nessus inventory was available.',
-      recommendedAction: 'Open Vulnerabilities and review the matching stored Nessus evidence.',
-      href: '/vulnerabilities?tab=findings&asset=PC-01',
+      sources: ['Nessus'],
+      findingCount: 1,
+      identityAmbiguous: false,
+      href: '/clients/PC-01',
+      findings: [{
+        id: 'hygiene:PC-01:NessusCriticalVulnerabilities',
+        subjectType: 'Device', subjectKey: 'PC-01', device: 'PC-01', userObjectId: null, userDisplayName: null,
+        problemCode: 'NessusCriticalVulnerabilities', problem: 'Nessus reports critical vulnerabilities',
+        explanation: 'Nessus reports one critical finding instance.', source: 'Nessus', severity: 'CRITICAL',
+        evidenceAtUtc: '2026-08-25T12:00:00Z', assessedAtUtc: '2026-08-27T12:00:00Z', evidenceAgeDays: 2,
+        coverage: 'AVAILABLE', reliability: 'High', coverageExplanation: 'Nessus inventory was available.',
+        recommendedAction: 'Open Vulnerabilities and review the matching stored Nessus evidence.',
+        href: '/vulnerabilities?tab=findings&asset=PC-01', canTargetWindows: true, identityAmbiguous: false,
+      }],
     },
   ],
   total: 1,
   page: 1,
   pageSize: 25,
-  summary: { total: 1, critical: 1, high: 0, warning: 0, unknownCoverage: 0 },
+  summary: { total: 1, findingCount: 1, critical: 1, high: 0, warning: 0, unknownCoverage: 0 },
   assessedAtUtc: '2026-08-27T12:00:00Z',
   sources: [
     { source: 'Nessus', availability: 'AVAILABLE', explanation: 'Nessus inventory was available.' },
@@ -92,19 +91,19 @@ describe('ActionCenterPage', () => {
     expect(await screen.findByRole('heading', { name: 'Action Center' })).toBeDefined();
     expect(screen.getByText('Nessus reports critical vulnerabilities')).toBeDefined();
     expect(screen.getByText('2 days old')).toBeDefined();
-    expect(screen.getByText('Available · High')).toBeDefined();
+    expect(screen.getAllByText('Available').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'PC-01' }).getAttribute('href')).toBe('/clients/PC-01');
-    expect(screen.getByRole('link', { name: 'Inspect evidence →' }).getAttribute('href'))
-      .toBe('/vulnerabilities?tab=findings&asset=PC-01');
+    expect(screen.getByRole('link', { name: 'Open device →' }).getAttribute('href')).toBe('/clients/PC-01');
     expect(screen.getByText(/reached a configured limit/)).toBeDefined();
     expect(screen.getByText('Read-only')).toBeDefined();
     expect(screen.queryByRole('button', { name: /remediate|resolve|assign/i })).toBeNull();
 
-    const contextTrigger = screen.getByRole('button', { name: 'Show context' });
+    const contextTrigger = screen.getByRole('button', { name: 'Show findings' });
     await userEvent.click(contextTrigger);
     expect(screen.getByRole('dialog', { name: 'Action context · PC-01' })).toBeDefined();
-    expect(screen.getByText('Reported by')).toBeDefined();
-    expect(screen.getByText(/high confidence/)).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Inspect source evidence →' }).getAttribute('href'))
+      .toBe('/vulnerabilities?tab=findings&asset=PC-01');
+    expect(screen.getAllByText(/Nessus inventory was available/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/User:/)).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Close action context' }));
     expect(screen.queryByRole('dialog', { name: 'Action context · PC-01' })).toBeNull();

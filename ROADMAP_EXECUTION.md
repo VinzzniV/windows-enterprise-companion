@@ -1,5 +1,13 @@
 # Windows Enterprise Companion — Roadmap Execution
 
+## Active follow-up — device-centered Action Center
+
+The user authorized grouping Action Center findings by unambiguous device evidence,
+showing cached management posture immediately in the device Overview, and one
+automatic connectivity probe for an exact opened Windows target. Work runs on
+`codex/action-center-device-groups`. A new ADR will record the narrow probe
+exception to ADRs 0018 and 0022. Management inventory refresh remains explicit.
+
 Status: `UI_UX_REMEDIATION_IMPLEMENTED_NATIVE_RETEST_PENDING`
 
 Current phase: Object-centered consolidation (ADR 0022), phases 0–7 and 9.

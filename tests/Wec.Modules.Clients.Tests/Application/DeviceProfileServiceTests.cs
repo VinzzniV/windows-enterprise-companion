@@ -19,6 +19,7 @@ public sealed class DeviceProfileServiceTests
     private readonly IStoredDeviceListProvider _hosts = Substitute.For<IStoredDeviceListProvider>();
     private readonly IDirectoryComputerReadProvider _directory = Substitute.For<IDirectoryComputerReadProvider>();
     private readonly IManagementDeviceSnapshotProvider _management = Substitute.For<IManagementDeviceSnapshotProvider>();
+    private readonly IHygieneActionEvidenceProvider _hygiene = Substitute.For<IHygieneActionEvidenceProvider>();
     private readonly IMicrosoft365DeviceContextProvider _cloud = Substitute.For<IMicrosoft365DeviceContextProvider>();
     private readonly IInventoryReportDataProvider _inventory = Substitute.For<IInventoryReportDataProvider>();
 
@@ -35,7 +36,7 @@ public sealed class DeviceProfileServiceTests
         var overview = new ClientOverviewService(_inventory, Substitute.For<IInstalledSoftwareInventoryProvider>(),
             Substitute.For<IDeviceHealthSnapshotProvider>(), Substitute.For<ISecurityReportDataProvider>(),
             Substitute.For<IClientUserRelationshipProvider>(), clock, Options.Create(new ClientOverviewOptions()));
-        return new(new("workspace", Environment.MachineName), overview, [_hosts], Options.Create(new ObjectWorkingSetOptions { MaximumRecords = 2 }), _directory, _management, _cloud);
+        return new(new("workspace", Environment.MachineName), overview, [_hosts], Options.Create(new ObjectWorkingSetOptions { MaximumRecords = 2 }), _directory, _management, _cloud, _hygiene);
     }
 
     private static ObjectReference Reference(ObjectSource source = ObjectSource.Entra, string id = ObjectId) =>
@@ -126,6 +127,26 @@ public sealed class DeviceProfileServiceTests
         Assert.Equal(2, profile.ManagementCandidates!.Kaspersky.Count);
         Assert.Contains(profile.Candidates, candidate => candidate.Target.Source == ObjectSource.Entra);
         Assert.Equal(IdentityEvidence.AddressCandidate, profile.Identity);
+    }
+
+    [Fact]
+    public async Task ExactWecTargetShowsOnlyItsCachedManagementFindings()
+    {
+        var managementConnection = new DirectoryInventoryConnection(Server: "management-dc.example.test");
+        _hygiene.ReadCachedAsync(Arg.Any<HygieneActionEvidenceQuery>(), Arg.Any<CancellationToken>())
+            .Returns(new HygieneActionEvidenceSnapshot(Now,
+                [new("opsi", ActionEvidenceAvailability.Available, "Cached")], [],
+                [new("evidence:55prod", "55Prod.example.test", "StaleOpsi", "Warning", "Old", "opsi", Now.AddDays(-90),
+                    ActionEvidenceAvailability.Available, "Complete"),
+                 new("evidence:other", "other.example.test", "StaleAd", "Warning", "Old", "Active Directory", Now.AddDays(-90),
+                    ActionEvidenceAvailability.Available, "Complete")]));
+        var profile = (await Create().GetAsync(new(Reference(ObjectSource.Wec, "55Prod.example.test"),
+            ActiveDirectory: managementConnection), CancellationToken.None)).Value;
+
+        Assert.Equal("StaleOpsi", Assert.Single(profile.ManagementFindings).FindingCode);
+        Assert.Equal(Now, profile.ManagementAssessedAtUtc);
+        await _hygiene.Received(1).ReadCachedAsync(Arg.Is<HygieneActionEvidenceQuery>(query =>
+            query.ActiveDirectory!.Server == "management-dc.example.test"), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -273,5 +294,20 @@ public sealed class DeviceProfileServiceTests
         Assert.Equal(ErrorCode.AccessDenied, Assert.Single(loaded.Value.SourceErrors).Code);
         await _directory.Received(1).ReadIdentityAsync(Arg.Is<DirectoryComputerIdentityQuery>(query =>
             query.DirectoryScope == "example.test" && query.ObjectId == Guid.Parse(ObjectId)), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ScopedDirectoryIdentityReadDoesNotChangeManagementCacheContext()
+    {
+        var management = new DirectoryInventoryConnection(Server: "management-dc.example.test");
+        var identity = new DirectoryInventoryConnection(Domain: "example.test", Server: "identity-dc.example.test");
+        _directory.ReadIdentityAsync(Arg.Any<DirectoryComputerIdentityQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new DirectoryComputerIdentityResult("example.test", Now, [], false)));
+        await Create().GetAsync(new(Reference(ObjectSource.ActiveDirectory), management,
+            LoadDirectoryIdentity: true, DirectoryIdentityConnection: identity), CancellationToken.None);
+
+        await _management.Received(1).ReadCachedAsync(management, Arg.Any<KasperskyInventoryConnection?>(), Arg.Any<CancellationToken>());
+        await _directory.Received(1).ReadIdentityAsync(Arg.Is<DirectoryComputerIdentityQuery>(query =>
+            query.Connection.Server == "identity-dc.example.test"), Arg.Any<CancellationToken>());
     }
 }

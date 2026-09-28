@@ -1,4 +1,5 @@
 using Wec.Core.Contracts;
+using Wec.Core.Objects;
 using Wec.Core.Results;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
@@ -7,11 +8,27 @@ internal sealed class HygieneActionEvidenceProvider(
     ItHygieneService service,
     ItHygieneSnapshotCache cache) : IHygieneActionEvidenceProvider
 {
+    public async Task<HygieneActionEvidenceSnapshot?> ReadCachedAsync(
+        HygieneActionEvidenceQuery query,
+        CancellationToken cancellationToken)
+    {
+        ItHygieneResult? cached = await cache.ReadCachedHygieneAsync(ToRequest(query), cancellationToken);
+        return cached is null ? null : Project(cached);
+    }
+
     public async Task<Result<HygieneActionEvidenceSnapshot>> LoadAsync(
         HygieneActionEvidenceQuery query,
         CancellationToken cancellationToken)
     {
-        var request = new ItHygieneRequest(
+        var request = ToRequest(query);
+        Result<ItHygieneResult> loaded = await cache.GetAsync(
+            request, query.Force, service.LoadAsync, cancellationToken);
+        return loaded.IsFailure
+            ? Result.Failure<HygieneActionEvidenceSnapshot>(loaded.Error!)
+            : Result.Success(Project(loaded.Value));
+    }
+
+    private static ItHygieneRequest ToRequest(HygieneActionEvidenceQuery query) => new(
             query.ActiveDirectory is null
                 ? null
                 : new DirectoryInventoryConnection(
@@ -29,12 +46,6 @@ internal sealed class HygieneActionEvidenceProvider(
                     query.Kaspersky.Domain,
                     query.Kaspersky.Password),
             query.OperationId);
-        Result<ItHygieneResult> loaded = await cache.GetAsync(
-            request, query.Force, service.LoadAsync, cancellationToken);
-        return loaded.IsFailure
-            ? Result.Failure<HygieneActionEvidenceSnapshot>(loaded.Error!)
-            : Result.Success(Project(loaded.Value));
-    }
 
     internal static HygieneActionEvidenceSnapshot Project(ItHygieneResult result)
     {
@@ -84,6 +95,7 @@ internal sealed class HygieneActionEvidenceProvider(
             CoverageExplanation(source, state) + " " + device.CorrelationExplanation)
         {
             CanTargetWindows = device.CanTargetWindows,
+            IdentityAmbiguous = device.Correlation == IdentityEvidence.Ambiguous,
             NessusSourceKey = device.Nessus.SourceKey,
         };
     }

@@ -242,7 +242,7 @@ export function ClientDetailPage() {
         // in-progress scan keeps running and its result is never discarded.
         <>
           <div role="tabpanel" id="clientpanel-overview" aria-labelledby="clienttab-overview" hidden={section !== 'overview'}>
-            <OverviewSection host={host} refreshKey={reportRevision} />
+            <OverviewSection host={host} refreshKey={reportRevision} active={section === 'overview'} />
           </div>
           {section === 'microsoft365' && <div role="tabpanel" id="clientpanel-microsoft365" aria-labelledby="clienttab-microsoft365">
             <Microsoft365ContextPanel host={host} />
