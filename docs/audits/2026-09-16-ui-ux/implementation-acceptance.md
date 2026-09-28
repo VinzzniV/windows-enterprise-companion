@@ -1,9 +1,9 @@
 # UI/UX remediation — implementation and acceptance
 
-Date: 2026-09-17
+Date: 2026-09-28
 Integrated branch: `master`
 Base: `664bbe4604801a19b88724ac3beaf0ac48cc0ecc`
-Automated baseline: `7ab29b2f6271e6c004c82fd0ab68cc2dd26fd88a`
+Automated baseline: `20557cb`
 
 ## Outcome
 
@@ -14,21 +14,14 @@ explicit bounded reads remain intact. No provider, directory write, implicit
 scan, persistent identity registry, export expansion or frontend framework was
 added.
 
-The automated acceptance baseline is green. A new native WinForms/WebView2
-viewport run is still required before describing the remediation as fully
-accepted. The available Computer Use provider exposed browser control only. On
-the current host it returned `apps: []`, and its documented native `getApp` and
-`listApps` functions were unavailable. This was not replaced with PowerShell UI
-automation.
-
-The final self-contained `win-x64` publish was started from the integrated
-checkout against the normal installed profile. The host applied migrations in
-789 ms, loaded the packaged local assets and initialized WebView2 runtime
-153.0.4234.32. Startup bridge reads completed successfully and the log had no
-Error or Fatal entry. The pre-existing EF multiple-collection query warning
-appeared on the cached Security overview read. The exact published executable
-remained running while Computer Use again returned `apps: []`, so no target
-window, screenshot, dimension or input action could be obtained.
+The automated acceptance baseline is green and the self-contained Release
+WinForms/WebView2 application was exercised visually and interactively against
+the installed profile. The pass covered populated provider data, native window
+sizes from 1602×1040 down to 800×649, keyboard navigation, dialogs and the two
+stateful return journeys. Two defects found only in the native run were fixed:
+Event Log actions no longer collapse into character-wide columns at narrow
+widths, and closing a Device Cleanup review no longer discards the originating
+Action Center return state.
 
 ## Package evidence
 
@@ -41,15 +34,15 @@ window, screenshot, dimension or input action could be obtained.
 | S5 | F06, F07 | Object lists lead with clickable names and UPN/address, source-specific operational fields, current-kind counts and named source exceptions. Technical IDs/provenance and infrequent filters move behind disclosures without flattening source state. A follow-up makes the 5,000-record bound independent per object kind and restricts coverage warnings to sources relevant to the current kind. | `1aa6f00`, `a7f0c44`, `8f24e06` |
 | S6 | F09 | AD and Entra members use one navigable bounded table with loaded search, stable sort and local paging. AD source paging remains distinct; limited/unknown types stay visible and unsupported types are not routed as users. | `76fdbb7` |
 | S7 | F08, F10, F13 | Software has one five-destination navigation and compatible legacy bookmarks; destination vocabulary is aligned. The operational device page now uses the consolidated Devices title. Canonical Device/User sections use the same roving ArrowLeft/ArrowRight tab behavior as retained detail shells, and the narrow navigation drawer restores focus only after the inert main region is released. | `7a127a6`, `bb7be2e`, `4a970f2`, `e094cf2` |
-| S8 | F11, F12, F14, F15 | Event messages open in a keyboard-accessible selectable dialog, Escape closes it and focus returns to the trigger. Successful Inventory/Security/Health captures invalidate stored Overview and Reporting summaries. Missing results remain empty states; rejected stored reads show a retry that performs no scan. Action Center and AD user detail journeys retain URL-addressed filter/page/sort context and expose visible safe return controls. | `edb4dc4` |
+| S8 | F11, F12, F14, F15 | Event messages open in a keyboard-accessible selectable dialog, Escape closes it and focus returns to the trigger. Successful Inventory/Security/Health captures invalidate stored Overview and Reporting summaries. Missing results remain empty states; rejected stored reads show a retry that performs no scan. Action Center and AD user detail journeys retain URL-addressed filter/page/sort context and expose visible safe return controls. The native follow-up keeps Event Log columns usable at 800 px and preserves Action Center navigation state while a cleanup review is opened and closed. | `edb4dc4`, `20557cb` |
 
 ## Finding disposition
 
 | Findings | Disposition |
 | --- | --- |
 | F01-F05 | Implemented and covered by focused component/real-route tests. |
-| F06-F09 | Implemented and covered with duplicate-name/source-field, count/error and bounded-member fixtures. The proposed eight-row and narrow overflow targets still require the native viewport run. |
-| F10-F16 | Implemented and covered by keyboard focus, legacy-route, long-message, refresh, return-cycle, stored-error and no-hidden-read regressions. Native end-to-end keyboard and viewport confirmation remains pending. |
+| F06-F09 | Implemented and covered with duplicate-name/source-field, count/error and bounded-member fixtures. Native 1602×1040 evidence shows more than eight complete AD rows and two equal display names distinguished by UPN, source and separate-candidate warnings. |
+| F10-F16 | Implemented and covered by keyboard focus, legacy-route, long-message, refresh, return-cycle, stored-error and no-hidden-read regressions. Native keyboard, narrow-window, dialog and populated return-cycle confirmation passed. |
 
 ## Final automated gates
 
@@ -59,13 +52,13 @@ window, screenshot, dimension or input action could be obtained.
 | `dotnet build --configuration Release` | Pass; 0 warnings, 0 errors |
 | `dotnet test --configuration Release` | Pass; 1,059 tests |
 | Contract generator `--check` | Pass; 501 generated types current |
-| `npm test -- --run` | Pass; 629 tests in 104 files |
+| `npm test -- --run` | Pass; 630 tests in 104 files |
 | `npm run build` | Pass; initial JS 312.43 kB, 98.93 kB gzip |
 | `npm audit --audit-level=high` | Pass; no High/Critical issue. Two existing Moderate Vitest/@vitest-mocker advisories remain; available remediation is a breaking major update. |
 | G2 preservation | Pass at automated level through the full route, specialist, export, settings, operation and compatibility suites. No G2 route/function was removed. |
 | Isolated Release-host startup | Pass; migrations, local assets and WebView2 initialized, startup bridge reads succeeded, no Error/Fatal log entry |
 | Supervised frontend viewport/input check | Pass at 1602×1040, 1280×800 and 800×650 for the Devices source/operational hierarchy, responsive shell, Ctrl+K, Escape and drawer focus restoration. This used the actual routed React UI with an isolated in-memory bridge stub; it is not native WebView2 acceptance or populated-provider evidence. |
-| Native viewport/input acceptance | Blocked by unavailable native Computer Use; no visual or input pass claimed |
+| Native viewport/input acceptance | Pass in the self-contained Release host at 1602×1040, 1281×799 and 800×649, with an additional populated inspection at 1920×1140. Details are recorded below. |
 
 The first full Release build exposed two culture-sensitive timestamp parses in
 the new Microsoft 365 object-list test. Commit `a7f0c44` made both comparisons
@@ -121,38 +114,56 @@ the complete explicit sequence at 2026-09-17 16:34: users 761, licenses 10,
 groups 3,023, Entra devices 1,143 and Intune devices 100. Every card is cached,
 none is partial, and the matching host log records the organization read plus
 all five inventory reads as successful followed by the final status refresh;
-there is no Microsoft 365 Error or Fatal entry. This is native provider-backed
-evidence for the source behavior, but not a substitute for the remaining
-self-contained Release viewport and keyboard checks.
+there is no Microsoft 365 Error or Fatal entry. This remains the native
+provider-backed evidence for the source behavior; the separate self-contained
+Release viewport and keyboard checks are recorded below.
 
-## Remaining native acceptance
+## Native visual and interactive acceptance — 2026-09-28
 
-Use the running self-contained Release host from the integrated checkout.
-Record actual outer-window dimensions and verify:
+The published self-contained `win-x64` host was used directly; no browser mock
+or shell-driven UI automation substituted for WebView2. The following was live
+observed:
 
-1. At 1602×1040, a populated single-source account list shows at least eight
-   complete rows; name, UPN/address and source distinguish equal names.
-2. At 1280×800 and approximately 800×650, the drawer scrolls, closes with
-   Escape and restores focus; long native IDs, wrapped profile tabs and table
-   overflow remain usable.
-3. Keyboard-only Ctrl+K → arrows/Enter → profile section arrows → visible
-   return works; Escape closes search and the Event Log message dialog with
-   sensible focus restoration.
-4. Re-run the visible Action Center and AD-query return journeys at a populated
-   state and confirm their original query/filter/page controls.
+1. At 1602×1040, an explicit bounded AD read loaded 100 users. The account
+   table showed more than eight complete rows with clickable account name, UPN,
+   operational facts and Active Directory source. Two `Allgaier, Isabell`
+   records remained separate and were visibly distinguished as
+   `AllgaierMA@kauth.local` and `AllgaierKF@kauth.local`, including the explicit
+   candidate warning.
+2. At 1281×799 and 800×649, the navigation drawer remained scrollable. Escape
+   closed it and restored a visible focus ring to the opener. Profile tabs
+   wrapped without page overflow. Event Log data retained readable columns and
+   used horizontal table overflow; the full-message action stayed on one line
+   after the native defect fix.
+3. Ctrl+K opened focused global search. Typing `PK-CLNB126`, ArrowDown and Enter
+   opened the device profile. ArrowRight moved between profile tabs with a
+   visible focus ring. Escape closed global search and the Event Log detail
+   dialog; the dialog restored focus to its triggering action.
+4. `PK-CLNB126` System errors for the last 24 hours returned nine native event
+   rows. Event 20 opened with complete selectable content and a usable dialog at
+   800×649. No remote write, implicit scan or export was started.
+5. Action Center search `opsi` produced the URL-addressed filter state
+   `/actions?q=opsi&page=1&size=25&sort=SEVERITY&dir=ASCENDING`. Opening and
+   closing the first Device Cleanup review retained the visible return control;
+   returning restored both that URL and the `opsi` input value.
+6. The AD query workspace searched `Allgaier`, opened the scoped
+   `AllgaierKF@kauth.local` profile and returned through the visible control.
+   The original query, page, page size and sort URL were restored, together
+   with all three same-name results.
+7. The earlier provider-backed Microsoft 365 evidence remains valid: the
+   explicit read returned users 761, licenses 10, groups 3,023, Entra devices
+   1,143 and Intune devices 100, with every card cached and none partial.
 
-The Microsoft 365 source acceptance is complete: the explicit read returns all
-five requested inventories, retains all 3,023 groups and the Groups working set
-does not surface Nessus device-read failures.
-
-Prior native consolidation acceptance remains valid historical evidence, but
-it is not substituted for this required post-remediation viewport run.
+The narrow Event Log layout and cleanup-return regressions discovered during
+this pass are covered by focused component tests in addition to the repeated
+native journeys. No unresolved visual or interactive acceptance item remains
+for S1-S8.
 
 ## Workspace and release boundary
 
 The completed remediation and subsequent corrections were fast-forwarded into
 the local `master` checkout. Temporary implementation branches were removed;
-only `master` remains locally. At this baseline `master` is 94 commits ahead of
+only `master` remains locally. At this baseline `master` is 97 commits ahead of
 `origin/master`. No push, tag, installer publication, GitHub Release or
 published release asset change was performed. The local `publish` directory
 contains the verified self-contained executable and is not a release
