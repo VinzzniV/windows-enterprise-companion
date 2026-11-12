@@ -3345,6 +3345,17 @@ export interface VulnerabilityFindingDetails {
   instances: NessusFinding[];
 }
 
+export interface VulnerabilityFindingGroupRow {
+  product: string | null;
+  pluginId: number | null;
+  name: string;
+  severity: NessusSeverity;
+  affectedAssets: number;
+  instances: number;
+  pluginCount: number;
+  cveCount: number;
+}
+
 export interface VulnerabilityFindingRow {
   pluginId: number;
   name: string;
@@ -3466,6 +3477,16 @@ export interface ListAssetsRequest {
   sortDirection?: string | null;
 }
 
+export interface ListFindingGroupsRequest {
+  search?: string | null;
+  severity?: string | null;
+  asset?: string | null;
+  page?: number;
+  pageSize?: number;
+  sortColumn?: string | null;
+  sortDirection?: string | null;
+}
+
 export interface ListFindingsRequest {
   search?: string | null;
   severity?: string | null;
@@ -3474,6 +3495,7 @@ export interface ListFindingsRequest {
   pageSize?: number;
   sortColumn?: string | null;
   sortDirection?: string | null;
+  product?: string | null;
 }
 
 export interface NessusCertificateResult {

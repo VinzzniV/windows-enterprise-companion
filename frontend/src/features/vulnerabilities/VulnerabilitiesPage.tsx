@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import type { NessusScan, NessusSyncPhase, NessusSyncStatus, PageResult, VulnerabilityAssetRow, VulnerabilityFindingDetails, VulnerabilityFindingRow, VulnerabilityOverview, VulnerabilityTrend } from '../../shared/api-types';
+import type { NessusScan, NessusSyncPhase, NessusSyncStatus, PageResult, VulnerabilityAssetRow, VulnerabilityFindingDetails, VulnerabilityFindingGroupRow, VulnerabilityFindingRow, VulnerabilityOverview, VulnerabilityTrend } from '../../shared/api-types';
 import { useEnvironment } from '../../shared/environment/EnvironmentContext';
 import { Badge } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
@@ -212,6 +212,9 @@ export function VulnerabilitiesPage() {
   const [overview, setOverview] = useState<VulnerabilityOverview | null>(null);
   const [assets, setAssets] = useState<PageResult<VulnerabilityAssetRow> | null>(null);
   const [findings, setFindings] = useState<PageResult<VulnerabilityFindingRow> | null>(null);
+  const [findingGroups, setFindingGroups] = useState<PageResult<VulnerabilityFindingGroupRow> | null>(null);
+  const [groupByProduct, setGroupByProduct] = useState(!assetFilter);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [scans, setScans] = useState<NessusScan[]>([]);
   const [trend, setTrend] = useState<VulnerabilityTrend | null>(null);
   const [days, setDays] = useState(30);
@@ -230,8 +233,11 @@ export function VulnerabilitiesPage() {
   const [assetPageSize, setAssetPageSize] = useState(50);
   const [assetSort, setAssetSort] = useState<DataTableSort>({ column: 'critical', direction: 'desc' });
   const [findingPage, setFindingPage] = useState(1);
+  const [groupPage, setGroupPage] = useState(1);
   const [findingPageSize, setFindingPageSize] = useState(50);
   const [findingSort, setFindingSort] = useState<DataTableSort>({ column: 'severity', direction: 'desc' });
+  const showingGroups = groupByProduct && selectedProduct === null;
+  const currentFindingPage = showingGroups ? groupPage : findingPage;
   const [dataRevision, setDataRevision] = useState(0);
   const [tabRevision, setTabRevision] = useState(0);
   const autoRefreshAttempted = useRef(false);
@@ -329,16 +335,22 @@ export function VulnerabilitiesPage() {
     let current = true;
     setTableLoading(true);
     setTabError(null);
-    void invoke<PageResult<VulnerabilityFindingRow>>('vulnerabilitymanagement', 'listFindings', {
-      search, severity: severity || null, asset: assetFilter || null, page: findingPage, pageSize: findingPageSize,
+    const filters = {
+      search, severity: severity || null, asset: assetFilter || null, page: currentFindingPage, pageSize: findingPageSize,
       sortColumn: findingSort.column, sortDirection: findingSort.direction,
-    }).then((value) => { if (current) setFindings(value); })
-      .catch((caught) => { if (current) setTabError(presentError(caught, {
+    };
+    const request = showingGroups
+      ? invoke<PageResult<VulnerabilityFindingGroupRow>>('vulnerabilitymanagement', 'listFindingGroups', filters)
+        .then((value) => { if (current) setFindingGroups(value); })
+      : invoke<PageResult<VulnerabilityFindingRow>>('vulnerabilitymanagement', 'listFindings', {
+        ...filters, ...(selectedProduct && { product: selectedProduct }),
+      }).then((value) => { if (current) setFindings(value); });
+    void request.catch((caught) => { if (current) setTabError(presentError(caught, {
         message: 'The Nessus finding list could not be loaded.',
       })); })
       .finally(() => { if (current) setTableLoading(false); });
     return () => { current = false; };
-  }, [assetFilter, dataRevision, findingPage, findingPageSize, findingSort, search, severity, tab, tabRevision]);
+  }, [assetFilter, currentFindingPage, dataRevision, findingPageSize, findingSort, search, selectedProduct, severity, showingGroups, tab, tabRevision]);
 
   const closeFindingDetails = useCallback(() => {
     detailRequest.current += 1;
@@ -347,15 +359,15 @@ export function VulnerabilitiesPage() {
     setDetailLoading(false);
     setDetailError(null);
   }, []);
-  const openFindingDetails = useCallback((finding: VulnerabilityFindingRow) => {
+  const openFindingDetails = useCallback((pluginId: number) => {
     const request = detailRequest.current + 1;
     detailRequest.current = request;
-    setSelectedFindingId(finding.pluginId);
+    setSelectedFindingId(pluginId);
     setDetail(null);
     setDetailLoading(true);
     setDetailError(null);
     void invoke<VulnerabilityFindingDetails | null>('vulnerabilitymanagement', 'getFindingDetails', {
-      pluginId: finding.pluginId,
+      pluginId,
       asset: assetFilter || null,
     }).then((value) => {
       if (detailRequest.current !== request) return;
@@ -364,7 +376,7 @@ export function VulnerabilitiesPage() {
           message: 'The selected finding is no longer available.',
           cause: 'The cached finding list no longer matches the current Nessus data.',
           action: 'Refresh the Findings view and select the finding again.',
-          technicalDetails: `Plugin ID: ${finding.pluginId}`,
+          technicalDetails: `Plugin ID: ${pluginId}`,
         });
         return;
       }
@@ -380,6 +392,40 @@ export function VulnerabilitiesPage() {
     });
   }, [assetFilter]);
 
+  const openFindingGroup = (group: VulnerabilityFindingGroupRow) => {
+    if (group.product !== null) {
+      closeFindingDetails();
+      setFindings(null);
+      setFindingPage(1);
+      setSelectedProduct(group.product);
+    } else if (group.pluginId !== null) {
+      openFindingDetails(group.pluginId);
+    }
+  };
+  const resetFindingPages = () => {
+    closeFindingDetails();
+    setFindingPage(1);
+    setGroupPage(1);
+  };
+  const changeFindingSort = (value: DataTableSort) => {
+    resetFindingPages();
+    setFindingSort(value);
+  };
+  const visibleFindings = showingGroups ? findingGroups : findings;
+  const findingPagination = {
+    page: visibleFindings?.page ?? currentFindingPage,
+    pageSize: visibleFindings?.pageSize ?? findingPageSize,
+    total: visibleFindings?.total ?? 0,
+    onPageChange: (value: number) => {
+      closeFindingDetails();
+      (showingGroups ? setGroupPage : setFindingPage)(value);
+    },
+    onPageSizeChange: (value: number) => {
+      resetFindingPages();
+      setFindingPageSize(value);
+    },
+  };
+
   const assetColumns: DataColumn<VulnerabilityAssetRow>[] = [
     { id: 'asset', header: 'Asset', sortable: true, cell: (x) => <div><div className="font-mono text-slate-100">{x.asset.displayName}</div><div className="text-xs text-muted">{x.asset.ipAddress ?? 'No IP'} · {x.matched ? 'Matched' : 'Unmatched'}</div></div> },
     { id: 'critical', header: 'Critical', sortable: true, cell: (x) => <Badge tone={x.asset.critical ? 'fail' : 'neutral'}>{x.asset.critical}</Badge> },
@@ -393,6 +439,20 @@ export function VulnerabilitiesPage() {
     { id: 'severity', header: 'Severity', sortable: true, cell: (x) => <Badge tone={x.severity === 'CRITICAL' ? 'fail' : x.severity === 'HIGH' ? 'warn' : 'neutral'}>{x.severity}</Badge> },
     { id: 'affectedAssets', header: 'Assets', sortable: true, cell: (x) => x.affectedAssets },
     { id: 'instances', header: 'Instances', sortable: true, cell: (x) => x.instances },
+  ];
+  const findingGroupColumns: DataColumn<VulnerabilityFindingGroupRow>[] = [
+    { id: 'finding', header: 'Product or finding', sortable: true, cell: (row) => (
+      <div className="max-w-[36rem] min-w-0">
+        <div className="truncate text-slate-100" title={row.name}>{row.name}</div>
+        <div className="font-mono text-xs text-muted">
+          {row.product ? `${row.pluginCount} ${row.pluginCount === 1 ? 'plugin' : 'plugins'}` : `Plugin ${row.pluginId}`}
+          {' · '}{row.cveCount} {row.cveCount === 1 ? 'CVE' : 'CVEs'}
+        </div>
+      </div>
+    ) },
+    { id: 'severity', header: 'Highest severity', sortable: true, cell: (row) => <Badge tone={row.severity === 'CRITICAL' ? 'fail' : row.severity === 'HIGH' ? 'warn' : 'neutral'}>{row.severity}</Badge> },
+    { id: 'affectedAssets', header: 'Assets', sortable: true, cell: (row) => row.affectedAssets },
+    { id: 'instances', header: 'Instances', sortable: true, cell: (row) => row.instances },
   ];
   const scanColumns: DataColumn<NessusScan>[] = [
     { header: 'Scan', cell: (x) => <div><div className="text-slate-100">{x.name}</div><div className="font-mono text-xs text-muted">ID {x.id}</div></div> }, { header: 'Included', cell: (x) => <Badge tone={x.excluded ? 'neutral' : 'ok'}>{x.excluded ? 'Excluded' : 'Included'}</Badge> },
@@ -424,13 +484,38 @@ export function VulnerabilitiesPage() {
       {trend && <TrendCard trend={trend} days={days} onDaysChange={setDays} />}</>}
     {tab === 'findings' && assetFilter && <div className="rounded border border-accent-800/60 bg-accent-950/20 px-3 py-2 text-sm text-slate-300">Showing Nessus findings for <span className="font-mono text-slate-100">{assetFilter}</span>.
       <p className="text-xs text-muted">An exact source key selects one Nessus record. A legacy address filter includes all matching address candidates; instance details retain their separate source keys.</p></div>}
-    {(tab === 'assets' || tab === 'findings') && <div className="flex gap-3"><Input type="search" value={search} onChange={(e) => { closeFindingDetails(); setSearch(e.target.value); setAssetPage(1); setFindingPage(1); }} placeholder="Search host, plugin or CVE…" /><Select fullWidth={false} value={severity} onChange={(e) => { closeFindingDetails(); setSeverity(e.target.value); setAssetPage(1); setFindingPage(1); }}><option value="">All severities</option><option>CRITICAL</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option><option>UNKNOWN</option></Select></div>}
+    {(tab === 'assets' || tab === 'findings') && <div className="flex flex-wrap gap-3">
+      <div className="min-w-48 flex-1"><Input type="search" value={search} onChange={(e) => { resetFindingPages(); setSearch(e.target.value); setAssetPage(1); }} placeholder={tab === 'findings' ? 'Search product, host, plugin or CVE…' : 'Search assets…'} /></div>
+      <Select aria-label="Severity" fullWidth={false} value={severity} onChange={(e) => { resetFindingPages(); setSeverity(e.target.value); setAssetPage(1); }}><option value="">All severities</option><option>CRITICAL</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option><option>UNKNOWN</option></Select>
+      {tab === 'findings' && <Select aria-label="Findings view" fullWidth={false} value={groupByProduct ? 'product' : 'plugin'} onChange={(event) => {
+        resetFindingPages();
+        setFindings(null);
+        setSelectedProduct(null);
+        setGroupByProduct(event.target.value === 'product');
+      }}><option value="product">By product</option><option value="plugin">By plugin</option></Select>}
+    </div>}
     {tabError && <ErrorState title={tabErrorTitle} {...tabError} controls={<Button variant="secondary" onClick={() => setTabRevision((current) => current + 1)}>{tabRetryLabel}</Button>} />}
     {tab === 'assets' && <Card title={`Assets (${assets?.total ?? '…'})`}><DataTable columns={assetColumns} rows={assets?.items ?? []} getRowKey={(x) => x.asset.assetKey} emptyMessage="No Nessus assets match the filters." loading={tableLoading} sort={assetSort} onSortChange={(value) => { setAssetSort(value); setAssetPage(1); }} pagination={{ page: assets?.page ?? assetPage, pageSize: assets?.pageSize ?? assetPageSize, total: assets?.total ?? 0, onPageChange: setAssetPage, onPageSizeChange: (value) => { setAssetPageSize(value); setAssetPage(1); } }} /></Card>}
+    {tab === 'findings' && selectedProduct && <div>
+      <Button variant="secondary" onClick={() => { closeFindingDetails(); setSelectedProduct(null); }}>← Back to product groups</Button>
+    </div>}
     {tab === 'findings' && <div className={`grid min-w-0 gap-4 ${selectedFindingId !== null ? 'xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.7fr)]' : ''}`}>
-      <Card title={`Findings (${findings?.total ?? '…'})`}><DataTable columns={findingColumns} rows={findings?.items ?? []} getRowKey={(x) => String(x.pluginId)} onRowClick={openFindingDetails} isRowActive={(x) => x.pluginId === selectedFindingId} emptyMessage="No Nessus findings match the filters." loading={tableLoading} sort={findingSort} onSortChange={(value) => { closeFindingDetails(); setFindingSort(value); setFindingPage(1); }} pagination={{ page: findings?.page ?? findingPage, pageSize: findings?.pageSize ?? findingPageSize, total: findings?.total ?? 0, onPageChange: (value) => { closeFindingDetails(); setFindingPage(value); }, onPageSizeChange: (value) => { closeFindingDetails(); setFindingPageSize(value); setFindingPage(1); } }} /></Card>
+      <Card title={`${showingGroups ? 'Product groups and individual findings' : selectedProduct ?? 'Findings'} (${visibleFindings?.total ?? '…'})`}>
+        {showingGroups ? <>
+          <p className="mb-3 text-xs text-muted">Products are inferred from Nessus plugin titles.</p>
+          <DataTable columns={findingGroupColumns} rows={findingGroups?.items ?? []}
+            getRowKey={(row) => row.product ?? `plugin:${row.pluginId}`} onRowClick={openFindingGroup}
+            isRowActive={(row) => selectedFindingId !== null && row.pluginId === selectedFindingId}
+            emptyMessage="No Nessus findings match the filters." loading={tableLoading}
+            sort={findingSort} onSortChange={changeFindingSort} pagination={findingPagination} />
+        </> : <DataTable columns={findingColumns} rows={findings?.items ?? []}
+          getRowKey={(row) => `${row.pluginId}:${row.severity}:${row.name}`} onRowClick={(row) => openFindingDetails(row.pluginId)}
+          isRowActive={(row) => row.pluginId === selectedFindingId}
+          emptyMessage="No Nessus findings match the filters." loading={tableLoading}
+          sort={findingSort} onSortChange={changeFindingSort} pagination={findingPagination} />}
+      </Card>
       {detailLoading && <section role="region" aria-label="Finding details" className="self-start rounded-lg border border-slate-700 bg-slate-900 p-4 text-sm text-slate-400"><p role="status">Loading finding details…</p></section>}
-      {detailError && !detailLoading && <section role="region" aria-label="Finding details" className="self-start rounded-lg border border-slate-700 bg-slate-900 p-4"><div className="mb-3 flex justify-end"><Button variant="ghost" aria-label="Close finding details" onClick={closeFindingDetails}>Close</Button></div><ErrorState title="Finding details could not be loaded" {...detailError} controls={selectedFindingId !== null ? <Button variant="secondary" onClick={() => { const finding = findings?.items.find((item) => item.pluginId === selectedFindingId); if (finding) openFindingDetails(finding); }}>Retry finding details</Button> : undefined} /></section>}
+      {detailError && !detailLoading && <section role="region" aria-label="Finding details" className="self-start rounded-lg border border-slate-700 bg-slate-900 p-4"><div className="mb-3 flex justify-end"><Button variant="ghost" aria-label="Close finding details" onClick={closeFindingDetails}>Close</Button></div><ErrorState title="Finding details could not be loaded" {...detailError} controls={selectedFindingId !== null ? <Button variant="secondary" onClick={() => openFindingDetails(selectedFindingId)}>Retry finding details</Button> : undefined} /></section>}
       {detail && !detailLoading && !detailError && <VulnerabilityFindingDetailsPanel detail={detail} onClose={closeFindingDetails} />}
     </div>}
     {tab === 'scans' && <Card title={`Scans (${scans.length})`}><DataTable columns={scanColumns} rows={scans} getRowKey={(x) => String(x.id)} emptyMessage="No visible Nessus scans are cached." /></Card>}

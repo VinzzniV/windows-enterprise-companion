@@ -39,6 +39,7 @@ describe('VulnerabilitiesPage', () => {
       if (action === 'getOverview') return Promise.resolve({ sync, includedScans: 2, excludedScans: 1, assets: 5, matchedAssets: 4, unmatchedAssets: 1, criticalAssets: 1, highAssets: 2, criticalInstances: 2, highInstances: 5, staleScans: 0 });
       if (action === 'listAssets') return Promise.resolve({ items: [{ matched: false, asset: { assetKey: 'IP:10.0.0.9', displayName: 'Printer', hostName: null, fqdn: null, ipAddress: '10.0.0.9', assetId: null, lastScanUtc: '2026-08-18T10:00:00Z', critical: 0, high: 1, medium: 0, low: 0, info: 0, ports: [80], scanSources: ['Network'] } }], total: 1, page: 1, pageSize: 250 });
       if (action === 'listFindings') return Promise.resolve({ items: [{ pluginId: 123, name: 'Critical TLS', severity: 'CRITICAL', cves: ['CVE-2026-1'], affectedAssets: 1, instances: 1 }], total: 1, page: 1, pageSize: 250 });
+      if (action === 'listFindingGroups') return Promise.resolve({ items: [{ product: null, pluginId: 123, name: 'Critical TLS', severity: 'CRITICAL', cveCount: 1, pluginCount: 1, affectedAssets: 1, instances: 1 }], total: 1, page: 1, pageSize: 50 });
       if (action === 'listScans') return Promise.resolve([{ id: 1, name: 'Clients', excluded: false, status: 'completed', latestCompletedHistoryId: 9, latestCompletedUtc: '2026-08-18T10:00:00Z', error: null }]);
       if (action === 'getTrend') return Promise.resolve({
         verdict: 'BETTER',
@@ -129,6 +130,32 @@ describe('VulnerabilitiesPage', () => {
       search: '', severity: null, asset: '156VW', page: 1, pageSize: 50,
       sortColumn: 'severity', sortDirection: 'desc',
     });
+  });
+
+  it('opens the original plugin rows from a product group and returns to the group list', async () => {
+    const baseImplementation = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown>) => {
+      if (action === 'listFindingGroups') return Promise.resolve({
+        items: [{ product: 'Acme Sync Agent', pluginId: null, name: 'Acme Sync Agent', severity: 'CRITICAL', cveCount: 2, pluginCount: 2, affectedAssets: 1, instances: 2 }],
+        total: 1, page: 1, pageSize: 50,
+      });
+      if (action === 'listFindings' && payload.product === 'Acme Sync Agent') return Promise.resolve({
+        items: [{ pluginId: 456, name: 'Acme Sync Agent < 5.6.7', severity: 'CRITICAL', cves: ['CVE-2026-1'], affectedAssets: 1, instances: 1 }],
+        total: 1, page: 1, pageSize: 50,
+      });
+      return baseImplementation(module, action, payload);
+    });
+    render(<MemoryRouter initialEntries={['/vulnerabilities?tab=findings']}><TargetProvider><EnvironmentProvider><VulnerabilitiesPage /></EnvironmentProvider></TargetProvider></MemoryRouter>);
+
+    const productRow = (await screen.findByText('Acme Sync Agent')).closest('tr')!;
+    expect(within(productRow).getByText('2 plugins · 2 CVEs')).toBeTruthy();
+    await userEvent.click(productRow);
+    expect(await screen.findByText('Acme Sync Agent < 5.6.7')).toBeTruthy();
+    expect(invokeMock).toHaveBeenCalledWith('vulnerabilitymanagement', 'listFindings', expect.objectContaining({ product: 'Acme Sync Agent', page: 1 }));
+    await userEvent.click(screen.getByRole('button', { name: /Back to product groups/ }));
+    expect(await screen.findByText('Acme Sync Agent')).toBeTruthy();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Findings view' }), 'plugin');
+    expect(await screen.findByText('Critical TLS')).toBeTruthy();
   });
 
   it.each(syncSemanticCases)('maps Nessus sync state %j to canonical %s semantics', (override, label, tone) => {
@@ -254,6 +281,7 @@ describe('VulnerabilitiesPage', () => {
 
     render(<MemoryRouter initialEntries={['/vulnerabilities?tab=findings']}><TargetProvider><EnvironmentProvider><VulnerabilitiesPage /></EnvironmentProvider></TargetProvider></MemoryRouter>);
 
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Findings view' }), 'plugin');
     const findingRow = (await screen.findByText('Critical TLS')).closest('tr')!;
     expect(findingRow.textContent).toContain('12 CVEs');
     expect(findingRow.textContent).not.toContain('CVE-2026-0001');

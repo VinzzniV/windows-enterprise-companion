@@ -1,5 +1,15 @@
 # Windows Enterprise Companion — Roadmap Execution
 
+## Completed follow-up — vulnerability product groups
+
+The requested Findings improvement on `codex/vulnerability-product-groups`
+adds a read-only product view over stored Nessus findings with drill-down to
+original plugin evidence.
+The Release build, backend and frontend suites, production frontend build and
+generated contract check pass. A read-only check of cached plugin titles
+verified the grouping against local Nessus data. The NPM audit gate reports
+existing High and Critical advisories in the unchanged dependency lockfile.
+
 ## Active follow-up — device-centered Action Center
 
 The user authorized grouping Action Center findings by unambiguous device evidence,
