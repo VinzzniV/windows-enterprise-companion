@@ -5,10 +5,20 @@
 The requested Findings improvement on `codex/vulnerability-product-groups`
 adds a read-only product view over stored Nessus findings with drill-down to
 original plugin evidence.
-The Release build, backend and frontend suites, production frontend build and
-generated contract check pass. A read-only check of cached plugin titles
-verified the grouping against local Nessus data. The NPM audit gate reports
-existing High and Critical advisories in the unchanged dependency lockfile.
+The follow-up audit added dated vendor advisories, named Office products and
+Windows KBs with explicit edition/version scopes. Multi-target Windows KBs
+keep their full target set. A read-only check of cached plugin titles verified
+the additional matches. The Release build, backend and frontend suites,
+production frontend build, generated contract check and isolated self-contained
+host startup pass. Updating Vite, Vitest and the transitive source-map-js
+dependency brought the NPM audit to zero findings after a clean install.
+
+The user requested publication of the current project version (`0.2.0`) on
+2026-11-12. The applicable company-provider and designated-workstation
+acceptance evidence is recorded in `docs/consolidation-live-acceptance.md`.
+It covers the combined connectivity control and remote Inventory, Health
+and Event Log. This follow-up changes stored finding presentation and frontend
+build tooling.
 
 ## Active follow-up — device-centered Action Center
 
