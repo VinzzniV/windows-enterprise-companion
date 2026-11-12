@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Wec.Core.Contracts;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 using Wec.Modules.UserManagement.Domain;
 
 namespace Wec.Modules.UserManagement.Application;
@@ -67,7 +68,11 @@ internal sealed class UserManagementService
                 "The requested directory user was not found."));
         }
 
-        DirectoryUserRecord user = result.Value;
+        return await ComposeAsync(result.Value, cancellationToken);
+    }
+
+    internal async Task<Result<UserProfileResult>> ComposeAsync(DirectoryUserRecord user, CancellationToken cancellationToken)
+    {
         UserDeviceProfile devices = await GetDeviceProfileAsync(user.Sid, cancellationToken);
         return Result.Success(new UserProfileResult(
             new UserIdentityProfile(
@@ -82,7 +87,7 @@ internal sealed class UserManagementService
                 user.Title,
                 user.ManagerDistinguishedName,
                 user.DistinguishedName,
-                user.OrganizationalUnitPath),
+                user.OrganizationalUnitPath) { DirectoryScope = user.DirectoryScope },
             new UserLifecycleProfile(
                 user.Enabled,
                 user.CreatedAtUtc,
@@ -249,11 +254,11 @@ internal sealed class UserManagementService
         }
 
         NessusComputerInventory inventory = nessusResult.Value;
-        NessusComputerInventoryItem? item = inventory.Computers
-            .Where(candidate => HostEquals(candidate.ComputerName, host))
-            .OrderByDescending(candidate => candidate.LastCompletedScanUtc)
-            .FirstOrDefault();
-        if (item is null)
+        NessusComputerInventoryItem[] candidates = inventory.Computers
+            .Where(candidate => HostEquals(candidate.ComputerName, host)
+                || candidate.Fqdn is not null && HostEquals(candidate.Fqdn, host)
+                || candidate.IpAddress is not null && HostEquals(candidate.IpAddress, host)).ToArray();
+        if (candidates.Length != 1)
         {
             return new UserDeviceVulnerabilityProfile(
                 inventory.Availability,
@@ -263,9 +268,11 @@ internal sealed class UserManagementService
                 0,
                 0,
                 0,
-                "No stored Nessus asset matched this device.");
+                candidates.Length == 0 ? "No stored Nessus address candidate matched this device."
+                    : $"{candidates.Length} stored Nessus address candidates conflict. No counts were assigned; inspect their individual source records.");
         }
 
+        NessusComputerInventoryItem item = candidates[0];
         return new UserDeviceVulnerabilityProfile(
             inventory.Availability,
             true,
@@ -274,7 +281,7 @@ internal sealed class UserManagementService
             item.High,
             item.Medium,
             item.Low,
-            "Counts come from the latest stored Nessus inventory for this device.");
+            "Counts come from one stored Nessus address candidate. Address agreement does not confirm a shared device identity.");
     }
 
     private static int CountHealth(DeviceHealthSnapshotData health, string status) =>
@@ -287,15 +294,17 @@ internal sealed class UserManagementService
         device.Observations.Any(observation =>
             observation.RelationshipType == UserDeviceRelationshipType.LastInteractiveUser);
 
-    private static bool IsLocalHost(string host) => HostEquals(host, Environment.MachineName);
+    private static bool IsLocalHost(string host) => HostAddress.IsExactLocalName(host, Environment.MachineName);
 
     private static bool HostEquals(string left, string right) =>
-        string.Equals(ShortHost(left), ShortHost(right), StringComparison.OrdinalIgnoreCase);
-
-    private static string ShortHost(string host) => host.Trim().Split('.')[0];
+        string.Equals(HostAddress.ComparisonKey(left), HostAddress.ComparisonKey(right), StringComparison.Ordinal);
 
     private static UserDeviceEvidenceCoverage ToCoverage(UserDeviceRelationshipCoverage coverage)
     {
+        if (coverage.WorkingSetTruncated || coverage.MultipleLatestSnapshotDeviceCount > 0)
+        {
+            return UserDeviceEvidenceCoverage.Partial;
+        }
         if (coverage.StoredDeviceCount > 0
             && coverage.NotCapturedDeviceCount == coverage.StoredDeviceCount
             && coverage.UnavailableDeviceCount == 0)
@@ -317,6 +326,10 @@ internal sealed class UserManagementService
         UserDeviceEvidenceCoverage coverage,
         UserDeviceRelationshipCoverage sourceCoverage) => coverage switch
     {
+        _ when sourceCoverage.WorkingSetTruncated =>
+            "Only the configured bounded working set of stored Inventory records was evaluated; additional device relationships may exist.",
+        _ when sourceCoverage.MultipleLatestSnapshotDeviceCount > 0 =>
+            "Some devices have multiple equally recent snapshots. Their observations remain separate and may disagree.",
         UserDeviceEvidenceCoverage.Available when sourceCoverage.StoredDeviceCount == 0 =>
             "No stored Inventory devices are available for relationship evaluation.",
         UserDeviceEvidenceCoverage.Available =>

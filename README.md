@@ -20,13 +20,22 @@ User-configurable operating parameters belong in the in-app **Settings** area.
 credentials. New modules should extend the existing Settings surface instead
 of introducing module-specific configuration files or hidden editors.
 
-The primary workspace is **Clients** (ADR 0010): an Active-Directory-sourced
-client list (unpopulated until opened) where a client is scanned on demand —
-Inventory, Security, Diagnostics and installed Printers as tabbed sections that
-share one session credential per host — and two clients can be compared. The
-sidebar keeps the fleet-wide **Dashboard**, Active Directory, IT Lifecycle,
-Vulnerabilities, Patch Management, Print Management, Network Scan and
-Reporting views, plus Settings and Error Log under **Verwaltung**. Frequently
+The primary workspaces are **Devices**, **Users** and **Groups** (ADR 0022).
+Their bounded, session-only working set combines source-native references and
+confirmed scoped-ID relationships; names remain candidates. Accounts include
+Entra-only profiles, while AD remains authoritative for AD accounts. Every
+source retains its own coverage, freshness and error state. Opening a profile
+or filtering a list does not start a directory/cloud crawl or Windows scan.
+
+The sidebar groups Overview and Action Center under **Work**, the three object
+workspaces under **Objects**, Software & licenses, Vulnerabilities, Print
+Management, Network Scan and Reports under **Operations**, and Data sources,
+Settings and Error log under **Administration**. Data sources reuses the
+existing connection and AD analysis views. Devices retains client posture,
+batch scans, comparison and Cleanup. Exact Windows targets retain Inventory,
+Health, Security, Event logs, Printers, reports and PowerShell. Legacy URLs and
+section parameters remain supported. No cloud export or write permission is
+added. Frequently
 used servers (print server, opsi, DC) can be saved as **targets** (host, role
 and user name, never a password) and pre-fill each picker. The UI follows a
 shared design system
@@ -43,7 +52,8 @@ Current product scope is maintained in this README and the module READMEs.
 Accepted architecture decisions are in [docs/adr/](docs/adr/). The
 [foundation/M1 plan](docs/architecture-and-m1-plan.md) is retained as a
 historical record and is not the current implementation plan. `Claude.md` is
-the canonical coding-agent instruction source.
+retained for compatibility; `AGENTS.md` and the roadmap decision/execution
+registers define the current agent workflow.
 
 ## Modules
 
@@ -51,8 +61,8 @@ the canonical coding-agent instruction source.
 |---|---|---|
 | Inventory | CPU, RAM, disks, OS, network adapters, GPUs, monitors, installed software and BitLocker; one persistent snapshot per host | yes (software via registry/StdRegProv) |
 | Security | 13 read-only checks with persisted per-check execution outcome, coverage and host-scoped history; incomplete coverage is never a clean scan | yes (registry checks via StdRegProv; some checks are explicitly local-only) |
-| Diagnostics | Persisted latest troubleshooting run per host: network, DNS, domain, time, services, event log and system state | machine-state checks yes; connectivity/event-log probes stay local-perspective |
-| Active Directory | Domain overview and hygiene over LDAP; test bind; computer search for the Clients workspace and user search for IT Lifecycle | own or explicitly named domain/DC |
+| Diagnostics / Health | Update age, selected services, Event Log summary and free disk space; existing detailed Event Log queries and historical runs remain | local and remote checks; source coverage is explicit |
+| Active Directory | Domain/DC overview, hygiene, privileged allowlist, bounded computer/account/group identity reads and direct group members | own or explicitly named domain/DC |
 | IT Lifecycle | Read-only correlation of AD computers with Kaspersky Security Center inventory for missing, orphaned, stale or outdated agents/endpoints | AD/LDAP + KSC OpenAPI |
 | Vulnerability Management | Nessus scan import with persisted assets/findings, sync status and historical trend | Nessus API (HTTPS :8834 by default) |
 | Patch Management | Read-only opsi depot/client overview plus Winget catalog search, package generation, explicit adoption and confirmed depot package updates (ADR 0008/0017); client rollout remains in opsi | Winget deployment API + opsi JSON-RPC (HTTPS :4447) + Windows OpenSSH/SCP |
@@ -60,7 +70,11 @@ the canonical coding-agent instruction source.
 | Network Scan | Active nmap discovery, device classification, reverse DNS and optional DHCP reservation correlation | scanned network ranges + optional DHCP server |
 | Reporting | HTML/JSON executive summary per machine (local or a scanned remote client); reads already-captured data, never starts a scan | local + any scanned client |
 | Saved Targets | Persist frequently used servers/clients (host + role + user name, never a password) to pre-fill the pickers (ADR 0010) | local (SQLite) |
-| Clients | AD-sourced client workspace; on-demand per-client scans, compare, on-demand online status (ping + WinRM 5985), one-click PowerShell remoting session (ADR 0011) | remote clients over WinRM |
+| Clients | Device profile composition and cached list projections; retained client posture, explicit scans, compare, connectivity and PowerShell tools | exact Windows targets over WinRM; source-only profiles need no Windows target |
+| User Management | Scoped AD/Entra account profiles, groups, licenses, observed/registered/associated device relationships and AD-only Leaver review | bounded directory reads and existing cached cloud projections |
+| Group Management | Source-native AD/Entra profiles and direct-member navigation; no transitive authorization claim | bounded directory reads and existing cached cloud projections |
+| Microsoft 365 | Delegated WAM/Graph read-only tenant, account, group, device, license and optional Intune/report evidence | Graph v1.0; memory-only cloud data, fixed existing read scopes |
+| Action Center / Device Cleanup | Computed findings and guided read-only retirement assessment; unresolved evidence cannot select probe targets | explicit bounded connectivity only |
 | Verwaltung | App-wide configuration and an error log reading warnings/errors from the current log file | local |
 
 Admin credentials are entered once (top-bar sign-in) and reused for every

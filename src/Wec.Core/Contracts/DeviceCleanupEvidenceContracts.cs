@@ -12,6 +12,7 @@ public sealed record DeviceCleanupAdEvidence(
     bool Exists,
     bool? Enabled,
     string? OperatingSystem,
+    string? Description,
     string? DistinguishedName,
     string? OrganizationalUnit,
     DateTimeOffset? LastLogonAtUtc);
@@ -23,6 +24,7 @@ public sealed record DeviceCleanupKasperskyEvidence(
 
 public sealed record DeviceCleanupOpsiEvidence(
     bool Exists,
+    string? Description,
     DateTimeOffset? LastSeenAtUtc,
     string? DepotId);
 
@@ -43,7 +45,11 @@ public sealed record DeviceCleanupSubjectEvidence(
     DeviceCleanupKasperskyEvidence Kaspersky,
     DeviceCleanupOpsiEvidence Opsi,
     DeviceCleanupNessusEvidence Nessus,
-    IReadOnlyList<DeviceCleanupFindingEvidence> Findings);
+    IReadOnlyList<DeviceCleanupFindingEvidence> Findings)
+{
+    public bool CanTargetWindows { get; init; } = true;
+    public string? IdentityExplanation { get; init; }
+}
 
 public sealed record DeviceCleanupEvidenceSnapshot(
     DateTimeOffset AssessedAtUtc,

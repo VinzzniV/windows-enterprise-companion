@@ -13,6 +13,7 @@ public sealed class SecurityModule : IModule
 {
     public void RegisterServices(IServiceCollection services)
     {
+        services.AddScoped<IStoredDeviceListProvider, SecurityStoredDeviceListProvider>();
         services.AddScoped<ISecurityScanRepository, EfSecurityScanRepository>();
         services.AddScoped<SecurityScanService>();
         services.AddScoped<BatchSecurityScanService>();

@@ -71,6 +71,8 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
   **Health** and keeps only update age, selected service state, Event Log
   summary and free disk space; detailed Event Log queries and historical
   `diagnostics_runs` remain (ADR 0018).
+- AD secondary sorting follows ADR 0023: one LDAP server key, a bounded local
+  ordered prefix for ties, and an explicit cap for deep offset pages.
 - User Management is AD-authoritative and read-only first. Stable identity uses
   `objectGUID`; old Employee Lifecycle tables remain frozen and preserved.
   Directory or lifecycle writes require a later ADR (ADR 0019).
@@ -82,6 +84,19 @@ decisions require a new ADR in `docs/adr/` (numbered, same format).
   decisions in the current frontend session and exposes no AD write action.
 
 ## Current program
+
+- Object-centered consolidation follows ADR 0022 and
+  `docs/consolidation-analysis-and-plan.md` (phases 0–7 and 9; no Phase 8
+  collection). Devices, accounts including Entra-only profiles, and source-native
+  groups compose concrete Core reads in memory. Scoped IDs confirm relations;
+  names remain candidates. General AD identity/direct-member reads are bounded
+  and read-only. Preserve G2 functions/deep links before switching navigation.
+  No new Graph permissions, cloud persistence, exports or manual identity links.
+
+- Microsoft 365 uses delegated MSAL/WAM and Graph v1.0 as a read-only source
+  (ADR 0021). No secrets/tokens in the bridge or persistence, no browser listener,
+  application permissions or Graph writes. Cloud inventories remain session-local;
+  correlations require explicit identity evidence and never infer ownership.
 
 The active program is `docs/ultimate-admin-tool-roadmap.md`. Follow its phases
 and slices in order unless a verified dependency requires a documented reorder.

@@ -35,7 +35,10 @@ public sealed record UserIdentityProfile(
     string? Title,
     string? ManagerDistinguishedName,
     string DistinguishedName,
-    string OrganizationalUnitPath);
+    string OrganizationalUnitPath)
+{
+    public string? DirectoryScope { get; init; }
+}
 
 public sealed record UserLifecycleProfile(
     bool? Enabled,

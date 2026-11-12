@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Wec.Core.Contracts;
 using Wec.Modules.Inventory.Domain;
 using Wec.Modules.Inventory.Persistence;
@@ -5,102 +6,69 @@ using Wec.Modules.Inventory.Persistence;
 namespace Wec.Modules.Inventory.Application;
 
 internal sealed class InventoryUserDeviceRelationshipProvider(
-    IHardwareSnapshotRepository repository) : IUserDeviceRelationshipProvider
+    IHardwareSnapshotRepository repository,
+    IOptions<InventoryOptions> options) : IUserDeviceRelationshipProvider
 {
     private const string EvidenceSource = "WEC Inventory";
 
     public async Task<UserDeviceRelationshipSnapshot> GetForDirectorySidAsync(
-        string directorySid,
-        CancellationToken cancellationToken)
+        string directorySid, CancellationToken cancellationToken)
     {
-        IReadOnlyList<StoredInventoryHost> hosts = await repository.ListHostsAsync(cancellationToken);
-        int evidenceCaptured = 0;
-        int notCaptured = 0;
-        int unavailable = 0;
-        int truncated = 0;
+        StoredInventoryUserEvidenceBatch batch = await repository.GetLatestUserEvidenceBatchAsync(
+            options.Value.MaxStoredEvidenceRecords, cancellationToken);
+        var captured = new HashSet<string>(StringComparer.Ordinal);
+        var notCaptured = new HashSet<string>(StringComparer.Ordinal);
+        var unavailable = new HashSet<string>(StringComparer.Ordinal);
+        var truncated = new HashSet<string>(StringComparer.Ordinal);
         var devices = new List<UserLinkedDeviceEvidence>();
-
-        foreach (StoredInventoryHost host in hosts)
+        IGrouping<string, StoredInventoryUserEvidence>[] hosts = batch.Records.GroupBy(record => record.Host, StringComparer.Ordinal).ToArray();
+        foreach (IGrouping<string, StoredInventoryUserEvidence> host in hosts)
         {
-            CachedHardwareSnapshot? cached = await repository.GetLatestAsync(host.Host, cancellationToken);
-            if (cached is null)
+            cancellationToken.ThrowIfCancellationRequested();
+            var observations = new List<UserDeviceRelationshipObservation>();
+            foreach (StoredInventoryUserEvidence record in host)
             {
-                unavailable++;
-                continue;
+                if (!record.Readable) { unavailable.Add(host.Key); continue; }
+                DeviceUserEvidence? evidence = record.Evidence;
+                if (evidence is null) { notCaptured.Add(host.Key); continue; }
+                captured.Add(host.Key);
+                if (evidence.InteractiveUserState == UserEvidenceSourceState.Unavailable
+                    || evidence.LocalProfilesState == UserEvidenceSourceState.Unavailable) { unavailable.Add(host.Key); }
+                if (evidence.InteractiveUserState == UserEvidenceSourceState.NotCaptured
+                    || evidence.LocalProfilesState == UserEvidenceSourceState.NotCaptured) { notCaptured.Add(host.Key); }
+                if (evidence.LocalProfilesTruncated) { truncated.Add(host.Key); }
+                observations.AddRange(MatchObservations(directorySid, evidence, record.CapturedAtUtc));
             }
-
-            DeviceUserEvidence? evidence = cached.Snapshot.UserEvidence;
-            if (evidence is null)
-            {
-                notCaptured++;
-                continue;
-            }
-
-            evidenceCaptured++;
-            if (evidence.InteractiveUserState == UserEvidenceSourceState.Unavailable
-                || evidence.LocalProfilesState == UserEvidenceSourceState.Unavailable)
-            {
-                unavailable++;
-            }
-
-            if (evidence.LocalProfilesTruncated)
-            {
-                truncated++;
-            }
-
-            List<UserDeviceRelationshipObservation> observations = MatchObservations(
-                directorySid,
-                evidence,
-                cached.CapturedAtUtc);
             if (observations.Count > 0)
             {
-                devices.Add(new UserLinkedDeviceEvidence(host.Host, cached.CapturedAtUtc, observations));
+                devices.Add(new(host.Key, host.Max(record => record.CapturedAtUtc), observations.Distinct().ToArray()));
             }
         }
-
-        return new UserDeviceRelationshipSnapshot(
-            new UserDeviceRelationshipCoverage(
-                hosts.Count,
-                evidenceCaptured,
-                notCaptured,
-                unavailable,
-                truncated),
-            [.. devices.OrderBy(device => device.Host, StringComparer.OrdinalIgnoreCase)]);
+        return new(new(batch.StoredHostCount, captured.Count, notCaptured.Count, unavailable.Count, truncated.Count)
+        {
+            EvaluatedDeviceCount = hosts.Length,
+            WorkingSetTruncated = batch.Records.Count < batch.LatestRecordCount,
+            MultipleLatestSnapshotDeviceCount = hosts.Count(host => host.Skip(1).Any()),
+        }, devices.OrderBy(device => device.Host, StringComparer.Ordinal).ToArray());
     }
 
-    private static List<UserDeviceRelationshipObservation> MatchObservations(
-        string directorySid,
-        DeviceUserEvidence evidence,
-        DateTimeOffset capturedAtUtc)
+    private static IEnumerable<UserDeviceRelationshipObservation> MatchObservations(
+        string directorySid, DeviceUserEvidence evidence, DateTimeOffset capturedAtUtc)
     {
-        var observations = new List<UserDeviceRelationshipObservation>(2);
         if (evidence.InteractiveUserState == UserEvidenceSourceState.Available
             && string.Equals(evidence.InteractiveUser?.Sid, directorySid, StringComparison.OrdinalIgnoreCase))
         {
-            observations.Add(new UserDeviceRelationshipObservation(
-                UserDeviceRelationshipType.LastInteractiveUser,
-                EvidenceSource,
-                capturedAtUtc,
+            yield return new(UserDeviceRelationshipType.LastInteractiveUser, EvidenceSource, capturedAtUtc,
                 UserDeviceRelationshipConfidence.High,
-                "The directory SID was the interactive domain user when Inventory captured this device.",
-                ProfileLastUseAtUtc: null));
+                "The directory SID was the interactive domain user when Inventory captured this device.", null);
         }
-
-        LocalUserProfileEvidence? profile = evidence.LocalProfilesState == UserEvidenceSourceState.Available
-            ? evidence.LocalProfiles?.FirstOrDefault(candidate =>
-                string.Equals(candidate.Sid, directorySid, StringComparison.OrdinalIgnoreCase))
-            : null;
-        if (profile is not null)
+        if (evidence.LocalProfilesState != UserEvidenceSourceState.Available) { yield break; }
+        foreach (LocalUserProfileEvidence profile in evidence.LocalProfiles ?? [])
         {
-            observations.Add(new UserDeviceRelationshipObservation(
-                UserDeviceRelationshipType.ProfilePresent,
-                EvidenceSource,
-                capturedAtUtc,
+            if (!string.Equals(profile.Sid, directorySid, StringComparison.OrdinalIgnoreCase)) { continue; }
+            yield return new(UserDeviceRelationshipType.ProfilePresent, EvidenceSource, capturedAtUtc,
                 UserDeviceRelationshipConfidence.Medium,
-                "Inventory observed a local profile with the directory SID; this does not prove ownership.",
-                profile.LastUseAtUtc));
+                "Inventory observed a local profile with the directory SID; this does not prove ownership.", profile.LastUseAtUtc);
         }
-
-        return observations;
     }
 }

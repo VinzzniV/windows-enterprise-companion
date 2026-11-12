@@ -8,6 +8,9 @@
 > accepted records in `docs/adr/` for binding architecture decisions.
 
 Status: Historical foundation/M1 plan · completed
+Current composition extension: ADR 0022 assigns device/account/group read
+composition to concrete modules over Core contracts, with scoped identity and
+session-only profiles/index. The dependency rules below remain unchanged.
 Original scope: expensive-to-change foundations + Milestone 1.
 
 ---

@@ -274,6 +274,33 @@ internal sealed class UserSettingsStore
         catch(Exception exception) when(exception is IOException or UnauthorizedAccessException){return SettingsWriteFailure(exception);}
     }
 
+    public async Task<Result<bool>> SaveMicrosoft365Async(
+        Wec.Core.Microsoft365.Microsoft365Configuration settings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            JsonObject root = await ReadRootAsync(cancellationToken);
+            JsonObject wec = GetOrCreateObject(root, "Wec");
+            JsonObject microsoft365 = GetOrCreateObject(wec, "Microsoft365");
+            microsoft365["TenantId"] = settings.TenantId;
+            microsoft365["ClientId"] = settings.ClientId;
+            microsoft365["EnableIntune"] = settings.EnableIntune;
+            microsoft365["EnableAuthenticationReports"] = settings.EnableAuthenticationReports;
+            await WriteRootAsync(root, cancellationToken);
+            return Result.Success(true);
+        }
+        catch (JsonException)
+        {
+            return Result.Failure<bool>(new Error(ErrorCode.FileWriteFailed,
+                "The existing user settings contain invalid JSON and were not overwritten."));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return Result.Failure<bool>(new Error(ErrorCode.FileWriteFailed,
+                "Microsoft 365 defaults could not be saved. Check access to the user settings folder."));
+        }
+    }
+
     private async Task WriteRootAsync(JsonObject root, CancellationToken cancellationToken)
     {
         string? directory = Path.GetDirectoryName(_path);

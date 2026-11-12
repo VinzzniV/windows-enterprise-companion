@@ -1,5 +1,10 @@
 # Wec.Modules.Security
 
+`SecurityStoredDeviceListProvider` supplies the bounded address-only working-set
+projection through Core. Security-only hosts remain discoverable without
+Inventory data. It selects the latest stored scan ID per full address without
+loading findings, preserves its observation time and starts no scan.
+
 Read-only security posture checks with persisted scan history, per host.
 Scans run against the local machine or — via WinRM (ADR 0007) — against
 remote Windows clients, single or in a parallel batch.

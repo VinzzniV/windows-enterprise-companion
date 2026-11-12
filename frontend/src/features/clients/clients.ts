@@ -7,20 +7,20 @@ import type {
   TargetRequest,
 } from '../../shared/api-types';
 import type { CredentialValues } from '../../shared/targets/Credentials';
+import { hostAddressKey, isExactLocalName } from '../../shared/targets/hostAddress';
 
 /** A client in the workspace list, merged from AD, scan history and saved targets. */
 export interface ClientEntry {
   /** Scan target host (FQDN preferred when known). */
   host: string;
-  /** Case-insensitive identity, short name without domain suffix. */
+  /** Full address comparison key; not proof of physical device identity. */
   key: string;
   /** Short display name. */
   name: string;
   os: string | null;
   /** AD description (free-text note maintained by the admins). */
   description: string | null;
-  /** AD enabled flag (true when the source doesn't know). */
-  enabled: boolean;
+  enabled: boolean | null;
   /** Has a stored inventory snapshot. */
   scanned: boolean;
   capturedAtUtc: string | null;
@@ -35,9 +35,8 @@ export interface ClientEntry {
 
 export type GroupMode = 'none' | 'os' | 'site';
 
-/** Short, domain-less, upper-cased identity so FQDN/short/local names merge. */
 export function clientKey(host: string): string {
-  return host.trim().split('.')[0].toUpperCase();
+  return hostAddressKey(host);
 }
 
 /** Site code = the name prefix before the first '-' (KF/PK/MA/KW/SU …), else "Other". */
@@ -60,18 +59,26 @@ export function buildClientList(
   securityHosts: readonly StoredSecurityScanHost[] = [],
 ): ClientEntry[] {
   const byKey = new Map<string, ClientEntry>();
-
+  const sourceHostCounts = new Map<string, number>();
   for (const item of environmentDevices) {
+    const host = 'computerName' in item ? item.hostName : item.dnsHostName ?? item.name;
+    const key = clientKey(host);
+    sourceHostCounts.set(key, (sourceHostCounts.get(key) ?? 0) + 1);
+  }
+
+  for (const [index, item] of environmentDevices.entries()) {
     const device = 'computerName' in item ? item : null;
     const legacy = device ? null : item as AdComputer;
     const host = device ? device.hostName : legacy!.dnsHostName ?? legacy!.name;
-    byKey.set(clientKey(host), {
+    const key = (sourceHostCounts.get(clientKey(host)) ?? 0) > 1 || device?.canTargetWindows === false
+      ? device?.evidenceKey ?? `source:${index}:${clientKey(host)}` : clientKey(host);
+    byKey.set(key, {
       host,
-      key: clientKey(host),
+      key,
       name: device ? device.computerName : legacy!.name,
       os: device ? device.activeDirectory.operatingSystem : legacy!.operatingSystem,
       description: device ? device.activeDirectory.description ?? device.opsi.description : legacy!.description,
-      enabled: device ? device.activeDirectory.enabled ?? true : legacy!.enabled,
+      enabled: device ? device.activeDirectory.enabled : legacy!.enabled,
       scanned: false,
       capturedAtUtc: null,
       securityScanned: false,
@@ -95,7 +102,7 @@ export function buildClientList(
         name: stored.host,
         os: null,
         description: null,
-        enabled: true,
+        enabled: null,
         scanned: true,
         capturedAtUtc: stored.capturedAtUtc,
         securityScanned: false,
@@ -119,7 +126,7 @@ export function buildClientList(
         name: target.label.trim() || target.host,
         os: null,
         description: null,
-        enabled: true,
+        enabled: null,
         scanned: false,
         capturedAtUtc: null,
         securityScanned: false,
@@ -144,7 +151,7 @@ export function buildClientList(
         name: stored.host,
         os: null,
         description: null,
-        enabled: true,
+        enabled: null,
         scanned: false,
         capturedAtUtc: null,
         securityScanned: true,
@@ -159,9 +166,8 @@ export function buildClientList(
   return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** True when the host is this machine (matched short-name, case-insensitively). */
 export function isLocalClient(host: string, machineName: string | null): boolean {
-  return machineName != null && machineName.trim() !== '' && clientKey(host) === clientKey(machineName);
+  return isExactLocalName(host, machineName);
 }
 
 /**

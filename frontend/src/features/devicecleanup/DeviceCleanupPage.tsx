@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type {
   ActionEvidenceAvailability,
   DeviceCleanupCandidate,
   DeviceCleanupClassification,
   DeviceCleanupPage as DeviceCleanupPageResult,
   ExportDeviceCleanupAssessmentResult,
+  ExportDeviceCleanupWorkbookResult,
   ProbeHostsResult,
 } from '../../shared/api-types';
 import {
@@ -23,6 +24,7 @@ import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
 import { Checkbox } from '../../shared/ui/Checkbox';
 import { DataTable, type DataColumn } from '../../shared/ui/DataTable';
+import { DetailDialog } from '../../shared/ui/DetailDialog';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { controlClass, Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
@@ -78,6 +80,12 @@ function sourceTimestampSummary(candidate: DeviceCleanupCandidate): string {
 }
 
 export function DeviceCleanupPage() {
+  const location = useLocation();
+  const requestedReturn = (location.state as { returnTo?: unknown } | null)?.returnTo;
+  const actionCenterReturn = typeof requestedReturn === 'string'
+    && (requestedReturn === '/actions' || requestedReturn.startsWith('/actions?'))
+    ? requestedReturn
+    : null;
   const environmentRequest = useEnvironmentRequest();
   const hygieneOperation = useHygieneOperation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -99,8 +107,13 @@ export function DeviceCleanupPage() {
   const [reason, setReason] = useState('');
   const [connectivity, setConnectivity] = useState<ClientConnectivityState | null>(null);
   const connectivityRequest = useRef(0);
-  const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [assessmentExporting, setAssessmentExporting] = useState(false);
+  const [assessmentExportMessage, setAssessmentExportMessage] = useState<string | null>(null);
+  const [workbookExporting, setWorkbookExporting] = useState(false);
+  const [workbookExportMessage, setWorkbookExportMessage] = useState<string | null>(null);
+  const activeWorkbookExport = useRef<CancellableBridgeInvocation<ExportDeviceCleanupWorkbookResult> | null>(null);
+
+  useEffect(() => () => activeWorkbookExport.current?.cancel(), []);
 
   useEffect(() => {
     const currentRequest = ++requestId.current;
@@ -146,18 +159,18 @@ export function DeviceCleanupPage() {
     setDecision('');
     setReason('');
     setConnectivity(null);
-    setExportMessage(null);
+    setAssessmentExportMessage(null);
   }, [selectedKey]);
 
   const chooseCandidate = (candidate: DeviceCleanupCandidate) => {
     const next = new URLSearchParams(searchParams);
-    next.set('host', candidate.host);
-    setSearchParams(next);
+    next.set('host', candidate.subjectKey);
+    setSearchParams(next, { state: location.state });
   };
   const closeAssessment = () => {
     const next = new URLSearchParams(searchParams);
     next.delete('host');
-    setSearchParams(next);
+    setSearchParams(next, { state: location.state });
   };
 
   const columns = useMemo<DataColumn<DeviceCleanupCandidate>[]>(() => [
@@ -171,9 +184,10 @@ export function DeviceCleanupPage() {
     {
       header: 'Device',
       cell: (candidate) => <div className="flex min-w-52 flex-col gap-0.5">
-        <Link className="font-medium text-accent-300 hover:text-accent-200" to={`/clients/${encodeURIComponent(candidate.host)}`}>
+        <Link className="font-medium text-accent-300 hover:text-accent-200" to={candidate.canTargetWindows === false ? `/devices?q=${encodeURIComponent(candidate.host)}` : `/clients/${encodeURIComponent(candidate.host)}`}>
           {candidate.host}
         </Link>
+        {candidate.description && <span className="text-xs text-slate-300">{candidate.description}</span>}
         <span className="font-mono text-xs text-muted">{candidate.subjectKey}</span>
       </div>,
     },
@@ -215,7 +229,7 @@ export function DeviceCleanupPage() {
 
   const checkConnectivity = () => {
     const assessment = result?.selectedAssessment;
-    if (!assessment) return;
+    if (!assessment || assessment.candidate.canTargetWindows === false) return;
     const current = ++connectivityRequest.current;
     setConnectivity({ kind: 'loading' });
     void invoke<ProbeHostsResult>('connectivity', 'probeHosts', { hosts: [assessment.candidate.host] })
@@ -223,7 +237,7 @@ export function DeviceCleanupPage() {
         if (connectivityRequest.current !== current) return;
         const probe = response.results.find((item) =>
           item.host.localeCompare(assessment.candidate.host, undefined, { sensitivity: 'accent' }) === 0)
-          ?? response.results[0];
+          ;
         setConnectivity(probe ? { kind: 'loaded', probe } : { kind: 'unavailable' });
       })
       .catch(() => {
@@ -234,8 +248,8 @@ export function DeviceCleanupPage() {
   const exportAssessment = () => {
     const assessment = result?.selectedAssessment;
     if (!assessment || !decision || !reason.trim()) return;
-    setExporting(true);
-    setExportMessage(null);
+    setAssessmentExporting(true);
+    setAssessmentExportMessage(null);
     const probe = connectivity?.kind === 'loaded' ? connectivity.probe : null;
     const markdown = toDeviceCleanupMarkdown(
       assessment,
@@ -246,11 +260,48 @@ export function DeviceCleanupPage() {
       new Date().toISOString(),
     );
     void invoke<ExportDeviceCleanupAssessmentResult>('devicecleanup', 'exportAssessment', { markdown })
-      .then((response) => setExportMessage(response.cancelled
+      .then((response) => setAssessmentExportMessage(response.cancelled
         ? 'Export cancelled.'
         : `Exported to ${response.filePath}`))
-      .catch((caught: unknown) => setExportMessage(errorText(caught)))
-      .finally(() => setExporting(false));
+      .catch((caught: unknown) => setAssessmentExportMessage(errorText(caught)))
+      .finally(() => setAssessmentExporting(false));
+  };
+
+  const exportWorkbook = () => {
+    if (activeWorkbookExport.current) {
+      activeWorkbookExport.current.cancel();
+      return;
+    }
+
+    setWorkbookExporting(true);
+    setWorkbookExportMessage(null);
+    const operationId = hygieneOperation.begin();
+    const invocation = invokeCancellable<ExportDeviceCleanupWorkbookResult>(
+      'devicecleanup',
+      'exportWorkbook',
+      {
+        activeDirectory: environmentRequest.activeDirectory,
+        kaspersky: environmentRequest.kaspersky,
+        operationId,
+        search: activeSearch.trim() || null,
+        includeWithoutSignals,
+      },
+    );
+    activeWorkbookExport.current = invocation;
+    void invocation.promise
+      .then((response) => setWorkbookExportMessage(response.cancelled
+        ? 'Excel export cancelled.'
+        : response.subjectsTruncated
+          ? `Exported ${response.exportedCount} devices to ${response.filePath}. The configured subject limit was reached, so the workbook is incomplete.`
+          : `Exported all ${response.exportedCount} matching devices to ${response.filePath}.`))
+      .catch((caught: unknown) => setWorkbookExportMessage(caught instanceof BridgeCancelledError
+        ? 'Excel export cancelled.'
+        : errorText(caught)))
+      .finally(() => {
+        activeWorkbookExport.current = null;
+        hygieneOperation.end();
+        setWorkbookExporting(false);
+      });
   };
 
   const connectivityPresentation = connectivity ? clientConnectivityStatus(connectivity) : null;
@@ -258,11 +309,22 @@ export function DeviceCleanupPage() {
 
   return <div className="flex flex-col gap-4">
     <PageHeader title="Device Cleanup" subtitle="Guided read-only stale-device assessment">
+      {actionCenterReturn && <Link className="text-sm text-accent-400 underline" to={actionCenterReturn}>← Back to Action Center</Link>}
       <Badge tone="info">No AD writes</Badge>
-      <Button variant="secondary" disabled={loading} onClick={() => setRefreshRevision((value) => value + 1)}>
+      <Button variant="secondary" disabled={loading || workbookExporting} onClick={() => setRefreshRevision((value) => value + 1)}>
         {loading ? 'Refreshing…' : 'Refresh sources'}
       </Button>
+      <Button variant="secondary" disabled={result === null || loading} onClick={exportWorkbook}>
+        {workbookExporting ? 'Cancel Excel export' : 'Export Excel with Ping'}
+      </Button>
     </PageHeader>
+
+    <section className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3" aria-label="Excel export scope">
+      <p className="text-sm text-slate-300">
+        The Excel workbook contains every result in the current filter, not only this page. Starting the export sends one Ping to each exported device; no WinRM check or scan is started.
+      </p>
+      {workbookExportMessage && <p className="mt-2 text-sm text-slate-200" role="status">{workbookExportMessage}</p>}
+    </section>
 
     <section className="rounded-lg border border-warn-800/70 bg-warn-950/20 p-4" aria-labelledby="cleanup-boundary-heading">
       <h2 id="cleanup-boundary-heading" className="font-semibold text-slate-100">Assessment, not deletion</h2>
@@ -276,6 +338,7 @@ export function DeviceCleanupPage() {
       elapsedSeconds={hygieneOperation.elapsedSeconds}
       onCancel={() => activeLoad.current?.cancel()}
     />}
+    {error && selectedHost && <Button variant="secondary" onClick={closeAssessment}>Choose an individual source row</Button>}
     {error && result === null && <ErrorState
       title="Device cleanup unavailable"
       {...error}
@@ -341,21 +404,18 @@ export function DeviceCleanupPage() {
         }}
       />
 
-      {assessment && <section className="rounded-lg border border-slate-700 bg-slate-900/70 p-4" aria-labelledby="cleanup-assessment-heading">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 id="cleanup-assessment-heading" className="text-lg font-semibold text-slate-100">Review {assessment.candidate.host}</h2>
-              <Badge tone={classificationPresentation[assessment.candidate.classification].tone}>
-                {classificationPresentation[assessment.candidate.classification].label}
-              </Badge>
-            </div>
-            <p className="mt-1 text-sm text-slate-300">{assessment.candidate.classificationExplanation}</p>
-          </div>
-          <Button variant="ghost" onClick={closeAssessment}>Close review</Button>
-        </div>
+      {assessment && <DetailDialog
+        title={`Review ${assessment.candidate.host}`}
+        description={assessment.candidate.classificationExplanation}
+        closeLabel="Close device review"
+        onClose={closeAssessment}
+        wide
+      >
+        <Badge tone={classificationPresentation[assessment.candidate.classification].tone}>
+          {classificationPresentation[assessment.candidate.classification].label}
+        </Badge>
 
-        <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3" aria-label="Cleanup source evidence">
+        <div className="mt-3 grid gap-3 lg:grid-cols-2 xl:grid-cols-3" aria-label="Cleanup source evidence">
           {assessment.sources.map((source) => {
             const coverage = coveragePresentation[source.coverage];
             return <article key={source.source} className="rounded border border-slate-800 bg-slate-950/40 p-3">
@@ -403,7 +463,7 @@ export function DeviceCleanupPage() {
             <h3 id="cleanup-connectivity-heading" className="font-medium text-slate-100">Current connectivity</h3>
             <p className="mt-1 text-xs text-slate-400">No probe runs when the workspace or device review opens.</p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Button variant="secondary" disabled={connectivity?.kind === 'loading'} onClick={checkConnectivity}>
+              <Button variant="secondary" disabled={assessment.candidate.canTargetWindows === false || connectivity?.kind === 'loading'} onClick={checkConnectivity}>
                 {connectivity?.kind === 'loading' ? 'Checking…' : 'Check Ping and WinRM'}
               </Button>
               {connectivityPresentation
@@ -411,6 +471,7 @@ export function DeviceCleanupPage() {
                 : <Badge tone="neutral">Not checked</Badge>}
             </div>
             <p className="mt-3 text-xs text-muted">A missing response is evidence only; it never becomes an automatic cleanup decision.</p>
+            {assessment.candidate.canTargetWindows === false && <p className="mt-2 text-xs text-warn-300">This evidence has no unambiguous Windows target. Connectivity checks, including Excel Ping, are skipped.</p>}
           </section>
         </div>
 
@@ -440,12 +501,12 @@ export function DeviceCleanupPage() {
             </label>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Button variant="primary" disabled={!decision || !reason.trim() || exporting} onClick={exportAssessment}>
-              {exporting ? 'Exporting…' : 'Export assessment'}
+            <Button variant="primary" disabled={!decision || !reason.trim() || assessmentExporting} onClick={exportAssessment}>
+              {assessmentExporting ? 'Exporting…' : 'Export assessment'}
             </Button>
             <span className="text-xs text-muted">{reviewedSources.size} of {assessment.sources.length} source facts reviewed</span>
           </div>
-          {exportMessage && <p className="mt-2 text-sm text-slate-300" role="status">{exportMessage}</p>}
+          {assessmentExportMessage && <p className="mt-2 text-sm text-slate-300" role="status">{assessmentExportMessage}</p>}
         </section>
 
         {assessment.findings.length > 0 && <DetailsDisclosure summary={`${assessment.findings.length} hygiene finding(s)`}>
@@ -455,7 +516,7 @@ export function DeviceCleanupPage() {
             </li>)}
           </ul>
         </DetailsDisclosure>}
-      </section>}
+      </DetailDialog>}
     </>}
   </div>;
 }

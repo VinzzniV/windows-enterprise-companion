@@ -36,6 +36,7 @@ describe('bridgeResponseTimeoutMs', () => {
   });
 
   it.each([
+    ['devicecleanup', 'exportWorkbook'],
     ['inventory', 'runBatchScan'],
     ['security', 'runBatchScan'],
     ['diagnostics', 'runBatchDiagnostics'],

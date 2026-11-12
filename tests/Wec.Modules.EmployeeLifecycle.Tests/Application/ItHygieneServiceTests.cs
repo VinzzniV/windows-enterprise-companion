@@ -21,17 +21,82 @@ public sealed class ItHygieneServiceTests
     };
 
     [Fact]
-    public void Correlation_NormalizesCaseAndFqdn()
+    public void CorrelationRetainsFqdnAndLabelsNameComparisonAsCandidate()
     {
         IReadOnlyList<HygieneDevice> devices = Correlate(
             [Ad("pc001.example.test")],
             [Ksc("PC001")]);
 
         HygieneDevice device = Assert.Single(devices);
-        Assert.Equal("PC001", device.ComputerName);
+        Assert.Equal("pc001.example.test", device.ComputerName);
+        Assert.Equal(Wec.Core.Objects.IdentityEvidence.AliasCandidate, device.Correlation);
+        Assert.NotNull(device.EvidenceKey);
         Assert.True(device.ActiveDirectory.Exists);
         Assert.True(device.Kaspersky.Exists);
         Assert.Equal(HygieneStatus.Healthy, device.Assessment.Status);
+    }
+
+    [Fact]
+    public void DuplicateRecordsAndNamespacesArePreservedWithoutLatestSelectionOrAbsenceClaims()
+    {
+        var first = Ad("PC") with { ObjectId = Guid.NewGuid() };
+        var rows = Correlate([first, first with { ObjectId = Guid.NewGuid(), DnsHostName = "pc.other.test" }],
+            [Ksc("PC", agent: "old"), Ksc("PC", lastSeen: Now, agent: "new")], [Opsi("PC")]);
+        Assert.Equal(5, rows.Count);
+        Assert.Equal(5, rows.Select(row => row.EvidenceKey).Distinct().Count());
+        Assert.All(rows, row =>
+        {
+            Assert.False(row.CanTargetWindows);
+            Assert.Equal(Wec.Core.Objects.IdentityEvidence.Ambiguous, row.Correlation);
+            Assert.DoesNotContain(row.Assessment.Findings, finding => finding.Code is HygieneFindingCode.MissingKaspersky
+                or HygieneFindingCode.OrphanKaspersky or HygieneFindingCode.MissingOpsi or HygieneFindingCode.OrphanOpsi);
+        });
+        Assert.Equal(new[] { "new", "old" }, rows.Where(row => row.Kaspersky.Exists).Select(row => row.Kaspersky.AgentVersion).Order().ToArray());
+        Assert.Contains(rows, row => row.HostName == "pc.other.test");
+    }
+
+    [Fact]
+    public void NessusOnlyIpAddressesAndUnknownNamesDoNotCreateDevices()
+    {
+        var first = new NessusComputerInventoryItem("192.0.2.10", null, "192.0.2.10", Now, 1, 0, 0, 0, 0, [], []);
+        var inventory = new NessusComputerInventory([first, first with { ComputerName = "192.0.2.11", IpAddress = "192.0.2.11" },
+            first with { ComputerName = "", IpAddress = null }, first with { ComputerName = "", IpAddress = null }], NessusInventoryAvailability.Available, Now);
+        var rows = ItHygieneService.CorrelateAndAssess([], [], [], inventory,
+            new(Available, Available, Available, Available), Now, Options);
+        Assert.Empty(rows);
+        Assert.Equal("192.0.2.10", ItHygieneService.NormalizeComputerName("192.0.2.10"));
+    }
+
+    [Fact]
+    public void NessusEnrichesOnlyMatchingPrimaryDeviceRows()
+    {
+        var matched = new NessusComputerInventoryItem("PC001", "asset-1", "192.0.2.10", Now, 1, 0, 0, 0, 0, [], []);
+        var unmatched = new NessusComputerInventoryItem("192.0.2.11", "asset-2", "192.0.2.11", Now, 0, 1, 0, 0, 0, [], []);
+        var inventory = new NessusComputerInventory([matched, unmatched], NessusInventoryAvailability.Available, Now);
+
+        HygieneDevice row = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("PC001")], [], [], inventory, new(Available, Available, Available, Available), Now, Options));
+
+        Assert.Equal("PC001", row.ComputerName);
+        Assert.True(row.Nessus.Exists);
+        Assert.Equal("192.0.2.10", row.Nessus.IpAddress);
+    }
+
+    [Fact]
+    public void ConflictingNessusMatchesRemainDetachedWithoutCreatingAdditionalDevices()
+    {
+        var first = new NessusComputerInventoryItem("PC001", "asset-1", "192.0.2.10", Now, 1, 0, 0, 0, 0, [], []);
+        var inventory = new NessusComputerInventory(
+            [first, first with { AssetId = "asset-2", IpAddress = "192.0.2.11" }],
+            NessusInventoryAvailability.Available, Now);
+
+        HygieneDevice row = Assert.Single(ItHygieneService.CorrelateAndAssess(
+            [Ad("PC001")], [], [], inventory, new(Available, Available, Available, Available), Now, Options));
+
+        Assert.False(row.Nessus.Exists);
+        Assert.Equal(Wec.Core.Objects.IdentityEvidence.Ambiguous, row.Correlation);
+        Assert.True(row.CanTargetWindows);
+        Assert.DoesNotContain(row.Assessment.Findings, finding => finding.Code == HygieneFindingCode.MissingNessus);
     }
 
     [Fact]
@@ -447,7 +512,7 @@ public sealed class ItHygieneServiceTests
         string? operatingSystem = null) =>
         new(
             name,
-            $"{name}.example.test",
+            name.Contains('.') ? name : $"{name}.example.test",
             operatingSystem,
             "Test client",
             enabled,
@@ -471,7 +536,7 @@ public sealed class ItHygieneServiceTests
         string computerName,
         HygieneFindingCode findingCode) =>
         Assert.Contains(
-            devices.Single(device => device.ComputerName == computerName).Assessment.Findings,
+            devices.Single(device => ItHygieneService.NormalizeComputerName(device.ComputerName) == computerName).Assessment.Findings,
             finding => finding.Code == findingCode);
 
     private sealed class AdProvider(Result<AdComputerInventory> result) : IAdComputerInventoryProvider
@@ -533,6 +598,7 @@ public sealed class ItHygieneServiceTests
 
     private sealed class OpsiProvider(Result<OpsiComputerInventory> result) : IOpsiComputerInventoryProvider
     {
+        public Guid? CurrentSessionId => null;
         public Task<Result<OpsiComputerInventory>> LoadAsync(
             int limit,
             CancellationToken cancellationToken) => Task.FromResult(result);

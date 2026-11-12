@@ -11,6 +11,7 @@ internal sealed class WebViewBridge
     private readonly ActionDispatcher _dispatcher;
     private readonly BridgeRequestCancellationRegistry _cancellations;
     private readonly ILogger<WebViewBridge> _logger;
+    private string _trustedOrigin = "https://app.wec";
 
     public WebViewBridge(
         ActionDispatcher dispatcher,
@@ -22,9 +23,10 @@ internal sealed class WebViewBridge
         _logger = logger;
     }
 
-    public void Attach(CoreWebView2 coreWebView)
+    public void Attach(CoreWebView2 coreWebView, string trustedOrigin = "https://app.wec")
     {
         ArgumentNullException.ThrowIfNull(coreWebView);
+        _trustedOrigin = trustedOrigin;
         coreWebView.WebMessageReceived += HandleWebMessageReceived;
     }
 
@@ -35,6 +37,11 @@ internal sealed class WebViewBridge
         var coreWebView = (CoreWebView2)sender!;
         try
         {
+            if (!HasTrustedOrigin(e.Source, _trustedOrigin))
+            {
+                _logger.LogWarning("Rejected bridge message from an untrusted origin");
+                return;
+            }
             if (TryParseCancellation(e.WebMessageAsJson, out string? cancelledRequestId))
             {
                 _cancellations.Cancel(cancelledRequestId);
@@ -79,6 +86,12 @@ internal sealed class WebViewBridge
             _logger.LogError(exception, "Bridge message handling failed");
         }
     }
+
+    internal static bool HasTrustedOrigin(string source, string trustedOrigin) =>
+        Uri.TryCreate(source, UriKind.Absolute, out Uri? actual)
+        && Uri.TryCreate(trustedOrigin, UriKind.Absolute, out Uri? expected)
+        && actual.Scheme == expected.Scheme && actual.Host == expected.Host
+        && actual.Port == expected.Port && actual.UserInfo.Length == 0;
 
     private static bool TryParseCancellation(string webMessageJson, out string requestId)
     {

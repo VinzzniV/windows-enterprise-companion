@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { HardwareInfoResult, SecurityScanResult } from '../../../shared/api-types';
+import type { DiagnosticRunResult, HardwareInfoResult, SecurityScanResult } from '../../../shared/api-types';
+import { HealthSection } from './HealthSection';
 import { InventorySection } from './InventorySection';
 import { SecuritySection } from './SecuritySection';
 
@@ -70,6 +71,22 @@ const scan: SecurityScanResult = {
   },
 };
 
+const healthRun: DiagnosticRunResult = {
+  startedAtUtc: '2026-08-19T08:00:00Z',
+  completedAtUtc: '2026-08-19T08:00:05Z',
+  results: [{
+    diagnosticId: 'WEC-DIAG-SYS-DISKSPACE',
+    title: 'Stored disk result',
+    status: 'PASS',
+    category: 'SYSTEM',
+    affectedResource: 'Fixed drives',
+    evidence: { free: '100 GB' },
+    suggestedNextSteps: [],
+    requiredPrivilege: null,
+    capturedAtUtc: '2026-08-19T08:00:05Z',
+  }],
+};
+
 describe('client audit sections', () => {
   beforeEach(() => {
     invokeMock.mockReset();
@@ -129,5 +146,34 @@ describe('client audit sections', () => {
     expect(screen.getByRole('group', { name: 'Filter findings by severity' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'HIGH: 1 finding' }).textContent).toBe('HIGH (1)');
     expect(await screen.findByText('Scan history (1)')).toBeDefined();
+  });
+
+  it('keeps a saved security scan visible when a new scan fails', async () => {
+    invokeMock.mockImplementation((_module: string, action: string) => {
+      if (action === 'getLatestScan') return Promise.resolve({ scan });
+      if (action === 'getScanHistory') return Promise.resolve({ scans: [], changesSinceLastScan: null });
+      if (action === 'runScan') return Promise.reject(new Error('provider unavailable'));
+      return Promise.reject(new Error(`Unexpected action: ${action}`));
+    });
+
+    render(<SecuritySection target={{ host: 'TEST-PC' }} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Re-run scan' }));
+
+    expect(await screen.findByText('Scan failed; the previous saved scan is still shown.')).toBeDefined();
+    expect(screen.getByText('Firewall disabled')).toBeDefined();
+  });
+
+  it('keeps a saved health result visible when a new check fails', async () => {
+    invokeMock.mockImplementation((_module: string, action: string) => {
+      if (action === 'getLatestDiagnostics') return Promise.resolve({ run: healthRun });
+      if (action === 'runDiagnostics') return Promise.reject(new Error('provider unavailable'));
+      return Promise.reject(new Error(`Unexpected action: ${action}`));
+    });
+
+    render(<HealthSection target={{ host: 'TEST-PC' }} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Re-run health check' }));
+
+    expect(await screen.findByText('Health check failed; the previous saved result is still shown.')).toBeDefined();
+    expect(screen.getByText('Stored disk result')).toBeDefined();
   });
 });

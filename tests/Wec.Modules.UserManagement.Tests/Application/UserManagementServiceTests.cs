@@ -62,8 +62,10 @@ public sealed class UserManagementServiceTests
         await _directoryUsers.Received(1).GetPageAsync(query, Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task GetProfile_SeparatesIdentityLifecycleAndSidValidatedAccessEvidence()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetProfile_SeparatesIdentityLifecycleAndSidValidatedAccessEvidence(bool conflictingNessus)
     {
         _directoryUsers.GetByIdAsync(Arg.Any<DirectoryUserIdentityQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result.Success<DirectoryUserRecord?>(User()));
@@ -124,7 +126,7 @@ public sealed class UserManagementServiceTests
             .Returns(Result.Success(new NessusComputerInventory(
                 [
                     new NessusComputerInventoryItem(
-                        "pc-42.corp.example",
+                        "pc-42",
                         "asset-42",
                         "192.0.2.42",
                         capturedAt,
@@ -139,6 +141,13 @@ public sealed class UserManagementServiceTests
                 NessusInventoryAvailability.Available,
                 capturedAt)));
 
+        if (conflictingNessus)
+        {
+            _nessus.LoadStoredAsync(Arg.Any<CancellationToken>()).Returns(Result.Success(new NessusComputerInventory(
+                [new("PC-42", "one", null, capturedAt, 1, 2, 3, 4, 0, [], []),
+                    new("PC-42", "two", null, capturedAt.AddDays(1), 9, 9, 9, 9, 0, [], [])],
+                NessusInventoryAvailability.Available, capturedAt)));
+        }
         Result<UserProfileResult> result = await CreateService()
             .GetProfileAsync(
                 new DirectoryUserIdentityQuery(CurrentConnection(), ObjectId),
@@ -162,8 +171,9 @@ public sealed class UserManagementServiceTests
         Assert.Equal(1, device.Health.HealthyCount);
         Assert.Equal(1, device.Security.CriticalCount);
         Assert.Equal(1, device.Security.HighCount);
-        Assert.True(device.Vulnerabilities.DeviceMatched);
-        Assert.Equal(2, device.Vulnerabilities.HighCount);
+        Assert.Equal(!conflictingNessus, device.Vulnerabilities.DeviceMatched);
+        Assert.Equal(conflictingNessus ? 0 : 2, device.Vulnerabilities.HighCount);
+        if (conflictingNessus) { Assert.Contains("candidates conflict", device.Vulnerabilities.Explanation, StringComparison.Ordinal); }
     }
 
     [Fact]
@@ -218,6 +228,27 @@ public sealed class UserManagementServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(UserDeviceEvidenceCoverage.Partial, result.Value.Devices.Coverage);
         Assert.Contains("missing", result.Value.Devices.Explanation, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(true, 0, "bounded working set")]
+    [InlineData(false, 2, "multiple equally recent")]
+    public async Task GetProfile_DoesNotPresentBoundedOrAmbiguousEvidenceAsComplete(bool limited, int multiple, string explanation)
+    {
+        _directoryUsers.GetByIdAsync(Arg.Any<DirectoryUserIdentityQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success<DirectoryUserRecord?>(User()));
+        _deviceRelationships.GetForDirectorySidAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new UserDeviceRelationshipSnapshot(new UserDeviceRelationshipCoverage(100, 25, 0, 0, 0)
+            {
+                EvaluatedDeviceCount = 25,
+                WorkingSetTruncated = limited,
+                MultipleLatestSnapshotDeviceCount = multiple,
+            }, []));
+        Result<UserProfileResult> result = await CreateService().GetProfileAsync(
+            new DirectoryUserIdentityQuery(CurrentConnection(), ObjectId), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(UserDeviceEvidenceCoverage.Partial, result.Value.Devices.Coverage);
+        Assert.Contains(explanation, result.Value.Devices.Explanation, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

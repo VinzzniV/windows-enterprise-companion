@@ -108,7 +108,7 @@ export function deriveInventoryTile(
         : 'partial';
   const window = freshnessWindowLabel(maximumAgeSeconds);
   return {
-    value: `${hosts.length} host${hosts.length === 1 ? '' : 's'}`,
+    value: `${hosts.length} stored host${hosts.length === 1 ? '' : 's'}`,
     tone: state === 'fresh' ? 'neutral' : state === 'unknown' ? 'neutral' : 'warning',
     state,
     note: state === 'stale'
@@ -266,6 +266,17 @@ export function deriveVulnerabilityTile(
     };
   }
   if (sync.phase === 'FAILED' || sync.error) {
+    if (overview.assets > 0) {
+      return {
+        value: `${overview.assets} stored assets`,
+        tone: 'warning',
+        state: 'partial',
+        note: sync.error ?? 'The last Nessus sync failed; stored results are retained',
+        source,
+        capturedAtUtc: sync.lastSuccessfulSyncUtc ?? undefined,
+        coverage: `${overview.includedScans} included scans · latest synchronization incomplete`,
+      };
+    }
     return {
       ...errorTile(source, sync.error ?? 'The last Nessus sync failed'),
       capturedAtUtc: sync.lastSuccessfulSyncUtc ?? undefined,
@@ -299,7 +310,9 @@ export function deriveVulnerabilityTile(
     capturedAtUtc: sync.lastSuccessfulSyncUtc,
     coverage: trend === null
       ? `${overview.includedScans} included scans · trend unavailable`
-      : `${overview.includedScans} included scans · ${overview.staleScans} stale`,
+      : trend.comparison
+        ? `${overview.includedScans} included scans · ${overview.staleScans} stale · trend compares ${trend.commonAssets} common assets (${trend.comparison.startDayUtc} → ${trend.comparison.endDayUtc})`
+        : `${overview.includedScans} included scans · ${overview.staleScans} stale · trend needs two dates with a common asset`,
   };
 }
 

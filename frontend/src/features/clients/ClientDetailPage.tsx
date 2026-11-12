@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { invoke } from '../../shared/bridge/bridgeClient';
 import type { AppInfoResponse } from '../../shared/api-types';
 import { useTargets } from '../../shared/targets/TargetContext';
@@ -17,10 +17,12 @@ import { EventLogSection } from './sections/EventLogSection';
 import { PrintersSection } from './sections/PrintersSection';
 import { ReportingSection } from '../reporting/ReportingSection';
 import { OverviewSection } from './sections/OverviewSection';
+import { Microsoft365ContextPanel } from '../microsoft365/Microsoft365ContextPanel';
 import { openPsSession } from '../../shared/ps/openPsSession';
 import { presentError, type ErrorPresentation } from '../../shared/bridge/errorPresentation';
+import { continueWorkingSetNavigation, workingSetReturn } from '../../shared/objects/workingSetNavigation';
 
-type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting';
+type SectionKey = 'overview' | 'inventory' | 'security' | 'diagnostics' | 'events' | 'printers' | 'reporting' | 'microsoft365';
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -30,6 +32,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'events', label: 'Event logs' },
   { key: 'printers', label: 'Printers' },
   { key: 'reporting', label: 'Report export' },
+  { key: 'microsoft365', label: 'Microsoft 365' },
 ];
 
 function isSectionKey(value: string | null): value is SectionKey {
@@ -60,7 +63,14 @@ export function ClientDetailPage() {
   const location = useLocation();
   const { host: rawHost } = useParams<{ host: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const host = decodeURIComponent(rawHost ?? '');
+  const host = rawHost ?? '';
+  const navigationState = continueWorkingSetNavigation(location.state);
+  const workingSetReturnLink = workingSetReturn(location.state, '/devices');
+  const requestedReturn = (location.state as { returnTo?: unknown } | null)?.returnTo;
+  const actionCenterReturn = typeof requestedReturn === 'string'
+    && (requestedReturn === '/actions' || requestedReturn.startsWith('/actions?'))
+    ? requestedReturn
+    : null;
 
   const { credentialsFor, savedTargets, saveTarget, deleteTarget } = useTargets();
   // undefined = getAppInfo not resolved yet; string|null once known. Sections
@@ -69,6 +79,9 @@ export function ClientDetailPage() {
   const requestedSection = searchParams.get('section');
   const section: SectionKey = isSectionKey(requestedSection) ? requestedSection : 'overview';
   const [powerShellError, setPowerShellError] = useState<ErrorPresentation | null>(null);
+  const [targetMutationError, setTargetMutationError] = useState<ErrorPresentation | null>(null);
+  const [pendingTargetId, setPendingTargetId] = useState<number | 'new' | null>(null);
+  const targetMutationInFlight = useRef(false);
   const [reportRevision, setReportRevision] = useState(0);
 
   useEffect(() => {
@@ -87,12 +100,33 @@ export function ClientDetailPage() {
   );
   const refreshReport = useCallback(() => setReportRevision((revision) => revision + 1), []);
 
-  const savedEntry = useMemo(
-    // Match by the same short-name key the Clients list merges on, so a client
-    // saved under its short name is recognized when opened by FQDN.
-    () => savedTargets.find((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
+  const savedEntries = useMemo(
+    () => savedTargets.filter((t) => t.role === 'Client' && clientKey(t.host) === clientKey(host)),
     [savedTargets, host],
   );
+
+  const mutateSavedTarget = useCallback(async (entryId?: number) => {
+    if (targetMutationInFlight.current) return;
+    targetMutationInFlight.current = true;
+    setPendingTargetId(entryId ?? 'new');
+    setTargetMutationError(null);
+    try {
+      if (entryId === undefined) {
+        await saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null });
+      } else {
+        await deleteTarget(entryId);
+      }
+    } catch (caught: unknown) {
+      setTargetMutationError(presentError(caught, {
+        message: entryId === undefined
+          ? 'The client target could not be saved locally.'
+          : 'The locally saved client target could not be removed.',
+      }));
+    } finally {
+      targetMutationInFlight.current = false;
+      setPendingTargetId(null);
+    }
+  }, [credentials?.userName, deleteTarget, host, saveTarget]);
 
   const selectSection = useCallback((nextSection: SectionKey) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -121,9 +155,15 @@ export function ClientDetailPage() {
     <div className="flex flex-col gap-4">
       <PageHeader title={host} subtitle={local ? 'This machine · scanned as the current user' : 'Remote client'}>
         <div className="flex items-center gap-2">
+          {actionCenterReturn && <Link className="text-sm text-accent-400 underline" to={actionCenterReturn}>
+            ← Back to Action Center
+          </Link>}
           <Button variant="ghost" onClick={() => navigate('/clients', { state: location.state })}>
             ← All clients
           </Button>
+          <Link className="text-sm text-accent-400 underline" to={workingSetReturnLink.to} state={workingSetReturnLink.state}>
+            Back to device results
+          </Link>
           {!local && (
             <Button
               variant="secondary"
@@ -140,25 +180,35 @@ export function ClientDetailPage() {
               PowerShell
             </Button>
           )}
-          {savedEntry ? (
-            <Button variant="secondary" onClick={() => void deleteTarget(savedEntry.id)}>
-              Unsave client
-            </Button>
+          {savedEntries.length > 0 ? (
+            savedEntries.map(entry => <Button key={entry.id} variant="secondary" disabled={pendingTargetId !== null} onClick={() => void mutateSavedTarget(entry.id)}>
+              {pendingTargetId === entry.id ? 'Removing…' : savedEntries.length === 1 ? 'Unsave client' : `Unsave ${entry.label} (${entry.id})`}
+            </Button>)
           ) : (
             <Button
               variant="secondary"
-              onClick={() =>
-                void saveTarget({ label: host, host, role: 'Client', userName: credentials?.userName ?? null })
-              }
+              disabled={pendingTargetId !== null}
+              onClick={() => void mutateSavedTarget()}
             >
-              Save client
+              {pendingTargetId === 'new' ? 'Saving…' : 'Save client'}
             </Button>
           )}
         </div>
       </PageHeader>
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link className="text-accent-400 underline" to={(location.state as { returnObject?: string } | null)?.returnObject ?? `/devices?q=${encodeURIComponent(host)}`} state={navigationState}>Device identities and source records</Link>
+        <Link className="text-accent-400 underline" to={`/cleanup?host=${encodeURIComponent(host)}`}>Device Cleanup</Link>
+      </div>
       {powerShellError && (
         <ErrorState title="PowerShell session unavailable" {...powerShellError} />
       )}
+      {targetMutationError && (
+        <ErrorState title="Saved target unchanged" {...targetMutationError} />
+      )}
+
+      <p className="rounded border border-slate-800 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+        Save client stores this host, label, role and optional username in WEC's local database. Session passwords are never saved. Unsave removes only this local shortcut.
+      </p>
 
       {!local && <ClientScanIdentity credentials={credentials} />}
 
@@ -192,8 +242,11 @@ export function ClientDetailPage() {
         // in-progress scan keeps running and its result is never discarded.
         <>
           <div role="tabpanel" id="clientpanel-overview" aria-labelledby="clienttab-overview" hidden={section !== 'overview'}>
-            <OverviewSection host={host} />
+            <OverviewSection host={host} refreshKey={reportRevision} active={section === 'overview'} />
           </div>
+          {section === 'microsoft365' && <div role="tabpanel" id="clientpanel-microsoft365" aria-labelledby="clienttab-microsoft365">
+            <Microsoft365ContextPanel host={host} />
+          </div>}
           <div role="tabpanel" id="clientpanel-inventory" aria-labelledby="clienttab-inventory" hidden={section !== 'inventory'}>
             <InventorySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
@@ -201,10 +254,10 @@ export function ClientDetailPage() {
             <SecuritySection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-diagnostics" aria-labelledby="clienttab-diagnostics" hidden={section !== 'diagnostics'}>
-            <HealthSection key={host} target={target} />
+            <HealthSection key={host} target={target} onDataChanged={refreshReport} />
           </div>
           <div role="tabpanel" id="clientpanel-events" aria-labelledby="clienttab-events" hidden={section !== 'events'}>
-            <EventLogSection key={host} target={target} />
+            <EventLogSection key={host} host={host} target={target} />
           </div>
           <div role="tabpanel" id="clientpanel-printers" aria-labelledby="clienttab-printers" hidden={section !== 'printers'}>
             <PrintersSection key={host} target={target} />

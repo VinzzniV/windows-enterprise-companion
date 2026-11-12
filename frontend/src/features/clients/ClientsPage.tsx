@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type {
   AppInfoResponse,
   ClientWorkspaceListItem,
@@ -17,8 +17,8 @@ import { inventorySourceStatus } from '../../shared/environment/inventorySourceS
 import { useHygieneOperation } from '../../shared/environment/useHygieneOperation';
 import { Badge } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
-import { Card } from '../../shared/ui/Card';
 import { DataTable, type DataColumn, type DataTableGroup, type DataTableSort } from '../../shared/ui/DataTable';
+import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
@@ -69,6 +69,7 @@ function SourceBadge({ client, state, source }: { client: ClientWorkspaceListIte
       : source === 'opsi'
         ? device.opsi.exists
         : device.nessus.exists;
+  if (device.correlation === 'AMBIGUOUS' && !sourceExists) return <ClientSemanticStatus status={{ dimension: 'availability', value: 'unknown' }} context="Identity unresolved" />;
   const sourceResultIncomplete = state.availability === 'PARTIAL' || state.availability === 'TRUNCATED';
   if (state.availability !== 'AVAILABLE' && (!sourceResultIncomplete || !sourceExists)) {
     const presentation = inventorySourceStatus(state.availability);
@@ -205,6 +206,8 @@ export function ClientsPage() {
     void invocation.promise.then((value) => {
       if (requestId.current === currentRequest) {
         setWorkspace(value);
+        const blocked = new Set(value.items.filter(client => client.environment?.canTargetWindows === false).map(client => client.host.toUpperCase()));
+        setSelectedHosts(current => current.filter(host => !blocked.has(host.toUpperCase())));
         if (restoredScrollY) {
           requestAnimationFrame(() => window.scrollTo({ top: restoredScrollY }));
         }
@@ -225,7 +228,7 @@ export function ClientsPage() {
   }, [groupMode, page, pageSize, postureFilter, refreshRevision, request, restoredScrollY, search, sort, sourceFilter, hygieneOperation.begin, hygieneOperation.end]);
 
   const probeOnline = () => {
-    const hosts = workspace?.items.map((client) => client.host) ?? [];
+    const hosts = [...new Set(workspace?.items.filter(client => client.environment?.canTargetWindows !== false).map(client => client.host) ?? [])];
     if (!hosts.length) return;
     const currentRequest = ++probeRequestId.current;
     const hostKeys = hosts.map((host) => host.toUpperCase());
@@ -275,7 +278,7 @@ export function ClientsPage() {
   const columns = useMemo<DataColumn<ClientWorkspaceListItem>[]>(() => {
     const sources = workspace?.sources;
     const deviceColumns: DataColumn<ClientWorkspaceListItem>[] = [
-      { id: 'select', header: 'Select', cell: (client) => {
+      { id: 'select', header: 'Select', className: 'w-14', cell: (client) => {
         const key = client.host.toUpperCase();
         const checked = selectedHosts.some((host) => host.toUpperCase() === key);
         const limitReached = maxBatchHosts !== null && selectedHosts.length >= maxBatchHosts;
@@ -283,7 +286,7 @@ export function ClientsPage() {
           type="checkbox"
           aria-label={`Select ${client.name} for bulk scan`}
           checked={checked}
-          disabled={batchRunning || maxBatchHosts === null || (!checked && limitReached)}
+          disabled={client.environment?.canTargetWindows === false || batchRunning || maxBatchHosts === null || (!checked && limitReached)}
           onClick={(event) => event.stopPropagation()}
           onChange={() => setSelectedHosts((current) => {
             const existing = current.some((host) => host.toUpperCase() === key);
@@ -294,11 +297,12 @@ export function ClientsPage() {
           className="h-4 w-4 cursor-pointer accent-accent-500 disabled:cursor-not-allowed"
         />;
       } },
-      { id: 'device', header: 'Device', sortable: true, cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
+      { id: 'device', header: 'Device', sortable: true, className: 'w-72', cell: (client) => <div className="flex flex-col gap-1"><div className="font-medium text-slate-100">{client.name}</div>
+        {client.environment?.correlation === 'AMBIGUOUS' && <details className="text-xs text-warn-300"><summary>Ambiguous source identity</summary>{client.environment.correlationExplanation}</details>}
         {client.os && <span className="text-xs text-muted">{client.os}</span>}
-        {client.description && <span className="text-xs text-slate-400">{client.description}</span>}
+        {client.description && <span className="line-clamp-1 text-xs text-slate-400" title={client.description}>{client.description}</span>}
         <div className="flex flex-col items-start gap-1">
-          <div className="flex flex-col items-start gap-0.5">
+          <div className="flex flex-wrap items-start gap-x-2 gap-y-0.5">
             <SourceLastSeen source="AD" value={client.environment?.activeDirectory.lastLogonDate ?? null} />
             <SourceLastSeen source="Kaspersky" value={client.environment?.kaspersky.lastSeen ?? null} />
             <SourceLastSeen source="opsi" value={client.environment?.opsi.lastSeen ?? null} />
@@ -308,11 +312,11 @@ export function ClientsPage() {
             {client.scanned && <Badge tone="info">Scanned</Badge>}{client.saved && <Badge tone="accent">Saved</Badge>}
           </div>
         </div></div> },
-      { header: 'AD', cell: (client) => <SourceBadge client={client} state={sources?.activeDirectory ?? unavailableSource} source="ad" /> },
-      { header: 'Kaspersky', cell: (client) => <SourceBadge client={client} state={sources?.kaspersky ?? unavailableSource} source="ksc" /> },
-      { header: 'opsi', cell: (client) => <SourceBadge client={client} state={sources?.opsi ?? unavailableSource} source="opsi" /> },
-      { header: 'Nessus', cell: (client) => <SourceBadge client={client} state={sources?.nessus ?? unavailableSource} source="nessus" /> },
-      { id: 'overall', header: 'Overall', sortable: true, cell: (client) => <ClientSemanticStatus {...hygieneAssessmentStatus(client.environment?.assessment.status ?? null)} /> },
+      { id: 'overall', header: 'Overall', sortable: true, className: 'w-36', cell: (client) => <ClientSemanticStatus {...hygieneAssessmentStatus(client.environment?.assessment.status ?? null)} /> },
+      { header: 'AD', className: 'w-28', cell: (client) => <SourceBadge client={client} state={sources?.activeDirectory ?? unavailableSource} source="ad" /> },
+      { header: 'Kaspersky', className: 'w-32', cell: (client) => <SourceBadge client={client} state={sources?.kaspersky ?? unavailableSource} source="ksc" /> },
+      { header: 'opsi', className: 'w-28', cell: (client) => <SourceBadge client={client} state={sources?.opsi ?? unavailableSource} source="opsi" /> },
+      { header: 'Nessus', className: 'w-28', cell: (client) => <SourceBadge client={client} state={sources?.nessus ?? unavailableSource} source="nessus" /> },
     ];
     return deviceColumns;
   }, [batchRunning, maxBatchHosts, probeStates, selectedHosts, workspace?.sources]);
@@ -326,6 +330,12 @@ export function ClientsPage() {
     resetPage();
   };
   const rows = workspace?.items ?? [];
+  const coverageComplete = workspace ? Object.values(workspace.sources).every((source) => source.availability === 'AVAILABLE') : false;
+  const zeroKnownTone = (count: number, problemTone: 'warning' | 'danger') => count > 0
+    ? problemTone
+    : coverageComplete
+      ? 'success'
+      : 'neutral';
   const rowGroup = groupMode === 'none' ? undefined : (client: ClientWorkspaceListItem): DataTableGroup => {
     const label = client.groupLabel ?? (groupMode === 'os' ? 'Unknown OS' : 'Other');
     return {
@@ -338,7 +348,7 @@ export function ClientsPage() {
       search, groupMode, sourceFilter, page, pageSize, sort, probeStates, selectedHosts, scrollY: window.scrollY,
     };
     navigate(`${location.pathname}${location.search}`, { replace: true, state: viewState });
-    navigate(`/clients/${encodeURIComponent(client.host)}`, { state: viewState });
+    navigate(client.environment?.canTargetWindows === false ? `/devices?q=${encodeURIComponent(client.host || client.name)}` : `/clients/${encodeURIComponent(client.host)}`, { state: viewState });
   };
   const retry = () => { setCancelled(false); setPage(1); setRefreshRevision((current) => current + 1); };
   const selectVisibleHosts = () => {
@@ -347,6 +357,7 @@ export function ClientsPage() {
       const next = [...current];
       const selectedKeys = new Set(current.map((host) => host.toUpperCase()));
       for (const client of rows) {
+        if (client.environment?.canTargetWindows === false) continue;
         const key = client.host.toUpperCase();
         if (!selectedKeys.has(key) && next.length < maxBatchHosts) {
           next.push(client.host);
@@ -358,38 +369,63 @@ export function ClientsPage() {
   };
 
   return <div className="flex flex-col gap-4">
-    <PageHeader title="Clients" subtitle="Canonical device inventory and fleet posture across AD, Kaspersky, opsi, Nessus and WEC scans">
-      <div className="flex gap-2"><Button variant="secondary" onClick={() => navigate('/clients/compare')}>Compare</Button>
-        <Button variant="secondary" onClick={probeOnline} disabled={probing || !rows.length}>{probing ? 'Checking…' : 'Check page connectivity'}</Button>
+    <PageHeader title="Devices" subtitle="Operational posture and Windows actions from existing management evidence">
+      <div className="flex gap-2"><Button variant="secondary" onClick={probeOnline} disabled={probing || !rows.length}>{probing ? 'Checking…' : 'Check page connectivity'}</Button>
         <Button variant="secondary" onClick={() => { setPage(1); setRefreshRevision((current) => current + 1); }} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</Button></div>
     </PageHeader>
+    <div className="space-y-2 border-b border-slate-800 pb-3">
+      <nav aria-label="Device views" className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted">View</span>
+        <Link aria-current="page" className="rounded bg-accent-600 px-3 py-2 font-medium text-white" to="/clients">Operational view</Link>
+        <Link className="rounded px-3 py-2 font-medium text-slate-200 hover:bg-slate-800" to="/devices">Source records</Link>
+      </nav>
+      <nav aria-label="Device shortcuts" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+        <span className="font-medium uppercase tracking-wide text-muted">Related tasks</span>
+        <Link className="text-accent-400 underline" to="/clients/compare">Compare</Link>
+        <Link className="text-accent-400 underline" to="/cleanup">Device Cleanup</Link>
+        <Link className="text-accent-400 underline" to="/activedirectory">AD analysis</Link>
+      </nav>
+    </div>
     {probeError && <ErrorState
       title="Client connectivity check failed"
       {...probeError}
       controls={<Button variant="secondary" onClick={probeOnline} disabled={probing || !rows.length}>Retry connectivity check</Button>}
     />}
-    {workspace && <Card title="Fleet posture">
-      <div className="mb-3 flex flex-wrap gap-2">
+    {workspace && <section className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2.5" aria-labelledby="fleet-posture-heading">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 id="fleet-posture-heading" className="text-sm font-semibold text-slate-200">Fleet posture</h2>
         <EnvironmentSourceBadge name="AD" state={workspace.sources.activeDirectory} />
         <EnvironmentSourceBadge name="Kaspersky" state={workspace.sources.kaspersky} />
         <EnvironmentSourceBadge name="opsi" state={workspace.sources.opsi} />
         <EnvironmentSourceBadge name="Nessus" state={workspace.sources.nessus} />
+        <span className="ml-auto text-xs text-muted">Assessed {new Date(workspace.assessedAtUtc).toLocaleString()}</span>
       </div>
-      <div className="flex flex-wrap gap-3">
-        <SummaryMetric label="Assessed devices" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
-        <SummaryMetric label="Healthy" value={workspace.summary.healthy} tone="success" onClick={() => applyPostureFilter('HEALTHY')} active={postureFilter === 'HEALTHY'} ariaLabel={`Filter clients by Healthy (${workspace.summary.healthy})`} />
-        <SummaryMetric label="Problems" value={workspace.summary.problems} tone={workspace.summary.problems ? 'warning' : 'success'} onClick={() => applyPostureFilter('PROBLEMS')} active={postureFilter === 'PROBLEMS'} ariaLabel={`Filter clients by Problems (${workspace.summary.problems})`} />
-        <SummaryMetric label="Incomplete" value={workspace.summary.incomplete} onClick={() => applyPostureFilter('INCOMPLETE')} active={postureFilter === 'INCOMPLETE'} ariaLabel={`Filter clients by Incomplete (${workspace.summary.incomplete})`} />
-        <SummaryMetric label="Stale" value={workspace.summary.stale} tone={workspace.summary.stale ? 'danger' : 'success'} onClick={() => applyPostureFilter('STALE')} active={postureFilter === 'STALE'} ariaLabel={`Filter clients by Stale (${workspace.summary.stale})`} />
-        <SummaryMetric label="Missing Kaspersky" value={workspace.summary.missingKaspersky} tone={workspace.summary.missingKaspersky ? 'warning' : 'success'} onClick={() => applyPostureFilter('MISSING_KASPERSKY')} active={postureFilter === 'MISSING_KASPERSKY'} ariaLabel={`Filter clients by Missing Kaspersky (${workspace.summary.missingKaspersky})`} />
-        <SummaryMetric label="Missing opsi" value={workspace.summary.missingOpsi} tone={workspace.summary.missingOpsi ? 'warning' : 'success'} onClick={() => applyPostureFilter('MISSING_OPSI')} active={postureFilter === 'MISSING_OPSI'} ariaLabel={`Filter clients by Missing opsi (${workspace.summary.missingOpsi})`} />
-        <SummaryMetric label="Outdated" value={workspace.summary.outdated} tone={workspace.summary.outdated ? 'warning' : 'success'} onClick={() => applyPostureFilter('OUTDATED')} active={postureFilter === 'OUTDATED'} ariaLabel={`Filter clients by Outdated (${workspace.summary.outdated})`} />
-        <SummaryMetric label="Missing Nessus" value={workspace.summary.missingNessus} tone={workspace.summary.missingNessus ? 'warning' : 'success'} onClick={() => applyPostureFilter('MISSING_NESSUS')} active={postureFilter === 'MISSING_NESSUS'} ariaLabel={`Filter clients by Missing Nessus (${workspace.summary.missingNessus})`} />
-        <SummaryMetric label="Nessus Critical" value={workspace.summary.nessusCritical} tone={workspace.summary.nessusCritical ? 'danger' : 'success'} onClick={() => applyPostureFilter('NESSUS_CRITICAL')} active={postureFilter === 'NESSUS_CRITICAL'} ariaLabel={`Filter clients by Nessus Critical (${workspace.summary.nessusCritical})`} />
-        <SummaryMetric label="Nessus High" value={workspace.summary.nessusHigh} tone={workspace.summary.nessusHigh ? 'warning' : 'success'} onClick={() => applyPostureFilter('NESSUS_HIGH')} active={postureFilter === 'NESSUS_HIGH'} ariaLabel={`Filter clients by Nessus High (${workspace.summary.nessusHigh})`} />
+      {!coverageComplete && <p className="mt-2 text-xs text-warn-300" role="status">
+        Counts are known results only; one or more sources have incomplete coverage.
+      </p>}
+      <p className="mt-2 text-xs text-slate-400" title="Stored-only and saved-only clients remain in the table but are excluded from posture counters.">
+        Posture counters cover unique devices in the current AD, Kaspersky, opsi and Nessus assessment before table filters.
+        Stored-Inventory-only and saved-target-only devices are excluded from these counters.
+      </p>
+      <div className="mt-2">
+        <DetailsDisclosure summary={`${workspace.summary.total} assessed · ${workspace.summary.problems} known problem devices · ${workspace.summary.incomplete} with incomplete coverage — show posture filters`}>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-2">
+            <SummaryMetric label="Devices in this assessment" value={workspace.summary.total} onClick={() => applyPostureFilter('ALL')} active={postureFilter === 'ALL'} ariaLabel={`Show all clients (${workspace.summary.total})`} />
+            <SummaryMetric label="Healthy" value={workspace.summary.healthy} tone="success" onClick={() => applyPostureFilter('HEALTHY')} active={postureFilter === 'HEALTHY'} ariaLabel={`Filter clients by Healthy (${workspace.summary.healthy})`} />
+            <SummaryMetric label="Known problem devices" value={workspace.summary.problems} tone={zeroKnownTone(workspace.summary.problems, 'warning')} onClick={() => applyPostureFilter('PROBLEMS')} active={postureFilter === 'PROBLEMS'} ariaLabel={`Filter clients by Problems (${workspace.summary.problems})`} />
+            <SummaryMetric label="Devices with incomplete coverage" value={workspace.summary.incomplete} tone={workspace.summary.incomplete ? 'warning' : 'success'} onClick={() => applyPostureFilter('INCOMPLETE')} active={postureFilter === 'INCOMPLETE'} ariaLabel={`Filter clients by Incomplete (${workspace.summary.incomplete})`} />
+            <SummaryMetric label="Known stale devices" value={workspace.summary.stale} tone={zeroKnownTone(workspace.summary.stale, 'danger')} onClick={() => applyPostureFilter('STALE')} active={postureFilter === 'STALE'} ariaLabel={`Filter clients by Stale (${workspace.summary.stale})`} />
+            <SummaryMetric label="Known missing Kaspersky devices" value={workspace.summary.missingKaspersky} tone={zeroKnownTone(workspace.summary.missingKaspersky, 'warning')} onClick={() => applyPostureFilter('MISSING_KASPERSKY')} active={postureFilter === 'MISSING_KASPERSKY'} ariaLabel={`Filter clients by Missing Kaspersky (${workspace.summary.missingKaspersky})`} />
+            <SummaryMetric label="Known missing opsi devices" value={workspace.summary.missingOpsi} tone={zeroKnownTone(workspace.summary.missingOpsi, 'warning')} onClick={() => applyPostureFilter('MISSING_OPSI')} active={postureFilter === 'MISSING_OPSI'} ariaLabel={`Filter clients by Missing opsi (${workspace.summary.missingOpsi})`} />
+            <SummaryMetric label="Known outdated devices" value={workspace.summary.outdated} tone={zeroKnownTone(workspace.summary.outdated, 'warning')} onClick={() => applyPostureFilter('OUTDATED')} active={postureFilter === 'OUTDATED'} ariaLabel={`Filter clients by Outdated (${workspace.summary.outdated})`} />
+            <SummaryMetric label="Known missing Nessus devices" value={workspace.summary.missingNessus} tone={zeroKnownTone(workspace.summary.missingNessus, 'warning')} onClick={() => applyPostureFilter('MISSING_NESSUS')} active={postureFilter === 'MISSING_NESSUS'} ariaLabel={`Filter clients by Missing Nessus (${workspace.summary.missingNessus})`} />
+            <SummaryMetric label="Devices with known Nessus Critical" value={workspace.summary.nessusCritical} tone={zeroKnownTone(workspace.summary.nessusCritical, 'danger')} onClick={() => applyPostureFilter('NESSUS_CRITICAL')} active={postureFilter === 'NESSUS_CRITICAL'} ariaLabel={`Filter clients by Nessus Critical (${workspace.summary.nessusCritical})`} />
+            <SummaryMetric label="Devices with known Nessus High" value={workspace.summary.nessusHigh} tone={zeroKnownTone(workspace.summary.nessusHigh, 'warning')} onClick={() => applyPostureFilter('NESSUS_HIGH')} active={postureFilter === 'NESSUS_HIGH'} ariaLabel={`Filter clients by Nessus High (${workspace.summary.nessusHigh})`} />
+          </div>
+        </DetailsDisclosure>
       </div>
-      <p className="mt-3 text-xs text-muted">Assessed {new Date(workspace.assessedAtUtc).toLocaleString()}{workspace.domainName ? ` · AD domain ${workspace.domainName}` : ''}. Read-only posture; no remediation starts from this view.</p>
-    </Card>}
+      <p className="mt-2 text-xs text-muted">{workspace.domainName ? `AD domain ${workspace.domainName} · ` : ''}Read-only posture; no remediation starts from this view.</p>
+    </section>}
     <Toolbar actions={<>
       <span className="text-xs tabular-nums text-muted">{selectedHosts.length}/{maxBatchHosts ?? '—'} selected</span>
       <Button variant="ghost" onClick={selectVisibleHosts} disabled={batchRunning || maxBatchHosts === null || !rows.length || selectedHosts.length >= maxBatchHosts}>Select page</Button>
@@ -404,13 +440,15 @@ export function ClientsPage() {
       <Select fullWidth={false} value={groupMode} onChange={(event) => { setGroupMode(event.target.value as GroupMode); resetPage(); }} aria-label="Group clients by">
         <option value="none">No grouping</option><option value="os">Group by OS</option><option value="site">Group by site</option>
       </Select></Toolbar>
-    <ClientBulkActions
+    {selectedHosts.length > 0 && <ClientBulkActions
       selectedHosts={selectedHosts}
       maxBatchHosts={maxBatchHosts}
       onRunningChange={setBatchRunning}
       onCompleted={() => setRefreshRevision((current) => current + 1)}
-    />
-    <p className="text-sm text-slate-400">{workspace?.total ?? 0} devices · {workspace?.scannedTotal ?? 0} scanned{workspace && workspace.total !== workspace.snapshotTotal ? ` · ${workspace.snapshotTotal} total` : ''}</p>
+    />}
+    <p className="text-sm text-slate-400">
+      {workspace?.total ?? 0} matching devices · {workspace?.scannedTotal ?? 0} with stored Inventory · {workspace?.snapshotTotal ?? 0} merged candidates before table filters
+    </p>
     {loading && showEnvironmentProgress && <HygieneLoadStatus progress={hygieneOperation.progress} elapsedSeconds={hygieneOperation.elapsedSeconds} onCancel={() => { setCancelled(true); activeLoad.current?.cancel(); }} />}
     {cancelled && !loading && <div className="flex items-center gap-3 rounded-lg border border-slate-800 p-4"><p className="text-sm text-slate-300">Environment load cancelled. The previous successful data remains unchanged.</p><Button variant="secondary" onClick={retry}>Retry</Button></div>}
     {loadError && <ErrorState
@@ -419,7 +457,7 @@ export function ClientsPage() {
       controls={<Button variant="secondary" onClick={retry}>Retry environment load</Button>}
     />}
     {loading && !workspace && !showEnvironmentProgress ? <Spinner label="Loading environment inventory …" /> : !rows.length && !loading ? <EmptyState title="No clients" message="No device matches the current filters." />
-      : <DataTable columns={columns} rows={rows} getRowKey={(client) => client.key} groupBy={rowGroup}
+      : <DataTable layout="fixed" columns={columns} rows={rows} getRowKey={(client) => client.key} groupBy={rowGroup}
         onRowClick={batchRunning ? undefined : openClient} stickyHeader emptyMessage="No clients."
         loading={loading} sort={sort} onSortChange={(value) => { setSort(value); resetPage(); }}
         pagination={{ page: workspace?.page ?? page, pageSize: workspace?.pageSize ?? pageSize, total: workspace?.groupCount ?? workspace?.total ?? 0, itemLabel: groupMode === 'none' ? undefined : 'groups', onPageChange: setPage, onPageSizeChange: (value) => { setPageSize(value); resetPage(); } }} />}

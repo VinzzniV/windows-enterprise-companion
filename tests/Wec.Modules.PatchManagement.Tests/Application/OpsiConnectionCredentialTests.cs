@@ -11,6 +11,22 @@ namespace Wec.Modules.PatchManagement.Tests.Application;
 public sealed class OpsiConnectionCredentialTests
 {
     [Fact]
+    public async Task CacheOnlyStatusDoesNotReadCredentialsOrConnect()
+    {
+        IOpsiClient client = Substitute.For<IOpsiClient>();
+        IServiceCredentialStore credentials = Substitute.For<IServiceCredentialStore>();
+        var state = new OpsiSessionState();
+        var options = Options.Create(new PatchManagementOptions());
+        using var connector = new OpsiSessionConnector(client, state, credentials, options);
+        var handler = new GetOpsiConnectionStatusHandler(state, connector, options);
+        Result<OpsiConnectionStatusResult> result = await handler.HandleAsync(new(ConnectStoredCredential: false), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value.Connected);
+        Assert.Empty(credentials.ReceivedCalls());
+        Assert.Empty(client.ReceivedCalls());
+    }
+
+    [Fact]
     public async Task Connect_UsesSavedCredentialWithoutReturningPassword()
     {
         IOpsiClient client = Substitute.For<IOpsiClient>();

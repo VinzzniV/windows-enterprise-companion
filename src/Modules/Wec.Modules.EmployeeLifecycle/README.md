@@ -1,5 +1,15 @@
 # IT Lifecycle / Environment Health MVP
 
+The `clients/getOverview` composition now belongs to `Wec.Modules.Clients`.
+Hygiene/source adapters, workspace compatibility handlers and frozen lifecycle
+data stay here; the bridge contract and options section remain compatible.
+
+Object consolidation (ADR 0022) reads original management records through
+`IManagementDeviceSnapshotProvider`. This cache-only projection retains native
+names, AD IDs, source scope, errors, counts and duplicates before legacy hygiene
+correlation. It never starts a load; another connection/credential context is a
+cache miss. Existing hygiene rows remain name-based assessments during migration.
+
 The existing `Wec.Modules.EmployeeLifecycle` project and bridge module name are
 retained to keep host composition, contracts and existing installations
 compatible. Its read-only device hygiene data is presented as **Fleet posture**
@@ -61,6 +71,7 @@ The existing bridge module name remains `employeelifecycle`.
 | `getHygieneOverview` | optional AD/KSC overrides, optional `operationId` and explicit `force` refresh | sources, summary, assessment time and known hosts without device rows |
 | `listHygieneDevices` | optional AD/KSC overrides and `operationId` plus search, filter, page, page size and allowlisted sort | at most 100 correlated device rows plus filtered total |
 | `listClientWorkspace` | optional AD/KSC overrides and `operationId` plus client search, posture/source filter, grouping, page, page size, allowlisted sort and explicit `force` refresh | at most 100 de-duplicated rows without grouping; grouping pages complete OS/site groups, paged by at most 100 groups, with exact filtered, snapshot and group totals, source/time/domain metadata and a summary recalculated over those canonical de-duplicated hygiene rows |
+| `getKasperskyCertificate` | KSC server, port and bounded timeout | SHA-256 fingerprint, subject and validity period for explicit operator verification |
 
 Client 360 uses a separate presentation-level bridge action while this project
 remains the host for the existing Clients workspace:
@@ -185,6 +196,17 @@ The five legacy tables are frozen: WEC does not write or automatically import
 them, and deleting them requires a separately approved destructive migration.
 
 ## Tests
+
+Hygiene rows preserve source observations and full addresses. Name agreement is
+candidate evidence only; duplicate records and conflicting DNS namespaces remain
+separate rows with disposable evidence keys. Ambiguous rows cannot select a
+Windows scan/probe target or turn absent cross-source data into a missing-agent
+claim. Stored Inventory and saved targets stay independently addressable.
+
+The shared management cache removes opsi evidence after disconnect or session
+replacement, including late completions and legacy Hygiene/Action Center/Cleanup
+projections. Other source observations and their original assessment time remain
+available without source I/O. Reassessment retains the original Nessus policy.
 
 - AD inventory mapping and LDAP contract tests
 - KSC OpenAPI login, chunk parsing, limit and authentication-error tests

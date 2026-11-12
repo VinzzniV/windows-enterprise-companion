@@ -33,6 +33,7 @@ feature pages — build pages from these, don't re-style ad-hoc.
 | `StatusBadge`, `SeverityBadge` | Existing feature/provider mappings that have not yet moved to the canonical multidimensional contract |
 | `SummaryMetric` | Number-over-label tile; tones map to the status semantics above. Optional `onClick`/`active` props render a keyboard-focusable filter button with `aria-pressed`; provide a task-specific `ariaLabel`. |
 | `DataTable` | Dense table; local sort for small datasets or controlled sort/pagination/loading for feature-owned server queries; per-column `align` + `mono`, `zebra` (default), `stickyHeader` |
+| `DetailDialog` | Viewport-bound detail workflow for long lists; traps focus, closes with Escape and returns focus to the triggering row or control |
 | `Card`, `PageHeader`, `DetailsDisclosure`, `EvidenceList`, `Spinner` | Structure and disclosure |
 | `EmptyState`, `ErrorState` | The only empty/error presentation — no bespoke alert divs |
 | `LogoMark`, `ErrorBoundary` | Branding, per-route error isolation |
@@ -333,20 +334,25 @@ canonical default without a query parameter; unknown values fall back safely
 to Overview. Report-readiness cards use these links for non-ready Inventory and
 Security sources, but navigating to a section never starts a scan automatically.
 
-Settings uses its own feature-local, sticky section navigation. Effective
-Configuration is the parameterless default; the allowlisted `section` values
-`environment-health`, `vulnerability-management`, `patch-management` and
-`policy` address the remaining cards. Unknown values are removed. Following a
-section link only updates the URL and scroll position; it must never save
-settings, connect a provider or trigger a credential action.
+Settings uses its own feature-local, sticky section navigation. General is the
+parameterless default; the allowlisted `section` values `environment-health`,
+`vulnerability-management`, `patch-management`, `microsoft365` and `policy`
+address the remaining cards. Unknown values are removed. Following a section
+link only updates the URL and scroll position; it must never save settings,
+connect a provider or trigger a credential action.
 
-Environment Health, Vulnerability Management and Patch Management each compare
+Kaspersky and health rules, Nessus, opsi and Microsoft 365 defaults compare
 their editable settings with a separate last-loaded-or-successfully-saved
 baseline. A dirty section is labelled `Unsaved changes` both in the local
 navigation and beside its Save action; color is supplementary only. A failed
 save must preserve that state, and a successful save may clear only its own
-section. Credential and connection drafts remain governed by their dedicated
-explicit actions rather than these settings baselines.
+section. Settings exclusively owns persisted Kaspersky, opsi and Nessus
+credentials together with defaults, endpoints, trust policy and thresholds.
+Data Sources never repeats those credential fields; it owns connection status,
+source coverage and explicit reads using the saved accounts. Microsoft 365 is
+the exception because its delegated interactive sign-in is session-only and no
+password or token is persisted. KES is a Kaspersky inventory attribute and
+health policy input, not an independent data source.
 
 The three settings save boundaries mirror their existing backend validation
 rules in feature-local pure validators. Current problems appear in one

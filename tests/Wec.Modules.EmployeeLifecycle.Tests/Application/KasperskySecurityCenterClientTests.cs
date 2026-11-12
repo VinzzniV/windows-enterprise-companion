@@ -25,6 +25,9 @@ public sealed class KasperskySecurityCenterClientTests
                         "type": "params",
                         "value": {
                           "KLHST_WKS_WINHOSTNAME": "PC001",
+                          "KLHST_WKS_FQDN": "pc001.example.test",
+                          "KLHST_WKS_DNSNAME": "pc001",
+                          "KLHST_WKS_DN": "native-record-name",
                           "KLHST_WKS_LAST_VISIBLE": {"type":"datetime","value":"2026-08-16T10:30:00Z"},
                           "KLHST_WKS_NAG_VERSION": "16.0.0.254",
                           "KLHST_WKS_RTP_AV_VERSION": "21.25.7.504",
@@ -43,6 +46,9 @@ public sealed class KasperskySecurityCenterClientTests
         Assert.True(result.IsSuccess);
         KasperskyComputer computer = Assert.Single(result.Value.Computers);
         Assert.Equal("PC001", computer.ComputerName);
+        Assert.Equal("pc001.example.test", computer.Fqdn);
+        Assert.Equal("pc001", computer.DnsName);
+        Assert.Equal("native-record-name", computer.RecordName);
         Assert.Equal(new DateTimeOffset(2026, 8, 16, 10, 30, 0, TimeSpan.Zero), computer.LastSeen);
         Assert.Equal("16.0.0.254", computer.AgentVersion);
         Assert.Equal("21.25.7.504", computer.KesVersion);

@@ -22,6 +22,8 @@ const item: ActionCenterWorkItem = {
   coverageExplanation: 'The latest stored timestamp was read without starting a scan.',
   recommendedAction: 'Open Inventory.',
   href: '/clients/PC-42?section=inventory',
+  canTargetWindows: true,
+  identityAmbiguous: false,
 };
 
 describe('actionCenterRelationshipModel', () => {

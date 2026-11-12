@@ -8,11 +8,15 @@ public sealed record RemoteEventLogEntry(
     string Level,
     string Source,
     long EventCode,
-    string Message);
+    string Message,
+    bool MessageTruncated);
 
 public sealed record EventLogQueryResult(
     string PresetKey,
+    DateTimeOffset WindowStartUtc,
+    DateTimeOffset WindowEndUtc,
     int TotalMatched,
+    int ResultLimit,
     bool Truncated,
     IReadOnlyList<RemoteEventLogEntry> Entries);
 
@@ -65,7 +69,9 @@ public sealed class EventLogQueryService
                 ErrorCode.InvalidRequest, $"Unknown event log preset '{presetKey}'."));
         }
 
-        string wql = BuildQuery(preset, _clock.UtcNow);
+        DateTimeOffset windowEndUtc = _clock.UtcNow;
+        DateTimeOffset windowStartUtc = windowEndUtc - preset.Lookback;
+        string wql = BuildQuery(preset, windowEndUtc);
         Result<IReadOnlyList<WmiInstance>> events = await _wmiQueryService.QueryAsync(
             context, CimV2Namespace, wql, cancellationToken);
         if (events.IsFailure)
@@ -80,7 +86,10 @@ public sealed class EventLogQueryService
         bool truncated = entries.Count > MaxEntries;
         return Result.Success(new EventLogQueryResult(
             preset.Key,
+            windowStartUtc,
+            windowEndUtc,
             entries.Count,
+            MaxEntries,
             truncated,
             truncated ? entries[..MaxEntries] : entries));
     }
@@ -93,17 +102,22 @@ public sealed class EventLogQueryService
             + $"FROM Win32_NTLogEvent WHERE {preset.WhereClause} AND TimeGenerated >= '{since}'";
     }
 
-    private static RemoteEventLogEntry ToEntry(WmiInstance instance) => new(
-        instance.GetValue<DateTime?>("TimeGenerated") is DateTime time
-            // MMI normalizes CIM datetimes; treat unspecified kinds as UTC.
-            ? new DateTimeOffset(time.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(time, DateTimeKind.Utc)
-                : time.ToUniversalTime())
-            : null,
-        LevelName(instance.GetInteger("EventType")),
-        instance.GetString("SourceName") ?? "unknown",
-        instance.GetInteger("EventCode") ?? 0,
-        Truncate(instance.GetString("Message")));
+    private static RemoteEventLogEntry ToEntry(WmiInstance instance)
+    {
+        string message = (instance.GetString("Message") ?? string.Empty).Trim();
+        bool messageTruncated = message.Length > 500;
+        return new RemoteEventLogEntry(
+            instance.GetValue<DateTime?>("TimeGenerated") is DateTime time
+                ? new DateTimeOffset(time.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(time, DateTimeKind.Utc)
+                    : time.ToUniversalTime())
+                : null,
+            LevelName(instance.GetInteger("EventType")),
+            instance.GetString("SourceName") ?? "unknown",
+            instance.GetInteger("EventCode") ?? 0,
+            messageTruncated ? message[..500] + " …" : message,
+            messageTruncated);
+    }
 
     internal static string LevelName(long? eventType) => eventType switch
     {
@@ -115,9 +129,4 @@ public sealed class EventLogQueryService
         _ => "Unknown",
     };
 
-    private static string Truncate(string? message)
-    {
-        string trimmed = (message ?? "").Trim();
-        return trimmed.Length <= 500 ? trimmed : trimmed[..500] + " …";
-    }
 }

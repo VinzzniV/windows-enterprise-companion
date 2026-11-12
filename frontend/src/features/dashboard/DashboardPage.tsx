@@ -216,8 +216,8 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Dashboard"
-        subtitle="At a glance across the modules — from the last stored scan of each. Open a module to run a fresh one."
+        title="Overview"
+        subtitle="Each tile states its own source, capture time and coverage. Counts do not share one device population."
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <ModuleTile
@@ -228,9 +228,9 @@ export function DashboardPage() {
           metric={vulnerabilities}
         />
         <ModuleTile
-          to="/clients"
+          to="/devices"
           icon={navIcons.clients}
-          title="Clients"
+          title="Devices"
           description="Per-host inventory, security and health — scanned on demand."
           metric={inventory}
         />
@@ -249,22 +249,22 @@ export function DashboardPage() {
           metric={print}
         />
         <ModuleTile
-          to="/patchmanagement"
+          to="/software"
           icon={navIcons.patchmanagement}
-          title="Patch Management"
+          title="Software & licenses"
           description="Read-only opsi status and Winget package maintenance."
           metric={patch}
         />
         <ModuleTile
           to="/activedirectory"
           icon={navIcons.activedirectory}
-          title="Active Directory"
+          title="AD analysis"
           description="Domain overview and hygiene checks over LDAP."
         />
         <ModuleTile
           to="/reporting"
           icon={navIcons.reporting}
-          title="Report export"
+          title="Reports"
           description="Executive HTML/JSON summary from saved Inventory and Security data."
         />
       </div>
@@ -279,8 +279,8 @@ function PatchStatusChart({ segments }: { segments: PatchChartSegment[] }) {
   const total = segments.reduce((sum, segment) => sum + segment.count, 0);
   return (
     <NavLink
-      to="/patchmanagement"
-      aria-label="Patch status — open Patch Management"
+      to="/software"
+      aria-label="Patch status — open Software & licenses"
       className="group flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-700"
     >
       <div className="flex items-center gap-2.5 text-sm font-semibold text-slate-300 group-hover:text-slate-100">

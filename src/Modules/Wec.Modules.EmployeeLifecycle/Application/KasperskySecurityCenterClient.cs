@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -24,11 +26,20 @@ public sealed record KasperskyComputer(
     DateTimeOffset? LastSeen,
     string? AgentVersion,
     string? KesVersion,
-    string? AdministrationGroup);
+    string? AdministrationGroup,
+    string? Fqdn = null,
+    string? DnsName = null,
+    string? RecordName = null);
 
 public sealed record KasperskyInventory(
     IReadOnlyList<KasperskyComputer> Computers,
     bool Truncated);
+
+internal sealed record KasperskyCertificateInfo(
+    string Sha256Fingerprint,
+    string Subject,
+    DateTimeOffset ValidFromUtc,
+    DateTimeOffset ValidToUtc);
 
 /// <summary>
 /// Minimal read-only KSC OpenAPI client. It only authenticates, searches hosts,
@@ -68,6 +79,62 @@ internal sealed class KasperskySecurityCenterClient : IKasperskyInventoryReader
     internal KasperskySecurityCenterClient(HttpMessageHandler testHandler)
     {
         _testHandler = testHandler;
+    }
+
+    internal static async Task<KasperskyCertificateInfo> GetCertificateAsync(
+        string server,
+        int port,
+        int timeoutSeconds,
+        CancellationToken cancellationToken)
+    {
+        if (port is < 1 or > 65_535)
+        {
+            throw new InvalidOperationException("The Kaspersky port must be between 1 and 65535.");
+        }
+
+        if (timeoutSeconds is < 1 or > 600)
+        {
+            throw new InvalidOperationException("The Kaspersky timeout must be between 1 and 600 seconds.");
+        }
+
+        Result<Uri> endpoint = BuildEndpoint(server, port);
+        if (endpoint.IsFailure)
+        {
+            throw new InvalidOperationException(endpoint.Error!.Message);
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+        using var tcp = new TcpClient();
+        await tcp.ConnectAsync(endpoint.Value.Host, endpoint.Value.Port, timeout.Token);
+        X509Certificate2? remoteCertificate = null;
+#pragma warning disable CA5359 // Deliberate trust-on-first-use inspection; the returned fingerprint is not trusted automatically.
+        using var tls = new SslStream(tcp.GetStream(), false, (_, certificate, _, _) =>
+        {
+            if (certificate is not null)
+            {
+                remoteCertificate = new X509Certificate2(certificate);
+            }
+
+            return true;
+        });
+#pragma warning restore CA5359
+        await tls.AuthenticateAsClientAsync(
+            new SslClientAuthenticationOptions { TargetHost = endpoint.Value.Host },
+            timeout.Token);
+        using (remoteCertificate)
+        {
+            if (remoteCertificate is null)
+            {
+                throw new InvalidDataException("Kaspersky Security Center did not provide an HTTPS certificate.");
+            }
+
+            return new KasperskyCertificateInfo(
+                Convert.ToHexString(SHA256.HashData(remoteCertificate.RawData)),
+                remoteCertificate.Subject,
+                remoteCertificate.NotBefore.ToUniversalTime(),
+                remoteCertificate.NotAfter.ToUniversalTime());
+        }
     }
 
     public async Task<Result<KasperskyInventory>> LoadAsync(
@@ -218,7 +285,10 @@ internal sealed class KasperskySecurityCenterClient : IKasperskyInventoryReader
                 GetString(values, "KLHST_WKS_RTP_AV_VERSION"),
                 FirstNotEmpty(
                     GetString(values, "grp_full_name"),
-                    GetString(values, "name"))));
+                    GetString(values, "name")),
+                GetString(values, "KLHST_WKS_FQDN"),
+                GetString(values, "KLHST_WKS_DNSNAME"),
+                GetString(values, "KLHST_WKS_DN")));
         }
 
         return result;

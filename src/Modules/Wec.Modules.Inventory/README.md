@@ -36,6 +36,10 @@ machine as the current user.
 
 ## Design notes
 
+- Stored host lists are read-only. Empty legacy host rows are hidden from target
+  selection and retained unchanged. Exact stored addresses remain independent
+  of short-name aliases and are not rewritten by consolidation (ADR 0022).
+
 - WMI access goes exclusively through the target-aware `IWmiQueryService`
   overload — the same queries run locally and remotely.
 - BitLocker acquisition is shared with Security through the narrow
@@ -66,6 +70,14 @@ machine as the current user.
   projection for Client 360. Client 360 shows only the named interactive
   observation and aggregates unresolved profile identities; reading either
   projection starts no scan.
+- SID-to-device reads use one bounded database batch, with three SQL queries
+  independent of host count. Only the user-evidence payload is deserialized.
+  The default limit is 500 latest records, ordered by full stored address and
+  snapshot ID. Equally recent snapshots remain separate observations; unreadable
+  and legacy rows remain visible in coverage. The exact stored-host count and
+  evaluated count are separate, and hitting the bound marks coverage partial.
+  A read transaction keeps the counts and selected records consistent. Historical
+  empty host rows are excluded without deletion.
 - The executive summary report uses the stored snapshot for the selected host;
   omitting the report host selects the local machine.
 
@@ -75,7 +87,8 @@ machine as the current user.
 "Wec": {
   "Inventory": {
     "CacheTtl": "00:15:00",
-    "MaxUserProfiles": 100
+    "MaxUserProfiles": 100,
+    "MaxStoredEvidenceRecords": 500
   },
   "Remote": {
     "ConnectionTimeout": "00:00:30",
@@ -86,6 +99,10 @@ machine as the current user.
 ```
 
 ## Tests
+
+`InventoryStoredDeviceListProvider` exposes a bounded address-only Core
+projection, including equally recent snapshot records and their original IDs.
+It does not deserialize payloads; empty historical host rows remain stored.
 
 `tests/Wec.Modules.Inventory.Tests` — unit tests with mocked seams, incl.
 per-host caching, remote snapshots without software, monitor decoding.

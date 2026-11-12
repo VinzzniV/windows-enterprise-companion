@@ -12,4 +12,7 @@ public sealed class InventoryOptions
 
     [Range(1, 500)]
     public int MaxUserProfiles { get; set; } = 100;
+
+    [Range(1, 10000)]
+    public int MaxStoredEvidenceRecords { get; set; } = 500;
 }

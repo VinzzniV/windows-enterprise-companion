@@ -6,7 +6,7 @@ import type {
   AppInfoResponse,
   ItLifecycleSettingsResult,
   ItLifecycleSettingsValue,
-  OpsiConnectionStatusResult,
+  KasperskyCertificateResult,
   OpsiSettingsResult,
   OpsiSettingsValue,
   ServiceCredentialStatus,
@@ -25,8 +25,8 @@ import { Spinner } from '../../shared/ui/Spinner';
 import { ErrorState } from '../../shared/ui/States';
 import { ConfirmDangerAction } from '../../shared/ui/ConfirmDangerAction';
 import { CredentialFields, type CredentialValues } from '../../shared/targets/Credentials';
-import { useTargetsOptional } from '../../shared/targets/TargetContext';
 import { useEnvironmentOptional } from '../../shared/environment/EnvironmentContext';
+import { useOptionalWorkingSet } from '../../shared/objects/WorkingSetContext';
 import {
   isSettingsSection,
   SettingsSectionNavigation,
@@ -34,6 +34,7 @@ import {
   type SettingsSectionId,
 } from './SettingsSectionNavigation';
 import { SettingsValidationSummary } from './SettingsValidationSummary';
+import { Microsoft365SettingsSection } from '../microsoft365/Microsoft365SettingsSection';
 import {
   validateItLifecycleSettings,
   validateNessusSettings,
@@ -51,8 +52,8 @@ export function SettingsPage() {
   const handledInitialSettingsSection = useRef(false);
   const requestedSection = searchParameters.get('section');
   const activeSection: SettingsSectionId = isSettingsSection(requestedSection) ? requestedSection : 'overview';
-  const targets = useTargetsOptional();
   const environment = useEnvironmentOptional();
+  const workspace = useOptionalWorkingSet();
   const [appInfo, setAppInfo] = useState<AppInfoResponse | null>(null);
   const [itLifecycle, setItLifecycle] = useState<ItLifecycleSettingsValue | null>(null);
   const [savedItLifecycle, setSavedItLifecycle] = useState<ItLifecycleSettingsValue | null>(null);
@@ -62,12 +63,13 @@ export function SettingsPage() {
   const [saveError, setSaveError] = useState<ErrorPresentation | null>(null);
   const [restartRequired, setRestartRequired] = useState(false);
   const [kasperskyDraft, setKasperskyDraft] = useState<CredentialValues>(emptyKasperskyCredentials);
+  const [kasperskyCertificateBusy, setKasperskyCertificateBusy] = useState(false);
+  const [kasperskyCertificate, setKasperskyCertificate] = useState<KasperskyCertificateResult | null>(null);
+  const [kasperskyCertificateError, setKasperskyCertificateError] = useState<ErrorPresentation | null>(null);
   const [opsi, setOpsi] = useState<OpsiSettingsValue | null>(null);
   const [savedOpsi, setSavedOpsi] = useState<OpsiSettingsValue | null>(null);
-  const [opsiStatus, setOpsiStatus] = useState<OpsiConnectionStatusResult | null>(null);
   const [opsiUserName, setOpsiUserName] = useState('');
   const [opsiPassword, setOpsiPassword] = useState('');
-  const [rememberOpsi, setRememberOpsi] = useState(true);
   const [credentialStatuses, setCredentialStatuses] = useState<ServiceCredentialStatuses | null>(null);
   const [opsiBusy, setOpsiBusy] = useState(false);
   const [opsiError, setOpsiError] = useState<ErrorPresentation | null>(null);
@@ -81,27 +83,23 @@ export function SettingsPage() {
   const [editingNessusCredential, setEditingNessusCredential] = useState(false);
   const [nessusCertificate, setNessusCertificate] = useState<NessusCertificateResult | null>(null);
   const [openLogsError, setOpenLogsError] = useState<ErrorPresentation | null>(null);
+  const [microsoft365Dirty, setMicrosoft365Dirty] = useState(false);
 
   useEffect(() => {
     Promise.all([
       invoke<AppInfoResponse>('system', 'getAppInfo'),
       invoke<ItLifecycleSettingsResult>('system', 'getItLifecycleSettings'),
       invoke<OpsiSettingsResult>('system', 'getOpsiSettings'),
-      invoke<OpsiConnectionStatusResult>('patchmanagement', 'getConnectionStatus'),
       invoke<ServiceCredentialStatuses>('system', 'getServiceCredentialStatuses'),
       invoke<NessusSettingsResult>('system', 'getNessusSettings'),
       invoke<NessusCredentialStatus>('vulnerabilitymanagement', 'getCredentialStatus', {}),
     ])
-      .then(([info, settings, opsiSettings, connection, credentials, nessusSettings, nessusStatus]) => {
+      .then(([info, settings, opsiSettings, credentials, nessusSettings, nessusStatus]) => {
         setAppInfo(info);
         setItLifecycle(settings.settings);
         setSavedItLifecycle(settings.settings);
         setOpsi(opsiSettings.settings);
         setSavedOpsi(opsiSettings.settings);
-        setOpsiStatus(connection);
-        setOpsiError(connection.connectionError
-          ? presentError(new Error(connection.connectionError), { message: 'The opsi settings or connection could not be updated.' })
-          : null);
         setCredentialStatuses(credentials);
         setNessus(nessusSettings.settings);
         setSavedNessus(nessusSettings.settings);
@@ -178,54 +176,46 @@ export function SettingsPage() {
       .catch((caught: unknown) => setOpsiError(presentError(caught, {
         message: 'The opsi settings or connection could not be updated.',
       })))
-      .finally(() => setOpsiBusy(false));
-  };
-
-  const connectOpsi = () => {
-    if (!opsi) return;
-    setOpsiBusy(true); setOpsiError(null);
-    invoke<OpsiConnectionStatusResult>('patchmanagement', 'connect', {
-      server: opsi.server, userName: opsiUserName, password: opsiPassword,
-      trustServerCertificate: opsi.trustServerCertificate,
-      rememberCredential: rememberOpsi,
-    }).then((status) => {
-      setOpsiStatus(status); setOpsiPassword(''); environment?.invalidate();
-      if (rememberOpsi) setCredentialStatuses((current) => current && ({ ...current, opsi: { saved: true, userName: status.userName, domain: null } }));
-    }).catch((caught: unknown) => setOpsiError(presentError(caught, {
-      message: 'The opsi settings or connection could not be updated.',
-    }))).finally(() => setOpsiBusy(false));
-  };
-
-  const connectStoredOpsi = () => {
-    if (!opsi) return;
-    setOpsiBusy(true); setOpsiError(null);
-    invoke<OpsiConnectionStatusResult>('patchmanagement', 'connect', {
-      server: opsi.server, userName: '', password: null,
-      trustServerCertificate: opsi.trustServerCertificate, useStoredCredential: true,
-    }).then((status) => {
-      setOpsiStatus(status); environment?.invalidate();
-    }).catch((caught: unknown) => setOpsiError(presentError(caught, {
-      message: 'The opsi settings or connection could not be updated.',
-    }))).finally(() => setOpsiBusy(false));
+      .finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const saveKasperskyCredential = () => {
-    if (!targets) return;
+    workspace?.clearFamily('management');
     setSaving(true); setSaveError(null);
     invoke<ServiceCredentialStatus>('system', 'saveServiceCredential', {
       kind: 'KASPERSKY', userName: kasperskyDraft.userName,
       domain: kasperskyDraft.domain.trim() || null, password: kasperskyDraft.password,
     }).then((status) => {
-      targets.signInKaspersky(kasperskyDraft);
       setKasperskyDraft((current) => ({ ...current, password: '' }));
       setCredentialStatuses((current) => current && ({ ...current, kaspersky: status }));
       environment?.invalidate();
     }).catch((caught: unknown) => setSaveError(presentError(caught, {
       message: 'The settings change could not be saved.',
-    }))).finally(() => setSaving(false));
+    }))).finally(() => { setSaving(false); void workspace?.refreshCached(); });
+  };
+
+  const readKasperskyCertificate = () => {
+    if (!itLifecycle) return;
+    setKasperskyCertificateBusy(true);
+    setKasperskyCertificateError(null);
+    setKasperskyCertificate(null);
+    invoke<KasperskyCertificateResult>('employeelifecycle', 'getKasperskyCertificate', {
+      server: itLifecycle.kaspersky.server,
+      port: itLifecycle.kaspersky.port,
+      requestTimeoutSeconds: Math.min(itLifecycle.kaspersky.requestTimeoutSeconds, 30),
+    }, 35_000)
+      .then((certificate) => {
+        setKasperskyCertificate(certificate);
+        updateKaspersky('trustedCertificateThumbprint', certificate.sha256Fingerprint);
+      })
+      .catch((caught: unknown) => setKasperskyCertificateError(presentError(caught, {
+        message: 'The Kaspersky certificate could not be retrieved.',
+      })))
+      .finally(() => setKasperskyCertificateBusy(false));
   };
 
   const deleteCredential = (kind: 'KASPERSKY' | 'OPSI') => {
+    workspace?.clearFamily('management');
     setSaving(true); setSaveError(null);
     invoke<ServiceCredentialStatus>('system', 'deleteServiceCredential', { kind })
       .then((status) => {
@@ -233,20 +223,26 @@ export function SettingsPage() {
           ...current,
           [kind === 'KASPERSKY' ? 'kaspersky' : 'opsi']: status,
         }));
-        if (kind === 'KASPERSKY') targets?.signOutKaspersky();
         environment?.invalidate();
       }).catch((caught: unknown) => setSaveError(presentError(caught, {
         message: 'The settings change could not be saved.',
-      }))).finally(() => setSaving(false));
+      }))).finally(() => { setSaving(false); void workspace?.refreshCached(); });
   };
 
-  const disconnectOpsi = () => {
+  const saveOpsiCredential = () => {
+    workspace?.clearFamily('management');
     setOpsiBusy(true); setOpsiError(null);
-    invoke<OpsiConnectionStatusResult>('patchmanagement', 'disconnect', {})
-      .then((status) => { setOpsiStatus(status); environment?.invalidate(); })
+    invoke<ServiceCredentialStatus>('system', 'saveServiceCredential', {
+      kind: 'OPSI', userName: opsiUserName, domain: null, password: opsiPassword,
+    })
+      .then((status) => {
+        setCredentialStatuses((current) => current && ({ ...current, opsi: status }));
+        setOpsiPassword('');
+        environment?.invalidate();
+      })
       .catch((caught: unknown) => setOpsiError(presentError(caught, {
-        message: 'The opsi settings or connection could not be updated.',
-      }))).finally(() => setOpsiBusy(false));
+        message: 'The opsi credential could not be saved.',
+      }))).finally(() => { setOpsiBusy(false); void workspace?.refreshCached(); });
   };
 
   const saveNessusSettings = () => {
@@ -307,6 +303,7 @@ export function SettingsPage() {
     ...(itLifecycleDirty ? ['environment-health' as const] : []),
     ...(nessusDirty ? ['vulnerability-management' as const] : []),
     ...(opsiDirty ? ['patch-management' as const] : []),
+    ...(microsoft365Dirty ? ['microsoft365' as const] : []),
   ]);
   const itLifecycleIssues = itLifecycle ? validateItLifecycleSettings(itLifecycle) : [];
   const nessusIssues = nessus ? validateNessusSettings(nessus) : [];
@@ -319,7 +316,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Settings" subtitle="App-wide configuration for this machine" />
+      <PageHeader title="Settings" subtitle="Saved application defaults, provider endpoints and credentials" />
       <SettingsSectionNavigation
         activeSection={activeSection}
         dirtySections={dirtySections}
@@ -377,35 +374,21 @@ export function SettingsPage() {
 
       {itLifecycle && (
         <div id={settingsSectionElementId('environment-health')} className="scroll-mt-20">
-          <Card title="IT Lifecycle / Environment Health">
+          <Card title="Kaspersky and device health rules">
           <div className="mb-5 rounded-md border border-slate-700 bg-slate-900/40 p-4">
-            <h3 className="mb-1 text-sm font-semibold text-slate-200">Kaspersky session account</h3>
+            <h3 className="mb-1 text-sm font-semibold text-slate-200">Saved Kaspersky account</h3>
             {credentialStatuses?.kaspersky.saved && (
               <div className="mb-3 flex flex-wrap items-center gap-3 rounded border border-emerald-800/60 bg-emerald-950/20 px-3 py-2">
-                <p className="text-sm text-slate-300">Saved securely in Windows Credential Manager as <span className="font-mono text-slate-100">{credentialStatuses.kaspersky.domain ? `${credentialStatuses.kaspersky.domain}\\` : ''}{credentialStatuses.kaspersky.userName}</span>. Environment Health uses it automatically.</p>
+                <p className="text-sm text-slate-300">Saved securely in Windows Credential Manager as <span className="font-mono text-slate-100">{credentialStatuses.kaspersky.domain ? `${credentialStatuses.kaspersky.domain}\\` : ''}{credentialStatuses.kaspersky.userName}</span>.</p>
                 <ConfirmDangerAction
                   subject="saved KSC credential"
                   triggerLabel="Remove saved KSC credential"
-                  description="Removes the KSC account from Windows Credential Manager. Automatic Environment Health access will stop until a credential is saved again."
+                  description="Removes the KSC account from Windows Credential Manager. Future Kaspersky reads will require a temporary session account or a newly saved credential."
                   onConfirm={() => deleteCredential('KASPERSKY')}
                   disabled={saving}
                 />
               </div>
             )}
-            {targets?.kasperskyCredentials ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-sm text-slate-300">
-                  Signed in as{' '}
-                  <span className="font-mono text-slate-100">
-                    {targets.kasperskyCredentials.domain
-                      ? `${targets.kasperskyCredentials.domain}\\`
-                      : ''}
-                    {targets.kasperskyCredentials.userName}
-                  </span>
-                </p>
-                <Button variant="secondary" onClick={targets.signOutKaspersky}>Sign out KSC</Button>
-              </div>
-            ) : (
               <>
                 <CredentialFields
                   values={kasperskyDraft}
@@ -414,21 +397,20 @@ export function SettingsPage() {
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <Button
                     variant="secondary"
-                    disabled={!targets || !kasperskyDraft.userName.trim() || !kasperskyDraft.password}
+                    disabled={!kasperskyDraft.userName.trim() || !kasperskyDraft.password}
                     onClick={saveKasperskyCredential}
                   >
-                    Save securely and sign in KSC
+                    Save KSC account securely
                   </Button>
                   <p className="text-xs text-slate-400">
-                    Stored for the current Windows user; independent from the admin account in the top bar.
+                    Stored for the current Windows user and used by explicit Kaspersky reads under Data sources.
                   </p>
                 </div>
               </>
-            )}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <Field label="Kaspersky Administration Server" hint="Host name or HTTPS URL; credentials use the separate KSC session above.">
+            <Field label="Kaspersky Administration Server" hint="Host name or HTTPS URL; explicit reads use the saved KSC account above.">
               {(id) => (
                 <Input
                   id={id}
@@ -472,7 +454,7 @@ export function SettingsPage() {
                 />
               )}
             </Field>
-            <Field label="Target KES version" hint="Empty disables the outdated-KES rule.">
+            <Field label="Expected KES version" hint="Health policy applied to KES version data returned by Kaspersky. Empty disables the outdated-KES rule.">
               {(id) => (
                 <Input
                   id={id}
@@ -545,8 +527,19 @@ export function SettingsPage() {
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Button variant="primary" onClick={saveItLifecycle} disabled={saving || itLifecycleIssues.length > 0}>
+            <Button
+              variant="primary"
+              onClick={saveItLifecycle}
+              disabled={saving || kasperskyCertificateBusy || itLifecycleIssues.length > 0}
+            >
               {saving ? 'Saving…' : 'Save IT Lifecycle settings'}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={readKasperskyCertificate}
+              disabled={saving || kasperskyCertificateBusy || !itLifecycle.kaspersky.server}
+            >
+              {kasperskyCertificateBusy ? 'Reading…' : 'Read HTTPS certificate fingerprint'}
             </Button>
             {itLifecycleDirty && <p role="status" className="text-sm font-medium text-warn-300">Unsaved changes</p>}
             {restartRequired && (
@@ -555,6 +548,18 @@ export function SettingsPage() {
               </p>
             )}
           </div>
+          {kasperskyCertificate && (
+            <div className="mt-3 rounded border border-amber-700/60 bg-amber-950/20 px-3 py-2 text-xs text-slate-300">
+              <p>Certificate received from the configured server. Verify it before saving.</p>
+              <p className="mt-1 break-all font-mono">SHA-256: {kasperskyCertificate.sha256Fingerprint}</p>
+              <p className="mt-1">{kasperskyCertificate.subject} · valid until {new Date(kasperskyCertificate.validToUtc).toLocaleDateString()}</p>
+            </div>
+          )}
+          {kasperskyCertificateError && (
+            <div className="mt-3">
+              <ErrorState title="Kaspersky certificate retrieval failed" {...kasperskyCertificateError} />
+            </div>
+          )}
           {saveError && <div className="mt-3"><ErrorState title="Settings could not be saved" {...saveError} /></div>}
           </Card>
         </div>
@@ -562,7 +567,7 @@ export function SettingsPage() {
 
       {nessus && (
         <div id={settingsSectionElementId('vulnerability-management')} className="scroll-mt-20">
-          <Card title="Nessus / Vulnerability Management">
+          <Card title="Nessus configuration">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Nessus HTTPS URL" hint="Local Nessus Professional/Expert; default port 8834.">{(id) => <Input id={id} value={nessus.serverUrl} onChange={(event) => setNessus({ ...nessus, serverUrl: event.target.value })} placeholder="https://nessus.example.local:8834" />}</Field>
             <Field label="Timeout (seconds)">{(id) => <Input id={id} type="number" min={1} max={600} value={nessus.requestTimeoutSeconds} onChange={(event) => setNessus({ ...nessus, requestTimeoutSeconds: Number(event.target.value) })} />}</Field>
@@ -589,7 +594,7 @@ export function SettingsPage() {
 
       {opsi && (
         <div id={settingsSectionElementId('patch-management')} className="scroll-mt-20">
-          <Card title="opsi / Patch Management">
+          <Card title="opsi configuration">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Field label="opsi server" hint="Host name or HTTPS URL used by all WEC areas.">{(id) => <Input id={id} value={opsi.server} onChange={(event) => setOpsi({ ...opsi, server: event.target.value })} placeholder="opsi.example.local" />}</Field>
             <Field label="opsi port">{(id) => <Input id={id} type="number" min={1} max={65535} value={opsi.port} onChange={(event) => setOpsi({ ...opsi, port: Number(event.target.value) })} />}</Field>
@@ -597,28 +602,28 @@ export function SettingsPage() {
             <Field label="Default depot filter">{(id) => <Input id={id} value={opsi.defaultDepotFilter} onChange={(event) => setOpsi({ ...opsi, defaultDepotFilter: event.target.value })} placeholder="Optional" />}</Field>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3"><Button variant="primary" onClick={saveOpsi} disabled={opsiBusy || opsiIssues.length > 0}>{opsiBusy ? 'Saving…' : 'Save opsi settings'}</Button>{opsiDirty && <p role="status" className="text-sm font-medium text-warn-300">Unsaved changes</p>}</div>
+          <label className="mt-3 flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={opsi.trustServerCertificate} onChange={(event) => setOpsi({ ...opsi, trustServerCertificate: event.target.checked })} className="accent-accent-500" />Trust the opsi server certificate for future connections</label>
 
           <div className="mt-5 rounded-md border border-slate-700 bg-slate-900/40 p-4">
-            <h3 className="mb-2 text-sm font-semibold text-slate-200">opsi session account</h3>
-            {credentialStatuses?.opsi.saved && <div className="mb-3 flex flex-wrap items-center gap-3 rounded border border-emerald-800/60 bg-emerald-950/20 px-3 py-2"><p className="text-sm text-slate-300">Saved securely in Windows Credential Manager as <span className="font-mono text-slate-100">{credentialStatuses.opsi.userName}</span>.</p><ConfirmDangerAction subject="saved opsi credential" triggerLabel="Remove saved opsi credential" description="Removes the opsi account from Windows Credential Manager. Automatic opsi connections will stop until a credential is saved again." onConfirm={() => deleteCredential('OPSI')} disabled={saving} /></div>}
-            {opsiStatus?.connected ? <div className="flex flex-wrap items-center gap-3"><p className="text-sm text-slate-300">Connected to <span className="font-mono text-slate-100">{opsiStatus.serverUrl}</span> as <span className="font-mono text-slate-100">{opsiStatus.userName}</span>{opsiStatus.opsiVersion ? ` · opsi ${opsiStatus.opsiVersion}` : ''}</p>
-              <Button variant="secondary" onClick={disconnectOpsi} disabled={opsiBusy}>Disconnect opsi</Button></div> : <>
+            <h3 className="mb-2 text-sm font-semibold text-slate-200">Saved opsi account</h3>
+            {credentialStatuses?.opsi.saved && <div className="mb-3 flex flex-wrap items-center gap-3 rounded border border-emerald-800/60 bg-emerald-950/20 px-3 py-2"><p className="text-sm text-slate-300">Saved securely in Windows Credential Manager as <span className="font-mono text-slate-100">{credentialStatuses.opsi.userName}</span>.</p><ConfirmDangerAction subject="saved opsi credential" triggerLabel="Remove saved opsi credential" description="Removes the opsi account from Windows Credential Manager. Future opsi sessions will require a temporary account or a newly saved credential." onConfirm={() => deleteCredential('OPSI')} disabled={saving} /></div>}
+            <>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input value={opsiUserName} onChange={(event) => setOpsiUserName(event.target.value)} aria-label="opsi user name" placeholder="User name" autoComplete="off" />
                 <Input type="password" value={opsiPassword} onChange={(event) => setOpsiPassword(event.target.value)} aria-label="opsi password" placeholder="Password" autoComplete="off" />
               </div>
-              <label className="mt-3 flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={opsi.trustServerCertificate} onChange={(event) => setOpsi({ ...opsi, trustServerCertificate: event.target.checked })} className="accent-accent-500" />Trust the opsi server certificate for saved and automatic connections</label>
-              <label className="mt-3 flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={rememberOpsi} onChange={(event) => setRememberOpsi(event.target.checked)} className="accent-accent-500" />Save the opsi account securely in Windows Credential Manager</label>
-              <div className="mt-3 flex flex-wrap items-center gap-3"><Button variant="secondary" onClick={connectOpsi} disabled={opsiBusy || !opsi.server.trim() || !opsiUserName.trim() || !opsiPassword}>{opsiBusy ? 'Connecting…' : 'Connect opsi'}</Button>
-                {credentialStatuses?.opsi.saved && <Button variant="secondary" onClick={connectStoredOpsi} disabled={opsiBusy || !opsi.server.trim()}>Connect saved opsi account</Button>}
-                <p className="text-xs text-slate-400">A saved account is connected automatically when an opsi-backed view or action needs it.</p></div>
-            </>}
+              <div className="mt-3 flex flex-wrap items-center gap-3"><Button variant="secondary" onClick={saveOpsiCredential} disabled={opsiBusy || !opsiUserName.trim() || !opsiPassword}>{opsiBusy ? 'Saving…' : 'Save opsi account securely'}</Button>
+                <p className="text-xs text-slate-400">The saved account is used by explicit opsi connections under Data sources.</p></div>
+            </>
           </div>
           {opsiError && <div className="mt-3"><ErrorState title="opsi settings or connection failed" {...opsiError} /></div>}
           </Card>
         </div>
       )}
 
+      <div id={settingsSectionElementId('microsoft365')} className="scroll-mt-20">
+        <Microsoft365SettingsSection onDirtyChange={setMicrosoft365Dirty} />
+      </div>
       <div id={settingsSectionElementId('policy')} className="scroll-mt-20">
         <Card title="Configuration policy">
           <p className="text-sm text-slate-400">

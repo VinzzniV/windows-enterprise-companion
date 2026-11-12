@@ -9,10 +9,13 @@ public sealed record AdComputer(
     string Name,
     string? DnsHostName,
     string? OperatingSystem,
-    bool Enabled,
+    bool? Enabled,
     string? Description = null,
     string? DistinguishedName = null,
-    DateTimeOffset? LastLogonDate = null);
+    DateTimeOffset? LastLogonDate = null,
+    Guid? ObjectId = null,
+    string? SecurityIdentifier = null,
+    string? DirectoryScope = null);
 
 public sealed record AdComputerSearchResult(
     bool DomainJoined,
@@ -27,6 +30,7 @@ public sealed record AdComputerSearchResult(
 /// </summary>
 internal sealed class ComputerSearchService : IAdComputerInventoryProvider
 {
+    internal static readonly string[] Attributes = ["name", "dNSHostName", "operatingSystem", "userAccountControl", "description", "lastLogonTimestamp", "objectGUID", "objectSid"];
     private readonly DomainContextService _domainContextService;
     private readonly IDirectoryReader _directoryReader;
     private readonly ActiveDirectoryOptions _options;
@@ -46,7 +50,8 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
         string? nameFilter,
         bool includeDisabled,
         CancellationToken cancellationToken,
-        int? resultLimit = null)
+        int? resultLimit = null,
+        string? expectedDirectoryScope = null)
     {
         Result<DomainContext> context =
             await _domainContextService.GetContextAsync(connection, cancellationToken);
@@ -59,6 +64,12 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
         {
             return Result.Success(new AdComputerSearchResult(false, null, [], Truncated: false));
         }
+        if (expectedDirectoryScope is not null && !string.Equals(expectedDirectoryScope,
+            DirectoryIdentityValues.DirectoryScope(context.Value.DefaultNamingContext!), StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Failure<AdComputerSearchResult>(new(ErrorCode.DirectoryUnavailable,
+                "The connected directory naming context does not match the selected computer search scope."));
+        }
 
         int limit = resultLimit ?? _options.ComputerSearchLimit;
         Result<BoundedDirectorySearchResult> entries = await _directoryReader.SearchBoundedAsync(
@@ -66,7 +77,7 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 context.Value.DomainName!,
                 context.Value.DefaultNamingContext!,
                 AdFilters.ComputersByName(nameFilter, includeDisabled),
-                ["name", "dNSHostName", "operatingSystem", "userAccountControl", "description", "lastLogonTimestamp"],
+                Attributes,
                 DirectorySearchScope.Subtree,
                 _options.PageSize,
                 _options.SearchTimeout,
@@ -84,16 +95,19 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
                 entry.GetFirstValue("name") ?? entry.DistinguishedName,
                 entry.GetFirstValue("dNSHostName"),
                 entry.GetFirstValue("operatingSystem"),
-                Enabled: ((entry.GetLong("userAccountControl") ?? 0) & AdFilters.UacAccountDisabled) == 0,
+                Enabled: entry.GetLong("userAccountControl") is { } uac ? (uac & AdFilters.UacAccountDisabled) == 0 : null,
                 entry.GetFirstValue("description"),
                 entry.DistinguishedName,
-                ParseFileTime(entry.GetLong("lastLogonTimestamp"))))
+                ParseFileTime(entry.GetLong("lastLogonTimestamp")),
+                DirectoryIdentityValues.ObjectId(entry),
+                DirectoryIdentityValues.SecurityIdentifier(entry),
+                DirectoryIdentityValues.DirectoryScope(context.Value.DefaultNamingContext!)))
             .OrderBy(computer => computer.Name, StringComparer.OrdinalIgnoreCase)];
 
         bool truncated = entries.Value.TotalCount > computers.Count;
         return Result.Success(new AdComputerSearchResult(
             true,
-            context.Value.DomainName,
+            DirectoryIdentityValues.DirectoryScope(context.Value.DefaultNamingContext!),
             computers,
             truncated));
     }
@@ -119,14 +133,7 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
         bool truncated = result.Value.Truncated || source.Count > limit;
         IReadOnlyList<AdComputerInventoryItem> computers = source
             .Take(limit)
-            .Select(computer => new AdComputerInventoryItem(
-                computer.Name,
-                computer.DnsHostName,
-                computer.OperatingSystem,
-                computer.Description,
-                computer.Enabled,
-                computer.DistinguishedName ?? string.Empty,
-                computer.LastLogonDate))
+            .Select(ToInventory)
             .ToList();
 
         return Result.Success(new AdComputerInventory(
@@ -135,6 +142,18 @@ internal sealed class ComputerSearchService : IAdComputerInventoryProvider
             computers,
             truncated));
     }
+
+    internal static AdComputerInventoryItem ToInventory(AdComputer computer) => new(
+        computer.Name, computer.DnsHostName, computer.OperatingSystem, computer.Description, computer.Enabled,
+        computer.DistinguishedName ?? string.Empty, computer.LastLogonDate, computer.ObjectId,
+        computer.SecurityIdentifier, computer.DirectoryScope);
+
+    internal static AdComputerInventoryItem MapIdentity(DirectoryEntryData entry, string scope) => new(
+        entry.GetFirstValue("name") ?? entry.DistinguishedName, entry.GetFirstValue("dNSHostName"),
+        entry.GetFirstValue("operatingSystem"), entry.GetFirstValue("description"),
+        entry.GetLong("userAccountControl") is { } uac ? (uac & AdFilters.UacAccountDisabled) == 0 : null,
+        entry.DistinguishedName, ParseFileTime(entry.GetLong("lastLogonTimestamp")),
+        DirectoryIdentityValues.ObjectId(entry), DirectoryIdentityValues.SecurityIdentifier(entry), scope);
 
     private static DateTimeOffset? ParseFileTime(long? fileTime)
     {

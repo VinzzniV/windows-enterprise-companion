@@ -16,6 +16,10 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<DirectoryOverviewService>();
         services.AddScoped<DirectoryHygieneService>();
         services.AddScoped<ComputerSearchService>();
+        services.AddScoped<IDirectoryComputerReadProvider, DirectoryComputerReadService>();
+        services.AddScoped<IDirectoryGroupReadProvider, DirectoryGroupReadService>();
+        services.AddSingleton<DirectoryGroupSnapshotCache>();
+        services.AddSingleton<DirectoryComputerSnapshotCache>();
         services.AddScoped<IAdComputerInventoryProvider>(serviceProvider =>
             serviceProvider.GetRequiredService<ComputerSearchService>());
         services.AddScoped<IActionHandler, GetAdOverviewHandler>();
@@ -25,8 +29,13 @@ public sealed class ActiveDirectoryModule : IModule
         services.AddScoped<IActionHandler, ExportActiveDirectoryCsvHandler>();
         services.AddScoped<IActionHandler, TestDirectoryConnectionHandler>();
         services.AddScoped<IActionHandler, SearchAdComputersHandler>();
+        services.AddScoped<IActionHandler, ReadAdComputerListHandler>();
         services.AddScoped<UserSearchService>();
         services.AddScoped<IDirectoryUserReadProvider, DirectoryUserReadService>();
+        services.AddSingleton<DirectoryUserSnapshotCache>();
+        services.AddScoped<IDirectoryUserSnapshotProvider, DirectoryUserSnapshotProvider>();
+        services.AddSingleton<DirectoryUserListCache>();
+        services.AddScoped<IDirectoryUserListProvider, DirectoryUserListProvider>();
         services.AddScoped<IActionHandler, SearchAdUsersHandler>();
     }
 }

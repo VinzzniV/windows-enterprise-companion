@@ -19,6 +19,7 @@ public sealed class BridgeExecutionTimeoutPolicyTests
     [InlineData("employeelifecycle", "getHygieneOverview", 175)]
     [InlineData("employeelifecycle", "listHygieneDevices", 175)]
     [InlineData("employeelifecycle", "listClientWorkspace", 175)]
+    [InlineData("devicecleanup", "exportWorkbook", 590)]
     [InlineData("security", "runBatchScan", 590)]
     [InlineData("inventory", "runBatchScan", 590)]
     [InlineData("diagnostics", "runBatchDiagnostics", 590)]

@@ -2,7 +2,10 @@ using Wec.Core.Opsi;
 
 namespace Wec.Modules.PatchManagement.Application;
 
-public sealed record OpsiSession(OpsiConnection Connection, OpsiServerInfo ServerInfo);
+public sealed record OpsiSession(OpsiConnection Connection, OpsiServerInfo ServerInfo)
+{
+    public Guid SessionId { get; } = Guid.NewGuid();
+}
 
 /// <summary>
 /// Live opsi session: set by a successful connect, cleared by disconnect and

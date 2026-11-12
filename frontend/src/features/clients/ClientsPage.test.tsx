@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -56,10 +56,11 @@ function device(name: string, options: { enabled?: boolean; opsi?: boolean } = {
   return {
     computerName: name,
     hostName: host,
+    evidenceKey: null, correlation: 'ALIAS_CANDIDATE', correlationExplanation: 'Name candidate only.', canTargetWindows: true,
     activeDirectory: { exists: true, enabled: options.enabled ?? true, dnsHostName: host, operatingSystem: 'Windows 11 Pro', description: null, distinguishedName: `CN=${name},DC=corp,DC=local`, organizationalUnit: 'DC=corp,DC=local', lastLogonDate: '2026-08-19T08:30:00Z' },
     kaspersky: { exists: name === 'PC01', lastSeen: name === 'PC01' ? '2026-08-18T07:15:00Z' : null, agentVersion: name === 'PC01' ? '16.0' : null, kesVersion: name === 'PC01' ? '21.25' : null, administrationGroup: name === 'PC01' ? 'Clients' : null },
     opsi: { exists: options.opsi ?? false, clientId: options.opsi ? host : null, description: null, depotId: options.opsi ? 'depot01' : null, lastSeen: options.opsi ? '2026-08-17T06:45:00Z' : null, clientAgentVersion: options.opsi ? '4.3.8' : null },
-    nessus: { exists: name === 'PC01', assetId: name === 'PC01' ? 'asset-1' : null, ipAddress: name === 'PC01' ? '10.0.0.1' : null, lastCompletedScanUtc: name === 'PC01' ? '2026-08-18T05:00:00Z' : null, critical: 0, high: 0, medium: name === 'PC01' ? 1 : 0, low: name === 'PC01' ? 2 : 0, info: 0, ports: name === 'PC01' ? [443] : [], scanSources: name === 'PC01' ? ['Clients'] : [] },
+    nessus: { sourceKey: null, exists: name === 'PC01', assetId: name === 'PC01' ? 'asset-1' : null, ipAddress: name === 'PC01' ? '10.0.0.1' : null, lastCompletedScanUtc: name === 'PC01' ? '2026-08-18T05:00:00Z' : null, critical: 0, high: 0, medium: name === 'PC01' ? 1 : 0, low: name === 'PC01' ? 2 : 0, info: 0, ports: name === 'PC01' ? [443] : [], scanSources: name === 'PC01' ? ['Clients'] : [] },
     assessment: { status: 'HEALTHY', findings: [] },
   };
 }
@@ -180,16 +181,49 @@ describe('ClientsPage', () => {
     renderPage();
 
     expect(await screen.findByText('DISABLED-PC')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Devices' })).toBeTruthy();
+    const views = screen.getByRole('navigation', { name: 'Device views' });
+    expect(within(views).getByRole('link', { name: 'Operational view' }).getAttribute('aria-current')).toBe('page');
+    expect(within(views).getByRole('link', { name: 'Source records' }).getAttribute('href')).toBe('/devices');
+    const shortcuts = screen.getByRole('navigation', { name: 'Device shortcuts' });
+    for (const shortcut of ['Compare', 'Device Cleanup', 'AD analysis']) {
+      expect(within(shortcuts).getByRole('link', { name: shortcut })).toBeTruthy();
+    }
     expect(screen.getByText('PC01')).toBeTruthy();
     expect(screen.getByText('SCAN-ONLY')).toBeTruthy();
+    expect(screen.getByRole('searchbox', { name: 'Filter clients' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Bulk scan workbench' })).toBeNull();
+    const postureDetails = screen.getByText(/show posture filters/).closest('details') as HTMLDetailsElement;
+    expect(postureDetails.open).toBe(false);
     for (const heading of ['Device', 'AD', 'Kaspersky', 'opsi', 'Nessus', 'Overall']) {
       expect(screen.getByRole('columnheader', { name: new RegExp(heading) })).toBeTruthy();
     }
+    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers.indexOf('Overall')).toBeLessThan(headers.indexOf('AD'));
     expect(screen.getByText('Disabled')).toBeTruthy();
     expect(screen.queryAllByText('OK')).toHaveLength(0);
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Unmanaged').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Name/address candidate comparison')).toBeNull();
     expect(screen.getByText('1–3 of 3')).toBeTruthy();
+  });
+
+  it('keeps ambiguous source rows visible but excludes them from bulk selection and probes', async () => {
+    const ambiguous = { ...device('PC01'), canTargetWindows: false, correlation: 'AMBIGUOUS' as const, evidenceKey: 'one' };
+    const normal = device('PC02');
+    const original = invokeMock.getMockImplementation()!;
+    invokeMock.mockImplementation((module: string, action: string, payload: Record<string, unknown> = {}) =>
+      action === 'listClientWorkspace' ? Promise.resolve(pageFor(payload, [item(ambiguous, 'PC01'), item(normal, 'PC02')])) : original(module, action, payload));
+    renderPage();
+    await screen.findByText('PC01');
+    expect(screen.getByText('Ambiguous source identity')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Select PC01 for bulk scan' }) as HTMLInputElement).disabled).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Select page' }));
+    expect((screen.getByRole('checkbox', { name: 'Select PC02 for bulk scan' }) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Check page connectivity' }));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('connectivity', 'probeHosts', { hosts: [normal.hostName] }));
+    await userEvent.click(screen.getByText('PC01'));
+    expect(screen.getByTestId('location').textContent).toBe(`/devices?q=${ambiguous.hostName}`);
   });
 
   it('runs a batch only after explicit client selection and shows typed per-host failures', async () => {
@@ -223,6 +257,7 @@ describe('ClientsPage', () => {
     expect(lastInvoke('runBatchScan')).toBeUndefined();
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select PC01 for bulk scan' }));
+    expect(screen.getByRole('heading', { name: 'Bulk scan workbench' })).toBeTruthy();
     expect(screen.getByText('1 of 2 hosts selected')).toBeTruthy();
     expect(screen.getByText(/Current Windows identity · read-only/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Run Inventory' }));
@@ -231,6 +266,17 @@ describe('ClientsPage', () => {
     expect(await screen.findByText(/WinRM did not answer/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'pc01.corp.local' }).getAttribute('href'))
       .toBe('/clients/pc01.corp.local?section=inventory');
+  });
+
+  it('changes a client checkbox with Space without activating its row', async () => {
+    renderPage();
+    const checkbox = await screen.findByRole('checkbox', { name: 'Select PC01 for bulk scan' });
+
+    checkbox.focus();
+    await userEvent.keyboard(' ');
+
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByTestId('location').textContent).toBe('/clients');
   });
 
   it('shows the Active Directory description in the device column', async () => {
@@ -288,6 +334,8 @@ describe('ClientsPage', () => {
     expect(await screen.findByText('Fleet posture')).toBeTruthy();
     expect(screen.getByRole('group', { name: 'AD: Available' })).toBeTruthy();
     expect(screen.getByText(/corp\.local/)).toBeTruthy();
+    expect(screen.getByText(/Posture counters cover unique devices/)).toBeTruthy();
+    expect(screen.getByText(/matching devices.*with stored Inventory.*merged candidates/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Filter clients by Missing Kaspersky (1)' }));
 
     await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/clients?posture=MISSING_KASPERSKY'));
@@ -451,11 +499,11 @@ describe('ClientsPage', () => {
     renderPage();
     expect(await screen.findByText('PC-001')).toBeTruthy();
     expect(screen.queryByText('PC-051')).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByText('Next', { selector: 'button' }));
     expect(await screen.findByText('PC-051')).toBeTruthy();
     expect(screen.getByText('51–100 of 101')).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Check page connectivity' }));
+    fireEvent.click(screen.getByText('Check page connectivity', { selector: 'button' }));
     await waitFor(() => {
       const call = lastInvoke('probeHosts');
       const payload = call?.[2] as { hosts: string[] } | undefined;

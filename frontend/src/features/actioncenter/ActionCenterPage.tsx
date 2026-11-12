@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type {
   ActionCenterPage as ActionCenterPageResult,
+  ActionCenterDeviceItem,
   ActionCenterSeverity,
   ActionCenterSortField,
   ActionCenterWorkItem,
@@ -16,17 +17,16 @@ import { presentError, type ErrorPresentation } from '../../shared/bridge/errorP
 import { HygieneLoadStatus } from '../../shared/environment/HygieneLoadStatus';
 import { useEnvironmentRequest } from '../../shared/environment/EnvironmentContext';
 import { useHygieneOperation } from '../../shared/environment/useHygieneOperation';
-import { RelationshipMap } from '../../shared/relationships/RelationshipMap';
 import { Badge, type BadgeTone } from '../../shared/ui/Badge';
 import { Button } from '../../shared/ui/Button';
 import { DataTable, type DataColumn, type DataTableSort } from '../../shared/ui/DataTable';
+import { DetailDialog } from '../../shared/ui/DetailDialog';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { Input } from '../../shared/ui/Input';
 import { PageHeader } from '../../shared/ui/PageHeader';
 import { Select } from '../../shared/ui/Select';
 import { ErrorState } from '../../shared/ui/States';
 import { Toolbar } from '../../shared/ui/Toolbar';
-import { actionCenterRelationshipModel } from './actionCenterRelationships';
 
 interface ActionCenterFilters {
   search: string;
@@ -34,7 +34,6 @@ interface ActionCenterFilters {
   source: string;
 }
 
-const emptyFilters: ActionCenterFilters = { search: '', severity: 'ALL', source: '' };
 const sortFieldByColumn: Record<string, ActionCenterSortField> = {
   severity: 'SEVERITY',
   device: 'DEVICE',
@@ -66,6 +65,23 @@ const coveragePresentation: Record<ActionEvidenceAvailability, { label: string; 
   TRUNCATED: { label: 'Truncated', tone: 'warn' },
 };
 const knownSources = ['Active Directory', 'Kaspersky', 'opsi', 'Nessus', 'WEC Inventory', 'WEC Security'];
+const shortSource: Record<string, string> = { 'Active Directory': 'AD', 'WEC Inventory': 'Inventory', 'WEC Security': 'Security' };
+
+function positiveInteger(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function filtersFromParams(params: URLSearchParams): ActionCenterFilters {
+  const severity = params.get('severity');
+  return {
+    search: params.get('q') ?? '',
+    severity: severity === 'ALL' || severity && severity in severityPresentation
+      ? severity as ActionCenterFilters['severity']
+      : 'ALL',
+    source: params.get('source') ?? '',
+  };
+}
 
 function evidenceAge(item: ActionCenterWorkItem): string {
   if (item.evidenceAgeDays === null) return 'Unknown age';
@@ -78,14 +94,22 @@ function formatTimestamp(value: string | null): string {
 }
 
 export function ActionCenterPage() {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const environmentRequest = useEnvironmentRequest();
   const hygieneOperation = useHygieneOperation();
-  const [draftFilters, setDraftFilters] = useState<ActionCenterFilters>(emptyFilters);
-  const [activeFilters, setActiveFilters] = useState<ActionCenterFilters>(emptyFilters);
-  const [sortField, setSortField] = useState<ActionCenterSortField>('SEVERITY');
-  const [sortDirection, setSortDirection] = useState<'ASCENDING' | 'DESCENDING'>('ASCENDING');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const initialFilters = useRef(filtersFromParams(searchParams));
+  const [draftFilters, setDraftFilters] = useState<ActionCenterFilters>(initialFilters.current);
+  const [activeFilters, setActiveFilters] = useState<ActionCenterFilters>(initialFilters.current);
+  const [sortField, setSortField] = useState<ActionCenterSortField>(() => {
+    const value = searchParams.get('sort');
+    return value && value in columnBySortField ? value as ActionCenterSortField : 'SEVERITY';
+  });
+  const [sortDirection, setSortDirection] = useState<'ASCENDING' | 'DESCENDING'>(
+    () => searchParams.get('dir') === 'DESCENDING' ? 'DESCENDING' : 'ASCENDING',
+  );
+  const [page, setPage] = useState(() => positiveInteger(searchParams.get('page'), 1));
+  const [pageSize, setPageSize] = useState(() => positiveInteger(searchParams.get('size'), 25));
   const [refreshRevision, setRefreshRevision] = useState(0);
   const lastForcedRevision = useRef(0);
   const requestId = useRef(0);
@@ -93,7 +117,26 @@ export function ActionCenterPage() {
   const [result, setResult] = useState<ActionCenterPageResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorPresentation | null>(null);
-  const [selectedItem, setSelectedItem] = useState<ActionCenterWorkItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ActionCenterDeviceItem | null>(null);
+  const returnTo = `${location.pathname}${location.search}`;
+
+  const persistView = (
+    filters: ActionCenterFilters,
+    nextPage: number,
+    nextPageSize: number,
+    nextSortField: ActionCenterSortField,
+    nextSortDirection: 'ASCENDING' | 'DESCENDING',
+  ) => {
+    const next = new URLSearchParams();
+    if (filters.search.trim()) next.set('q', filters.search.trim());
+    if (filters.severity !== 'ALL') next.set('severity', filters.severity);
+    if (filters.source) next.set('source', filters.source);
+    next.set('page', String(nextPage));
+    next.set('size', String(nextPageSize));
+    next.set('sort', nextSortField);
+    next.set('dir', nextSortDirection);
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     const currentRequest = ++requestId.current;
@@ -119,7 +162,7 @@ export function ActionCenterPage() {
     void invocation.promise.then((value) => {
       if (requestId.current === currentRequest) {
         setResult(value);
-        setSelectedItem((current) => current && value.items.some((item) => item.id === current.id) ? current : null);
+        setSelectedItem((current) => current ? value.items.find((item) => item.id === current.id) ?? null : null);
       }
     }).catch((caught: unknown) => {
       if (requestId.current === currentRequest && !(caught instanceof BridgeCancelledError)) {
@@ -138,7 +181,7 @@ export function ActionCenterPage() {
     return () => invocation.cancel();
   }, [activeFilters, environmentRequest, hygieneOperation.begin, hygieneOperation.end, page, pageSize, refreshRevision, sortDirection, sortField]);
 
-  const columns = useMemo<DataColumn<ActionCenterWorkItem>[]>(() => [
+  const columns = useMemo<DataColumn<ActionCenterDeviceItem>[]>(() => [
     {
       id: 'severity',
       header: 'Severity',
@@ -152,11 +195,13 @@ export function ActionCenterPage() {
       id: 'device',
       header: 'Affected device',
       sortable: true,
+      className: 'min-w-44',
       cell: (item) => <div className="flex flex-col gap-0.5">
-        <Link className="font-medium text-accent-300 hover:text-accent-200" to={`/clients/${encodeURIComponent(item.device)}`}>
+        <Link className="font-medium text-accent-300 hover:text-accent-200" to={item.href}
+          state={{ returnTo, returnLabel: 'Action Center' }}>
           {item.device}
         </Link>
-        {item.userDisplayName && <span className="text-xs text-muted">User: {item.userDisplayName}</span>}
+        {item.identityAmbiguous && <span className="text-xs text-warn-300">Identity needs review</span>}
       </div>,
     },
     {
@@ -164,47 +209,53 @@ export function ActionCenterPage() {
       header: 'Problem / deviation',
       sortable: true,
       cell: (item) => <div className="min-w-64 max-w-xl">
-        <div className="font-medium text-slate-100">{item.problem}</div>
-        <p className="mt-0.5 text-xs text-slate-400">{item.explanation}</p>
+        <div className="font-medium text-slate-100">{item.findingCount} finding{item.findingCount === 1 ? '' : 's'}</div>
+        <p className="mt-0.5 text-xs text-slate-400">{item.findings.map(finding => finding.problem).join(' · ')}</p>
       </div>,
     },
     {
       id: 'source',
       header: 'Source',
       sortable: true,
-      cell: (item) => <span className="text-slate-200">{item.source}</span>,
+      className: 'min-w-40',
+      cell: (item) => <div className="flex flex-wrap gap-1 text-xs text-slate-200">{item.sources.map(source =>
+        <span key={source} className="whitespace-nowrap rounded bg-slate-800 px-1.5 py-0.5" title={source}>{shortSource[source] ?? source}</span>)}</div>,
     },
     {
       id: 'evidenceAge',
       header: 'Evidence age',
       sortable: true,
       cell: (item) => {
-        const coverage = coveragePresentation[item.coverage];
+        const oldest = item.findings.reduce<ActionCenterWorkItem | null>((current, finding) =>
+          current === null || (finding.evidenceAgeDays ?? -1) > (current.evidenceAgeDays ?? -1) ? finding : current, null)!;
+        const incomplete = item.findings.find(finding => finding.coverage !== 'AVAILABLE');
+        const coverage = coveragePresentation[incomplete?.coverage ?? 'AVAILABLE'];
         return <div className="flex min-w-44 flex-col gap-1">
-          <span className="text-xs text-muted" title={formatTimestamp(item.evidenceAtUtc)}>{evidenceAge(item)} old</span>
-          <span><Badge tone={coverage.tone}>{coverage.label} · {item.reliability}</Badge></span>
+          <span className="text-xs text-muted" title={formatTimestamp(oldest.evidenceAtUtc)}>{evidenceAge(oldest)} old</span>
+          <span><Badge tone={coverage.tone}>{coverage.label}</Badge></span>
         </div>;
       },
     },
     {
       header: 'Next action',
-      cell: (item) => <div className="min-w-64 max-w-lg">
-        <p className="text-xs text-slate-300">{item.recommendedAction}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <Link className="text-sm font-medium text-accent-300 hover:text-accent-200" to={item.href}>
-            Inspect evidence →
+      cell: (item) => <div className="min-w-36 max-w-lg">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link className="text-sm font-medium text-accent-300 hover:text-accent-200" to={item.href}
+            state={{ returnTo, returnLabel: 'Action Center' }}>
+            Open device →
           </Link>
           <button type="button" className="text-xs text-slate-400 hover:text-slate-200" onClick={() => setSelectedItem(item)}>
-            Show context
+            Show findings
           </button>
         </div>
       </div>,
     },
-  ], []);
+  ], [returnTo]);
 
   const applyFilters = () => {
     setPage(1);
     setActiveFilters({ ...draftFilters });
+    persistView(draftFilters, 1, pageSize, sortField, sortDirection);
   };
   const tableSort: DataTableSort = {
     column: columnBySortField[sortField],
@@ -216,6 +267,7 @@ export function ActionCenterPage() {
     setPage(1);
     setSortField(nextField);
     setSortDirection(next.direction === 'asc' ? 'ASCENDING' : 'DESCENDING');
+    persistView(activeFilters, 1, pageSize, nextField, next.direction === 'asc' ? 'ASCENDING' : 'DESCENDING');
   };
 
   return <div className="flex flex-col gap-4">
@@ -245,7 +297,8 @@ export function ActionCenterPage() {
       <section className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3" aria-label="Action Center summary">
         <dl className="flex flex-wrap gap-x-8 gap-y-3">
           {[
-            ['Open evidence', result.summary.total, 'text-slate-100'],
+            ['Devices requiring review', result.summary.total, 'text-slate-100'],
+            ['Findings', result.summary.findingCount, 'text-slate-100'],
             ['Critical', result.summary.critical, 'text-fail-300'],
             ['High', result.summary.high, 'text-fail-300'],
             ['Warning', result.summary.warning, 'text-warn-300'],
@@ -328,15 +381,27 @@ export function ActionCenterPage() {
           page: result.page,
           pageSize: result.pageSize,
           total: result.total,
-          itemLabel: 'work items',
-          onPageChange: setPage,
-          onPageSizeChange: (value) => { setPage(1); setPageSize(value); },
+          itemLabel: 'devices',
+          onPageChange: (value) => { setPage(value); persistView(activeFilters, value, pageSize, sortField, sortDirection); },
+          onPageSizeChange: (value) => { setPage(1); setPageSize(value); persistView(activeFilters, 1, value, sortField, sortDirection); },
         }}
       />
-      {selectedItem && <RelationshipMap
-        model={actionCenterRelationshipModel(selectedItem)}
-        actions={<Button variant="ghost" onClick={() => setSelectedItem(null)}>Close context</Button>}
-      />}
+      {selectedItem && <DetailDialog
+        title={`Action context · ${selectedItem.device}`}
+        description={`${selectedItem.findingCount} findings from ${selectedItem.sources.join(', ')}`}
+        closeLabel="Close action context"
+        onClose={() => setSelectedItem(null)}
+        wide
+      >
+        {selectedItem.identityAmbiguous && <p className="mb-3 text-sm text-warn-300">Source identity is ambiguous. Review the separate source records before selecting a Windows target.</p>}
+        <div className="space-y-3">{selectedItem.findings.map(finding => <section key={finding.id} className="rounded border border-slate-800 p-3">
+          <h3 className="font-medium text-slate-100">{finding.source} · {finding.problem}</h3>
+          <p className="mt-1 text-sm text-slate-300">{finding.explanation}</p>
+          <p className="mt-1 text-xs text-muted">Evidence: {formatTimestamp(finding.evidenceAtUtc)} · {coveragePresentation[finding.coverage].label} · {finding.coverageExplanation}</p>
+          <p className="mt-2 text-sm text-slate-300">{finding.recommendedAction}</p>
+          <Link className="mt-2 inline-block text-sm text-accent-300 underline" to={finding.href} state={{ returnTo, returnLabel: 'Action Center' }}>Inspect source evidence →</Link>
+        </section>)}</div>
+      </DetailDialog>}
     </>}
   </div>;
 }

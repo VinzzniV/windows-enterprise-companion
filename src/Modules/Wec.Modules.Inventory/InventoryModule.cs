@@ -12,6 +12,7 @@ public sealed class InventoryModule : IModule
 {
     public void RegisterServices(IServiceCollection services)
     {
+        services.AddScoped<IStoredDeviceListProvider, InventoryStoredDeviceListProvider>();
         services.AddScoped<IHardwareSnapshotRepository, EfHardwareSnapshotRepository>();
         services.AddScoped<InstalledSoftwareReader>();
         services.AddScoped<RemoteInstalledSoftwareReader>();

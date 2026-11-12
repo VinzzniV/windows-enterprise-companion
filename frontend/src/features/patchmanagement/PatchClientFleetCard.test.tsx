@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -102,31 +102,29 @@ describe('PatchClientFleetCard', () => {
   it('resets paging for filters and sort while preserving the exact query contract', async () => {
     render(<PatchClientFleetCard connected dashboard={dashboard} />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Next' }));
+    await screen.findByText('pc001');
+    fireEvent.click(screen.getByText('Next', { selector: 'button' }));
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
       'patchmanagement',
       'listClientStates',
       expect.objectContaining({ page: 2, pageSize: 50 }),
     ));
 
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'Filter patch clients by status' }),
-      'FAILED',
-    );
+    fireEvent.change(screen.getByLabelText('Filter patch clients by status'), { target: { value: 'FAILED' } });
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
       'patchmanagement',
       'listClientStates',
       expect.objectContaining({ page: 1, state: 'FAILED' }),
     ));
 
-    await userEvent.click(screen.getByRole('button', { name: /Client/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Client/ }));
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
       'patchmanagement',
       'listClientStates',
       expect.objectContaining({ page: 1, sortColumn: 'client', sortDirection: 'desc' }),
     ));
 
-    await userEvent.type(screen.getByRole('searchbox', { name: 'Filter patch packages' }), 'fire');
+    fireEvent.change(screen.getByLabelText('Filter patch packages'), { target: { value: 'fire' } });
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
       'patchmanagement',
       'listClientStates',

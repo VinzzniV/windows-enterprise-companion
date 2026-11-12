@@ -33,7 +33,7 @@ public sealed class EfDiagnosticRunRepository : IDiagnosticRunRepository
         {
             DiagnosticRunResult? run = JsonSerializer.Deserialize<DiagnosticRunResult>(record.PayloadJson);
             return run is null
-                ? null
+                ? throw new InvalidDataException($"Stored diagnostic run {record.Id} contains no payload.")
                 : run with
                 {
                     Results = run.Results
@@ -43,8 +43,8 @@ public sealed class EfDiagnosticRunRepository : IDiagnosticRunRepository
         }
         catch (JsonException exception)
         {
-            _logger.LogWarning(exception, "Discarding unreadable diagnostic run {RunId}", record.Id);
-            return null;
+            _logger.LogWarning(exception, "Stored diagnostic run {RunId} is unreadable", record.Id);
+            throw new InvalidDataException($"Stored diagnostic run {record.Id} is unreadable.", exception);
         }
     }
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Wec.Infrastructure.Persistence;
 using Wec.Modules.Diagnostics.Persistence;
 using Wec.Modules.EmployeeLifecycle.Persistence;
@@ -19,10 +20,11 @@ namespace Wec.Infrastructure.IntegrationTests.Persistence;
 /// </summary>
 internal static class IntegrationDbContextFactory
 {
-    public static WecDbContext Create(string databasePath)
+    public static WecDbContext Create(string databasePath, params IInterceptor[] interceptors)
     {
         var optionsBuilder = new DbContextOptionsBuilder<WecDbContext>();
         optionsBuilder.UseSqlite($"Data Source={databasePath}");
+        optionsBuilder.AddInterceptors(interceptors);
         return new WecDbContext(
             optionsBuilder.Options,
             new ModelAssemblyRegistry([

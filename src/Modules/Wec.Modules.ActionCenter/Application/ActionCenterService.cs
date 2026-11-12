@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Wec.Core.Contracts;
 using Wec.Core.Results;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.ActionCenter.Application;
 
@@ -50,16 +51,19 @@ internal sealed class ActionCenterService(
             .. InventoryItems(inventory, hygiene.AssessedAtUtc, options.Value.InventoryStaleWarningDays),
             .. security.Findings.Select(finding => FromSecurity(finding, hygiene.AssessedAtUtc)),
         ];
-        List<ActionCenterWorkItem> bounded = all
+        List<ActionCenterDeviceItem> grouped = all
+            .GroupBy(item => item.SubjectKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => ToDeviceItem(group.Key, group.ToList()))
+            .ToList();
+        List<ActionCenterDeviceItem> bounded = grouped
             .OrderBy(item => SeverityRank(item.Severity))
-            .ThenBy(item => item.Source, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Device, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.SubjectKey, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.ProblemCode, StringComparer.Ordinal)
             .Take(options.Value.MaximumComputedItems)
             .ToList();
-        bool itemsTruncated = all.Count > bounded.Count || security.ScansTruncated;
+        bool itemsTruncated = grouped.Count > bounded.Count || security.ScansTruncated;
 
-        IEnumerable<ActionCenterWorkItem> filtered = bounded;
+        IEnumerable<ActionCenterDeviceItem> filtered = bounded;
         string search = request.Search?.Trim() ?? string.Empty;
         if (search.Length > 0)
         {
@@ -74,12 +78,12 @@ internal sealed class ActionCenterService(
         string source = request.Source?.Trim() ?? string.Empty;
         if (source.Length > 0)
         {
-            filtered = filtered.Where(item => string.Equals(item.Source, source, StringComparison.OrdinalIgnoreCase));
+            filtered = filtered.Where(item => item.Sources.Contains(source, StringComparer.OrdinalIgnoreCase));
         }
 
-        List<ActionCenterWorkItem> matches = ApplySort(filtered, request.SortField, request.SortDirection).ToList();
+        List<ActionCenterDeviceItem> matches = ApplySort(filtered, request.SortField, request.SortDirection).ToList();
         long offset = (long)(request.Page - 1) * request.PageSize;
-        List<ActionCenterWorkItem> page = offset >= matches.Count
+        List<ActionCenterDeviceItem> page = offset >= matches.Count
             ? []
             : matches.Skip((int)offset).Take(request.PageSize).ToList();
         IReadOnlyList<ActionEvidenceSourceState> sources =
@@ -115,10 +119,11 @@ internal sealed class ActionCenterService(
         bool cleanupEvidence = IsCleanupEvidence(finding.FindingCode);
         bool nessus = finding.Source == "Nessus";
         string href = cleanupEvidence
-            ? $"/cleanup?host={Uri.EscapeDataString(finding.Host)}"
+            ? $"/cleanup?host={Uri.EscapeDataString(finding.SubjectKey)}"
             : nessus
-                ? $"/vulnerabilities?tab=findings&asset={Uri.EscapeDataString(finding.Host)}"
-                : $"/clients/{Uri.EscapeDataString(finding.Host)}";
+                ? $"/vulnerabilities?tab=findings&asset={Uri.EscapeDataString(finding.NessusSourceKey ?? finding.Host)}"
+                : finding.CanTargetWindows ? $"/clients/{Uri.EscapeDataString(finding.Host)}"
+                    : $"/devices?q={Uri.EscapeDataString(finding.Host)}";
         return new ActionCenterWorkItem(
             $"hygiene:{finding.SubjectKey}:{finding.FindingCode}",
             "Device",
@@ -138,7 +143,7 @@ internal sealed class ActionCenterService(
             Reliability(finding.Coverage),
             finding.CoverageExplanation,
             RecommendedAction(finding.FindingCode),
-            href);
+            href) { CanTargetWindows = finding.CanTargetWindows, IdentityAmbiguous = finding.IdentityAmbiguous };
     }
 
     private static IEnumerable<ActionCenterWorkItem> InventoryItems(
@@ -149,7 +154,7 @@ internal sealed class ActionCenterService(
         .Select(snapshot => new ActionCenterWorkItem(
             $"inventory:{snapshot.Host}:stale",
             "Device",
-            snapshot.Host.ToUpperInvariant(),
+            $"stored:inventory:{HostAddress.ComparisonKey(snapshot.Host)}",
             snapshot.Host,
             null,
             null,
@@ -172,7 +177,7 @@ internal sealed class ActionCenterService(
         DateTimeOffset assessedAtUtc) => new(
             $"security:{finding.SubjectKey}:{finding.FindingId}",
             "Device",
-            finding.SubjectKey,
+            $"stored:security:{HostAddress.ComparisonKey(finding.SubjectKey)}",
             finding.Host,
             null,
             null,
@@ -192,37 +197,55 @@ internal sealed class ActionCenterService(
                 : finding.Recommendation,
             $"/clients/{Uri.EscapeDataString(finding.Host)}?section=security");
 
-    private static ActionCenterSummary Summarize(List<ActionCenterWorkItem> items) => new(
+    private static ActionCenterDeviceItem ToDeviceItem(string subjectKey, List<ActionCenterWorkItem> findings)
+    {
+        ActionCenterWorkItem[] ordered = findings
+            .OrderBy(item => SeverityRank(item.Severity))
+            .ThenBy(item => item.Source, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.ProblemCode, StringComparer.Ordinal)
+            .ToArray();
+        ActionCenterWorkItem primary = ordered[0];
+        bool ambiguous = ordered.Any(item => item.IdentityAmbiguous || !item.CanTargetWindows);
+        bool canTargetWindows = ordered.Any(item => item.CanTargetWindows);
+        return new ActionCenterDeviceItem(
+            $"device:{subjectKey}", subjectKey, primary.Device, primary.Severity,
+            ordered.Select(item => item.Source).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            ordered.Length, ambiguous,
+            canTargetWindows ? $"/clients/{Uri.EscapeDataString(primary.Device)}" : $"/devices?q={Uri.EscapeDataString(primary.Device)}",
+            ordered);
+    }
+
+    private static ActionCenterSummary Summarize(List<ActionCenterDeviceItem> items) => new(
         items.Count,
+        items.Sum(item => item.FindingCount),
         items.Count(item => item.Severity == ActionCenterSeverity.Critical),
         items.Count(item => item.Severity == ActionCenterSeverity.High),
         items.Count(item => item.Severity == ActionCenterSeverity.Warning),
-        items.Count(item => item.Coverage != ActionEvidenceAvailability.Available));
+        items.Count(item => item.Findings.Any(finding => finding.Coverage != ActionEvidenceAvailability.Available)));
 
-    private static IOrderedEnumerable<ActionCenterWorkItem> ApplySort(
-        IEnumerable<ActionCenterWorkItem> items,
+    private static IOrderedEnumerable<ActionCenterDeviceItem> ApplySort(
+        IEnumerable<ActionCenterDeviceItem> items,
         ActionCenterSortField field,
         ActionCenterSortDirection direction)
     {
-        Func<ActionCenterWorkItem, object?> key = field switch
+        Func<ActionCenterDeviceItem, object?> key = field switch
         {
             ActionCenterSortField.Device => item => item.Device,
-            ActionCenterSortField.Source => item => item.Source,
-            ActionCenterSortField.EvidenceAge => item => item.EvidenceAgeDays ?? -1,
-            ActionCenterSortField.Problem => item => item.Problem,
+            ActionCenterSortField.Source => item => item.Sources.Count == 0 ? null : item.Sources[0],
+            ActionCenterSortField.EvidenceAge => item => item.Findings.Max(finding => finding.EvidenceAgeDays ?? -1),
+            ActionCenterSortField.Problem => item => item.Findings[0].Problem,
             _ => item => SeverityRank(item.Severity),
         };
-        IOrderedEnumerable<ActionCenterWorkItem> ordered = direction == ActionCenterSortDirection.Descending
+        IOrderedEnumerable<ActionCenterDeviceItem> ordered = direction == ActionCenterSortDirection.Descending
             ? items.OrderByDescending(key, Comparer<object?>.Default)
             : items.OrderBy(key, Comparer<object?>.Default);
         return ordered
             .ThenBy(item => item.Device, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.Source, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.ProblemCode, StringComparer.Ordinal);
+            .ThenBy(item => item.SubjectKey, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static string SearchText(ActionCenterWorkItem item) =>
-        $"{item.Device} {item.Problem} {item.Explanation} {item.Source} {item.RecommendedAction}";
+    private static string SearchText(ActionCenterDeviceItem item) =>
+        $"{item.Device} {string.Join(' ', item.Findings.Select(finding => $"{finding.Problem} {finding.Explanation} {finding.Source} {finding.RecommendedAction}"))}";
 
     private static int? AgeDays(DateTimeOffset? evidenceAtUtc, DateTimeOffset assessedAtUtc) => evidenceAtUtc is null
         ? null

@@ -28,7 +28,7 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
         DirectorySearchQuery query,
         CancellationToken cancellationToken) =>
         // S.DS.Protocols is synchronous; run off the caller thread (UI)
-        Task.Run(() => ExecuteSearch(query), cancellationToken);
+        Task.Run(() => ExecuteSearch(query, cancellationToken), cancellationToken);
 
     public Task<Result<BoundedDirectorySearchResult>> SearchBoundedAsync(
         DirectorySearchQuery query,
@@ -36,7 +36,7 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(entryLimit);
-        return Task.Run(() => ExecuteBoundedSearch(query, entryOffset: 0, entryLimit), cancellationToken);
+        return Task.Run(() => ExecuteBoundedSearch(query, entryOffset: 0, entryLimit, cancellationToken), cancellationToken);
     }
 
     public Task<Result<BoundedDirectorySearchResult>> SearchPageAsync(
@@ -52,12 +52,12 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
             throw new ArgumentException("Paged directory searches require a stable sort attribute.", nameof(query));
         }
 
-        return Task.Run(() => ExecuteBoundedSearch(query, entryOffset, entryLimit), cancellationToken);
+        return Task.Run(() => ExecuteBoundedSearch(query, entryOffset, entryLimit, cancellationToken), cancellationToken);
     }
 
-    private Result<IReadOnlyList<DirectoryEntryData>> ExecuteSearch(DirectorySearchQuery query)
+    private Result<IReadOnlyList<DirectoryEntryData>> ExecuteSearch(DirectorySearchQuery query, CancellationToken cancellationToken)
     {
-        Result<BoundedDirectorySearchResult> result = ExecuteBoundedSearch(query, entryOffset: 0, int.MaxValue);
+        Result<BoundedDirectorySearchResult> result = ExecuteBoundedSearch(query, entryOffset: 0, int.MaxValue, cancellationToken);
         return result.IsFailure
             ? Result.Failure<IReadOnlyList<DirectoryEntryData>>(result.Error!)
             : Result.Success(result.Value.Entries);
@@ -66,8 +66,17 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
     private Result<BoundedDirectorySearchResult> ExecuteBoundedSearch(
         DirectorySearchQuery query,
         int entryOffset,
-        int entryLimit)
+        int entryLimit,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        bool secondarySort = !string.IsNullOrWhiteSpace(query.SortTieBreakerAttribute);
+        if (secondarySort && (query.MaximumSortedPageEntries is not > 0
+            || (long)entryOffset + entryLimit > query.MaximumSortedPageEntries))
+        {
+            return Result.Failure<BoundedDirectorySearchResult>(new Error(ErrorCode.InvalidRequest,
+                "This sorted page exceeds the configured directory result window. Narrow the search or select an earlier page."));
+        }
         string connectionTarget = query.Server ?? query.DomainDnsName;
 
         Error? dnsError = ProbeDnsResolution(connectionTarget);
@@ -93,47 +102,36 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
 
             connection.Bind();
 
-            string[] attributes = query.Attributes.Count > 0
-                ? [.. query.Attributes]
-                : [NoAttributesMarker];
-            var request = new SearchRequest(
-                query.BaseDistinguishedName,
-                query.LdapFilter,
-                MapScope(query.Scope),
-                attributes);
-            var pageControl = new PageResultRequestControl(query.PageSize);
-            request.Controls.Add(pageControl);
-            if (!string.IsNullOrWhiteSpace(query.SortAttribute))
-            {
-                SortKey[] sortKeys = string.IsNullOrWhiteSpace(query.SortTieBreakerAttribute)
-                    ? [new SortKey(query.SortAttribute, null, query.SortDescending)]
-                    : [
-                        new SortKey(query.SortAttribute, null, query.SortDescending),
-                        new SortKey(query.SortTieBreakerAttribute, null, query.SortDescending),
-                    ];
-                request.Controls.Add(new SortRequestControl(sortKeys));
-            }
+            SearchRequest request = CreateSearchRequest(query);
+            PageResultRequestControl pageControl = request.Controls.OfType<PageResultRequestControl>().Single();
 
             var accumulator = new BoundedDirectoryResultAccumulator(entryOffset, entryLimit);
+            BoundedDirectorySortAccumulator? sorted = secondarySort ? new(query, entryOffset, entryLimit) : null;
             while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var response = (SearchResponse)connection.SendRequest(request, query.TimeLimit);
                 SortResponseControl? sortResponse = response.Controls
                     .OfType<SortResponseControl>()
                     .FirstOrDefault();
-                if (sortResponse is { Result: not ResultCode.Success })
+                if (!string.IsNullOrWhiteSpace(query.SortAttribute) && sortResponse is not { Result: ResultCode.Success })
                 {
                     return Result.Failure<BoundedDirectorySearchResult>(new Error(
                         ErrorCode.DirectoryUnavailable,
                         $"The directory could not sort results by '{query.SortAttribute}'.")
                     {
-                        Details = $"LDAP sort result: {sortResponse.Result}.",
+                        Details = $"LDAP sort result: {sortResponse?.Result.ToString() ?? "missing response control"}.",
                     });
                 }
 
                 foreach (SearchResultEntry entry in response.Entries)
                 {
-                    if (accumulator.CountAndShouldRetain())
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (sorted is not null)
+                    {
+                        sorted.Add(ToEntryData(entry));
+                    }
+                    else if (accumulator.CountAndShouldRetain())
                     {
                         accumulator.Retain(ToEntryData(entry));
                     }
@@ -150,7 +148,8 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
                 pageControl.Cookie = pageResponse.Cookie;
             }
 
-            BoundedDirectorySearchResult result = accumulator.Build();
+            cancellationToken.ThrowIfCancellationRequested();
+            BoundedDirectorySearchResult result = sorted?.Build() ?? accumulator.Build();
             LogSearchCompleted(
                 result.TotalCount,
                 result.Entries.Count,
@@ -173,6 +172,19 @@ public sealed partial class LdapDirectoryReader : IDirectoryReader
                 exception, "Directory search failed with {ErrorCode}: {LdapFilter}", error.Code, query.LdapFilter);
             return Result.Failure<BoundedDirectorySearchResult>(error);
         }
+    }
+
+    internal static SearchRequest CreateSearchRequest(DirectorySearchQuery query)
+    {
+        var request = new SearchRequest(query.BaseDistinguishedName, query.LdapFilter, MapScope(query.Scope),
+            query.Attributes.Count > 0 ? [.. query.Attributes] : [NoAttributesMarker]);
+        request.Controls.Add(new PageResultRequestControl(query.PageSize));
+        if (!string.IsNullOrWhiteSpace(query.SortAttribute))
+        {
+            // AD accepts one server key; secondary ordering is bounded locally (ADR 0023).
+            request.Controls.Add(new SortRequestControl(query.SortAttribute, query.SortDescending));
+        }
+        return request;
     }
 
     private static Error? ProbeDnsResolution(string target)

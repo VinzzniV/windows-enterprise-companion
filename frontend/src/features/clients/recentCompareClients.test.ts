@@ -24,12 +24,12 @@ describe('recent compare clients', () => {
     expect(recordRecentCompareHosts([' PC-A.corp.local ', 'pc-b.corp.local', 'pc-a'])).toEqual([
       'PC-A.corp.local',
       'pc-b.corp.local',
+      'pc-a',
       'OLD-0.corp.local',
       'OLD-1.corp.local',
       'OLD-2.corp.local',
       'OLD-3.corp.local',
       'OLD-4.corp.local',
-      'OLD-5.corp.local',
     ]);
     expect(loadRecentCompareHosts()).toHaveLength(8);
   });

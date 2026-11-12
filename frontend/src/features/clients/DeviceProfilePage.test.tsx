@@ -1,0 +1,259 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ClientOverviewResult, DeviceProfileResult, Microsoft365ReadState, ObjectSource } from '../../shared/api-types.generated';
+import { objectPath } from '../../shared/objects/objectRoutes';
+import { DeviceProfilePage } from './DeviceProfilePage';
+
+const mocks = vi.hoisted(() => ({ invoke: vi.fn(), request: { activeDirectory: {}, kaspersky: null }, refresh: vi.fn(), cancel: vi.fn() }));
+vi.mock('../../shared/bridge/bridgeClient', () => ({ invokeCancellable: mocks.invoke }));
+vi.mock('../../shared/targets/TargetContext', () => ({ useTargets: () => ({ adminCredentials: null }) }));
+vi.mock('../../shared/environment/EnvironmentContext', () => ({
+  useEnvironmentRequest: () => mocks.request,
+  useEnvironment: () => ({ refresh: mocks.refresh, loading: false, cancel: mocks.cancel }),
+}));
+
+const tenant = '11111111-1111-1111-1111-111111111111';
+const id = '22222222-2222-2222-2222-222222222222';
+const secondId = '33333333-3333-3333-3333-333333333333';
+
+function state(resource: Microsoft365ReadState['query']['resource'], objectId: string | null = null): Microsoft365ReadState {
+  const now = Date.now();
+  return { query: { resource, objectId, securityIdentifier: null }, tenantId: tenant, sessionRevision: 1, snapshotRevision: 1, availability: 'AVAILABLE',
+    loading: false, retrievedAtUtc: new Date(now).toISOString(), lastAttemptAtUtc: new Date(now).toISOString(), lastAttemptError: null,
+    retainedUntilUtc: new Date(now + 3600_000).toISOString(), freshUntilUtc: new Date(now + 600_000).toISOString(), freshness: 'FRESH', coverage: 'RETURNED_SET', loadedCount: 1, declaredTotal: null };
+}
+function profile(source: ObjectSource = 'ENTRA'): DeviceProfileResult {
+  return {
+    reference: { kind: 'DEVICE', source, scope: tenant, id }, title: 'Cloud device', identity: 'SCOPED_ID', explanation: 'Scoped source identity.', operationalHost: null,
+    wec: null, directory: null, directoryRecords: [], managementCandidates: null, managementSources: [], managementFindings: [], managementAssessedAtUtc: null,
+    relationships: [], candidates: [], sourceErrors: [], storedCandidateSources: [],
+    cloud: { tenantId: tenant, sessionRevision: 1, revision: 1,
+      entraReads: [{ state: state('DEVICE', id), devices: [{ id, deviceId: secondId, displayName: 'Cloud device', operatingSystem: null, operatingSystemVersion: null, trustType: null, accountEnabled: false, approximateLastSignInAtUtc: null }] }],
+      intune: { state: { ...state('MANAGED_DEVICES'), availability: 'NOT_ENABLED', loadedCount: null }, devices: [] },
+      registeredOwners: { state: state('DEVICE_OWNERS', id), members: [] }, managedDetails: [],
+    },
+  };
+}
+function storedOverview(): ClientOverviewResult {
+  const capturedAtUtc = '2026-09-16T10:00:00Z';
+  return {
+    host: 'PC-01.example.test',
+    inventory: { operatingSystem: 'Windows 11 Enterprise', operatingSystemVersion: '10.0', operatingSystemBuild: '26200', architecture: '64-bit',
+      cpuName: 'Test CPU', physicalCores: 8, logicalProcessors: 16, totalMemoryBytes: 16 * 1024 ** 3,
+      disks: [{ model: 'Disk', sizeBytes: 512 * 1024 ** 3, interfaceType: 'NVMe' }] },
+    software: { installedCount: 42, sample: [{ name: 'Admin tool', version: '1.2', publisher: 'Example' }] },
+    health: { criticalCount: 0, warningCount: 1, unknownCount: 0, healthyCount: 3,
+      issues: [{ diagnosticId: 'disk', title: 'Disk space', status: 'WARNING', affectedResource: 'C:' }] },
+    security: { scanStatus: 'COMPLETED', criticalCount: 0, highCount: 1, mediumCount: 0, lowCount: 0,
+      topFindings: [{ findingId: 'finding', title: 'Security finding', severity: 'HIGH', affectedResource: 'Service' }] },
+    users: null,
+    sources: [
+      ['Inventory', 'FRESH', true, 'Stored hardware available.', 'inventory'],
+      ['Installed software', 'STALE', true, 'Stored software is older than the freshness limit.', 'inventory'],
+      ['Health', 'FRESH', true, 'Four checks evaluated.', 'diagnostics'],
+      ['Security', 'STALE', false, 'One check was unavailable.', 'security'],
+      ['Linked users', 'MISSING', false, 'No stored user evidence.', 'inventory'],
+    ].map(([source, freshness, isComplete, coverage, detailSection]) => ({ source, provenance: `Stored ${source}`, freshness, capturedAtUtc,
+      ageSeconds: freshness === 'MISSING' ? null : 3600, isComplete, coverage, detailSection })),
+  } as ClientOverviewResult;
+}
+function managedWecProfile(): DeviceProfileResult {
+  const value = profile('WEC');
+  value.reference = { kind: 'DEVICE', source: 'WEC', scope: 'stored', id: '55Prod.example.test' };
+  value.title = '55Prod.example.test';
+  value.identity = 'ADDRESS_CANDIDATE';
+  value.operationalHost = '55Prod.example.test';
+  value.cloud = null;
+  value.managementAssessedAtUtc = '2026-09-28T08:00:00Z';
+  value.managementSources = ['Active Directory', 'Kaspersky', 'opsi', 'Nessus'].map(source => ({
+    source, availability: 'AVAILABLE', explanation: 'Cached inventory available.',
+  }));
+  value.managementCandidates = {
+    retrievedAtUtc: '2026-09-28T08:00:00Z', sources: [], activeDirectory: [], kaspersky: [], nessus: [],
+    opsi: [{ computerName: '55Prod.example.test', description: null, depotId: 'depot-1', lastSeen: '2026-06-01T08:00:00Z', clientAgentVersion: '4.3' }],
+    snapshotId: '55555555-5555-5555-5555-555555555555', opsiSessionId: null, sessionRevision: 1, revision: 1,
+  };
+  value.managementFindings = [{ subjectKey: 'evidence:55prod', host: '55Prod.example.test', findingCode: 'StaleOpsi',
+    severity: 'Warning', message: 'opsi is stale.', source: 'opsi', evidenceAtUtc: '2026-06-01T08:00:00Z',
+    coverage: 'AVAILABLE', coverageExplanation: 'Complete', canTargetWindows: true, identityAmbiguous: false, nessusSourceKey: null }];
+  return value;
+}
+function NavigateToSecond() { const navigate = useNavigate(); return <button onClick={() => navigate(`/devices/entra/${tenant}/${secondId}`)}>Second device</button>; }
+function renderPage(value = profile(), section = 'identity') {
+  return render(<MemoryRouter initialEntries={[`${objectPath(value.reference)}?section=${section}`]}><NavigateToSecond /><Routes><Route path="/devices/:source/:scope/:objectId" element={<DeviceProfilePage />} /></Routes></MemoryRouter>);
+}
+beforeEach(() => {
+  mocks.invoke.mockReset(); mocks.refresh.mockReset(); mocks.cancel.mockReset();
+  mocks.invoke.mockImplementation(() => ({ promise: Promise.resolve(profile()), cancel: mocks.cancel }));
+});
+afterEach(() => { vi.useRealTimers(); });
+
+describe('device profiles', () => {
+  it('shows cached management posture and probes the exact opened target once', async () => {
+    const value = managedWecProfile();
+    mocks.invoke.mockImplementation((module: string) => ({ promise: Promise.resolve(module === 'connectivity'
+      ? { results: [{ host: '55Prod.example.test', reachable: true, manageable: false }] } : value), cancel: mocks.cancel }));
+    renderPage(value, 'overview');
+    expect((await screen.findByText('Ping or WinRM responded')).className).toContain('text-ok-200');
+    expect(screen.getByText('Stale')).toBeTruthy();
+    expect(screen.queryByText('Not loaded')).toBeNull();
+    expect(mocks.invoke.mock.calls.filter(call => call[0] === 'connectivity')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('tab', { name: 'Identity & management' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }));
+    expect(mocks.invoke.mock.calls.filter(call => call[0] === 'connectivity')).toHaveLength(1);
+  });
+
+  it('shows a failed management refresh without claiming a new cached result', async () => {
+    const value = managedWecProfile();
+    mocks.invoke.mockImplementation((module: string) => ({ promise: Promise.resolve(module === 'connectivity'
+      ? { results: [{ host: '55Prod.example.test', reachable: false, manageable: false }] } : value), cancel: mocks.cancel }));
+    mocks.refresh.mockResolvedValue(null);
+    renderPage(value, 'overview');
+    expect((await screen.findByText('No Ping or WinRM response')).className).toContain('text-fail-200');
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh management sources' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('could not be refreshed');
+    expect(mocks.invoke.mock.calls.filter(call => call[0] === 'clients')).toHaveLength(1);
+  });
+
+  it('does not probe an ambiguous device even when a host value is present', async () => {
+    const value = managedWecProfile();
+    value.identity = 'AMBIGUOUS';
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+    renderPage(value, 'overview');
+    expect(await screen.findByText('No exact Windows target is available for a connectivity check.')).toBeTruthy();
+    expect(mocks.invoke.mock.calls.filter(call => call[0] === 'connectivity')).toHaveLength(0);
+  });
+
+  it('waits for Overview before probing a profile opened on another section', async () => {
+    const value = managedWecProfile();
+    mocks.invoke.mockImplementation((module: string) => ({ promise: Promise.resolve(module === 'connectivity'
+      ? { results: [{ host: '55Prod.example.test', reachable: true, manageable: true }] } : value), cancel: mocks.cancel }));
+    renderPage(value, 'identity');
+    await screen.findByRole('heading', { name: '55Prod.example.test' });
+    expect(mocks.invoke.mock.calls.filter(call => call[0] === 'connectivity')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }));
+    expect(await screen.findByText('Ping or WinRM responded')).toBeTruthy();
+    expect(mocks.invoke.mock.calls.filter(call => call[0] === 'connectivity')).toHaveLength(1);
+  });
+  it('keeps the overview compact and exposes seven addressable areas without fetching adjacent sources', async () => {
+    renderPage(profile(), 'overview');
+    await screen.findByRole('heading', { name: 'Cloud device' });
+    expect(screen.getByRole('heading', { name: 'Available evidence' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Entra object read' })).toBeNull();
+    expect(screen.getByRole('tablist', { name: 'Device profile sections' }).querySelectorAll('button')).toHaveLength(7);
+    fireEvent.click(screen.getByRole('tab', { name: 'Relationships' }));
+    expect(screen.getByRole('heading', { name: 'Registered owners (Entra)' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: 'Inventory' }));
+    expect(screen.getByRole('heading', { name: 'Windows target required' })).toBeTruthy();
+    expect(mocks.invoke.mock.calls.filter(call => call[0] === 'clients')).toHaveLength(1);
+  });
+  it('uses the same roving arrow-key section behavior as the Windows profile', async () => {
+    renderPage(profile(), 'overview');
+    const overview = await screen.findByRole('tab', { name: 'Overview' });
+    overview.focus();
+    fireEvent.keyDown(overview, { key: 'ArrowRight' });
+
+    const identity = screen.getByRole('tab', { name: 'Identity & management' });
+    expect(identity.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(identity);
+  });
+  it('shows stored operating state and direct Windows tools in the canonical overview', async () => {
+    const value = profile('WEC');
+    value.reference = { kind: 'DEVICE', source: 'WEC', scope: 'stored', id: 'PC-01.example.test' };
+    value.title = 'PC-01.example.test'; value.operationalHost = 'PC-01.example.test'; value.wec = storedOverview(); value.cloud = null;
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+    renderPage(value, 'overview');
+    expect(await screen.findByText('Windows 11 Enterprise')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Health' })).toBeTruthy();
+    expect(screen.getByText('42 installed applications')).toBeTruthy();
+    expect(screen.getByText('One check was unavailable.')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Event logs' }).getAttribute('href')).toContain('section=events');
+    expect(screen.getAllByRole('link', { name: /Health/ }).some(link => link.getAttribute('href')?.includes('section=diagnostics'))).toBe(true);
+    expect(mocks.invoke.mock.calls.filter(call => call[0] === 'clients')).toHaveLength(1);
+  });
+  it('keeps the selected directory server when opening a scoped AD profile', async () => {
+    const value = profile();
+    value.reference = { kind: 'DEVICE', source: 'ACTIVE_DIRECTORY', scope: 'example.test', id };
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+    render(<MemoryRouter initialEntries={[{ pathname: objectPath(value.reference), state: { directoryEndpoint: { domain: 'example.test', server: 'selected-dc.example.test' } } }]}>
+      <Routes><Route path="/devices/:source/:scope/:objectId" element={<DeviceProfilePage />} /></Routes></MemoryRouter>);
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('clients', 'getProfile', expect.objectContaining({
+      activeDirectory: {}, directoryIdentityConnection: { domain: 'example.test', server: 'selected-dc.example.test' }, loadDirectoryIdentity: false,
+    })));
+  });
+
+  it('opens cloud-only evidence without source reads or a Windows action fallback', async () => {
+    renderPage(profile(), 'overview');
+    expect(await screen.findByRole('heading', { name: 'Cloud device' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Loaded Entra device facts' })).toBeTruthy();
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+    expect(mocks.invoke).toHaveBeenCalledWith('clients', 'getProfile', expect.objectContaining({ loadDirectoryIdentity: false }));
+    expect(screen.queryByRole('link', { name: 'Inventory' })).toBeNull();
+    expect(screen.getByText('No')).toBeTruthy();
+    expect(screen.getAllByText('Not available').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('tab', { name: 'Identity & management' }));
+    expect((screen.getByRole('button', { name: 'Load bounded Intune inventory' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(mocks.invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes the selected Entra query with its tenant and then recomposes cached facts', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: 'Cloud device' });
+    fireEvent.click(screen.getByRole('button', { name: 'Load this Entra source' }));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(3));
+    expect(mocks.invoke.mock.calls[1]).toEqual(['microsoft365', 'read', { resource: 'DEVICE', objectId: id, securityIdentifier: null, tenantId: tenant, refresh: true }]);
+    expect(mocks.invoke.mock.calls[2][0]).toBe('clients');
+  });
+
+  it('preserves source failure and partial coverage alongside older facts', async () => {
+    const value = profile();
+    value.cloud!.entraReads[0].state = { ...state('DEVICE', id), freshness: 'STALE', coverage: 'PARTIAL', declaredTotal: 50, lastAttemptError: { code: 'MICROSOFT365_THROTTLED', message: 'Retry later', details: null, requiredPrivilege: null } };
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+    renderPage(value);
+    expect(await screen.findByRole('heading', { name: 'Cloud device' })).toBeTruthy();
+    expect(screen.getByText(/Partial source query/).textContent).toContain('50');
+    expect(screen.getByRole('alert').textContent).toContain('Retry later');
+  });
+
+  it('renders each source record and navigates scoped user relationships', async () => {
+    const value = profile();
+    value.cloud!.entraReads[0].devices.push({ ...value.cloud!.entraReads[0].devices[0], displayName: 'Second returned record' });
+    value.identity = 'AMBIGUOUS';
+    value.relationships.push({ target: { kind: 'USER', source: 'ENTRA', scope: tenant, id: secondId }, label: 'Associated account', relation: 'Associated user (Intune)', evidence: 'SCOPED_ID', explanation: 'Not a primary-user claim.' });
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve(value), cancel: mocks.cancel });
+    renderPage(value);
+    expect(await screen.findByText('Second returned record')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: 'Relationships' }));
+    expect(screen.getByRole('link', { name: 'Associated account' }).getAttribute('href')).toBe(`/users/entra/${tenant}/${secondId}`);
+  });
+
+  it('clears the old subject immediately and ignores its late response', async () => {
+    let complete: (value: DeviceProfileResult) => void = () => {};
+    mocks.invoke.mockReturnValueOnce({ promise: new Promise<DeviceProfileResult>(resolve => { complete = resolve; }), cancel: mocks.cancel });
+    const next = { ...profile(), reference: { ...profile().reference, id: secondId }, title: 'Second profile' };
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve(next), cancel: mocks.cancel });
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Second device' }));
+    await screen.findByRole('heading', { name: 'Second profile' });
+    await act(async () => { complete(profile()); });
+    expect(screen.queryByRole('heading', { name: 'Cloud device' })).toBeNull();
+    expect(mocks.cancel).toHaveBeenCalled();
+  });
+
+  it('updates freshness and removes expired data through a cache-only reload', async () => {
+    vi.useFakeTimers();
+    const value = profile();
+    value.cloud!.entraReads[0].state.freshUntilUtc = new Date(Date.now() + 1000).toISOString();
+    value.cloud!.entraReads[0].state.retainedUntilUtc = new Date(Date.now() + 2000).toISOString();
+    mocks.invoke.mockReturnValueOnce({ promise: Promise.resolve(value), cancel: mocks.cancel });
+    mocks.invoke.mockReturnValue({ promise: Promise.resolve({ ...value, cloud: null, title: 'Expired profile' }), cancel: mocks.cancel });
+    renderPage(value);
+    await act(async () => {});
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(screen.getByText('Available · Stale')).toBeTruthy();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(screen.queryByText('Entra object read')).toBeNull();
+    expect(mocks.invoke.mock.calls.every(call => call[0] === 'clients')).toBe(true);
+  });
+});

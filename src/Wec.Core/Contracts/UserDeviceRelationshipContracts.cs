@@ -30,7 +30,12 @@ public sealed record UserDeviceRelationshipCoverage(
     int EvidenceCapturedDeviceCount,
     int NotCapturedDeviceCount,
     int UnavailableDeviceCount,
-    int TruncatedDeviceCount);
+    int TruncatedDeviceCount)
+{
+    public int? EvaluatedDeviceCount { get; init; }
+    public bool WorkingSetTruncated { get; init; }
+    public int MultipleLatestSnapshotDeviceCount { get; init; }
+}
 
 public sealed record UserDeviceRelationshipSnapshot(
     UserDeviceRelationshipCoverage Coverage,

@@ -49,13 +49,14 @@ internal sealed class DeviceCleanupEvidenceProvider(
             .Select(Project)]);
 
     private static DeviceCleanupSubjectEvidence Project(HygieneDevice device) => new(
-        device.ComputerName,
+        device.EvidenceKey ?? device.HostName,
         device.HostName,
         device.Assessment.Status.ToString(),
         new DeviceCleanupAdEvidence(
             device.ActiveDirectory.Exists,
             device.ActiveDirectory.Enabled,
             device.ActiveDirectory.OperatingSystem,
+            device.ActiveDirectory.Description,
             device.ActiveDirectory.DistinguishedName,
             device.ActiveDirectory.OrganizationalUnit,
             device.ActiveDirectory.LastLogonDate),
@@ -65,6 +66,7 @@ internal sealed class DeviceCleanupEvidenceProvider(
             device.Kaspersky.AdministrationGroup),
         new DeviceCleanupOpsiEvidence(
             device.Opsi.Exists,
+            device.Opsi.Description,
             device.Opsi.LastSeen,
             device.Opsi.DepotId),
         new DeviceCleanupNessusEvidence(
@@ -73,7 +75,11 @@ internal sealed class DeviceCleanupEvidenceProvider(
         [.. device.Assessment.Findings.Select(finding => new DeviceCleanupFindingEvidence(
             finding.Code.ToString(),
             finding.Severity.ToString(),
-            finding.Message))]);
+            finding.Message))])
+    {
+        CanTargetWindows = device.CanTargetWindows,
+        IdentityExplanation = device.CorrelationExplanation,
+    };
 
     private static ActionEvidenceSourceState Source(string source, InventorySourceState state) => new(
         source,

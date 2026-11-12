@@ -45,7 +45,12 @@ public sealed record HygieneActionEvidence(
     string Source,
     DateTimeOffset? EvidenceAtUtc,
     ActionEvidenceAvailability Coverage,
-    string CoverageExplanation);
+    string CoverageExplanation)
+{
+    public bool CanTargetWindows { get; init; } = true;
+    public bool IdentityAmbiguous { get; init; }
+    public string? NessusSourceKey { get; init; }
+}
 
 public sealed record HygieneActionSubject(
     string SubjectKey,
@@ -64,6 +69,10 @@ public sealed record HygieneActionEvidenceSnapshot(
 public interface IHygieneActionEvidenceProvider
 {
     Task<Result<HygieneActionEvidenceSnapshot>> LoadAsync(
+        HygieneActionEvidenceQuery query,
+        CancellationToken cancellationToken);
+
+    Task<HygieneActionEvidenceSnapshot?> ReadCachedAsync(
         HygieneActionEvidenceQuery query,
         CancellationToken cancellationToken);
 }

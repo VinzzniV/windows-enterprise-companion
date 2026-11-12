@@ -22,6 +22,9 @@ using Wec.Infrastructure.Registry;
 using Wec.Infrastructure.Shell;
 using Wec.Core.Modules;
 using Wec.Infrastructure.Time;
+using Wec.Infrastructure.Microsoft365;
+using Wec.Core.Microsoft365;
+using Wec.Modules.Microsoft365;
 using Wec.Infrastructure.Wmi;
 using Wec.Infrastructure.EventLog;
 using Wec.Infrastructure.Network;
@@ -34,6 +37,8 @@ using Wec.Modules.ActiveDirectory;
 using Wec.Modules.Diagnostics;
 using Wec.Modules.DeviceCleanup;
 using Wec.Modules.EmployeeLifecycle;
+using Wec.Modules.Clients;
+using Wec.Modules.GroupManagement;
 using Wec.Modules.Inventory;
 using Wec.Modules.NetworkScan;
 using Wec.Modules.PatchManagement;
@@ -121,6 +126,7 @@ internal static partial class Program
             Environment.GetEnvironmentVariable(RuntimeInstanceProfile.EnvironmentVariableName));
         builder.Configuration.AddInMemoryCollection(runtimeProfile.ConfigurationOverrides);
         builder.Services.AddSingleton(runtimeProfile);
+        builder.Services.AddSingleton(new Wec.Core.Objects.WecWorkspaceIdentity(runtimeProfile.ObjectScope, Environment.MachineName));
 
         builder.Services
             .AddOptions<LoggingOptions>()
@@ -254,6 +260,7 @@ internal static partial class Program
             new ReportingModule(),
             new ActiveDirectoryModule(),
             new UserManagementModule(),
+            new Microsoft365Module(),
             new ActionCenterModule(),
             new DeviceCleanupModule(),
             new PatchManagementModule(),
@@ -261,6 +268,8 @@ internal static partial class Program
             new NetworkScanModule(),
             new TargetsModule(),
             new EmployeeLifecycleModule(),
+            new ClientsModule(),
+            new GroupManagementModule(),
             new VulnerabilityManagementModule(),
         ];
         foreach (IModule module in modules)
@@ -301,6 +310,26 @@ internal static partial class Program
         builder.Services.AddSingleton<ISaveFileDialogService, WinFormsSaveFileDialogService>();
         builder.Services.AddSingleton<IPrivilegeContext, WindowsPrivilegeContext>();
         builder.Services.AddSingleton<IClock, SystemClock>();
+        builder.Services.AddSingleton<Microsoft365AuthenticationWindow>();
+        builder.Services.AddSingleton<IMicrosoft365AuthenticationWindow>(provider => provider.GetRequiredService<Microsoft365AuthenticationWindow>());
+        builder.Services.AddSingleton<IMicrosoft365Reader, MicrosoftGraphReader>();
+        builder.Services.AddOptions<Microsoft365Options>()
+            .Bind(builder.Configuration.GetSection(Microsoft365Options.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(value => (string.IsNullOrEmpty(value.TenantId) || Guid.TryParse(value.TenantId, out _))
+                && (string.IsNullOrEmpty(value.ClientId) || Guid.TryParse(value.ClientId, out _)), "Microsoft 365 identifiers must be GUIDs.")
+            .ValidateOnStart();
+
+        builder.Services.AddOptions<ObjectWorkingSetOptions>()
+            .Bind(builder.Configuration.GetSection(ObjectWorkingSetOptions.SectionName))
+            .ValidateDataAnnotations().ValidateOnStart();
+        builder.Services.AddOptions<Microsoft365CacheOptions>()
+            .Bind(builder.Configuration.GetSection(Microsoft365CacheOptions.SectionName))
+            .Validate(value => value.FreshFor > TimeSpan.Zero && value.RetainFor >= value.FreshFor
+                && value.RetainFor <= TimeSpan.FromHours(24) && value.MaximumEntries is >= 1 and <= 128
+                && value.MaximumObjectListRecords is >= 1 and <= 50000
+                && value.LicenseWarningRatio is > 0 and <= 1, "Microsoft 365 cache limits are invalid.")
+            .ValidateOnStart();
         builder.Services.AddSingleton<IServiceCredentialStore, WindowsCredentialStore>();
         builder.Services.AddSingleton<IActionHandler, PingHandler>();
         builder.Services.AddSingleton<IActionHandler, ProbeHostsHandler>();
@@ -316,6 +345,8 @@ internal static partial class Program
         builder.Services.AddSingleton<IActionHandler, SaveOpsiSettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, GetNessusSettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, SaveNessusSettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, GetMicrosoft365SettingsHandler>();
+        builder.Services.AddSingleton<IActionHandler, SaveMicrosoft365SettingsHandler>();
         builder.Services.AddSingleton<IActionHandler, GetServiceCredentialStatusesHandler>();
         builder.Services.AddSingleton<IActionHandler, SaveServiceCredentialHandler>();
         builder.Services.AddSingleton<IActionHandler, DeleteServiceCredentialHandler>();

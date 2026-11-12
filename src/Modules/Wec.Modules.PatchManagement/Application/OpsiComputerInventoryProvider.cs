@@ -12,6 +12,7 @@ internal sealed class OpsiComputerInventoryProvider : IOpsiComputerInventoryProv
     private readonly IOpsiClient _client;
     private readonly OpsiSessionState _session;
     private readonly OpsiSessionConnector _connector;
+    public Guid? CurrentSessionId => _session.Current?.SessionId;
 
     public OpsiComputerInventoryProvider(
         IOpsiClient client,
@@ -44,6 +45,12 @@ internal sealed class OpsiComputerInventoryProvider : IOpsiComputerInventoryProv
         Task<Result<IReadOnlyList<OpsiProductOnClient>>> agentsTask =
             _client.GetProductStatesAsync(session.Connection, ClientAgentProductId, cancellationToken);
         await Task.WhenAll(clientsTask, agentsTask).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (CurrentSessionId != session.SessionId)
+        {
+            return Result.Failure<OpsiComputerInventory>(new(ErrorCode.ServiceUnavailable,
+                "The opsi session changed during the inventory read. Read again in the selected session."));
+        }
 
         Result<IReadOnlyList<OpsiClientHost>> clients = await clientsTask.ConfigureAwait(false);
         if (clients.IsFailure)
@@ -81,6 +88,8 @@ internal sealed class OpsiComputerInventoryProvider : IOpsiComputerInventoryProv
 
         return Result.Success(new OpsiComputerInventory(
             computers,
-            Truncated: clients.Value.Count > take));
+            Truncated: clients.Value.Count > take,
+            SourceScope: session.Connection.ServiceUrl.Authority,
+            SessionId: session.SessionId));
     }
 }

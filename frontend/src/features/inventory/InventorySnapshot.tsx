@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type {
   DiskEncryptionStatus,
   EncryptableVolume,
@@ -8,6 +8,7 @@ import type {
 } from '../../shared/api-types';
 import { BridgeInvokeError, invoke } from '../../shared/bridge/bridgeClient';
 import { Card } from '../../shared/ui/Card';
+import { Button } from '../../shared/ui/Button';
 import { DataTable } from '../../shared/ui/DataTable';
 import { DetailsDisclosure } from '../../shared/ui/DetailsDisclosure';
 import { Spinner } from '../../shared/ui/Spinner';
@@ -54,29 +55,34 @@ function errorText(error: unknown): string {
 }
 
 type EncryptionState =
+  | { kind: 'idle' }
   | { kind: 'loading' }
-  | { kind: 'loaded'; volumes: EncryptableVolume[] }
-  | { kind: 'requiresElevation'; message: string }
-  | { kind: 'error'; message: string };
+  | { kind: 'loaded'; volumes: EncryptableVolume[]; checkedAt: Date }
+  | { kind: 'requiresElevation'; message: string; checkedAt: Date }
+  | { kind: 'error'; message: string; checkedAt: Date };
 
 function EncryptionCard({ target }: { target: TargetRequest | null }) {
-  const [state, setState] = useState<EncryptionState>({ kind: 'loading' });
+  const [state, setState] = useState<EncryptionState>({ kind: 'idle' });
 
-  useEffect(() => {
+  const check = () => {
     setState({ kind: 'loading' });
     invoke<DiskEncryptionStatus>('inventory', 'getDiskEncryptionStatus', { target })
-      .then((status) => setState({ kind: 'loaded', volumes: status.volumes }))
+      .then((status) => setState({ kind: 'loaded', volumes: status.volumes, checkedAt: new Date() }))
       .catch((error: unknown) => {
         if (error instanceof BridgeInvokeError && error.error.code === 'ACCESS_DENIED') {
-          setState({ kind: 'requiresElevation', message: error.error.message });
+          setState({ kind: 'requiresElevation', message: error.error.message, checkedAt: new Date() });
         } else {
-          setState({ kind: 'error', message: errorText(error) });
+          setState({ kind: 'error', message: errorText(error), checkedAt: new Date() });
         }
       });
-  }, [target]);
+  };
 
   return (
     <Card title="BitLocker">
+      {state.kind === 'idle' && <div className="flex flex-col items-start gap-2">
+        <p className="text-sm text-slate-400">Encryption status is a live target read and is not part of the stored hardware snapshot.</p>
+        <Button onClick={check}>Check BitLocker now</Button>
+      </div>}
       {state.kind === 'loading' && <Spinner label="Checking encryption status …" />}
 
       {state.kind === 'requiresElevation' && (
@@ -86,6 +92,8 @@ function EncryptionCard({ target }: { target: TargetRequest | null }) {
           <p className="text-xs text-muted">
             Restart the app as administrator to run this check.
           </p>
+          <p className="text-xs text-muted">Checked {state.checkedAt.toLocaleString()}</p>
+          <Button onClick={check}>Retry BitLocker check</Button>
         </div>
       )}
 
@@ -93,6 +101,8 @@ function EncryptionCard({ target }: { target: TargetRequest | null }) {
         <div className="flex flex-col gap-2">
           <StatusBadge variant="error">Failed</StatusBadge>
           <p className="text-sm text-slate-400">{state.message}</p>
+          <p className="text-xs text-muted">Checked {state.checkedAt.toLocaleString()}</p>
+          <Button onClick={check}>Retry BitLocker check</Button>
         </div>
       )}
 
@@ -115,6 +125,7 @@ function EncryptionCard({ target }: { target: TargetRequest | null }) {
             </li>
           ))}
           {state.volumes.length === 0 && <li className="text-slate-400">No encryptable volumes found.</li>}
+          <li className="text-xs text-muted">Checked {state.checkedAt.toLocaleString()}</li>
         </ul>
       )}
     </Card>

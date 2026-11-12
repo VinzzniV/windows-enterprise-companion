@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type {
   DirectoryUserSortField,
   UserPageResult,
@@ -23,7 +23,6 @@ import { loadView, saveView } from '../../shared/viewCache';
 import {
   defaultUserSort,
   emptyUserDirectoryEndpoint,
-  emptyUserFilters,
   formatDirectoryTimestamp,
   toUserDirectoryConnection,
   userDirectoryViewKey,
@@ -53,24 +52,66 @@ function AccountState({ enabled }: { enabled: boolean | null }) {
   return <Badge tone="warn">Unknown</Badge>;
 }
 
+function positiveInteger(value: string | null, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function filtersFromParams(params: URLSearchParams): UserFilters {
+  const accountState = params.get('account');
+  return {
+    search: params.get('q') ?? '',
+    department: params.get('department') ?? '',
+    baseDistinguishedName: params.get('ou') ?? '',
+    accountState: accountState === 'ENABLED' || accountState === 'DISABLED' ? accountState : 'ALL',
+  };
+}
+
 export function UsersPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { adminCredentials, savedTargets, savedTargetsReady } = useTargets();
   const cachedEndpoint = useRef(loadView<UserDirectoryEndpoint>(userDirectoryViewKey));
   const [draftEndpoint, setDraftEndpoint] = useState<UserDirectoryEndpoint>(
     () => cachedEndpoint.current ?? emptyUserDirectoryEndpoint,
   );
   const [activeEndpoint, setActiveEndpoint] = useState<UserDirectoryEndpoint | null>(null);
-  const [draftFilters, setDraftFilters] = useState<UserFilters>(emptyUserFilters);
-  const [activeFilters, setActiveFilters] = useState<UserFilters>(emptyUserFilters);
-  const [sort, setSort] = useState<UserSort>(defaultUserSort);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const initialFilters = useRef(filtersFromParams(searchParams));
+  const [draftFilters, setDraftFilters] = useState<UserFilters>(initialFilters.current);
+  const [activeFilters, setActiveFilters] = useState<UserFilters>(initialFilters.current);
+  const [sort, setSort] = useState<UserSort>(() => {
+    const field = searchParams.get('sort');
+    return {
+      field: field && field in columnBySortField ? field as DirectoryUserSortField : defaultUserSort.field,
+      direction: searchParams.get('dir') === 'DESCENDING' ? 'DESCENDING' : 'ASCENDING',
+    };
+  });
+  const [page, setPage] = useState(() => positiveInteger(searchParams.get('page'), 1));
+  const [pageSize, setPageSize] = useState(() => positiveInteger(searchParams.get('size'), 25));
   const [refreshRevision, setRefreshRevision] = useState(0);
   const [result, setResult] = useState<UserPageResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ErrorPresentation | null>(null);
   const requestId = useRef(0);
+
+  const persistView = useCallback((
+    filters: UserFilters,
+    nextPage: number,
+    nextPageSize: number,
+    nextSort: UserSort,
+  ) => {
+    const next = new URLSearchParams();
+    if (filters.search.trim()) next.set('q', filters.search.trim());
+    if (filters.department.trim()) next.set('department', filters.department.trim());
+    if (filters.baseDistinguishedName.trim()) next.set('ou', filters.baseDistinguishedName.trim());
+    if (filters.accountState !== 'ALL') next.set('account', filters.accountState);
+    next.set('page', String(nextPage));
+    next.set('size', String(nextPageSize));
+    next.set('sort', nextSort.field);
+    next.set('dir', nextSort.direction);
+    setSearchParams(next, { replace: true });
+  }, [setSearchParams]);
 
   useEffect(() => {
     if (!savedTargetsReady || activeEndpoint !== null) return;
@@ -121,7 +162,8 @@ export function UsersPage() {
     setPage(1);
     setActiveEndpoint({ ...draftEndpoint });
     setActiveFilters({ ...draftFilters });
-  }, [draftEndpoint, draftFilters]);
+    persistView(draftFilters, 1, pageSize, sort);
+  }, [draftEndpoint, draftFilters, pageSize, persistView, sort]);
 
   const columns = useMemo<DataColumn<UserSummary>[]>(() => [
     {
@@ -175,10 +217,12 @@ export function UsersPage() {
     const field = sortFieldByColumn[next.column];
     if (!field) return;
     setPage(1);
-    setSort({
+    const nextSort: UserSort = {
       field,
       direction: next.direction === 'asc' ? 'ASCENDING' : 'DESCENDING',
-    });
+    };
+    setSort(nextSort);
+    persistView(activeFilters, 1, pageSize, nextSort);
   };
 
   return <div className="flex flex-col gap-4">
@@ -195,6 +239,7 @@ export function UsersPage() {
         {loading ? 'Refreshing…' : 'Refresh'}
       </Button>
     </PageHeader>
+    <Link className="text-sm text-accent-400 underline" to="/users">Open the shared account working set</Link>
 
     <details className="rounded-lg border border-slate-800 bg-slate-900/40" open={false}>
       <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-slate-300">
@@ -299,7 +344,11 @@ export function UsersPage() {
         getRowKey={(user) => user.objectId}
         onRowClick={(user) => navigate(
           `/users/${encodeURIComponent(user.objectId)}`,
-          { state: { directoryEndpoint: activeEndpoint } },
+          { state: {
+            directoryEndpoint: activeEndpoint,
+            returnTo: `${location.pathname}${location.search}`,
+            returnLabel: 'AD user results',
+          } },
         )}
         sort={tableSort}
         onSortChange={changeSort}
@@ -308,8 +357,8 @@ export function UsersPage() {
           pageSize: result.pageSize,
           total: result.totalCount,
           itemLabel: 'users',
-          onPageChange: setPage,
-          onPageSizeChange: (size) => { setPage(1); setPageSize(size); },
+          onPageChange: (value) => { setPage(value); persistView(activeFilters, value, pageSize, sort); },
+          onPageSizeChange: (size) => { setPage(1); setPageSize(size); persistView(activeFilters, 1, size, sort); },
         }}
         loading={loading}
         stickyHeader

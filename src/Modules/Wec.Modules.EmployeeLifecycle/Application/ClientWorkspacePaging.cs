@@ -1,4 +1,5 @@
 using Wec.Core.Contracts;
+using Wec.Core.Targets;
 
 namespace Wec.Modules.EmployeeLifecycle.Application;
 
@@ -8,7 +9,7 @@ public sealed record ClientWorkspaceListItem(
     string Name,
     string? Os,
     string? Description,
-    bool Enabled,
+    bool? Enabled,
     bool Scanned,
     DateTimeOffset? CapturedAtUtc,
     bool Saved,
@@ -132,19 +133,24 @@ internal static class ClientWorkspacePaging
         foreach (HygieneDevice device in devices)
         {
             string host = device.HostName;
-            byKey[ClientKey(host)] = new ClientWorkspaceEntry
+            string key = device.EvidenceKey ?? ClientKey(host);
+            byKey[key] = new ClientWorkspaceEntry
             {
                 Host = host,
-                Key = ClientKey(host),
+                Key = key,
                 Name = device.ComputerName,
                 Os = device.ActiveDirectory.OperatingSystem,
                 Description = device.ActiveDirectory.Description,
-                Enabled = device.ActiveDirectory.Enabled ?? true,
+                Enabled = device.ActiveDirectory.Enabled,
                 InAd = device.ActiveDirectory.Exists,
                 Environment = device,
             };
         }
 
+        Dictionary<string, ClientWorkspaceEntry?> addressCandidates = byKey.Values
+            .GroupBy(entry => ClientKey(entry.Host), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count() == 1 && group.Single().Environment?.CanTargetWindows != false ? group.Single() : null,
+                StringComparer.OrdinalIgnoreCase);
         foreach (InventoryClientSnapshotHost stored in scannedHosts)
         {
             if (string.IsNullOrWhiteSpace(stored.Host))
@@ -153,14 +159,15 @@ internal static class ClientWorkspacePaging
             }
 
             string key = ClientKey(stored.Host);
-            if (!byKey.TryGetValue(key, out ClientWorkspaceEntry? client))
+            ClientWorkspaceEntry? client = addressCandidates.GetValueOrDefault(key) ?? byKey.GetValueOrDefault(key);
+            if (client is null)
             {
                 client = new ClientWorkspaceEntry
                 {
                     Host = stored.Host,
                     Key = key,
                     Name = stored.Host,
-                    Enabled = true,
+                    Enabled = null,
                 };
                 byKey[key] = client;
             }
@@ -172,14 +179,15 @@ internal static class ClientWorkspacePaging
         foreach (SavedClientTarget target in savedClients)
         {
             string key = ClientKey(target.Host);
-            if (!byKey.TryGetValue(key, out ClientWorkspaceEntry? client))
+            ClientWorkspaceEntry? client = addressCandidates.GetValueOrDefault(key) ?? byKey.GetValueOrDefault(key);
+            if (client is null)
             {
                 client = new ClientWorkspaceEntry
                 {
                     Host = target.Host,
                     Key = key,
                     Name = string.IsNullOrWhiteSpace(target.Label) ? target.Host : target.Label.Trim(),
-                    Enabled = true,
+                    Enabled = null,
                 };
                 byKey[key] = client;
             }
@@ -300,7 +308,7 @@ internal static class ClientWorkspacePaging
     }
 
     private static string ClientKey(string host) =>
-        host.Trim().Split('.')[0].ToUpperInvariant();
+        HostAddress.ComparisonKey(host);
 
     private sealed class ClientWorkspaceEntry
     {
@@ -309,7 +317,7 @@ internal static class ClientWorkspacePaging
         public required string Name { get; init; }
         public string? Os { get; init; }
         public string? Description { get; init; }
-        public bool Enabled { get; init; }
+        public bool? Enabled { get; init; }
         public bool Scanned { get; set; }
         public DateTimeOffset? CapturedAtUtc { get; set; }
         public bool Saved { get; set; }

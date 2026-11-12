@@ -80,6 +80,18 @@ Until a concrete remote test client is explicitly designated:
 
 No write endpoint or mutation is authorized by this decision.
 
+Live acceptance scope confirmed on 2026-09-16: the user designated one
+workstation in the current acceptance task and entered the admin credential
+directly in WEC. That single target is authorized for bounded
+read-only Inventory, Health, Event Log, Ping and WinRM smoke tests. Its hostname
+is retained in the task context, not this committed register, consistent with
+D-008. No other remote workstation or remote mutation is authorized.
+
+Acceptance clarification on 2026-09-16: the user authorizes correction of the
+live findings and investigation of Nessus coverage. One hundred percent Nessus
+coverage is not required; bounded, partial or historical results are acceptable
+when their cause, freshness and limits are correctly exposed.
+
 ## D-004 — GitHub Actions artifacts may be cleaned up
 
 Decision: confirmed recommendation.
@@ -207,6 +219,28 @@ product decision during the planned implementation:
 - do not introduce server mode, plugins, microservices, CQRS/MediatR, an event
   bus, arbitrary PowerShell, AI features or automatic remediation;
 - code signing remains a separate later topic.
+
+## D-009 — Microsoft 365 read-only source is authorized
+
+Decision: explicit implementation request received on 2026-09-14.
+The user authorizes Microsoft Graph as a new external source and the specified
+tenant, user, group, device, license, optional Intune and authentication-report
+fields. ADR 0021 records delegated MSAL/WAM authentication, least-privilege read
+scopes, session-only cloud caching and evidence-aware correlation. No directory
+write, mailbox contents, secret persistence or unattended application identity
+is authorized. Tenant configuration and live acceptance remain external gates.
+
+## D-010 — Object-centered consolidation is authorized
+
+Decision: explicit autonomous start received on 2026-09-14. ADR 0022 records
+the approved C2 navigation, Entra-only account profiles with AD authority for
+AD accounts, bounded AD computer GUID/SID and general group/direct-member
+reads, existing device evidence, Intune associated-user wording and memory-only
+profiles/index. No Phase 8 Windows identity collection, persistent links,
+additional Graph scopes, cloud storage/export or directory write is authorized.
+Implement `docs/consolidation-analysis-and-plan.md` in order and preserve its
+G2 functions/deep links before the navigation switch. Existing authentication,
+privacy, specialist action and release gates continue to apply.
 
 ## Autonomous execution readiness
 

@@ -435,6 +435,21 @@ public class HardwareInfoServiceTests
     }
 
     [Fact]
+    public async Task CacheOnly_WithUnreadableStoredSnapshot_ReturnsTypedFailure()
+    {
+        _repository.GetLatestAsync(LocalHostKey, Arg.Any<CancellationToken>())
+            .Returns<Task<CachedHardwareSnapshot?>>(_ => throw new InvalidDataException("Damaged payload."));
+        HardwareInfoService service = CreateService();
+
+        Result<HardwareInfoResult> result = await service.GetHardwareInfoAsync(
+            ScanTarget.Local, ScanCredentials.CurrentUser, forceRefresh: false,
+            CancellationToken.None, cacheOnly: true);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCode.StoredDataUnreadable, result.Error!.Code);
+    }
+
+    [Fact]
     public async Task ForceRefresh_BypassesCacheLookup()
     {
         SetUpSuccessfulWmiQueries();

@@ -17,6 +17,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.Graph" />
+    <PackageReference Include="Microsoft.Kiota.Abstractions" />
+    <PackageReference Include="Microsoft.Identity.Client.Broker" />
     <!-- Explicit reference solely to override the vulnerable transitive version
          (see comment in Directory.Packages.props) -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />

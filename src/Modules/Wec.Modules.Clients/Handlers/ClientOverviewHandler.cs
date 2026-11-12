@@ -1,8 +1,8 @@
 using Wec.Core.Messaging;
 using Wec.Core.Results;
-using Wec.Modules.EmployeeLifecycle.Application;
+using Wec.Modules.Clients.Application;
 
-namespace Wec.Modules.EmployeeLifecycle.Handlers;
+namespace Wec.Modules.Clients.Handlers;
 
 public sealed record GetClientOverviewRequest(string Host);
 

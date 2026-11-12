@@ -68,6 +68,7 @@ function combinedStoredEvidenceStatus(metadata: readonly ClientOverviewSourceMet
 }
 
 function confidenceFor(status: RelationshipStatus, stored: boolean): RelationshipConfidence {
+  if (!stored) return status === 'unknown' ? 'unknown' : 'low';
   if (status === 'connected' || status === 'stale') return stored ? 'confirmed' : 'high';
   if (status === 'disconnected') return 'medium';
   if (status === 'partial') return 'low';
@@ -242,10 +243,10 @@ export function buildDeviceRelationshipModel(
   };
 
   const edges: RelationshipEdge[] = [
-    relationshipEdge(primaryId, related[0], 'Represented in', 'Active Directory computer inventory', 'Matched by normalized computer identity in the explicitly loaded directory evidence.', false, managementObservedAtUtc),
-    relationshipEdge(primaryId, related[1], 'Managed by', 'Kaspersky managed-device inventory', 'Matched by normalized client identity in the explicitly loaded Kaspersky evidence.', false, managementObservedAtUtc),
-    relationshipEdge(primaryId, related[2], 'Managed by', 'opsi client inventory', 'Matched by normalized client identity in the explicitly loaded opsi evidence.', false, managementObservedAtUtc),
-    relationshipEdge(primaryId, related[3], 'Assessed by', 'Nessus completed-scan inventory', 'Matched by normalized asset identity in the explicitly loaded Nessus evidence.', false, managementObservedAtUtc),
+    relationshipEdge(primaryId, related[0], 'Name candidate in', 'Active Directory computer inventory', device.correlationExplanation ?? 'Directory name candidate; no shared device identity is established.', false, managementObservedAtUtc),
+    relationshipEdge(primaryId, related[1], 'Name candidate in', 'Kaspersky managed-device inventory', device.correlationExplanation ?? 'Kaspersky name candidate; no shared device identity is established.', false, managementObservedAtUtc),
+    relationshipEdge(primaryId, related[2], 'Name candidate in', 'opsi client inventory', device.correlationExplanation ?? 'opsi name candidate; no shared device identity is established.', false, managementObservedAtUtc),
+    relationshipEdge(primaryId, related[3], 'Name candidate in', 'Nessus completed-scan inventory', device.correlationExplanation ?? 'Nessus name candidate; no shared device identity is established.', false, managementObservedAtUtc),
     relationshipEdge(primaryId, related[4], 'Described by', inventoryMetadata.provenance, inventoryMetadata.coverage, true),
     relationshipEdge(primaryId, related[5], 'Observed by', healthMetadata.provenance, healthMetadata.coverage, true),
     relationshipEdge(primaryId, related[6], 'Assessed by', securityMetadata.provenance, securityMetadata.coverage, true),
@@ -290,15 +291,16 @@ export function DeviceRelationshipMap({
   useEffect(() => {
     probeRequestRef.current += 1;
     setReachability('unknown');
-  }, [device.hostName]);
+  }, [device.hostName, device.evidenceKey, device.canTargetWindows]);
 
   const checkConnectivity = () => {
+    if (device.canTargetWindows === false) return;
     const request = ++probeRequestRef.current;
     setReachability('checking');
     void invoke<ProbeHostsResponse>('connectivity', 'probeHosts', { hosts: [device.hostName] })
       .then((response) => {
         if (probeRequestRef.current !== request) return;
-        const result = response.results[0];
+        const result = response.results.find(row => row.host.toUpperCase() === device.hostName.toUpperCase());
         setReachability(result?.reachable || result?.manageable ? 'online' : 'no-response');
       })
       .catch(() => { if (probeRequestRef.current === request) setReachability('failed'); });
@@ -317,7 +319,7 @@ export function DeviceRelationshipMap({
 
   return <RelationshipMap model={model} actions={<>
     <span className="text-xs text-slate-500" role="status">Connectivity: {reachabilityLabel}</span>
-    <Button variant="ghost" disabled={reachability === 'checking'} onClick={checkConnectivity}>
+    <Button variant="ghost" disabled={device.canTargetWindows === false || reachability === 'checking'} onClick={checkConnectivity}>
       {reachability === 'checking' ? 'Checking …' : 'Check connectivity'}
     </Button>
   </>} />;
